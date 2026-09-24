@@ -216,3 +216,35 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# WhisperDnD project rules
+.env
+.env.*
+!.env.example
+.venv/
+venv/
+
+# Audio data directories
+data/input/*
+!data/input/.gitkeep
+data/output/*
+!data/output/.gitkeep
+
+# Model weights cache directories
+models/
+hf_cache/
+
+# Cloudflare Tunnel binaries
+.bin/
+cloudflared.exe
+
+# OAuth & Local User Credentials
+credentials.json
+token.json
+data/.discord_token.json
+*.token.json
+
+# Local Campaign State Files
+data/campaigns/*.json
+!data/campaigns/.gitkeep
+
