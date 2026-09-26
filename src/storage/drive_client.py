@@ -14,7 +14,7 @@ from googleapiclient.discovery import build
 from googleapiclient.http import MediaFileUpload, MediaIoBaseDownload
 
 SCOPES: List[str] = ["https://www.googleapis.com/auth/drive.file"]
-DEFAULT_FOLDER_NAME: str = "Whisper AI - Transcripciones"
+DEFAULT_FOLDER_NAME: str = "WhisperDnD"
 
 
 _active_oauth_flows: Dict[str, Any] = {}
@@ -37,7 +37,7 @@ def ensure_google_credentials_file(
     If missing, checks GOOGLE_CREDENTIALS_JSON environment variable and writes it physically.
     Supports Render Docker (/app/credentials.json), local project root, and secret mounts.
     """
-    if explicit_path and explicit_path.is_file():
+    if explicit_path is not None:
         return explicit_path
 
     root = project_root or Path(__file__).resolve().parent.parent.parent
@@ -62,7 +62,7 @@ def ensure_google_credentials_file(
         if os.name != "nt" and (Path("/app").is_dir() or str(root).startswith("/app")):
             target_path = app_path
         else:
-            target_path = explicit_path or local_path
+            target_path = local_path
 
         try:
             os.makedirs(os.path.dirname(str(target_path)), exist_ok=True)
@@ -81,7 +81,7 @@ def ensure_google_credentials_file(
         except Exception as e:
             print(f"Error escribiendo credentials.json: {e}")
 
-    return explicit_path or (app_path if (os.name != "nt" and Path("/app").is_dir()) else local_path)
+    return app_path if (os.name != "nt" and Path("/app").is_dir()) else local_path
 
 
 def ensure_google_token_file(
@@ -92,7 +92,7 @@ def ensure_google_token_file(
     Ensure Google token.json exists on disk.
     If missing, checks GOOGLE_TOKEN_JSON environment variable and writes it physically.
     """
-    if explicit_path and explicit_path.is_file():
+    if explicit_path is not None:
         return explicit_path
 
     root = project_root or Path(__file__).resolve().parent.parent.parent
@@ -426,10 +426,20 @@ class GoogleDriveStorage:
         service = self.service
 
         # 1. Locate app folders
-        folder_candidates = ["WhisperDnD", DEFAULT_FOLDER_NAME, "Whisper AI - Transcripciones", "WhisperApp"]
         env_folder = os.environ.get("GOOGLE_DRIVE_FOLDER_NAME")
-        if env_folder and env_folder not in folder_candidates:
-            folder_candidates.insert(0, env_folder)
+        raw_candidates = [
+            env_folder,
+            "WhisperDnD",
+            "whisperdnd",
+            "Whisper_DnD",
+            DEFAULT_FOLDER_NAME,
+            "Whisper AI - Transcripciones",
+            "WhisperApp",
+        ]
+        folder_candidates: List[str] = []
+        for fc in raw_candidates:
+            if fc and isinstance(fc, str) and fc not in folder_candidates:
+                folder_candidates.append(fc)
 
         found_root_ids: List[str] = []
         seen_ids = set()
@@ -500,16 +510,22 @@ class GoogleDriveStorage:
 
             lower_name = fname.lower()
             if lower_name.endswith(".json"):
+                if lower_name == "manifest.json":
+                    continue
                 try:
                     content = self.download_file_bytes(fid)
                     data = json.loads(content.decode("utf-8"))
-                    if isinstance(data, dict) and (
-                        "campaign_name" in data
-                        or "campaign_id" in data
-                        or "universal_pcs" in data
-                        or "sessions" in data
-                        or "roster" in data
-                    ):
+                    if isinstance(data, dict):
+                        c_name = (
+                            data.get("campaign_name")
+                            or data.get("name")
+                            or data.get("title")
+                            or Path(fname).stem
+                        )
+                        if "campaign_name" not in data:
+                            data["campaign_name"] = c_name
+                            content = json.dumps(data, ensure_ascii=False, indent=2).encode("utf-8")
+
                         local_target = c_dir / fname
                         should_write = True
                         if local_target.is_file():
@@ -525,9 +541,9 @@ class GoogleDriveStorage:
                         if should_write:
                             local_target.write_bytes(content)
                             downloaded_campaigns += 1
-                            c_name = data.get("campaign_name", local_target.stem)
-                            if c_name not in synced_campaign_names:
-                                synced_campaign_names.append(c_name)
+
+                        if c_name and c_name not in synced_campaign_names:
+                            synced_campaign_names.append(c_name)
                     else:
                         local_target = o_dir / fname
                         if not local_target.is_file():
@@ -535,6 +551,45 @@ class GoogleDriveStorage:
                             downloaded_notes += 1
                 except Exception as exc:
                     print(f"[GoogleDriveStorage] Error processing json {fname}: {exc}")
+
+            elif lower_name.endswith(".zip"):
+                try:
+                    content = self.download_file_bytes(fid)
+                    import zipfile
+                    with zipfile.ZipFile(io.BytesIO(content), "r") as zf:
+                        namelist = zf.namelist()
+                        camp_json_name = None
+                        if "campaign.json" in namelist:
+                            camp_json_name = "campaign.json"
+                        else:
+                            for n in namelist:
+                                if n.endswith(".json") and not n.endswith("manifest.json"):
+                                    camp_json_name = n
+                                    break
+                        if camp_json_name:
+                            camp_dict = json.loads(zf.read(camp_json_name).decode("utf-8"))
+                            if isinstance(camp_dict, dict):
+                                c_name = (
+                                    camp_dict.get("campaign_name")
+                                    or camp_dict.get("name")
+                                    or Path(fname).stem.replace("Campaña_", "").replace("Campana_", "")
+                                )
+                                camp_dict["campaign_name"] = c_name
+                                from src.storage.campaign_manager import CampaignManager
+                                safe_name = CampaignManager.sanitize_name(c_name)
+                                target_file = c_dir / f"{safe_name}.json"
+                                target_file.write_text(json.dumps(camp_dict, ensure_ascii=False, indent=2), encoding="utf-8")
+                                downloaded_campaigns += 1
+                                if c_name not in synced_campaign_names:
+                                    synced_campaign_names.append(c_name)
+                                for item in namelist:
+                                    if item.endswith((".md", ".docx", ".txt")):
+                                        out_target = o_dir / Path(item).name
+                                        if not out_target.is_file():
+                                            out_target.write_bytes(zf.read(item))
+                                            downloaded_notes += 1
+                except Exception as exc:
+                    print(f"[GoogleDriveStorage] Error processing zip {fname}: {exc}")
 
             elif lower_name.endswith((".md", ".docx", ".txt")):
                 local_target = o_dir / fname
@@ -553,10 +608,25 @@ class GoogleDriveStorage:
                 try:
                     self.upload_file(str(local_json.resolve()), folder_name=primary_folder)
                     uploaded_campaigns += 1
-                    if local_json.stem not in synced_campaign_names:
-                        synced_campaign_names.append(local_json.stem)
+                    try:
+                        c_data = json.loads(local_json.read_text(encoding="utf-8"))
+                        c_name = c_data.get("campaign_name") or local_json.stem
+                    except Exception:
+                        c_name = local_json.stem
+                    if c_name not in synced_campaign_names:
+                        synced_campaign_names.append(c_name)
                 except Exception as exc:
                     print(f"[GoogleDriveStorage] Error uploading local campaign {local_json.name}: {exc}")
+
+        # Ensure all existing local campaigns are included in synced_campaign_names
+        for local_json in c_dir.glob("*.json"):
+            try:
+                local_data = json.loads(local_json.read_text(encoding="utf-8"))
+                c_name = local_data.get("campaign_name") or local_json.stem
+                if c_name and c_name not in synced_campaign_names:
+                    synced_campaign_names.append(c_name)
+            except Exception:
+                pass
 
         return {
             "status": "success",

@@ -133,6 +133,7 @@ class TestGoogleDriveStorage(unittest.TestCase):
             "webViewLink": "https://drive.google.com/file/d/uploaded_file_id_999/view",
         }
         mock_files.create.return_value = mock_create
+        mock_files.update.return_value = mock_create
         mock_service.files.return_value = mock_files
         storage._service = mock_service
 
@@ -222,6 +223,64 @@ class TestGoogleDriveStorage(unittest.TestCase):
         self.assertTrue(self.dummy_token.is_file())
         self.assertIn("retained_flow_token", self.dummy_token.read_text())
 
+    def test_sync_from_google_drive_whisperdnd_json(self):
+        storage = GoogleDriveStorage(
+            credentials_path=str(self.dummy_creds),
+            token_path=str(self.dummy_token),
+        )
+        # Mock is_connected
+        storage.is_connected = MagicMock(return_value=True)
+
+        mock_service = MagicMock()
+        mock_files = MagicMock()
+
+        def list_side_effect(q=None, **kwargs):
+            m = MagicMock()
+            if "name = 'WhisperDnD'" in (q or ""):
+                m.execute.return_value = {"files": [{"id": "folder_whisperdnd_123", "name": "WhisperDnD"}]}
+            elif "'folder_whisperdnd_123' in parents" in (q or ""):
+                m.execute.return_value = {
+                    "files": [
+                        {
+                            "id": "file_strahd_json_456",
+                            "name": "La_Maldicion_de_Strahd.json",
+                            "mimeType": "application/json",
+                        }
+                    ],
+                    "nextPageToken": None,
+                }
+            else:
+                m.execute.return_value = {"files": [], "nextPageToken": None}
+            return m
+
+        mock_files.list.side_effect = list_side_effect
+        mock_service.files.return_value = mock_files
+        storage._service = mock_service
+
+        campaign_data = {
+            "campaign_name": "La Maldición de Strahd",
+            "dm": "Roy",
+            "sessions": [{"session_number": 1, "title": "Llegada a Barovia"}],
+            "universal_pcs": [{"name": "Kaelen", "class": "Paladin"}],
+        }
+        storage.download_file_bytes = MagicMock(return_value=json.dumps(campaign_data).encode("utf-8"))
+
+        c_dir = self.test_dir / "campaigns"
+        o_dir = self.test_dir / "output"
+
+        res = storage.sync_from_google_drive(campaigns_dir=c_dir, output_dir=o_dir)
+
+        self.assertEqual(res["status"], "success")
+        self.assertEqual(res["downloaded_campaigns"], 1)
+        self.assertIn("La Maldición de Strahd", res["campaign_names"])
+
+        saved_file = c_dir / "La_Maldicion_de_Strahd.json"
+        self.assertTrue(saved_file.is_file())
+        saved_json = json.loads(saved_file.read_text(encoding="utf-8"))
+        self.assertEqual(saved_json["campaign_name"], "La Maldición de Strahd")
+        self.assertEqual(saved_json["dm"], "Roy")
+
 
 if __name__ == "__main__":
     unittest.main()
+

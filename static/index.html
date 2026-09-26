@@ -3076,16 +3076,28 @@ function refreshAudioDevices() {
       }
     }
 
+    let hasAutoSyncedDriveThisSession = false;
+
     async function checkDriveStatus() {
       const urlParams = new URLSearchParams(window.location.search);
-      if (urlParams.get("drive_connected") === "true") {
+      const isJustConnected = urlParams.get("drive_connected") === "true";
+      if (isJustConnected) {
         window.history.replaceState({}, document.title, window.location.pathname);
       }
       try {
         const res = await fetch("/api/drive/status");
         if (res.ok) {
           const data = await res.json();
-          updateDriveUIState(Boolean(data.connected));
+          const isConnected = Boolean(data.connected);
+          updateDriveUIState(isConnected);
+
+          if (isConnected) {
+            // Auto-sync on Drive connection or web page startup
+            if (isJustConnected || !hasAutoSyncedDriveThisSession) {
+              hasAutoSyncedDriveThisSession = true;
+              await syncWithGoogleDrive(!isJustConnected, isJustConnected);
+            }
+          }
         }
       } catch (err) {
         console.warn("Could not check Google Drive status:", err);
@@ -3115,7 +3127,7 @@ function refreshAudioDevices() {
       }
     }
 
-    async function syncWithGoogleDrive() {
+    async function syncWithGoogleDrive(isSilent = false, isJustConnected = false) {
       const btnHeader = document.getElementById("btnSyncDriveHeader");
       const btnSettings = document.getElementById("btnSyncDriveSettings");
       const btnModal = document.getElementById("btnSyncDriveModal");
@@ -3123,20 +3135,32 @@ function refreshAudioDevices() {
       const setButtonsLoading = (loading) => {
         if (btnHeader) {
           btnHeader.disabled = loading;
-          btnHeader.innerHTML = loading ? `<span class="inline-block animate-spin">⏳</span>` : `<svg class="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg><span>Sincronizar</span>`;
+          btnHeader.innerHTML = loading
+            ? `<span class="inline-block animate-spin">⏳</span>`
+            : `<svg class="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg><span>Sincronizar</span>`;
         }
         if (btnSettings) {
           btnSettings.disabled = loading;
-          btnSettings.innerHTML = loading ? `<span class="inline-block animate-spin">⏳</span> Buscando en Drive...` : `<svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg><span>🔄 Sincronizar Campañas con Drive</span>`;
+          btnSettings.innerHTML = loading
+            ? `<span class="inline-block animate-spin">⏳</span> Buscando en Drive...`
+            : `<svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg><span>🔄 Sincronizar Campañas con Drive</span>`;
         }
         if (btnModal) {
           btnModal.disabled = loading;
-          btnModal.innerHTML = loading ? `<span class="inline-block animate-spin">⏳</span> Buscando...` : `<svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg><span>Sincronizar con Drive</span>`;
+          btnModal.innerHTML = loading
+            ? `<span class="inline-block animate-spin">⏳</span> Buscando...`
+            : `<svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg><span>Sincronizar con Drive</span>`;
         }
       };
 
       setButtonsLoading(true);
-      showInfoAlert("Buscando campañas y notas en Google Drive...");
+      if (!isSilent) {
+        if (isJustConnected) {
+          showInfoAlert("Google Drive conectado con éxito. Sincronizando campañas desde la carpeta 'WhisperDnD'...");
+        } else {
+          showInfoAlert("Buscando campañas y notas en Google Drive ('WhisperDnD')...");
+        }
+      }
 
       try {
         const res = await fetch("/api/drive/sync", {
@@ -3154,18 +3178,14 @@ function refreshAudioDevices() {
         const downloaded = data.downloaded_campaigns || 0;
         const uploaded = data.uploaded_campaigns || 0;
         const notes = data.downloaded_notes || 0;
-
-        let msg = `Sincronización completada con éxito. `;
-        if (downloaded > 0 || uploaded > 0 || notes > 0) {
-          msg += `(📥 ${downloaded} campañas descargadas, 📤 ${uploaded} campañas respaldadas, 📝 ${notes} notas restauradas)`;
-        } else {
-          msg += `Tus campañas y notas locales están al día con Google Drive.`;
-        }
-
-        showSuccessAlert(msg);
+        const synced = data.synced_campaigns || 0;
 
         // Refrescar automáticamente la lista de campañas en el selector y las notas académicas
         const campaigns = await loadCampaignList();
+        if (typeof refreshWikiCampaigns === "function") {
+          refreshWikiCampaigns();
+        }
+
         const modal = document.getElementById("campaignManagerModal");
         if (modal && !modal.classList.contains("hidden") && typeof renderCampaignManagerList === "function") {
           renderCampaignManagerList(campaigns);
@@ -3176,9 +3196,25 @@ function refreshAudioDevices() {
         if (typeof loadAcademicNotesHistory === "function") {
           await loadAcademicNotesHistory(false);
         }
+
+        if (isJustConnected) {
+          showSuccessAlert(`Google Drive conectado y sincronizado: ${synced} campaña(s) cargadas en el selector.`);
+        } else if (!isSilent) {
+          let msg = `Sincronización completada con éxito. `;
+          if (downloaded > 0 || uploaded > 0 || notes > 0) {
+            msg += `(📥 ${downloaded} campañas descargadas, 📤 ${uploaded} campañas respaldadas, 📝 ${notes} notas restauradas)`;
+          } else {
+            msg += `Tus campañas y notas locales están al día con Google Drive.`;
+          }
+          showSuccessAlert(msg);
+        } else if (downloaded > 0) {
+          showSuccessAlert(`Google Drive: ${downloaded} campaña(s) descargada(s) desde 'WhisperDnD' y cargadas en el selector.`);
+        }
       } catch (err) {
         console.error("Sync Drive error:", err);
-        showAlert("Error en la sincronización con Drive: " + err.message);
+        if (!isSilent) {
+          showAlert("Error en la sincronización con Drive: " + err.message);
+        }
       } finally {
         setButtonsLoading(false);
       }
@@ -3432,11 +3468,18 @@ function refreshAudioDevices() {
           });
           const campInput = document.getElementById("campaignNameInput");
           const savedActive = localStorage.getItem("last_active_campaign");
-          if (savedActive && campInput && !campInput.value) {
-            campInput.value = savedActive;
-            onCampaignChange();
-          } else if (campInput && campInput.value.trim()) {
-            loadCampaignRoster(campInput.value.trim());
+          if (campInput) {
+            const currentVal = campInput.value.trim();
+            if (currentVal && knownCampaigns[currentVal.toLowerCase()]) {
+              loadCampaignRoster(currentVal);
+            } else if (savedActive && knownCampaigns[savedActive.trim().toLowerCase()]) {
+              campInput.value = savedActive;
+              onCampaignChange();
+            } else if (!currentVal && campaigns.length > 0) {
+              const firstCamp = campaigns[0].name || campaigns[0].campaign_name;
+              campInput.value = firstCamp;
+              onCampaignChange();
+            }
           }
           return campaigns;
         }
