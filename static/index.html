@@ -3536,9 +3536,24 @@ function refreshAudioDevices() {
 
           // Extract campaign roster: support roster, participants, or party
           const campRoster = (currentCampaignState && (currentCampaignState.roster || currentCampaignState.participants || currentCampaignState.party || currentCampaignState.players)) || [];
-          if (Array.isArray(campRoster) && campRoster.length > 0) {
-            renderRosterTable(campRoster);
-            renderPartyChips(campRoster);
+          renderRosterTable(campRoster);
+          renderPartyChips(campRoster);
+
+          // Rellena inmediatamente el input de la fila 0 con el dm_name guardado
+          // y selecciona automáticamente en el dropdown de Discord de la fila 0 la cuenta guardada
+          const dmRow = document.querySelector("#rosterTableBody tr:first-child");
+          if (dmRow && currentCampaignState) {
+            const savedDmName = currentCampaignState.dm_name || currentCampaignState.dm || currentCampaignState.dungeon_master || "";
+            const savedDmDiscord = currentCampaignState.dm_discord_id || currentCampaignState.dm_discord || currentCampaignState.dm_discord_user_id || "";
+            const dmInput = dmRow.querySelector(".player-name");
+            const dmSelect = dmRow.querySelector(".discord-user-select");
+            if (dmInput && savedDmName) {
+              dmInput.value = savedDmName;
+            }
+            if (dmSelect && savedDmDiscord) {
+              dmSelect.innerHTML = buildDiscordSelectOptions(savedDmDiscord, savedDmName);
+              dmSelect.value = savedDmDiscord;
+            }
           }
 
           updateCampaignViewTabs(currentCampaignState);
@@ -3841,6 +3856,16 @@ function refreshAudioDevices() {
         </td>
       `;
       tbody.appendChild(tr);
+
+      const nameInput = tr.querySelector('.player-name');
+      if (nameInput && dmName) {
+        nameInput.value = dmName;
+      }
+      const discordSelect = tr.querySelector('.discord-user-select');
+      if (discordSelect && dmDiscordId) {
+        discordSelect.value = dmDiscordId;
+      }
+
       return tr;
     }
 
@@ -3919,51 +3944,119 @@ function refreshAudioDevices() {
     function renderRosterTable(roster) {
       const tbody = document.getElementById("rosterTableBody");
       tbody.innerHTML = "";
-      if (!roster || (Array.isArray(roster) && roster.length === 0)) {
-        renderRosterChips([]);
-        return;
-      }
 
       let dmName = "";
       let dmDiscordId = "";
       let players = [];
 
-      if (Array.isArray(roster)) {
-        if (roster.length > 0 && (roster[0].character_name === "(DM)" || roster[0].role === "Dungeon Master (DM)")) {
-          dmName = roster[0].player_name || "";
-          dmDiscordId = roster[0].discord_user_id || "";
+      if (Array.isArray(roster) && roster.length > 0) {
+        if (roster[0].character_name === "(DM)" || roster[0].role === "Dungeon Master (DM)") {
+          dmName = roster[0].player_name || roster[0].dm_name || roster[0].dm || "";
+          dmDiscordId = roster[0].discord_user_id || roster[0].discord_id || roster[0].dm_discord_id || roster[0].dm_discord || "";
           players = roster.slice(1);
         } else {
           players = roster;
         }
-      } else if (roster && typeof roster === "object") {
-        dmName = roster.dm_name || "";
-        dmDiscordId = roster.dm_discord_user_id || "";
-        players = roster.players || [];
+      } else if (roster && typeof roster === "object" && !Array.isArray(roster)) {
+        dmName = roster.dm_name || roster.dm || roster.dungeon_master || "";
+        dmDiscordId = roster.dm_discord_id || roster.dm_discord || roster.dm_discord_user_id || "";
+        players = roster.players || roster.roster || [];
       }
 
+      // Check currentCampaignState if dmName/dmDiscordId still empty
+      if (!dmName && typeof currentCampaignState !== "undefined" && currentCampaignState) {
+        dmName = currentCampaignState.dm_name || currentCampaignState.dm || currentCampaignState.dungeon_master || "";
+      }
+      if (!dmDiscordId && typeof currentCampaignState !== "undefined" && currentCampaignState) {
+        dmDiscordId = currentCampaignState.dm_discord_id || currentCampaignState.dm_discord || currentCampaignState.dm_discord_user_id || "";
+      }
+
+      // Check localStorage dnd_roster_data fallback
+      if (!dmName || !dmDiscordId) {
+        try {
+          const stored = localStorage.getItem("dnd_roster_data");
+          if (stored) {
+            const parsed = JSON.parse(stored);
+            if (!dmName && parsed.dm_name) dmName = parsed.dm_name;
+            if (!dmDiscordId) dmDiscordId = parsed.dm_discord_id || parsed.dm_discord_user_id || parsed.dm_discord || "";
+          }
+        } catch (e) {}
+      }
+
+      // ALWAYS render DM row (Row 0)
       renderDMRow(dmName, dmDiscordId);
-      players.forEach(p => {
-        addPlayerRow(p);
-      });
+
+      // Render players
+      if (Array.isArray(players)) {
+        players.forEach(p => {
+          if (p && p.character_name !== "(DM)" && p.role !== "Dungeon Master (DM)") {
+            addPlayerRow(p);
+          }
+        });
+      }
+
+      // Immediately restore Row 0 values
+      const dmRow = tbody.querySelector("tr:first-child");
+      if (dmRow) {
+        const dmInput = dmRow.querySelector(".player-name") || dmRow.querySelector('[data-field="player_name"]');
+        if (dmInput && dmName) {
+          dmInput.value = dmName;
+        }
+        const dmSelect = dmRow.querySelector(".discord-user-select") || dmRow.querySelector('[data-field="discord_user_id"]');
+        if (dmSelect && dmDiscordId) {
+          if (dmSelect.value !== dmDiscordId) {
+            dmSelect.innerHTML = buildDiscordSelectOptions(dmDiscordId, dmName);
+          }
+          dmSelect.value = dmDiscordId;
+        }
+      }
+
       renderRosterChips();
     }
 
-    function saveRoster() {
-      const dmRow = document.querySelector('#roster-table tbody tr:first-child') || document.querySelector('#rosterTableBody tr:first-child');
-      const dmName = dmRow ? (dmRow.querySelector('.player-name')?.value.trim() || '') : '';
-      const dmDiscordId = dmRow ? (dmRow.querySelector('.discord-user-select')?.value.trim() || '') : '';
+    function gatherRosterData() {
+      const tbody = document.getElementById("rosterTableBody");
+      let dmRow = tbody ? tbody.querySelector("tr:first-child") : null;
+      if (!dmRow) {
+        dmRow = renderDMRow("", "");
+      }
 
+      const dmNameInput = dmRow ? (dmRow.querySelector('.player-name') || dmRow.querySelector('[data-field="player_name"]')) : null;
+      const dmDiscordSelect = dmRow ? (dmRow.querySelector('.discord-user-select') || dmRow.querySelector('[data-field="discord_user_id"]')) : null;
+
+      const dmName = dmNameInput ? dmNameInput.value.trim() : '';
+      const dmDiscordId = dmDiscordSelect ? dmDiscordSelect.value.trim() : '';
+
+      const dmItem = {
+        player_name: dmName,
+        character_name: "(DM)",
+        species: "(N/A - DM)",
+        role: "Dungeon Master (DM)",
+        subclass: "N/A",
+        discord_user_id: dmDiscordId,
+        discord_id: dmDiscordId,
+        is_user: false,
+        is_user_character: false
+      };
+
+      const playerRows = tbody ? Array.from(tbody.querySelectorAll("tr")).slice(1) : [];
       const players = [];
-      const playerRows = document.querySelectorAll('#roster-table tbody tr:not(:first-child)');
       playerRows.forEach(row => {
-        const playerName = row.querySelector('.player-name')?.value.trim() || '';
-        const charName = row.querySelector('.char-name')?.value.trim() || '';
-        const species = row.querySelector('.species-select')?.value.trim() || '';
-        const role = row.querySelector('.class-select')?.value || '';
-        const subclass = row.querySelector('.subclass-input')?.value.trim() || '';
-        const discordUserId = row.querySelector('.discord-user-select')?.value.trim() || '';
-        const isUser = row.dataset.isUser === 'true';
+        const pInput = row.querySelector('.player-name') || row.querySelector('[data-field="player_name"]');
+        const cInput = row.querySelector('.char-name') || row.querySelector('[data-field="character_name"]');
+        const sInput = row.querySelector('.species-select') || row.querySelector('[data-field="species"]');
+        const rSelect = row.querySelector('.class-select') || row.querySelector('[data-field="role"]');
+        const scInput = row.querySelector('.subclass-input') || row.querySelector('[data-field="subclass"]');
+        const dSelect = row.querySelector('.discord-user-select') || row.querySelector('[data-field="discord_user_id"]');
+        const isUserCharInput = row.querySelector('[data-field="is_user_character"]');
+        const isUser = row.dataset.isUser === 'true' || (isUserCharInput && isUserCharInput.value === 'true');
+
+        const playerName = pInput ? pInput.value.trim() : '';
+        const charName = cInput ? cInput.value.trim() : '';
+        const species = sInput ? sInput.value.trim() : '';
+        const role = rSelect ? rSelect.value : '';
+        const subclass = scInput ? scInput.value.trim() : '';
+        const discordUserId = dSelect ? dSelect.value.trim() : '';
 
         if (playerName || charName) {
           players.push({
@@ -3973,26 +4066,98 @@ function refreshAudioDevices() {
             role: role,
             subclass: subclass,
             discord_user_id: discordUserId,
+            discord_id: discordUserId,
             is_user: isUser,
             is_user_character: isUser
           });
         }
       });
 
-      localStorage.setItem('dnd_roster_data', JSON.stringify({
+      const gatheredRosterArray = [dmItem, ...players];
+      const currentCampaignName = getSelectedCampaignName();
+
+      const payload = {
+        campaign_name: currentCampaignName,
         dm_name: dmName,
+        dm: dmName,
+        dungeon_master: dmName,
+        dm_discord_id: dmDiscordId,
+        dm_discord: dmDiscordId,
         dm_discord_user_id: dmDiscordId,
-        players: players
-      }));
+        roster: gatheredRosterArray
+      };
+
+      return {
+        dmName,
+        dmDiscordId,
+        dmNameInput,
+        dmDiscordSelect,
+        players,
+        gatheredRosterArray,
+        payload
+      };
     }
 
-    function saveCurrentRoster(showBadge = false) {
-      saveRoster();
+    function saveRoster() {
+      const data = gatherRosterData();
+      localStorage.setItem('dnd_roster_data', JSON.stringify({
+        dm_name: data.dmName,
+        dm_discord_user_id: data.dmDiscordId,
+        dm_discord_id: data.dmDiscordId,
+        dm_discord: data.dmDiscordId,
+        players: data.players,
+        roster: data.gatheredRosterArray
+      }));
+      return data;
+    }
+
+    let _rosterDebounceTimer = null;
+    function scheduleRosterBackendSync() {
+      const campName = getSelectedCampaignName();
+      if (!campName) return;
+      clearTimeout(_rosterDebounceTimer);
+      _rosterDebounceTimer = setTimeout(async () => {
+        const data = gatherRosterData();
+        try {
+          await fetch("/api/campaigns", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(data.payload)
+          });
+        } catch (err) {
+          console.warn("Debounced roster backend sync error:", err);
+        }
+      }, 1200);
+    }
+
+    async function saveCurrentRoster(showBadge = false, syncBackend = false) {
+      const data = saveRoster();
       const campName = getSelectedCampaignName();
       const storageKey = getCampaignRosterKey(campName);
-      const roster = getRosterFromTable(false);
-      if (storageKey) localStorage.setItem(storageKey, JSON.stringify(roster));
-      renderRosterChips(roster);
+      if (storageKey) {
+        localStorage.setItem(storageKey, JSON.stringify(data.gatheredRosterArray));
+      }
+      renderRosterChips(data.gatheredRosterArray);
+
+      if (syncBackend && campName) {
+        clearTimeout(_rosterDebounceTimer);
+        try {
+          const res = await fetch("/api/campaigns", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(data.payload)
+          });
+          if (res.ok) {
+            const savedState = await res.json();
+            currentCampaignState = savedState.campaign_state || savedState;
+          }
+        } catch (err) {
+          console.warn("Error auto-saving campaign roster to backend:", err);
+        }
+      } else if (!syncBackend && campName) {
+        scheduleRosterBackendSync();
+      }
+
       if (showBadge) {
         const badge = document.getElementById("saveStatusBadge");
         if (badge) {
@@ -4002,8 +4167,8 @@ function refreshAudioDevices() {
       }
     }
 
-    function manualSaveRoster() {
-      saveCurrentRoster(true);
+    async function manualSaveRoster() {
+      await saveCurrentRoster(true, true);
     }
 
     async function loadCampaignRoster(campaignName) {
@@ -4026,11 +4191,16 @@ function refreshAudioDevices() {
         if (res.ok) {
           const data = await res.json();
           const state = data.campaign_state || data;
-          // Extract array from roster, participants, or party
-          const backendMembers = (state && (state.roster || state.participants || state.party || state.players)) || null;
-          if (Array.isArray(backendMembers) && backendMembers.length > 0) {
-            rawMembers = backendMembers;
-            loaded = true;
+          if (state) {
+            dmName = state.dm_name || state.dm || state.dungeon_master || "";
+            dmDiscordId = state.dm_discord_id || state.dm_discord || state.dm_discord_user_id || "";
+            const backendMembers = (state.roster || state.participants || state.party || state.players) || null;
+            if (Array.isArray(backendMembers) && backendMembers.length > 0) {
+              rawMembers = backendMembers;
+              loaded = true;
+            } else if (dmName || dmDiscordId) {
+              loaded = true;
+            }
           }
         }
       } catch (err) {
@@ -4054,7 +4224,7 @@ function refreshAudioDevices() {
                 loaded = true;
               } else if (parsed.players && Array.isArray(parsed.players)) {
                 dmName = parsed.dm_name || "";
-                dmDiscordId = parsed.dm_discord_user_id || "";
+                dmDiscordId = parsed.dm_discord_id || parsed.dm_discord_user_id || parsed.dm_discord || "";
                 players = parsed.players;
                 loaded = true;
               }
@@ -4076,7 +4246,7 @@ function refreshAudioDevices() {
               loaded = true;
             } else if (parsed && parsed.players && Array.isArray(parsed.players) && parsed.players.length > 0) {
               dmName = parsed.dm_name || "";
-              dmDiscordId = parsed.dm_discord_user_id || "";
+              dmDiscordId = parsed.dm_discord_id || parsed.dm_discord_user_id || parsed.dm_discord || "";
               players = parsed.players;
               loaded = true;
             }
@@ -4093,13 +4263,27 @@ function refreshAudioDevices() {
 
       let fullRoster = [];
       if (rawMembers && Array.isArray(rawMembers)) {
-        fullRoster = rawMembers;
-      } else if (loaded && players) {
-        fullRoster = [
-          { player_name: dmName, character_name: "(DM)", role: "Dungeon Master (DM)", species: "(N/A - DM)", subclass: "N/A", is_user_character: false, discord_user_id: dmDiscordId },
-          ...players
-        ];
+        if (rawMembers.length > 0 && (rawMembers[0].character_name === "(DM)" || rawMembers[0].role === "Dungeon Master (DM)")) {
+          if (!dmName && rawMembers[0].player_name) dmName = rawMembers[0].player_name;
+          if (!dmDiscordId) dmDiscordId = rawMembers[0].discord_user_id || rawMembers[0].discord_id || rawMembers[0].dm_discord_id || "";
+          players = rawMembers.slice(1);
+        } else {
+          players = rawMembers;
+        }
       }
+      fullRoster = [
+        {
+          player_name: dmName,
+          character_name: "(DM)",
+          species: "(N/A - DM)",
+          role: "Dungeon Master (DM)",
+          subclass: "N/A",
+          is_user_character: false,
+          discord_user_id: dmDiscordId,
+          discord_id: dmDiscordId
+        },
+        ...players
+      ];
 
       // Render table and party chips immediately
       renderRosterTable(fullRoster);
@@ -4131,18 +4315,7 @@ function refreshAudioDevices() {
         m.is_user_character = isThis;
       });
       renderRosterTable(current);
-      saveCurrentRoster(true);
-
-      const campName = getSelectedCampaignName();
-      try {
-        await fetch("/api/campaigns", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ campaign_name: campName, roster: current })
-        });
-      } catch (err) {
-        console.warn("Error auto-saving campaign roster:", err);
-      }
+      await saveCurrentRoster(true, true);
     }
 
     function addRosterRow() {
@@ -4213,7 +4386,7 @@ function refreshAudioDevices() {
         const subclassVal = isDM ? "N/A" : (subclassInput ? subclassInput.value.trim() : "");
         const discordVal = discordSelect ? discordSelect.value.trim() : "";
 
-        if (filterEmpty) {
+        if (!isDM && filterEmpty) {
           const hasPlayer = Boolean(playerName);
           const hasChar = Boolean(charName && charName !== "(DM)" && charName !== "-");
           if (!hasPlayer && !hasChar) {
@@ -7724,6 +7897,9 @@ async function selectWikiEntity(type, key, data) {
     window.saveRoster = saveRoster;
     window.saveCurrentRoster = saveCurrentRoster;
     window.manualSaveRoster = manualSaveRoster;
+    window.guardarGrupo = manualSaveRoster;
+    window.loadCampaign = loadCurrentCampaign;
+    window.renderRoster = renderRosterTable;
     window.toggleUserCharacterRow = toggleUserCharacterRow;
     window.toggleUserCharacter = toggleUserCharacter;
     window.refreshDiscordParticipants = refreshDiscordParticipants;

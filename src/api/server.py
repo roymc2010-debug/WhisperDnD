@@ -283,6 +283,7 @@ class CreateCampaignRequest(BaseModel):
     dm: Optional[str] = Field(default=None, description="Dungeon Master name")
     dungeon_master: Optional[str] = Field(default=None, description="Dungeon Master name alias")
     dm_name: Optional[str] = Field(default=None, description="Dungeon Master name alias")
+    dm_discord: Optional[str] = Field(default=None, description="Dungeon Master Discord user ID alias")
     dm_discord_id: Optional[str] = Field(default=None, description="Dungeon Master Discord user ID")
     dm_discord_user_id: Optional[str] = Field(default=None, description="Dungeon Master Discord user ID alias")
     dm_discord_username: Optional[str] = Field(default=None, description="Dungeon Master Discord username")
@@ -2528,6 +2529,7 @@ async def delete_campaign_endpoint(campaign_name: str):
 
 
 @app.post("/api/campaigns")
+@app.post("/api/campaigns/save")
 async def create_or_init_campaign(payload: CreateCampaignRequest):
     """Create or load campaign state, optionally setting roster, DM, and prior lore."""
     manager = CampaignManager()
@@ -2536,15 +2538,18 @@ async def create_or_init_campaign(payload: CreateCampaignRequest):
 
     dm_val = payload.dm or payload.dungeon_master or payload.dm_name
     if dm_val is not None:
-        state["dm"] = dm_val.strip()
-        state["dungeon_master"] = dm_val.strip()
-        state["dm_name"] = dm_val.strip()
+        clean_dm = dm_val.strip()
+        state["dm"] = clean_dm
+        state["dungeon_master"] = clean_dm
+        state["dm_name"] = clean_dm
         modified = True
 
-    dm_discord_val = payload.dm_discord_id or payload.dm_discord_user_id
+    dm_discord_val = payload.dm_discord_id or payload.dm_discord_user_id or payload.dm_discord
     if dm_discord_val is not None:
-        state["dm_discord_id"] = dm_discord_val.strip()
-        state["dm_discord_user_id"] = dm_discord_val.strip()
+        clean_disc = dm_discord_val.strip()
+        state["dm_discord_id"] = clean_disc
+        state["dm_discord_user_id"] = clean_disc
+        state["dm_discord"] = clean_disc
         if payload.dm_discord_username:
             state["dm_discord_username"] = payload.dm_discord_username.strip()
         if payload.dm_discord_tag:
@@ -2558,19 +2563,39 @@ async def create_or_init_campaign(payload: CreateCampaignRequest):
             state["roster"][0].get("character_name") == "(DM)"
             or state["roster"][0].get("role") == "Dungeon Master (DM)"
         ):
-            dm_p_name = state["roster"][0].get("player_name", "").strip()
+            dm_p_name = (state["roster"][0].get("player_name") or "").strip()
             if dm_p_name:
                 state["dm"] = dm_p_name
                 state["dungeon_master"] = dm_p_name
                 state["dm_name"] = dm_p_name
-            dm_disc = state["roster"][0].get("discord_id") or state["roster"][0].get("discord_user_id")
+            elif state.get("dm_name"):
+                state["roster"][0]["player_name"] = state["dm_name"]
+
+            dm_disc = (state["roster"][0].get("discord_id") or state["roster"][0].get("discord_user_id") or "").strip()
             if dm_disc:
                 state["dm_discord_id"] = dm_disc
                 state["dm_discord_user_id"] = dm_disc
+                state["dm_discord"] = dm_disc
+            elif state.get("dm_discord_id"):
+                state["roster"][0]["discord_user_id"] = state["dm_discord_id"]
+                state["roster"][0]["discord_id"] = state["dm_discord_id"]
+
             if state["roster"][0].get("discord_username"):
                 state["dm_discord_username"] = state["roster"][0]["discord_username"]
             if state["roster"][0].get("discord_tag"):
                 state["dm_discord_tag"] = state["roster"][0]["discord_tag"]
+        elif state.get("dm_name") or state.get("dm_discord_id"):
+            dm_row = {
+                "player_name": state.get("dm_name") or state.get("dm") or "",
+                "character_name": "(DM)",
+                "species": "(N/A - DM)",
+                "role": "Dungeon Master (DM)",
+                "subclass": "N/A",
+                "is_user_character": False,
+                "discord_user_id": state.get("dm_discord_id") or "",
+                "discord_id": state.get("dm_discord_id") or "",
+            }
+            state["roster"].insert(0, dm_row)
         modified = True
 
     if payload.prior_lore is not None and payload.prior_lore.strip():

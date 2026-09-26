@@ -310,7 +310,55 @@ class TestCampaignApi(unittest.TestCase):
         self.assertEqual(data["campaign_state"]["universal_pcs"][0]["personaje"], "Octus Taconis")
         self.assertIn("Octus", data["campaign_state"]["universal_pcs"][0].get("aliases", []))
 
+    def test_dm_and_discord_persistence_save_endpoint(self):
+        camp_name = "DM Persistence Campaign"
+        payload = {
+            "campaign_name": camp_name,
+            "dm_name": "Dungeon Master Roy",
+            "dm_discord_id": "9876543210",
+            "roster": [
+                {
+                    "player_name": "Dungeon Master Roy",
+                    "character_name": "(DM)",
+                    "species": "(N/A - DM)",
+                    "role": "Dungeon Master (DM)",
+                    "subclass": "N/A",
+                    "discord_user_id": "9876543210",
+                },
+                {
+                    "player_name": "Alice",
+                    "character_name": "Valeros",
+                    "species": "Humano",
+                    "role": "Guerrero",
+                    "subclass": "Champion",
+                    "discord_user_id": "111222333",
+                }
+            ]
+        }
+        # Test /api/campaigns/save route alias
+        res = self.client.post("/api/campaigns/save", json=payload)
+        self.assertEqual(res.status_code, 200)
+        data = res.json()
+        self.assertEqual(data["dm_name"], "Dungeon Master Roy")
+        self.assertEqual(data["dm"], "Dungeon Master Roy")
+        self.assertEqual(data["dm_discord_id"], "9876543210")
+        self.assertEqual(data["dm_discord"], "9876543210")
+        self.assertEqual(data["roster"][0]["player_name"], "Dungeon Master Roy")
+        self.assertEqual(data["roster"][0]["character_name"], "(DM)")
+        self.assertEqual(data["roster"][0]["discord_user_id"], "9876543210")
+
+        # Test GET /api/campaigns/{campaign_name}
+        get_res = self.client.get(f"/api/campaigns/{camp_name}")
+        self.assertEqual(get_res.status_code, 200)
+        get_data = get_res.json()
+        state = get_data["campaign_state"]
+        self.assertEqual(state["dm_name"], "Dungeon Master Roy")
+        self.assertEqual(state["dm_discord_id"], "9876543210")
+        self.assertEqual(state["roster"][0]["player_name"], "Dungeon Master Roy")
+        self.assertEqual(state["roster"][0]["discord_user_id"], "9876543210")
+
 
 if __name__ == "__main__":
     unittest.main()
+
 

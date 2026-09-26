@@ -277,7 +277,8 @@ class CampaignManager:
                     "dm": data.get("dm") or data.get("dungeon_master") or data.get("dm_name") or "",
                     "dungeon_master": data.get("dm") or data.get("dungeon_master") or data.get("dm_name") or "",
                     "dm_name": data.get("dm") or data.get("dungeon_master") or data.get("dm_name") or "",
-                    "dm_discord_id": data.get("dm_discord_id") or data.get("dm_discord_user_id") or "",
+                    "dm_discord_id": data.get("dm_discord_id") or data.get("dm_discord_user_id") or data.get("dm_discord") or "",
+                    "dm_discord": data.get("dm_discord_id") or data.get("dm_discord_user_id") or data.get("dm_discord") or "",
                 })
             except Exception as exc:
                 print(f"[CampaignManager] Error reading {file}: {exc}")
@@ -361,10 +362,26 @@ class CampaignManager:
                 data["dm"] = dm_val
                 data["dungeon_master"] = dm_val
                 data["dm_name"] = dm_val
-                if "dm_discord_id" not in data:
-                    data["dm_discord_id"] = data.get("dm_discord_user_id") or ""
-                if "dm_discord_user_id" not in data:
-                    data["dm_discord_user_id"] = data.get("dm_discord_id") or ""
+
+                dm_disc = data.get("dm_discord_id") or data.get("dm_discord_user_id") or data.get("dm_discord") or ""
+                if not dm_disc and data.get("roster") and len(data["roster"]) > 0:
+                    r0 = data["roster"][0]
+                    if r0.get("character_name") == "(DM)" or r0.get("role") == "Dungeon Master (DM)":
+                        dm_disc = (r0.get("discord_id") or r0.get("discord_user_id") or "").strip()
+                data["dm_discord_id"] = dm_disc
+                data["dm_discord_user_id"] = dm_disc
+                data["dm_discord"] = dm_disc
+
+                # Ensure roster[0] reflects dm_val and dm_disc if it's the DM
+                if data.get("roster") and len(data["roster"]) > 0:
+                    r0 = data["roster"][0]
+                    if r0.get("character_name") == "(DM)" or r0.get("role") == "Dungeon Master (DM)":
+                        if dm_val and not (r0.get("player_name") or "").strip():
+                            r0["player_name"] = dm_val
+                        if dm_disc and not (r0.get("discord_user_id") or r0.get("discord_id") or "").strip():
+                            r0["discord_user_id"] = dm_disc
+                            r0["discord_id"] = dm_disc
+
                 # Auto-deduplicate entities on campaign load (e.g. Octus -> Octus Taconis)
                 merged = self._deduplicate_state(data, campaign_name=data.get("campaign_name", name))
                 if merged:
@@ -388,6 +405,7 @@ class CampaignManager:
             "dm": "",
             "dungeon_master": "",
             "dm_name": "",
+            "dm_discord": "",
             "dm_discord_id": "",
             "dm_discord_user_id": "",
             "roster": [],
