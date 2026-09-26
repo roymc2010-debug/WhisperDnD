@@ -590,6 +590,67 @@ class TestGeminiTTRPGSummarizer(unittest.TestCase):
         p_dnd_en = build_dnd_session_prompt(roster_formatted="Roster", transcript_text="Audio", target_language="en")
         self.assertIn("UNIVERSAL MID-SESSION PLAYER CHARACTER TRANSITIONS", p_dnd_en)
 
+    def test_parse_locations_and_items(self):
+        """Test that parse_json_response extracts and normalizes locations, items, and entity aliases."""
+        import json
+        json_payload = json.dumps({
+            "session_chapter": {
+                "title": "Exploración de Neverwinter",
+                "chronicle_text": "Llegaron a la ciudad."
+            },
+            "detected_pcs": [
+                {
+                    "personaje": "Octus Taconis",
+                    "aliases": ["Octus", "Lord Octus"],
+                    "jugador": "Carlos",
+                    "clase": "Mago",
+                    "especie": "Humano",
+                    "rol_en_sesion": "Consultó los archivos."
+                }
+            ],
+            "updated_npcs": [
+                {
+                    "name": "Lord Neverember",
+                    "aliases": ["Neverember", "El Protector"],
+                    "role": "Lord Protector",
+                    "tipo": "importantes",
+                    "notes": ["Ofreció una recompensa."]
+                }
+            ],
+            "locations": [
+                {
+                    "name": "Castillo Never",
+                    "type": "fortaleza",
+                    "description": "Antigua sede de poder en ruinas.",
+                    "status": "explorado",
+                    "associated_characters": ["Octus Taconis", "Lord Neverember"]
+                }
+            ],
+            "items": [
+                {
+                    "name": "Amuleto de Alagondar",
+                    "type": "reliquia",
+                    "description": "Un sello real plateado.",
+                    "holder": "Octus Taconis",
+                    "status": "en_posesion"
+                }
+            ]
+        })
+
+        parsed = GeminiTTRPGSummarizer.parse_json_response(json_payload, session_number=1)
+        self.assertEqual(len(parsed["locations"]), 1)
+        self.assertEqual(parsed["locations"][0]["name"], "Castillo Never")
+        self.assertEqual(parsed["locations"][0]["status"], "explorado")
+        self.assertIn("Octus Taconis", parsed["locations"][0]["associated_characters"])
+
+        self.assertEqual(len(parsed["items"]), 1)
+        self.assertEqual(parsed["items"][0]["name"], "Amuleto de Alagondar")
+        self.assertEqual(parsed["items"][0]["holder"], "Octus Taconis")
+        self.assertEqual(parsed["items"][0]["status"], "en_posesion")
+
+        self.assertEqual(parsed["detected_pcs"][0]["aliases"], ["Octus", "Lord Octus"])
+        self.assertEqual(parsed["updated_npcs"][0]["aliases"], ["Neverember", "El Protector"])
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -263,6 +263,39 @@ Conclusión comparativa.
             if test_out.is_file():
                 test_out.unlink()
 
+    def test_export_markdown_code_block_shading(self):
+        from src.exporters.docx_exporter import export_academic_notes_docx
+
+        sample_code_md = """# Guía de Algoritmos
+## 1. Implementación en Python
+```python
+def fibonacci(n):
+    return n if n <= 1 else fibonacci(n-1) + fibonacci(n-2)
+```
+Fin de la guía.
+"""
+        test_out = Path(self.temp_dir) / "test_code_shading.docx"
+        try:
+            exported_path = export_academic_notes_docx(
+                notes_md=sample_code_md,
+                subject="Ciencias de la Computación",
+                topic="Recursión",
+                output_path=str(test_out),
+            )
+            doc = docx.Document(exported_path)
+            code_paras = [p for p in doc.paragraphs if "def fibonacci" in p.text]
+            self.assertEqual(len(code_paras), 1)
+            p = code_paras[0]
+            self.assertEqual(p.runs[0].font.name, "Consolas")
+            # Verify w:shd background shading XML element
+            pPr = p._p.get_or_add_pPr()
+            shd_elements = pPr.findall(docx.oxml.ns.qn("w:shd"))
+            self.assertTrue(len(shd_elements) >= 1)
+            self.assertEqual(shd_elements[0].get(docx.oxml.ns.qn("w:fill")), "F3F4F6")
+        finally:
+            if test_out.is_file():
+                test_out.unlink()
+
 
 if __name__ == "__main__":
     unittest.main()

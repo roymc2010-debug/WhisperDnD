@@ -670,6 +670,8 @@ def process_session_for_campaign(
         is_youtube=is_youtube,
         chronicle_markdown=chronicle_md,
         raw_transcript=transcript_text,
+        locations=session_data.get("locations"),
+        items=session_data.get("items"),
     )
 
     docx_file = export_living_journal_docx(campaign_state)

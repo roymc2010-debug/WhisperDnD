@@ -650,6 +650,46 @@ When players speak generically on the audio channel without saying character nam
    - Document key clues, secrets, or revelations in the 'notes' array."""
     )
 
+    entity_resolution_instruction = (
+        """⚠️ RESOLUCIÓN DE ENTIDADES Y PREVENCIÓN DE DUPLICADOS (CASO OCTUS):
+- Si a lo largo de la sesión un personaje o PNJ es mencionado por diferentes nombres, alias, títulos o formas abreviadas (ej. 'Octus', 'Octus Taconis', 'Lord Octus'):
+  * NO generes múltiples entradas duplicadas en 'detected_pcs' o 'updated_npcs'.
+  * Resuelve la entidad bajo su nombre canónico más completo (ej. 'Octus Taconis').
+  * Incluye en el campo 'aliases' una lista con todas las formas alternas o abreviadas utilizadas (ej. 'aliases': ['Octus', 'Lord Octus'])."""
+        if not is_english
+        else """⚠️ ENTITY RESOLUTION & DEDUPLICATION (OCTUS CASE):
+- If throughout the session a character or NPC is called by different names, aliases, titles, or nicknames (e.g. 'Octus', 'Octus Taconis', 'Lord Octus'):
+  * DO NOT output separate duplicated entries in 'detected_pcs' or 'updated_npcs'.
+  * Resolve the entity to its most complete canonical name (e.g. 'Octus Taconis').
+  * Provide the 'aliases' array containing all alternative forms or titles used (e.g. 'aliases': ['Octus', 'Lord Octus'])."""
+    )
+
+    locations_instruction = (
+        """6. EXTRACCIÓN DE LUGARES Y PUNTOS DE INTERÉS:
+- Extrae todas las ciudades, regiones, mazmorras, fortalezas o puntos de interés explorados o descubiertos en la sesión.
+- Asigna 'status': 'explorado' (si la party lo recorrió activamente), 'en_progreso' (si la sesión concluyó allí), 'destruido' o 'no_visitado' (si solo fue mencionado como destino futuro).
+- En 'associated_characters', incluye los nombres de los personajes o PNJs estrechamente vinculados a ese lugar."""
+        if not is_english
+        else """6. LOCATIONS & POINTS OF INTEREST EXTRACTION:
+- Extract all cities, dungeons, regions, strongholds, or points of interest explored or discovered in the session.
+- Set 'status': 'explorado' (actively explored), 'en_progreso' (current location), 'destruido' (destroyed), or 'no_visitado' (mentioned for the future).
+- In 'associated_characters', list character or NPC names strongly tied to this location."""
+    )
+
+    items_instruction = (
+        """7. EXTRACCIÓN DE OBJETOS, ARTEFACTOS Y BOTÍN:
+- Extrae armas, armaduras, artefactos mágicos, reliquias o tesoros clave obtenidos, equipados, transferidos o utilizados en la sesión.
+- Asigna 'type': 'arma', 'armadura', 'artefacto', 'consumible', 'reliquia' o 'mision'.
+- Asigna 'status': 'equipado', 'en_posesion', 'perdido', 'consumido' o 'entregado'.
+- En 'holder', indica el nombre del personaje o PNJ que lo porta o custodia."""
+        if not is_english
+        else """7. ITEMS, ARTIFACTS & LOOT EXTRACTION:
+- Extract weapons, armor, magical artifacts, relics, or key quest items obtained, equipped, transferred, or used in the session.
+- Set 'type': 'arma', 'armadura', 'artefacto', 'consumible', 'reliquia', or 'mision'.
+- Set 'status': 'equipado', 'en_posesion', 'perdido', 'consumido', or 'entregado'.
+- In 'holder', specify the character or NPC holding or guarding it."""
+    )
+
     table_talk_filter_instruction = (
         """1. CRITERIO DE FILTRADO DE AUDIO: CHARLA OPERATIVA DE MESA VS. RUIDO DE LA VIDA REAL:
    - CHARLA OPERATIVA DE MESA (PRESERVAR OBLIGATORIAMENTE): Conversaciones y acuerdos de los jugadores que impactan directamente el estado de juego y la ficción compartida:
@@ -713,6 +753,9 @@ INSTRUCCIONES DE ANÁLISIS:
 {pc_in_character_instruction}
 {quests_instruction}
 {npc_instruction}
+{entity_resolution_instruction}
+{locations_instruction}
+{items_instruction}
 5. Devuelve la respuesta OBLIGATORIAMENTE como un objeto JSON válido con la siguiente estructura exacta (sin texto introductorio, solo el JSON puro o dentro de un bloque ```json):
 
 {{
@@ -728,6 +771,7 @@ INSTRUCCIONES DE ANÁLISIS:
     {{
       "jugador": "Nombre del jugador (o '-' si se desconoce)",
       "personaje": "Nombre del personaje",
+      "aliases": ["Alias1", "Apodo"],
       "especie": "Especie / Raza (ej. Elfo, Humano, etc.)",
       "clase": "Clase (ej. Paladín, Pícaro, Mago, Guerrero, etc. - NUNCA 'Dungeon Master')",
       "subclase": "Subclase (o '-' si aún no se menciona)",
@@ -764,12 +808,31 @@ INSTRUCCIONES DE ANÁLISIS:
   "updated_npcs": [
     {{
       "name": "Nombre exacto o descriptor del PNJ (ej. 'Eldrin', '[Sin nombre] Guardia de la puerta norte')",
+      "aliases": ["Alias1", "Apodo"],
       "role": "Ocupación o rol en la historia (ej. 'Mago de la Torre', 'Noble conspirador [Mencionado en la historia]')",
       "tipo": "interaccion_contexto",
       "notes": ["Sesión #{session_number}: Notas concretas de interacción, actitud y pistas clave aportadas"]
     }}
   ],
-  "detected_npc_names": ["Lista", "De", "Nombres", "De", "PNJs", "Nuevos"]
+  "detected_npc_names": ["Lista", "De", "Nombres", "De", "PNJs", "Nuevos"],
+  "locations": [
+    {{
+      "name": "Nombre de la ubicación o punto de interés",
+      "type": "ciudad | mazmorra | punto_de_interes | region",
+      "description": "Descripción concisa del lugar y lo acontecido allí en la sesión",
+      "status": "explorado | en_progreso | destruido | no_visitado",
+      "associated_characters": ["Nombre del personaje o PNJ"]
+    }}
+  ],
+  "items": [
+    {{
+      "name": "Nombre del arma, artefacto o reliquia",
+      "type": "arma | armadura | artefacto | consumible | reliquia | mision",
+      "description": "Propiedades, efecto o importancia del objeto",
+      "holder": "Nombre del personaje o PNJ que lo porta o custodia",
+      "status": "equipado | en_posesion | perdido | consumido | entregado"
+    }}
+  ]
 }}
 
 ---

@@ -485,6 +485,8 @@ class CampaignManager:
         is_youtube: bool = False,
         chronicle_markdown: Optional[str] = None,
         raw_transcript: Optional[str] = None,
+        locations: Optional[List[Dict[str, Any]]] = None,
+        items: Optional[List[Dict[str, Any]]] = None,
     ) -> Dict[str, Any]:
         """
         Record a new session chapter and merge cumulative Quest and NPC updates into campaign state.
@@ -815,6 +817,13 @@ class CampaignManager:
                                 break
                         if not expanded:
                             existing_notes.append(note_clean)
+
+                    # Merge aliases
+                    npc_aliases = matched_npc.setdefault("aliases", [])
+                    for al in unpc.get("aliases", []):
+                        al_clean = str(al).strip()
+                        if al_clean and al_clean not in npc_aliases and al_clean.lower() != matched_npc.get("name", "").lower():
+                            npc_aliases.append(al_clean)
                 else:
                     # Add new NPC
                     notes = unpc.get("notes", [])
@@ -822,6 +831,7 @@ class CampaignManager:
                         notes = [f"Sesión {actual_session_num}: {unpc.get('role')}"]
                     existing_npcs.append({
                         "name": npc_name,
+                        "aliases": [str(al).strip() for al in unpc.get("aliases", []) if str(al).strip()],
                         "role": unpc.get("role", "Desconocido / PNJ"),
                         "tipo": unpc.get("tipo", "interaccion_contexto"),
                         "first_seen_session": actual_session_num,
@@ -947,6 +957,13 @@ class CampaignManager:
                 if session_achievement:
                     matched_pc["hitos_acumulados"].append(f"Sesión #{actual_session_num}: {session_achievement}")
 
+                # Merge aliases
+                pc_aliases = matched_pc.setdefault("aliases", [])
+                for al in upc.get("aliases", []):
+                    al_clean = str(al).strip()
+                    if al_clean and al_clean not in pc_aliases and al_clean.lower() != matched_pc.get("personaje", "").lower():
+                        pc_aliases.append(al_clean)
+
                 matched_pc["hitos_acumulados"].sort(key=_extract_sess)
             else:
                 hitos = []
@@ -960,6 +977,7 @@ class CampaignManager:
                 debut_val = upc.get("debut_sesion") or upc.get("primera_aparicion_sesion") or actual_session_num
                 existing_universal_pcs.append({
                     "personaje": char_name,
+                    "aliases": [str(al).strip() for al in upc.get("aliases", []) if str(al).strip()],
                     "jugador": str(upc.get("jugador") or upc.get("player_name") or "-").strip(),
                     "especie": str(upc.get("especie") or upc.get("species") or "-").strip(),
                     "clase": char_cls or "-",
@@ -967,6 +985,69 @@ class CampaignManager:
                     "debut_sesion": int(debut_val),
                     "hitos_acumulados": hitos,
                 })
+
+        # 5. Merge Locations
+        if locations:
+            existing_locations = state.setdefault("locations", [])
+            for loc in locations:
+                if not isinstance(loc, dict):
+                    continue
+                loc_name = str(loc.get("name") or "").strip()
+                if not loc_name:
+                    continue
+                matched_loc = next((l for l in existing_locations if str(l.get("name", "")).strip().lower() == loc_name.lower()), None)
+                if matched_loc:
+                    curr_desc = str(matched_loc.get("description", "")).strip()
+                    new_desc = str(loc.get("description", "")).strip()
+                    if new_desc and (not curr_desc or len(new_desc) > len(curr_desc)):
+                        matched_loc["description"] = new_desc
+                    if loc.get("status"):
+                        matched_loc["status"] = loc["status"]
+                    if loc.get("type") and (not matched_loc.get("type") or matched_loc.get("type") == "punto_de_interes"):
+                        matched_loc["type"] = loc["type"]
+                    assoc_set = set(str(ac).strip() for ac in matched_loc.get("associated_characters", []) if str(ac).strip())
+                    for ac in loc.get("associated_characters", []):
+                        if ac and str(ac).strip():
+                            assoc_set.add(str(ac).strip())
+                    matched_loc["associated_characters"] = sorted(list(assoc_set))
+                else:
+                    existing_locations.append({
+                        "name": loc_name,
+                        "type": loc.get("type", "punto_de_interes"),
+                        "description": loc.get("description", ""),
+                        "status": loc.get("status", "explorado"),
+                        "associated_characters": [str(ac).strip() for ac in loc.get("associated_characters", []) if str(ac).strip()],
+                    })
+
+        # 6. Merge Items
+        if items:
+            existing_items = state.setdefault("items", [])
+            for it in items:
+                if not isinstance(it, dict):
+                    continue
+                it_name = str(it.get("name") or "").strip()
+                if not it_name:
+                    continue
+                matched_it = next((i for i in existing_items if str(i.get("name", "")).strip().lower() == it_name.lower()), None)
+                if matched_it:
+                    curr_desc = str(matched_it.get("description", "")).strip()
+                    new_desc = str(it.get("description", "")).strip()
+                    if new_desc and (not curr_desc or len(new_desc) > len(curr_desc)):
+                        matched_it["description"] = new_desc
+                    if it.get("holder") and it.get("holder") != "-":
+                        matched_it["holder"] = it["holder"]
+                    if it.get("status"):
+                        matched_it["status"] = it["status"]
+                    if it.get("type") and (not matched_it.get("type") or matched_it.get("type") == "artefacto"):
+                        matched_it["type"] = it["type"]
+                else:
+                    existing_items.append({
+                        "name": it_name,
+                        "type": it.get("type", "artefacto"),
+                        "description": it.get("description", ""),
+                        "holder": it.get("holder", "-"),
+                        "status": it.get("status", "en_posesion"),
+                    })
 
         self.save_campaign(state)
         return state

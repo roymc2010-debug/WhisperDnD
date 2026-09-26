@@ -496,7 +496,7 @@
               </button>
               <button type="button" onclick="addRosterRow()" class="min-h-[36px] px-3 py-1.5 rounded-xl bg-indigo-500/15 hover:bg-indigo-500/25 active:scale-[0.98] text-indigo-300 text-xs font-semibold border border-indigo-500/30 transition duration-150 flex items-center gap-1.5 cursor-pointer shadow-sm">
                 <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" x2="12" y1="5" y2="19"/><line x1="5" x2="19" y1="12" y2="12"/></svg>
-                <span>Agregar Jugador</span>
+                <span>[ + Agregar Jugador ]</span>
               </button>
               <button type="button" onclick="manualSaveRoster()" class="min-h-[36px] px-3.5 py-1.5 rounded-xl bg-emerald-500/15 hover:bg-emerald-500/25 active:scale-[0.98] text-emerald-300 text-xs font-semibold border border-emerald-500/30 transition duration-150 flex items-center gap-1.5 cursor-pointer shadow-sm">
                 <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
@@ -1243,11 +1243,11 @@
         </p>
       </div>
 
-      <!-- Master-Detail Explorer -->
-      <div id="wikiExplorerLayout" class="hidden grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
+      <!-- Master-Detail Explorer (Decompressed 25%/75% Layout) -->
+      <div id="wikiExplorerLayout" class="hidden flex flex-col lg:flex-row items-stretch bg-slate-900/80 border border-slate-800 rounded-2xl overflow-hidden shadow-xl">
         
-        <!-- Columna Izquierda: Filtros y Lista de Entidades (lg:col-span-5) -->
-        <div class="lg:col-span-5 bg-slate-900/80 border border-slate-800 rounded-2xl p-4 space-y-3.5 flex flex-col max-h-[750px]">
+        <!-- Columna Izquierda: Filtros y Lista de Entidades (ancho fijo compacto w-full lg:w-72 xl:w-80 shrink-0 border-b lg:border-b-0 lg:border-r border-white/10 p-4 space-y-3.5 flex flex-col max-h-[750px] bg-slate-900/40) -->
+        <div class="w-full lg:w-72 xl:w-80 shrink-0 border-b lg:border-b-0 lg:border-r border-white/10 p-4 space-y-3.5 flex flex-col max-h-[750px] bg-slate-900/40">
           
           <!-- Category Pills (6 Pills Completas con Iconos SVG) -->
           <div class="grid grid-cols-3 gap-1.5 bg-slate-950 p-1.5 rounded-xl border border-slate-800">
@@ -1298,8 +1298,8 @@
           </div>
         </div>
 
-        <!-- Columna Derecha: Dossier Interactivo / Vista de Detalle (lg:col-span-7) -->
-        <div id="wikiDossierColumn" class="lg:col-span-7 bg-slate-900/80 border border-slate-800 rounded-2xl p-6 min-h-[500px] max-h-[750px] overflow-y-auto space-y-4">
+        <!-- Columna Derecha: Dossier Interactivo / Vista de Detalle (flex-1 p-6 min-h-[500px] max-h-[750px] overflow-y-auto space-y-4 bg-slate-950/40) -->
+        <div id="wikiDossierColumn" class="flex-1 p-6 min-h-[500px] max-h-[750px] overflow-y-auto space-y-4 bg-slate-950/40">
           <!-- Empty state o contenido de la entidad -->
           <div id="wikiDossierEmpty" class="h-full min-h-[350px] flex flex-col items-center justify-center text-center p-8 space-y-3">
             <div class="w-12 h-12 rounded-2xl bg-slate-950 border border-slate-800 flex items-center justify-center text-slate-500">
@@ -2458,10 +2458,11 @@ function refreshAudioDevices() {
         if (typeof renderAcademicTasks === "function") {
           if (currentAcademicTasks && currentAcademicTasks.length > 0) {
             renderAcademicTasks(currentAcademicTasks);
-          } else if (currentResult && currentResult.chronicle && typeof extractActionItemsFromMarkdown === "function") {
+          } else if (currentResult && currentResult.recording_mode === "class" && currentResult.chronicle && typeof extractActionItemsFromMarkdown === "function") {
             currentAcademicTasks = extractActionItemsFromMarkdown(currentResult.chronicle);
             renderAcademicTasks(currentAcademicTasks);
           } else {
+            currentAcademicTasks = [];
             renderAcademicTasks([]);
           }
         }
@@ -3961,6 +3962,9 @@ function refreshAudioDevices() {
         _rosterDebounceTimer = null;
       }
 
+      // CRITICAL: Reset currentCampaignState to null so previous campaign data (e.g. DM Brennan) NEVER leaks
+      currentCampaignState = null;
+
       // Total Reset: Clear DM row and roster table to prevent state leak between campaigns
       const dmRow = document.querySelector("#rosterTableBody tr:first-child");
       if (dmRow) {
@@ -4296,11 +4300,12 @@ function refreshAudioDevices() {
         players = roster.players || roster.roster || [];
       }
 
-      // Check currentCampaignState if dmName/dmDiscordId still empty
-      if (!dmName && typeof currentCampaignState !== "undefined" && currentCampaignState) {
+      // Check currentCampaignState if dmName/dmDiscordId still empty and matches active campaign
+      const activeCampInput = (document.getElementById("campaignNameInput")?.value || "").trim().toLowerCase();
+      if (!dmName && typeof currentCampaignState !== "undefined" && currentCampaignState && (currentCampaignState.campaign_name || "").toLowerCase() === activeCampInput) {
         dmName = currentCampaignState.dm_name || currentCampaignState.dm || currentCampaignState.dungeon_master || "";
       }
-      if (!dmDiscordId && typeof currentCampaignState !== "undefined" && currentCampaignState) {
+      if (!dmDiscordId && typeof currentCampaignState !== "undefined" && currentCampaignState && (currentCampaignState.campaign_name || "").toLowerCase() === activeCampInput) {
         dmDiscordId = currentCampaignState.dm_discord_id || currentCampaignState.dm_discord || currentCampaignState.dm_discord_user_id || "";
       }
 
@@ -6791,12 +6796,154 @@ async function selectWikiEntity(type, key, data) {
       renderWikiDossier();
     }
 
+    function findAndSelectWikiEntity(type, entityName) {
+      if (!entityName) return;
+      const state = currentWikiCampaignState || {};
+      const targetLower = String(entityName).toLowerCase().trim();
+
+      if (type === 'pc') {
+        const found = (state.universal_pcs || []).find(p => (p.name || p.nombre || p.personaje || "").toLowerCase().trim() === targetLower);
+        if (found) {
+          activeWikiCategory = "pcs";
+          renderWikiCategoryPills();
+          selectWikiEntity('pc', found.name || found.personaje || entityName, found);
+          return;
+        }
+      } else if (type === 'npc') {
+        const found = (state.npcs || []).find(n => (n.name || n.nombre || "").toLowerCase().trim() === targetLower);
+        if (found) {
+          activeWikiCategory = "npcs";
+          renderWikiCategoryPills();
+          selectWikiEntity('npc', found.name || entityName, found);
+          return;
+        }
+      } else if (type === 'location') {
+        const found = (state.locations || []).find(l => (l.name || "").toLowerCase().trim() === targetLower);
+        if (found) {
+          activeWikiCategory = "locations";
+          renderWikiCategoryPills();
+          selectWikiEntity('location', found.name || entityName, found);
+          return;
+        }
+      } else if (type === 'item') {
+        const found = (state.items || []).find(it => (it.name || "").toLowerCase().trim() === targetLower);
+        if (found) {
+          activeWikiCategory = "items";
+          renderWikiCategoryPills();
+          selectWikiEntity('item', found.name || entityName, found);
+          return;
+        }
+      }
+    }
+
+    function getAssociatedLocationsForCharacter(charName) {
+      if (!charName) return [];
+      const state = currentWikiCampaignState || {};
+      const target = charName.toLowerCase().trim();
+      return (state.locations || []).filter(loc => {
+        const assoc = Array.isArray(loc.associated_characters) ? loc.associated_characters : [];
+        if (assoc.some(a => (a || "").toLowerCase().trim() === target)) return true;
+        const desc = (loc.description || "").toLowerCase();
+        return target.length >= 3 && desc.includes(target);
+      });
+    }
+
+    function getHeldItemsForCharacter(charName) {
+      if (!charName) return [];
+      const state = currentWikiCampaignState || {};
+      const target = charName.toLowerCase().trim();
+      return (state.items || []).filter(it => {
+        const holder = (it.holder || "").toLowerCase().trim();
+        return holder === target || (target.length >= 4 && holder.includes(target));
+      });
+    }
+
+    function buildAllPcsGridHtml() {
+      const state = currentWikiCampaignState || {};
+      const pcs = state.universal_pcs || [];
+      if (pcs.length === 0) {
+        return `
+          <div class="h-full min-h-[350px] flex flex-col items-center justify-center text-center p-8 space-y-3">
+            <div class="w-12 h-12 rounded-2xl bg-slate-950 border border-slate-800 flex items-center justify-center text-slate-500">
+              <span class="text-2xl">🛡️</span>
+            </div>
+            <h4 class="text-sm font-bold text-slate-300">Directorio de Protagonistas (PCs)</h4>
+            <p class="text-xs text-slate-500 max-w-sm leading-relaxed">
+              No hay protagonistas registrados aún en esta campaña. Se registrarán automáticamente con cada sesión.
+            </p>
+          </div>
+        `;
+      }
+
+      return `
+        <div class="space-y-4">
+          <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+            <div>
+              <h3 class="text-base font-bold text-slate-100 font-fantasy flex items-center gap-2">
+                <span>🛡️</span> Protagonistas de la Campaña (${pcs.length})
+              </h3>
+              <p class="text-xs text-slate-400">Cuadrícula maestra de personajes jugadores activos</p>
+            </div>
+          </div>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            ${pcs.map(p => {
+              const charName = p.name || p.nombre || p.personaje || p.character_name || 'Sin nombre';
+              const player = p.player_name || p.jugador || p.player || '';
+              const species = p.species || p.especie || p.raza || 'Desconocida';
+              const cls = p.character_class || p.clase || p.class || p.role || 'Aventurero';
+              const subcls = p.subclass || p.subclase || '';
+              const debut = p.debut_sesion ? `Sesión #${p.debut_sesion}` : (p.primera_aparicion_sesion ? `Sesión #${p.primera_aparicion_sesion}` : "Sesión #1");
+              const rawHitos = (Array.isArray(p.hitos_acumulados) && p.hitos_acumulados.length > 0) ? p.hitos_acumulados : [];
+              const latestHito = rawHitos.length > 0 ? rawHitos[rawHitos.length - 1] : (p.rol_en_sesion || '');
+
+              return `
+                <div class="bg-slate-950/80 border border-slate-800/90 hover:border-amber-500/40 rounded-xl p-3.5 space-y-2.5 transition flex flex-col justify-between shadow-sm">
+                  <div class="space-y-1.5">
+                    <div class="flex items-center justify-between gap-2">
+                      <h4 class="font-bold text-slate-100 font-fantasy text-sm truncate">${escapeHtml(charName)}</h4>
+                      <span class="text-[10px] px-2 py-0.5 rounded-full bg-slate-900 border border-slate-800 text-slate-400 font-mono shrink-0">
+                        ${escapeHtml(debut)}
+                      </span>
+                    </div>
+                    ${player ? `<p class="text-[11px] text-slate-400 truncate">Jugador: <strong class="text-amber-300 font-medium">${escapeHtml(player)}</strong></p>` : ''}
+                    <div class="flex flex-wrap gap-1 text-[10px] font-mono">
+                      <span class="px-1.5 py-0.5 rounded bg-slate-900 text-slate-300 border border-slate-800">${escapeHtml(species)}</span>
+                      <span class="px-1.5 py-0.5 rounded bg-indigo-500/15 text-indigo-300 border border-indigo-500/30">${escapeHtml(cls)}${subcls && subcls !== '-' ? ` (${escapeHtml(subcls)})` : ''}</span>
+                    </div>
+                    ${latestHito ? `
+                      <p class="text-[11px] text-slate-400 line-clamp-2 leading-relaxed pt-1 border-t border-slate-900">
+                        ${escapeHtml(typeof latestHito === 'string' ? latestHito : (latestHito.text || latestHito.hito || ''))}
+                      </p>
+                    ` : ''}
+                  </div>
+                  <div class="flex items-center justify-end gap-1.5 pt-2 border-t border-slate-900">
+                    <button type="button" onclick="openMergeEntityModal('pc', '${escapeHtml(charName)}')" class="px-2 py-1 rounded-lg text-[11px] bg-slate-900 hover:bg-slate-800 text-slate-400 hover:text-amber-300 border border-slate-800 transition active:scale-95 cursor-pointer" title="Fusionar con otro personaje">
+                      🔗
+                    </button>
+                    <button type="button" onclick="findAndSelectWikiEntity('pc', '${escapeHtml(charName)}')" class="px-2.5 py-1 rounded-lg text-xs font-semibold bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/30 transition active:scale-95 cursor-pointer">
+                      Ver Ficha
+                    </button>
+                  </div>
+                </div>
+              `;
+            }).join("")}
+          </div>
+        </div>
+      `;
+    }
+
     function renderWikiDossier() {
       const emptyEl = document.getElementById("wikiDossierEmpty");
       const contentEl = document.getElementById("wikiDossierContent");
       if (!emptyEl || !contentEl) return;
 
       if (!selectedWikiEntity || !selectedWikiEntity.data) {
+        if (activeWikiCategory === "pcs") {
+          emptyEl.classList.add("hidden");
+          contentEl.classList.remove("hidden");
+          contentEl.innerHTML = buildAllPcsGridHtml();
+          return;
+        }
         emptyEl.classList.remove("hidden");
         contentEl.classList.add("hidden");
         return;
@@ -6822,6 +6969,36 @@ async function selectWikiEntity(type, key, data) {
     }
 
     function buildLocationDossierHtml(loc) {
+      const state = currentWikiCampaignState || {};
+      const assoc = Array.isArray(loc.associated_characters) ? loc.associated_characters : [];
+      let assocChipsHtml = "";
+      if (assoc.length > 0) {
+        assocChipsHtml = `
+          <div class="space-y-2 pt-2 border-t border-slate-800/80">
+            <span class="text-[11px] font-semibold text-slate-400 block uppercase font-mono">Personajes y PNJs Vinculados:</span>
+            <div class="flex flex-wrap gap-2">
+              ${assoc.map(charName => {
+                const isPc = (state.universal_pcs || []).some(p => (p.name || p.nombre || p.personaje || "").toLowerCase().trim() === charName.toLowerCase().trim());
+                const type = isPc ? 'pc' : 'npc';
+                const icon = isPc ? '🛡️' : '🗣️';
+                return `<button type="button" onclick="findAndSelectWikiEntity('${type}', '${escapeHtml(charName)}')" class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs bg-slate-900 hover:bg-slate-800 text-amber-300 border border-slate-700 hover:border-amber-500/40 transition cursor-pointer active:scale-95 shadow-sm">
+                  <span>${icon}</span>
+                  <span class="font-medium">${escapeHtml(charName)}</span>
+                </button>`;
+              }).join("")}
+            </div>
+          </div>
+        `;
+      }
+
+      const statusBadges = {
+        explorado: '<span class="text-[10px] font-mono px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">✓ Explorado</span>',
+        en_progreso: '<span class="text-[10px] font-mono px-2.5 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30">● En Progreso</span>',
+        destruido: '<span class="text-[10px] font-mono px-2.5 py-0.5 rounded-full bg-rose-500/20 text-rose-300 border border-rose-500/30">✕ Destruido</span>',
+        no_visitado: '<span class="text-[10px] font-mono px-2.5 py-0.5 rounded-full bg-slate-800 text-slate-400 border border-slate-700">🧭 No Visitado</span>',
+      };
+      const badge = statusBadges[loc.status] || `<span class="text-[10px] font-mono px-2.5 py-0.5 rounded-full bg-slate-800 text-slate-300 border border-slate-700">${escapeHtml(loc.status || 'Ubicación')}</span>`;
+
       return `
         <div class="space-y-4">
           <div class="flex items-center justify-between border-b border-slate-800 pb-3">
@@ -6829,26 +7006,55 @@ async function selectWikiEntity(type, key, data) {
               <h3 class="text-base font-bold text-amber-300 font-fantasy">${escapeHtml(loc.name || 'Lugar')}</h3>
               <p class="text-xs text-slate-400">${escapeHtml(loc.type || 'Región / Punto de Interés')}</p>
             </div>
+            <div>${badge}</div>
           </div>
           <div class="bg-slate-950 p-4 rounded-xl border border-slate-800 text-xs text-slate-300 leading-relaxed font-sans">
             ${renderMarkdownWithKaTeX(loc.description || loc.context || 'Sin descripción detallada.')}
           </div>
+          ${assocChipsHtml}
         </div>
       `;
     }
 
     function buildItemDossierHtml(item) {
+      const state = currentWikiCampaignState || {};
+      const holder = (item.holder || "-").trim();
+      let holderChipHtml = "";
+      if (holder && holder !== "-") {
+        const isPc = (state.universal_pcs || []).some(p => (p.name || p.nombre || p.personaje || "").toLowerCase().trim() === holder.toLowerCase());
+        const type = isPc ? 'pc' : 'npc';
+        const icon = isPc ? '🛡️' : '🗣️';
+        holderChipHtml = `
+          <div class="pt-2 border-t border-slate-800/80 space-y-1.5">
+            <span class="text-[11px] font-semibold text-slate-400 block uppercase font-mono">Portador Actual / Custodio:</span>
+            <button type="button" onclick="findAndSelectWikiEntity('${type}', '${escapeHtml(holder)}')" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs bg-slate-900 hover:bg-slate-800 text-amber-300 border border-slate-700 hover:border-amber-500/40 transition cursor-pointer active:scale-95 shadow-sm">
+              <span>${icon}</span>
+              <strong class="font-semibold">${escapeHtml(holder)}</strong>
+              <span class="text-[10px] text-slate-400">(${isPc ? 'Protagonista' : 'PNJ'})</span>
+            </button>
+          </div>
+        `;
+      }
+
       return `
         <div class="space-y-4">
           <div class="flex items-center justify-between border-b border-slate-800 pb-3">
             <div>
-              <h3 class="text-base font-bold text-amber-300 font-fantasy">${escapeHtml(item.name || 'Objeto / Facción')}</h3>
-              <p class="text-xs text-slate-400">${escapeHtml(item.type || 'Artefacto / Facción')}</p>
+              <div class="flex items-center gap-2">
+                <span class="px-2 py-0.5 rounded-full text-[10px] font-semibold font-mono bg-purple-500/20 text-purple-300 border border-purple-500/30 uppercase">
+                  ${escapeHtml(item.type || 'Artefacto')}
+                </span>
+                <span class="px-2 py-0.5 rounded-full text-[10px] font-semibold font-mono bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                  ${escapeHtml(item.status || 'En posesión')}
+                </span>
+              </div>
+              <h3 class="text-base font-bold text-amber-300 font-fantasy mt-1">${escapeHtml(item.name || 'Objeto / Reliquia')}</h3>
             </div>
           </div>
           <div class="bg-slate-950 p-4 rounded-xl border border-slate-800 text-xs text-slate-300 leading-relaxed font-sans">
             ${renderMarkdownWithKaTeX(item.description || item.context || 'Sin descripción.')}
           </div>
+          ${holderChipHtml}
         </div>
       `;
     }
@@ -7362,6 +7568,47 @@ async function selectWikiEntity(type, key, data) {
       const rawNotes = (Array.isArray(n.notes) && n.notes.length > 0) ? n.notes : (n.description ? [n.description] : (n.descripcion ? [n.descripcion] : []));
       const notes = rawNotes.length > 0 ? rawNotes : [npcDesc];
 
+      const assocLocs = getAssociatedLocationsForCharacter(npcName);
+      let locsHtml = "";
+      if (assocLocs.length > 0) {
+        locsHtml = `
+          <div class="space-y-2 pt-2 border-t border-slate-800/80">
+            <h5 class="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5 font-mono">
+              <span>📍</span> Lugares Vinculados
+            </h5>
+            <div class="flex flex-wrap gap-2">
+              ${assocLocs.map(l => `
+                <button type="button" onclick="findAndSelectWikiEntity('location', '${escapeHtml(l.name)}')" class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs bg-slate-900 hover:bg-slate-800 text-amber-300 border border-slate-700 hover:border-amber-500/40 transition cursor-pointer active:scale-95 shadow-sm">
+                  <span>📍</span>
+                  <span class="font-medium">${escapeHtml(l.name)}</span>
+                </button>
+              `).join("")}
+            </div>
+          </div>
+        `;
+      }
+
+      const heldItems = getHeldItemsForCharacter(npcName);
+      let itemsHtml = "";
+      if (heldItems.length > 0) {
+        itemsHtml = `
+          <div class="space-y-2 pt-2 border-t border-slate-800/80">
+            <h5 class="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5 font-mono">
+              <span>🗡️</span> Objetos y Artefactos en Custodia
+            </h5>
+            <div class="flex flex-wrap gap-2">
+              ${heldItems.map(it => `
+                <button type="button" onclick="findAndSelectWikiEntity('item', '${escapeHtml(it.name)}')" class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs bg-slate-900 hover:bg-slate-800 text-purple-300 border border-purple-500/30 hover:border-purple-500/50 transition cursor-pointer active:scale-95 shadow-sm">
+                  <span>💎</span>
+                  <span class="font-medium">${escapeHtml(it.name)}</span>
+                  <span class="text-[10px] text-slate-400">(${escapeHtml(it.type || 'Artefacto')})</span>
+                </button>
+              `).join("")}
+            </div>
+          </div>
+        `;
+      }
+
       return `
         <div class="space-y-4">
           <div class="border-b border-slate-800 pb-3 space-y-2">
@@ -7399,6 +7646,8 @@ async function selectWikiEntity(type, key, data) {
               `).join("")}
             </div>
           </div>
+          ${locsHtml}
+          ${itemsHtml}
         </div>
       `;
     }
@@ -7414,22 +7663,67 @@ async function selectWikiEntity(type, key, data) {
       const pcDesc = p.description || p.descripcion || p.detalles || p.rol_en_sesion || (rawHitos.length > 0 ? rawHitos[0] : 'Sin descripción disponible');
       const hitos = rawHitos.length > 0 ? rawHitos : [pcDesc];
 
+      const assocLocs = getAssociatedLocationsForCharacter(charName);
+      let locsHtml = "";
+      if (assocLocs.length > 0) {
+        locsHtml = `
+          <div class="space-y-2 pt-2 border-t border-slate-800/80">
+            <h5 class="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5 font-mono">
+              <span>📍</span> Lugares Vinculados
+            </h5>
+            <div class="flex flex-wrap gap-2">
+              ${assocLocs.map(l => `
+                <button type="button" onclick="findAndSelectWikiEntity('location', '${escapeHtml(l.name)}')" class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs bg-slate-900 hover:bg-slate-800 text-amber-300 border border-slate-700 hover:border-amber-500/40 transition cursor-pointer active:scale-95 shadow-sm">
+                  <span>📍</span>
+                  <span class="font-medium">${escapeHtml(l.name)}</span>
+                </button>
+              `).join("")}
+            </div>
+          </div>
+        `;
+      }
+
+      const heldItems = getHeldItemsForCharacter(charName);
+      let itemsHtml = "";
+      if (heldItems.length > 0) {
+        itemsHtml = `
+          <div class="space-y-2 pt-2 border-t border-slate-800/80">
+            <h5 class="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5 font-mono">
+              <span>🗡️</span> Objetos y Artefactos en Posesión
+            </h5>
+            <div class="flex flex-wrap gap-2">
+              ${heldItems.map(it => `
+                <button type="button" onclick="findAndSelectWikiEntity('item', '${escapeHtml(it.name)}')" class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs bg-slate-900 hover:bg-slate-800 text-purple-300 border border-purple-500/30 hover:border-purple-500/50 transition cursor-pointer active:scale-95 shadow-sm">
+                  <span>💎</span>
+                  <span class="font-medium">${escapeHtml(it.name)}</span>
+                  <span class="text-[10px] text-slate-400">(${escapeHtml(it.type || 'Artefacto')})</span>
+                </button>
+              `).join("")}
+            </div>
+          </div>
+        `;
+      }
+
       return `
         <div class="space-y-4">
+          <div class="flex items-center justify-between">
+            <button type="button" onclick="selectWikiEntity(null, null, null)" class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold bg-slate-800/90 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 transition active:scale-95 cursor-pointer">
+              <span>⬅️</span>
+              <span>Ver Todos los Protagonistas</span>
+            </button>
+            <button type="button" onclick="openMergeEntityModal('pc', '${escapeHtml(charName)}')" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-800/90 hover:bg-slate-700 text-amber-300 border border-slate-700 shadow-sm transition active:scale-95 cursor-pointer" title="Fusionar con otro personaje de la campaña">
+              <span>🔗</span>
+              <span>Fusionar con otro personaje</span>
+            </button>
+          </div>
           <div class="border-b border-slate-800 pb-3 space-y-2">
-            <div class="flex flex-wrap items-center justify-between gap-2">
-              <div class="flex flex-wrap items-center gap-2">
-                <span class="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
-                  🛡️ Protagonista (PC)
-                </span>
-                <span class="text-xs px-2 py-0.5 rounded bg-slate-900 border border-slate-800 text-slate-400 font-mono">
-                  ${escapeHtml(debut)}
-                </span>
-              </div>
-              <button type="button" onclick="openMergeEntityModal('pc', '${escapeHtml(charName)}')" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-800/90 hover:bg-slate-700 text-amber-300 border border-slate-700 shadow-sm transition active:scale-95 cursor-pointer" title="Fusionar con otro personaje de la campaña">
-                <span>🔗</span>
-                <span>Fusionar con otro personaje</span>
-              </button>
+            <div class="flex flex-wrap items-center gap-2">
+              <span class="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+                🛡️ Protagonista (PC)
+              </span>
+              <span class="text-xs px-2 py-0.5 rounded bg-slate-900 border border-slate-800 text-slate-400 font-mono">
+                ${escapeHtml(debut)}
+              </span>
             </div>
             <h3 class="text-base font-bold text-slate-100 font-fantasy">${escapeHtml(charName)}</h3>
             ${player ? `<p class="text-xs text-slate-300">Jugador: <strong class="text-amber-300">${escapeHtml(player)}</strong></p>` : ''}
@@ -7468,6 +7762,8 @@ async function selectWikiEntity(type, key, data) {
               `).join("")}
             </div>
           </div>
+          ${locsHtml}
+          ${itemsHtml}
         </div>
       `;
     }
@@ -7659,6 +7955,9 @@ async function selectWikiEntity(type, key, data) {
         if (k === tab) {
           if (v) v.classList.remove("hidden");
           if (b) b.className = activeClass;
+          if (isWork && k === "quests" && typeof renderAcademicTasks === "function") {
+            renderAcademicTasks(currentAcademicTasks || []);
+          }
         } else {
           if (v) v.classList.add("hidden");
           if (b) b.className = inactiveClass;

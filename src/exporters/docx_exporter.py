@@ -103,6 +103,12 @@ def render_markdown_to_docx(
             p.paragraph_format.space_before = Pt(0)
             p.paragraph_format.space_after = Pt(0)
             p.paragraph_format.line_spacing = 1.0
+            try:
+                pPr = p._p.get_or_add_pPr()
+                shd = docx.oxml.parse_xml('<w:shd ' + docx.oxml.ns.nsdecls('w') + ' w:fill="F3F4F6"/>')
+                pPr.append(shd)
+            except Exception:
+                pass
             run = p.add_run(line if line else " ")
             run.font.name = "Consolas"
             run.font.size = Pt(8.5)

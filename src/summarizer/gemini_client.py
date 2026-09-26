@@ -422,9 +422,11 @@ class GeminiTTRPGSummarizer:
                         continue
                     clean_hitos.append(h)
 
+                pc_aliases = [str(a).strip() for a in (p.get("aliases") or []) if str(a).strip()]
                 normalized_pcs.append({
                     "jugador": player,
                     "personaje": char,
+                    "aliases": pc_aliases,
                     "especie": species,
                     "clase": cls,
                     "subclase": subcls,
@@ -435,6 +437,7 @@ class GeminiTTRPGSummarizer:
                 normalized_party.append({
                     "player_name": player,
                     "character_name": char,
+                    "aliases": pc_aliases,
                     "species": species,
                     "role": cls,
                     "subclass": subcls,
@@ -504,11 +507,52 @@ class GeminiTTRPGSummarizer:
                     notes = [notes]
                 elif not isinstance(notes, list):
                     notes = []
+                npc_aliases = [str(a).strip() for a in (n.get("aliases") or []) if str(a).strip()]
                 normalized_npcs.append({
                     "name": name,
+                    "aliases": npc_aliases,
                     "role": n.get("role", "Desconocido / PNJ"),
                     "tipo": n_tipo,
                     "notes": notes,
+                })
+
+            # Normalize Locations
+            raw_locations = data.get("locations", []) if isinstance(data.get("locations"), list) else []
+            normalized_locations = []
+            for loc in raw_locations:
+                if not isinstance(loc, dict):
+                    continue
+                loc_name = str(loc.get("name") or loc.get("nombre") or "").strip()
+                if not loc_name:
+                    continue
+                assoc = loc.get("associated_characters") or loc.get("personajes_asociados") or []
+                if isinstance(assoc, str):
+                    assoc = [a.strip() for a in assoc.split(",") if a.strip()]
+                elif not isinstance(assoc, list):
+                    assoc = []
+                normalized_locations.append({
+                    "name": loc_name,
+                    "type": str(loc.get("type") or loc.get("tipo") or "punto_de_interes").strip(),
+                    "description": str(loc.get("description") or loc.get("descripcion") or loc.get("context") or "").strip(),
+                    "status": str(loc.get("status") or loc.get("estado") or "explorado").strip(),
+                    "associated_characters": [str(a).strip() for a in assoc if str(a).strip()],
+                })
+
+            # Normalize Items
+            raw_items = data.get("items", []) if isinstance(data.get("items"), list) else []
+            normalized_items = []
+            for it in raw_items:
+                if not isinstance(it, dict):
+                    continue
+                it_name = str(it.get("name") or it.get("nombre") or "").strip()
+                if not it_name:
+                    continue
+                normalized_items.append({
+                    "name": it_name,
+                    "type": str(it.get("type") or it.get("tipo") or "artefacto").strip(),
+                    "description": str(it.get("description") or it.get("descripcion") or "").strip(),
+                    "holder": str(it.get("holder") or it.get("portador") or it.get("poseedor") or "-").strip(),
+                    "status": str(it.get("status") or it.get("estado") or "en_posesion").strip(),
                 })
 
             return {
@@ -527,6 +571,8 @@ class GeminiTTRPGSummarizer:
                 "updated_quests": normalized_quests,
                 "updated_npcs": normalized_npcs,
                 "detected_npc_names": data.get("detected_npc_names", []) if isinstance(data.get("detected_npc_names"), list) else [],
+                "locations": normalized_locations,
+                "items": normalized_items,
             }
 
         # Fallback if text is not valid JSON
@@ -546,6 +592,8 @@ class GeminiTTRPGSummarizer:
             "updated_quests": [],
             "updated_npcs": [],
             "detected_npc_names": [],
+            "locations": [],
+            "items": [],
         }
 
 

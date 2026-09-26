@@ -1002,6 +1002,90 @@ class TestCampaignManager(unittest.TestCase):
         self.assertTrue(target["hitos_acumulados"][0].startswith("Sesión #1:"))
         self.assertTrue(target["hitos_acumulados"][1].startswith("Sesión #2:"))
 
+    def test_record_session_with_locations_and_items(self):
+        camp_name = "Locations Items Test"
+        locs_s1 = [
+            {
+                "name": "Candlekeep",
+                "type": "fortaleza",
+                "description": "Una gran fortaleza biblioteca en la costa.",
+                "status": "explorado",
+                "associated_characters": ["Halendiel", "Markus"]
+            }
+        ]
+        items_s1 = [
+            {
+                "name": "Grimorio Carmesí",
+                "type": "artefacto",
+                "description": "Un libro encuadernado en cuero rojo con runas arcanas.",
+                "holder": "Halendiel",
+                "status": "equipado"
+            }
+        ]
+        pcs_s1 = [
+            {
+                "personaje": "Halendiel Fang",
+                "jugador": "Liam",
+                "aliases": ["Hal", "Halendiel"],
+                "clase": "Bardo",
+                "rol_en_sesion": "Interpretó una balada en la biblioteca."
+            }
+        ]
+        npcs_s1 = [
+            {
+                "name": "Octus Taconis",
+                "aliases": ["Octus", "Lord Octus"],
+                "role": "Erudito en Jefe",
+                "notes": ["Entregó el mapa de las catacumbas."]
+            }
+        ]
+
+        state = self.manager.record_session(
+            name=camp_name,
+            session_chapter={"title": "Llegada a Candlekeep", "chronicle_text": "..."},
+            session_number=1,
+            detected_pcs=pcs_s1,
+            updated_npcs=npcs_s1,
+            locations=locs_s1,
+            items=items_s1,
+        )
+
+        self.assertEqual(len(state["locations"]), 1)
+        self.assertEqual(state["locations"][0]["name"], "Candlekeep")
+        self.assertEqual(state["locations"][0]["status"], "explorado")
+        self.assertIn("Halendiel", state["locations"][0]["associated_characters"])
+
+        self.assertEqual(len(state["items"]), 1)
+        self.assertEqual(state["items"][0]["name"], "Grimorio Carmesí")
+        self.assertEqual(state["items"][0]["holder"], "Halendiel")
+        self.assertEqual(state["items"][0]["status"], "equipado")
+
+        self.assertIn("Hal", state["universal_pcs"][0].get("aliases", []))
+        self.assertIn("Octus", state["npcs"][0].get("aliases", []))
+
+        # Session 2: Update Candlekeep with new info & new character
+        locs_s2 = [
+            {
+                "name": "Candlekeep",
+                "type": "fortaleza",
+                "description": "Una gran fortaleza biblioteca en la costa, donde se descubrieron catacumbas secretas.",
+                "status": "en_progreso",
+                "associated_characters": ["Octus Taconis"]
+            }
+        ]
+        state2 = self.manager.record_session(
+            name=camp_name,
+            session_chapter={"title": "Las Catacumbas", "chronicle_text": "..."},
+            session_number=2,
+            locations=locs_s2,
+        )
+
+        self.assertEqual(len(state2["locations"]), 1)
+        self.assertEqual(state2["locations"][0]["status"], "en_progreso")
+        self.assertIn("catacumbas secretas", state2["locations"][0]["description"])
+        self.assertIn("Octus Taconis", state2["locations"][0]["associated_characters"])
+        self.assertIn("Halendiel", state2["locations"][0]["associated_characters"])
+
 
 if __name__ == "__main__":
     unittest.main()
