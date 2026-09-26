@@ -40,7 +40,18 @@ def ensure_google_credentials_file(
     if explicit_path is not None:
         return explicit_path
 
-    root = project_root or Path(__file__).resolve().parent.parent.parent
+    if project_root is not None:
+        local_path = project_root / "credentials.json"
+        if local_path.is_file():
+            return local_path
+        env_creds = os.environ.get("GOOGLE_CREDENTIALS_JSON")
+        if env_creds and env_creds.strip():
+            local_path.parent.mkdir(parents=True, exist_ok=True)
+            local_path.write_text(env_creds.strip(), encoding="utf-8")
+            print(f"Archivo {local_path} generado con éxito desde variable de entorno.")
+        return local_path
+
+    root = Path(__file__).resolve().parent.parent.parent
     local_path = root / "credentials.json"
     app_path = Path("/app/credentials.json")
 
@@ -95,7 +106,18 @@ def ensure_google_token_file(
     if explicit_path is not None:
         return explicit_path
 
-    root = project_root or Path(__file__).resolve().parent.parent.parent
+    if project_root is not None:
+        local_path = project_root / "token.json"
+        if local_path.is_file():
+            return local_path
+        env_token = os.environ.get("GOOGLE_TOKEN_JSON")
+        if env_token and env_token.strip():
+            local_path.parent.mkdir(parents=True, exist_ok=True)
+            local_path.write_text(env_token.strip(), encoding="utf-8")
+            print(f"Archivo {local_path} generado con éxito desde variable de entorno.")
+        return local_path
+
+    root = Path(__file__).resolve().parent.parent.parent
     local_path = root / "token.json"
     app_path = Path("/app/token.json")
 
@@ -367,6 +389,19 @@ class GoogleDriveStorage:
         if not local_path.is_file():
             raise FileNotFoundError(f"Archivo a subir no encontrado en: {local_path}")
 
+        # Quality filter: reject tiny notes <500 bytes or <100 words from being uploaded to Drive
+        if local_path.suffix.lower() == ".md" and not local_path.name.endswith("_grimorio.md") and local_path.name != "manifest.md":
+            try:
+                if local_path.stat().st_size < 500:
+                    print(f"[GoogleDriveStorage] upload_file skipped stub note {local_path.name} (size < 500 bytes)")
+                    return {"file_id": "", "file_name": local_path.name, "web_view_link": "", "skipped": "quality_filter"}
+                txt_preview = local_path.read_text(encoding="utf-8", errors="replace")
+                if len(txt_preview.strip().split()) < 100:
+                    print(f"[GoogleDriveStorage] upload_file skipped stub note {local_path.name} (< 100 words)")
+                    return {"file_id": "", "file_name": local_path.name, "web_view_link": "", "skipped": "quality_filter"}
+            except Exception:
+                pass
+
         folder_id = self.get_or_create_folder(folder_name=folder_name)
 
         # Detect MIME type
@@ -477,29 +512,40 @@ class GoogleDriveStorage:
         c_dir.mkdir(parents=True, exist_ok=True)
         o_dir.mkdir(parents=True, exist_ok=True)
 
-        target_data_dirs: List[Path] = []
-        for d in [project_root / "data", c_dir.parent, Path("/app/data")]:
-            try:
-                if d.exists() or d.parent.exists():
-                    d.mkdir(parents=True, exist_ok=True)
-                    if d.resolve() not in [x.resolve() for x in target_data_dirs]:
-                        target_data_dirs.append(d)
-            except Exception:
-                pass
-        if not target_data_dirs:
-            target_data_dirs = [project_root / "data"]
+        is_test_mode = (
+            os.environ.get("WHISPER_ENV") in ("test", "testing")
+            or os.environ.get("TESTING") == "1"
+            or output_dir is not None
+            or campaigns_dir is not None
+        )
 
-        target_output_dirs: List[Path] = []
-        for d in [o_dir, project_root / "outputs", project_root / "data" / "output", Path("/app/outputs")]:
-            try:
-                if d.exists() or d.parent.exists():
-                    d.mkdir(parents=True, exist_ok=True)
-                    if d.resolve() not in [x.resolve() for x in target_output_dirs]:
-                        target_output_dirs.append(d)
-            except Exception:
-                pass
-        if not target_output_dirs:
+        if is_test_mode:
+            target_data_dirs = [c_dir.parent]
             target_output_dirs = [o_dir]
+        else:
+            target_data_dirs = []
+            for d in [project_root / "data", c_dir.parent, Path("/app/data")]:
+                try:
+                    if d.exists() or d.parent.exists():
+                        d.mkdir(parents=True, exist_ok=True)
+                        if d.resolve() not in [x.resolve() for x in target_data_dirs]:
+                            target_data_dirs.append(d)
+                except Exception:
+                    pass
+            if not target_data_dirs:
+                target_data_dirs = [project_root / "data"]
+
+            target_output_dirs = []
+            for d in [o_dir, project_root / "outputs", project_root / "data" / "output", Path("/app/outputs")]:
+                try:
+                    if d.exists() or d.parent.exists():
+                        d.mkdir(parents=True, exist_ok=True)
+                        if d.resolve() not in [x.resolve() for x in target_output_dirs]:
+                            target_output_dirs.append(d)
+                except Exception:
+                    pass
+            if not target_output_dirs:
+                target_output_dirs = [o_dir]
 
         service = self.service
 
@@ -628,11 +674,16 @@ class GoogleDriveStorage:
                         for note in notes_list:
                             if isinstance(note, dict) and note.get("filename") and note.get("content"):
                                 note_name = Path(note["filename"]).name
+                                note_content = note.get("content", "")
+                                note_size = int(note.get("size_bytes") or len(note_content.encode("utf-8")))
+                                note_words = int(note.get("word_count") or len(note_content.strip().split()))
+                                if note_size < 500 or note_words < 100:
+                                    continue
                                 for out_d in target_output_dirs:
                                     try:
                                         note_target = out_d / note_name
                                         if not note_target.is_file():
-                                            note_target.write_text(note["content"], encoding="utf-8")
+                                            note_target.write_text(note_content, encoding="utf-8")
                                     except Exception:
                                         pass
                                 downloaded_notes += 1
@@ -720,20 +771,30 @@ class GoogleDriveStorage:
                     print(f"[GoogleDriveStorage] Error processing zip {fname}: {exc}")
 
             elif lower_name.endswith(".md"):
-                try:
-                    content = self.download_file_bytes(fid)
-                    written_any = False
+                is_grimorio = lower_name.endswith("_grimorio.md") or lower_name == "manifest.md"
 
-                    # Descarga física directa en /app/outputs/
-                    app_out = Path("/app/outputs")
+                remote_size = f.get("size")
+                if remote_size is not None and not is_grimorio:
                     try:
-                        app_out.mkdir(parents=True, exist_ok=True)
-                        (app_out / fname).write_bytes(content)
-                        written_any = True
+                        if int(remote_size) < 500:
+                            print(f"[GoogleDriveStorage] Skipping stub note {fname} (remote size < 500 bytes)")
+                            continue
                     except Exception:
                         pass
 
-                    # Descarga física en todos los directorios destino configurados
+                try:
+                    content = self.download_file_bytes(fid)
+
+                    if not is_grimorio:
+                        if len(content) < 500:
+                            print(f"[GoogleDriveStorage] Skipping stub note {fname} (downloaded size < 500 bytes)")
+                            continue
+                        text_str = content.decode("utf-8", errors="replace")
+                        if len(text_str.strip().split()) < 100:
+                            print(f"[GoogleDriveStorage] Skipping stub note {fname} (words < 100)")
+                            continue
+
+                    written_any = False
                     for out_d in target_output_dirs:
                         try:
                             out_d.mkdir(parents=True, exist_ok=True)
@@ -751,7 +812,7 @@ class GoogleDriveStorage:
                 try:
                     content = self.download_file_bytes(fid)
                     written_any = False
-                    for out_d in [Path("/app/outputs")] + list(target_output_dirs):
+                    for out_d in target_output_dirs:
                         try:
                             out_d.mkdir(parents=True, exist_ok=True)
                             (out_d / fname).write_bytes(content)
@@ -805,6 +866,11 @@ class GoogleDriveStorage:
                         seen_md_names.add(note_p.name)
                         if note_p.name not in remote_filenames:
                             try:
+                                if note_p.stat().st_size < 500:
+                                    continue
+                                txt_preview = note_p.read_text(encoding="utf-8", errors="replace")
+                                if len(txt_preview.strip().split()) < 100:
+                                    continue
                                 self.upload_file(str(note_p.resolve()), folder_name=primary_folder)
                                 uploaded_notes += 1
                             except Exception as exc:

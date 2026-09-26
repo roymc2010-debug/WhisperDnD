@@ -21,7 +21,17 @@ class TestGoogleDriveStorage(unittest.TestCase):
         # Create a dummy credentials file
         self.dummy_creds.write_text(json.dumps({"installed": {"client_id": "test", "client_secret": "test"}}))
 
+        self.env_patcher = patch.dict(
+            "os.environ",
+            {
+                "WHISPER_ENV": "test",
+                "TESTING": "1",
+            },
+        )
+        self.env_patcher.start()
+
     def tearDown(self):
+        self.env_patcher.stop()
         self.temp_dir_obj.cleanup()
 
     def test_init_paths(self):
@@ -313,13 +323,21 @@ class TestGoogleDriveStorage(unittest.TestCase):
         mock_service.files.return_value = mock_files
         storage._service = mock_service
 
+        vectorial_content = (
+            "# 🎓 GUÍA DE ESTUDIO COMPLETA: Cálculo Vectorial y Teoremas Integrales\n\n"
+            "## 1. Resumen Ejecutivo y Teorema de Green\n"
+            "El cálculo vectorial proporciona las herramientas matemáticas fundamentales para el análisis de campos escalares y vectoriales en múltiples dimensiones espaciales. "
+            "El Teorema de Green relaciona la integral de línea de un campo vectorial bidimensional a lo largo de una curva cerrada y simple con la integral doble de la divergencia o rotacional del campo sobre la región plana acotada por dicha curva.\n\n"
+            "## 2. Divergencia y Teorema de Stokes en el Espacio Tridimensional\n"
+            "En tres dimensiones, la generalización del teorema conduce a los teoremas de Gauss y Stokes. La divergencia mide la densidad de flujo saliente por unidad de volumen alrededor de una singularidad o fuente puntual, mientras que el rotacional cuantifica la tendencia microscópica del fluido a rotar en torno a un vector perpendicular al plano tangente. Estas formulaciones resultan indispensables en electromagnetismo clásico y dinámica de fluidos geofísicos continuos."
+        )
         historial_data = {
             "total_notes": 1,
             "notes": [
                 {
                     "filename": "apuntes_calculo_vectorial.md",
                     "title": "Cálculo Vectorial",
-                    "content": "# Cálculo Vectorial\n\nTeorema de Green y divergencia.",
+                    "content": vectorial_content,
                 }
             ]
         }
@@ -331,8 +349,17 @@ class TestGoogleDriveStorage(unittest.TestCase):
         o_dir.mkdir(parents=True, exist_ok=True)
 
         # Create a local note that is not on Drive to test PUSH
+        cuantica_content = (
+            "# 🎓 GUÍA DE ESTUDIO: Física Cuántica y Mecánica Ondulatoria\n\n"
+            "## 1. Fundamentos y Ecuación de Schrödinger\n"
+            "La física cuántica describe el comportamiento de la materia y de la energía a escala subatómica, donde los efectos ondulatorios y probabilísticos adquieren relevancia primordial frente al formalismo determinista clásico. "
+            "La ecuación de onda de Schrödinger temporal gobierna la evolución unitaria de la función de onda de una partícula cuántica sujeta a un potencial electrodinámico continuo.\n\n"
+            "## 2. Cuantización de la Energía y Principio de Superposición\n"
+            "Los estados propios de energía corresponden a soluciones estacionarias cuantizadas donde el módulo al cuadrado de la amplitud representa la densidad de probabilidad espacial de hallar el electrón en una región del volumen cuántico. "
+            "El colapso del paquete de ondas ante mediciones macroscópicas preserva la conservación de la probabilidad total unitaria en el espacio de Hilbert dimensional."
+        )
         local_note = o_dir / "apuntes_fisica_cuantica.md"
-        local_note.write_text("# Física Cuántica\n\nEcuación de Schrödinger.", encoding="utf-8")
+        local_note.write_text(cuantica_content, encoding="utf-8")
 
         res = storage.sync_from_google_drive(campaigns_dir=c_dir, output_dir=o_dir)
 
@@ -402,7 +429,15 @@ class TestGoogleDriveStorage(unittest.TestCase):
         mock_service.files.return_value = mock_files
         storage._service = mock_service
 
-        storage.download_file_bytes = MagicMock(return_value=b"# Redes Neuronales\n\nBackpropagation y descenso de gradiente.")
+        neural_content = (
+            "# 🎓 GUÍA DE ESTUDIO: Redes Neuronales Artificiales y Aprendizaje Profundo\n\n"
+            "## 1. Arquitecturas Multicapa y Algoritmo de Backpropagation\n"
+            "Las redes neuronales artificiales profundas utilizan múltiples capas de transformaciones no lineales parametrizadas para construir representaciones jerárquicas y abstractas a partir de datos sensoriales complejos. "
+            "El algoritmo de retropropagación (Backpropagation) calcula analíticamente el gradiente de la función de pérdida con respecto a cada peso sináptico empleando la regla de la cadena computacional en grafos dirigidos.\n\n"
+            "## 2. Optimización y Descenso de Gradiente Estocástico\n"
+            "Mediante el descenso de gradiente estocástico y variantes adaptativas con momento, los pesos convergen progresivamente hacia mínimos locales de generalización adecuada, evitando el sobreajuste mediante regularizaciones L2, normalización por lotes y mecanismos de abandono temporal de unidades activadas durante el entrenamiento iterativo."
+        )
+        storage.download_file_bytes = MagicMock(return_value=neural_content.encode("utf-8"))
         storage.upload_file = MagicMock(return_value={"file_id": "test_up"})
 
         c_dir = self.test_dir / "campaigns"

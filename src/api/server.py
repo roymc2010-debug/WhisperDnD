@@ -165,8 +165,11 @@ def trigger_drive_sync_background(
 ):
     """
     Fire-and-forget background upload of modified file(s) to Google Drive.
-    If Google Drive is not connected, fails silently and cleanly.
+    If Google Drive is not connected or in test mode, fails silently and cleanly.
     """
+    if os.environ.get("WHISPER_ENV") in ("test", "testing") or os.environ.get("TESTING") == "1":
+        return
+
     try:
         ds = GoogleDriveStorage()
         if not ds.is_connected():
@@ -178,6 +181,13 @@ def trigger_drive_sync_background(
                     for fp in file_paths:
                         p = Path(fp).resolve()
                         if p.is_file():
+                            # Quality filter: reject tiny test or incomplete notes (<500 bytes or <100 words)
+                            if p.name.endswith(".md") and not p.name.endswith("_grimorio.md") and p.name != "manifest.md":
+                                if p.stat().st_size < 500:
+                                    continue
+                                txt_preview = p.read_text(encoding="utf-8", errors="replace")
+                                if len(txt_preview.strip().split()) < 100:
+                                    continue
                             await run_in_threadpool(ds.upload_file, str(p), folder_name=folder_name)
                 else:
                     camp_dir = get_data_campaigns_dir()
@@ -1509,30 +1519,35 @@ def update_consolidated_academic_notes_file() -> Path:
     """
     output_dir = get_data_output_dir()
     project_root = Path(__file__).resolve().parent.parent.parent
-    historial_file = project_root / "data" / "apuntes_historial.json"
-    historial_file.parent.mkdir(parents=True, exist_ok=True)
 
-    # Collect candidate output dirs to scan
-    candidate_output_dirs: List[Path] = []
-    for d in [output_dir, project_root / "outputs", project_root / "data" / "output", Path("/app/outputs")]:
-        try:
-            if d.is_dir() and d.resolve() not in [x.resolve() for x in candidate_output_dirs]:
-                candidate_output_dirs.append(d)
-        except Exception:
-            pass
-    if not candidate_output_dirs:
+    # Test mode isolation: do not touch production outputs/ or data/
+    is_test_mode = os.environ.get("WHISPER_ENV") in ("test", "testing") or os.environ.get("TESTING") == "1" or bool(os.environ.get("WHISPER_OUTPUT_DIR"))
+
+    if is_test_mode:
+        historial_file = output_dir / "apuntes_historial.json"
         candidate_output_dirs = [output_dir]
-
-    # Target data dirs to save apuntes_historial.json into
-    target_data_dirs: List[Path] = [historial_file.parent]
-    container_data = Path("/app/data")
-    if container_data.exists() or container_data.parent.exists():
-        try:
-            container_data.mkdir(parents=True, exist_ok=True)
-            if container_data.resolve() not in [x.resolve() for x in target_data_dirs]:
-                target_data_dirs.append(container_data)
-        except Exception:
-            pass
+        target_data_dirs = [output_dir]
+    else:
+        historial_file = project_root / "data" / "apuntes_historial.json"
+        historial_file.parent.mkdir(parents=True, exist_ok=True)
+        candidate_output_dirs = []
+        for d in [output_dir, project_root / "outputs", project_root / "data" / "output", Path("/app/outputs")]:
+            try:
+                if d.is_dir() and d.resolve() not in [x.resolve() for x in candidate_output_dirs]:
+                    candidate_output_dirs.append(d)
+            except Exception:
+                pass
+        if not candidate_output_dirs:
+            candidate_output_dirs = [output_dir]
+        target_data_dirs = [historial_file.parent]
+        container_data = Path("/app/data")
+        if container_data.exists() or container_data.parent.exists():
+            try:
+                container_data.mkdir(parents=True, exist_ok=True)
+                if container_data.resolve() not in [x.resolve() for x in target_data_dirs]:
+                    target_data_dirs.append(container_data)
+            except Exception:
+                pass
 
     # Read existing notes if apuntes_historial.json exists to preserve notes whose .md might be temporarily missing
     existing_notes_map = {}
@@ -1555,10 +1570,16 @@ def update_consolidated_academic_notes_file() -> Path:
                 continue
             try:
                 stat = md_file.stat()
+                # Quality filter: discard files < 500 bytes
+                if stat.st_size < 500:
+                    continue
                 content = md_file.read_text(encoding="utf-8", errors="replace")
+                words = len(content.split())
+                # Quality filter: discard files < 100 words
+                if words < 100:
+                    continue
                 title = extract_clean_note_title(md_file.name, content)
                 formatted_date = format_note_date(stat.st_mtime, md_file.name)
-                words = len(content.split())
 
                 docx_filename = md_file.name.replace(".md", ".docx")
                 txt_filename = md_file.name.replace(".md", "_transcripcion.txt")
@@ -1596,6 +1617,10 @@ def update_consolidated_academic_notes_file() -> Path:
     # Merge any previously saved notes from existing_notes_map that were not in scanned files
     for fname, old_note in existing_notes_map.items():
         if fname not in notes_by_filename and old_note.get("content"):
+            old_size = int(old_note.get("size_bytes") or len(old_note.get("content", "").encode("utf-8")))
+            old_words = int(old_note.get("word_count") or len(old_note.get("content", "").split()))
+            if old_size < 500 or old_words < 100:
+                continue
             notes_by_filename[fname] = old_note
             # Self-heal: ensure written to output_dir
             try:
@@ -1627,9 +1652,12 @@ async def list_academic_notes():
     output_dir = get_data_output_dir()
     project_root = Path(__file__).resolve().parent.parent.parent
 
+    is_test_mode = os.environ.get("WHISPER_ENV") in ("test", "testing") or os.environ.get("TESTING") == "1" or bool(os.environ.get("WHISPER_OUTPUT_DIR"))
+
     # Find apuntes_historial.json across candidates
     historial_file = None
-    for h_cand in [project_root / "data" / "apuntes_historial.json", Path("/app/data/apuntes_historial.json")]:
+    candidate_historial = [output_dir / "apuntes_historial.json"] if is_test_mode else [project_root / "data" / "apuntes_historial.json", Path("/app/data/apuntes_historial.json")]
+    for h_cand in candidate_historial:
         if h_cand.is_file():
             historial_file = h_cand
             break
@@ -1639,34 +1667,42 @@ async def list_academic_notes():
     if historial_file and historial_file.is_file():
         try:
             h_data = json.loads(historial_file.read_text(encoding="utf-8"))
-            historial_notes = h_data.get("notes", []) if isinstance(h_data, dict) else []
-            for n in historial_notes:
+            raw_hist_notes = h_data.get("notes", []) if isinstance(h_data, dict) else []
+            for n in raw_hist_notes:
                 if isinstance(n, dict) and n.get("filename") and n.get("content"):
-                    fname = Path(n["filename"]).name
-                    for t_dir in [Path("/app/outputs"), output_dir, project_root / "outputs"]:
-                        try:
-                            if t_dir.exists() or t_dir.parent.exists():
-                                t_dir.mkdir(parents=True, exist_ok=True)
-                                t_p = t_dir / fname
-                                if not t_p.is_file():
-                                    t_p.write_text(n["content"], encoding="utf-8")
-                        except Exception:
-                            pass
+                    n_size = int(n.get("size_bytes") or len(n["content"].encode("utf-8")))
+                    n_words = int(n.get("word_count") or len(n["content"].split()))
+                    if n_size >= 500 and n_words >= 100:
+                        historial_notes.append(n)
+                        fname = Path(n["filename"]).name
+                        target_dirs_selfheal = [output_dir] if is_test_mode else [Path("/app/outputs"), output_dir, project_root / "outputs"]
+                        for t_dir in target_dirs_selfheal:
+                            try:
+                                if t_dir.exists() or t_dir.parent.exists():
+                                    t_dir.mkdir(parents=True, exist_ok=True)
+                                    t_p = t_dir / fname
+                                    if not t_p.is_file():
+                                        t_p.write_text(n["content"], encoding="utf-8")
+                            except Exception:
+                                pass
         except Exception as exc:
             print(f"[list_academic_notes] Warning reading historial_file: {exc}")
 
-    # Gather all candidate output directories: /app/outputs/, output_dir, outputs/
-    candidate_dirs: List[Path] = []
-    for cd in [Path("/app/outputs"), output_dir, project_root / "outputs", project_root / "data" / "output"]:
-        try:
-            if cd.exists():
-                cd_res = cd.resolve()
-                if cd_res not in [x.resolve() for x in candidate_dirs]:
-                    candidate_dirs.append(cd)
-        except Exception:
-            pass
-    if not candidate_dirs:
+    # Gather all candidate output directories
+    if is_test_mode:
         candidate_dirs = [output_dir]
+    else:
+        candidate_dirs = []
+        for cd in [Path("/app/outputs"), output_dir, project_root / "outputs", project_root / "data" / "output"]:
+            try:
+                if cd.exists():
+                    cd_res = cd.resolve()
+                    if cd_res not in [x.resolve() for x in candidate_dirs]:
+                        candidate_dirs.append(cd)
+            except Exception:
+                pass
+        if not candidate_dirs:
+            candidate_dirs = [output_dir]
 
     notes = []
     seen_filenames = set()
@@ -1677,13 +1713,19 @@ async def list_academic_notes():
                 continue
             if md_file.name.endswith("_grimorio.md") or md_file.name == "manifest.md":
                 continue
-            seen_filenames.add(md_file.name)
             try:
                 stat = md_file.stat()
+                # Quality filter: reject files < 500 bytes
+                if stat.st_size < 500:
+                    continue
                 content = md_file.read_text(encoding="utf-8", errors="replace")
+                words = len(content.split())
+                # Quality filter: reject files < 100 words
+                if words < 100:
+                    continue
+                seen_filenames.add(md_file.name)
                 title = extract_clean_note_title(md_file.name, content)
                 formatted_date = format_note_date(stat.st_mtime, md_file.name)
-                words = len(content.split())
 
                 docx_filename = md_file.name.replace(".md", ".docx")
                 txt_filename = md_file.name.replace(".md", "_transcripcion.txt")

@@ -51,6 +51,17 @@ except ImportError:
     FASTAPI_AVAILABLE = False
 
 
+SAMPLE_NOTE_MD = (
+    "# 🎓 BRIEFING EJECUTIVO Y GUÍA DE ESTUDIO PROFUNDA: Test Topic\n\n"
+    "## 1. Resumen Ejecutivo y Conceptos Fundamentales\n"
+    "Las redes neuronales artificiales constituyen un paradigma de aprendizaje automático inspirado en los circuitos neuronales biológicos del córtex cerebral humano. "
+    "A través de capas densamente interconectadas compuestas por neuronas matemáticas, funciones de activación continuas no lineales y optimización de hiperparámetros mediante descenso de gradiente estocástico, los modelos son capaces de generalizar y abstraer representaciones semánticas de gran complejidad.\n\n"
+    "## 2. Propagación Hacia Adelante y Hacia Atrás (Backpropagation)\n"
+    "Durante el paso hacia adelante, las entradas vectoriales se multiplican secuencialmente por matrices de pesos entrenables y se suman con términos de sesgo o bias. "
+    "Posteriormente, las salidas se evalúan mediante funciones de costo diferenciables. La fase de retropropagación aplica de manera iterativa la regla de la cadena multivariada para propagar el gradiente del error analítico hacia las primeras capas de la arquitectura, garantizando una convergencia estable hacia mínimos locales óptimos del espacio latente multidimensional."
+)
+
+
 @unittest.skipUnless(FASTAPI_AVAILABLE, "FastAPI is not installed yet")
 class TestAPIEndpoints(unittest.TestCase):
     def setUp(self):
@@ -63,6 +74,8 @@ class TestAPIEndpoints(unittest.TestCase):
                 "WHISPER_INPUT_DIR": self.temp_in_dir,
                 "WHISPER_OUTPUT_DIR": self.temp_out_dir,
                 "WHISPER_CAMPAIGNS_DIR": self.temp_camp_dir,
+                "WHISPER_ENV": "test",
+                "TESTING": "1",
             },
         )
         self.env_patcher.start()
@@ -283,7 +296,15 @@ class TestAPIEndpoints(unittest.TestCase):
         mock_transcriber_class.return_value = mock_transcriber
 
         mock_summarizer = MagicMock()
-        mock_summarizer.generate_academic_notes.return_value = "# 🎓 Guía de Estudio\n\n## 1. Resumen\nCriterio de Nyquist."
+        mock_summarizer.generate_academic_notes.return_value = (
+            "# 🎓 Guía de Estudio y Análisis Profundo: Criterio de Nyquist\n\n"
+            "## 1. Resumen Ejecutivo y Fundamentos del Criterio de Nyquist\n"
+            "El criterio de estabilidad de Nyquist en sistemas de control en lazo cerrado permite determinar rigurosamente la estabilidad absoluta analizando el diagrama polar de la función de transferencia en lazo abierto. "
+            "Mediante el contorno de Nyquist en el semiplano derecho y el principio del argumento de Cauchy, el número de rodeos alrededor del punto crítico (-1, 0) indica si existen polos en lazo cerrado en el semiplano inestable.\n\n"
+            "## 2. Márgenes de Ganancia y Fase en el Dominio Frecuencial\n"
+            "Los márgenes de estabilidad cuantifican la robustez del sistema ante incertidumbres paramétricas y retardos puros de tiempo. "
+            "El margen de ganancia mide el factor por el cual puede incrementarse la ganancia estática antes de alcanzar la inestabilidad marginal, mientras que el margen de fase representa el desfase adicional permitido antes del cruce por la frecuencia crítica del sistema."
+        )
         mock_summarizer_class.return_value = mock_summarizer
 
         payload = StopAndProcessRequest(
@@ -329,7 +350,7 @@ class TestAPIEndpoints(unittest.TestCase):
             self.assertIn("operativa", res["gemini_message"])
             self.assertEqual(res["drive_message"], "Google Drive conectado.")
 
-    @patch.dict("os.environ", {"GROQ_API_KEY": "", "GEMINI_API_KEY": ""}, clear=True)
+    @patch.dict("os.environ", {"GROQ_API_KEY": "", "GEMINI_API_KEY": ""})
     @patch("src.api.server.GoogleDriveStorage")
     def test_check_api_keys_missing(self, mock_storage_cls):
         mock_storage = MagicMock()
@@ -700,7 +721,7 @@ class TestAPIEndpoints(unittest.TestCase):
         from src.api.server import list_academic_notes, get_academic_note
         out_dir = Path(self.temp_out_dir)
         note_md = out_dir / "apuntes_Test_Topic_es_20260924_120000.md"
-        note_md.write_text("# 🎓 BRIEFING EJECUTIVO Y GUÍA DE ESTUDIO PROFUNDA: Test Topic\n\nContenido de prueba...", encoding="utf-8")
+        note_md.write_text(SAMPLE_NOTE_MD, encoding="utf-8")
         note_docx = out_dir / "apuntes_Test_Topic_es_20260924_120000.docx"
         note_docx.write_bytes(b"PK fake docx")
 
@@ -711,7 +732,7 @@ class TestAPIEndpoints(unittest.TestCase):
         self.assertEqual(found["title"], "Test Topic")
         detail = asyncio.run(get_academic_note(note_md.name))
         self.assertEqual(detail["filename"], note_md.name)
-        self.assertIn("Contenido de prueba", detail["content"])
+        self.assertIn("Resumen Ejecutivo", detail["content"])
         self.assertEqual(detail["docx_filename"], note_docx.name)
 
     def test_save_academic_note_endpoint(self):
@@ -719,8 +740,8 @@ class TestAPIEndpoints(unittest.TestCase):
         payload = SaveAcademicNoteRequest(
             subject="Inteligencia Artificial",
             topic="Redes Neuronales",
-            content="# Apuntes de Redes Neuronales\n\nExplicación detallada de backpropagation...",
-            transcript="Transcripción de la clase de prueba",
+            content=SAMPLE_NOTE_MD,
+            transcript="Transcripción de la clase de prueba con suficiente contexto...",
         )
         res = asyncio.run(save_academic_note_endpoint(payload))
         self.assertTrue(res["success"])
@@ -731,12 +752,12 @@ class TestAPIEndpoints(unittest.TestCase):
         out_dir = Path(self.temp_out_dir)
         saved_md = out_dir / res["filename"]
         self.assertTrue(saved_md.is_file())
-        self.assertIn("backpropagation", saved_md.read_text(encoding="utf-8"))
+        self.assertIn("Backpropagation", saved_md.read_text(encoding="utf-8"))
 
         txt_name = res["filename"].replace(".md", "_transcripcion.txt")
         saved_txt = out_dir / txt_name
         self.assertTrue(saved_txt.is_file())
-        self.assertEqual(saved_txt.read_text(encoding="utf-8"), "Transcripción de la clase de prueba")
+        self.assertEqual(saved_txt.read_text(encoding="utf-8"), "Transcripción de la clase de prueba con suficiente contexto...")
 
     def test_save_academic_note_rejects_empty(self):
         from src.api.server import save_academic_note_endpoint, SaveAcademicNoteRequest
@@ -883,7 +904,7 @@ El problema del conocimiento.
         from src.api.server import extract_client_api_keys
         req = MagicMock()
         req.headers = {}
-        with patch.dict("os.environ", {"GROQ_API_KEY": "", "GEMINI_API_KEY": ""}, clear=True):
+        with patch.dict("os.environ", {"GROQ_API_KEY": "", "GEMINI_API_KEY": ""}):
             groq_k, gemini_k = extract_client_api_keys(req)
             self.assertIsNone(groq_k)
             self.assertIsNone(gemini_k)
@@ -914,7 +935,7 @@ El problema del conocimiento.
         req = MagicMock()
         req.headers = {"x-forwarded-host": "myapp.run.app", "x-forwarded-proto": "https"}
         req.url.path = "/api/auth/drive/callback"
-        with patch.dict("os.environ", {}, clear=True):
+        with patch.dict("os.environ", {"RENDER_EXTERNAL_URL": ""}):
             uri = get_oauth_redirect_uri(req)
             self.assertEqual(uri, "https://myapp.run.app/api/auth/drive/callback")
 
@@ -926,7 +947,7 @@ El problema del conocimiento.
     def test_transcribe_endpoint_rejects_missing_keys_with_401(self):
         from fastapi.testclient import TestClient
         client = TestClient(app)
-        with patch.dict("os.environ", {"GROQ_API_KEY": "", "GEMINI_API_KEY": ""}, clear=True):
+        with patch.dict("os.environ", {"GROQ_API_KEY": "", "GEMINI_API_KEY": ""}):
             res = client.post("/api/process-youtube", json={"url": "https://www.youtube.com/watch?v=dQw4w9WgXcQ"})
             self.assertEqual(res.status_code, 401)
             data = res.json()
@@ -936,7 +957,7 @@ El problema del conocimiento.
     def test_transcribe_endpoint_accepts_client_headers(self):
         from fastapi.testclient import TestClient
         client = TestClient(app)
-        with patch.dict("os.environ", {"GROQ_API_KEY": "", "GEMINI_API_KEY": ""}, clear=True):
+        with patch.dict("os.environ", {"GROQ_API_KEY": "", "GEMINI_API_KEY": ""}):
             with patch("src.api.server.download_youtube_audio", return_value="/tmp/test.mp3"):
                 with patch("src.api.server.transcribe_audio_pipeline") as mock_pipeline:
                     mock_pipeline.return_value = {
@@ -947,7 +968,7 @@ El problema del conocimiento.
                     }
                     with patch("src.api.server.GeminiTTRPGSummarizer") as mock_summarizer_cls:
                         mock_sum = MagicMock()
-                        mock_sum.generate_academic_notes.return_value = "# Apuntes\n- Item"
+                        mock_sum.generate_academic_notes.return_value = SAMPLE_NOTE_MD
                         mock_summarizer_cls.return_value = mock_sum
                         res = client.post(
                             "/api/process-youtube",
@@ -1209,8 +1230,16 @@ El problema del conocimiento.
         from fastapi.testclient import TestClient
         client = TestClient(app)
 
-        note_content = b"# Algebra Lineal\n\n## 1. Espacios Vectoriales\nDefinicion formal y combinaciones lineales."
-        files = {"file": ("algebra_lineal.md", note_content, "text/markdown")}
+        note_content = (
+            "# 🎓 GUÍA DE ESTUDIO: Álgebra Lineal y Espacios Vectoriales\n\n"
+            "## 1. Espacios Vectoriales y Combinaciones Lineales\n"
+            "Un espacio vectorial sobre un cuerpo conmutativo es un conjunto no vacío dotado de dos operaciones internas y externas que satisfacen los axiomas de clausura, asociatividad, elemento neutro e inverso aditivo. "
+            "Cualquier vector dentro de dicho subespacio puede expresarse de manera única como una combinación lineal de los vectores que conforman una base linealmente independiente en el espacio vectorial euclídeo.\n\n"
+            "## 2. Transformaciones Lineales y Diagonalización de Matrices\n"
+            "Las transformaciones lineales preservan las operaciones fundamentales de adición vectorial y multiplicación por escalares. "
+            "El cálculo de valores y vectores propios permite encontrar matrices de cambio de base que diagonalizan operadores simétricos, facilitando el desacoplamiento de sistemas diferenciales lineales multivariados y la reducción dimensional en aprendizaje automático y física teórica."
+        ).encode("utf-8")
+        files = {"file": ("apuntes_algebra_lineal.md", note_content, "text/markdown")}
 
         res = client.post("/api/academic-notes/import", files=files)
         self.assertEqual(res.status_code, 200)
@@ -1225,13 +1254,21 @@ El problema del conocimiento.
         self.assertTrue(any("algebra" in n.get("filename", "").lower() for n in notes))
 
     def test_academic_notes_list_self_heals_from_historial(self):
-        """Verify GET /api/academic-notes self-heals missing .md files from data/apuntes_historial.json."""
+        """Verify GET /api/academic-notes self-heals missing .md files from apuntes_historial.json in isolated dir."""
         from fastapi.testclient import TestClient
         client = TestClient(app)
 
-        project_root = Path(__file__).resolve().parent.parent
-        historial_file = project_root / "data" / "apuntes_historial.json"
-        historial_file.parent.mkdir(parents=True, exist_ok=True)
+        out_dir = Path(self.temp_out_dir)
+        historial_file = out_dir / "apuntes_historial.json"
+
+        cuantica_long = (
+            "# 🎓 GUÍA DE ESTUDIO: Mecánica Cuántica\n\n"
+            "## 1. Principio de Incertidumbre y Dualidad Onda-Partícula\n"
+            "El principio de incertidumbre de Heisenberg establece un límite fundamental e infranqueable para la precisión simultánea con la que es posible determinar pares de variables canónicamente conjugadas, tales como la posición espacial y el momento lineal de una partícula subatómica en un instante dado.\n\n"
+            "## 2. Ecuación de Schrödinger y Colapso de la Función de Onda\n"
+            "La formulación ondulatoria permite describir probabilísticamente la distribución espacial de los estados energéticos en sistemas cerrados microscópicos. "
+            "Al efectuarse un proceso de medición macroscópico, el paquete de ondas colapsa de forma no unitaria hacia uno de los estados propios del observable asociado, conservando en todo momento la normalización integral en el espacio de Hilbert continuo."
+        )
 
         historial_payload = {
             "total_notes": 1,
@@ -1239,7 +1276,7 @@ El problema del conocimiento.
                 {
                     "filename": "apuntes_mecanica_cuantica_selfheal.md",
                     "title": "Mecánica Cuántica",
-                    "content": "# Mecánica Cuántica\n\nPrincipio de incertidumbre de Heisenberg.",
+                    "content": cuantica_long,
                 }
             ]
         }
@@ -1307,7 +1344,15 @@ El problema del conocimiento.
         client = TestClient(app)
 
         test_note = Path(self.temp_out_dir) / "apuntes_calculo_avanzado.md"
-        test_note.write_text("# Calculo Avanzado\n\nIntegrales triples y coordenadas cilindricas.", encoding="utf-8")
+        test_note.write_text(
+            "# 🎓 GUÍA DE ESTUDIO: Calculo Avanzado\n\n"
+            "## 1. Integrales Triples y Coordenadas Cilíndricas\n"
+            "El cálculo de integrales múltiples sobre regiones tridimensionales generales requiere la transformación de variables mediante el jacobiano del mapeo de coordenadas curvilíneas. "
+            "En coordenadas cilíndricas y esféricas, las simetrías axiales o radiales simplifican notablemente el cálculo analítico de volúmenes, centros de masa e hipervolúmenes en espacios euclídeos continuos.\n\n"
+            "## 2. Campos Conservativos y Teorema de la Divergencia\n"
+            "Cuando el rotacional de un campo vectorial se anula idénticamente en una región simplemente conexa, el campo deriva de un potencial escalar y las integrales de línea son estrictamente independientes de la trayectoria elegida entre dos puntos de referencia coordenados.",
+            encoding="utf-8",
+        )
 
         res = client.get("/api/notes")
         self.assertEqual(res.status_code, 200)
