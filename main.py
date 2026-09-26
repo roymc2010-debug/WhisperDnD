@@ -11,6 +11,22 @@ sys.path.insert(0, str(project_root))
 from dotenv import load_dotenv
 load_dotenv(override=True)
 
+import os
+import json
+
+# Support Google Credentials via Environment Variable (Render Docker / Cloud Run)
+credentials_path = "/app/credentials.json"
+env_creds = os.environ.get("GOOGLE_CREDENTIALS_JSON")
+
+if env_creds and not os.path.exists(credentials_path):
+    try:
+        os.makedirs(os.path.dirname(credentials_path), exist_ok=True)
+        with open(credentials_path, "w", encoding="utf-8") as f:
+            f.write(env_creds)
+        print(f"Archivo {credentials_path} generado con éxito desde variable de entorno.")
+    except Exception as e:
+        print(f"Error escribiendo credentials.json: {e}")
+
 
 def main():
     try:

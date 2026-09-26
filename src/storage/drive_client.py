@@ -26,6 +26,104 @@ def _get_default_redirect_uri() -> str:
     return "http://localhost:8080/api/auth/drive/callback"
 
 
+def ensure_google_credentials_file(
+    explicit_path: Optional[Path] = None,
+    project_root: Optional[Path] = None,
+) -> Path:
+    """
+    Ensure Google credentials.json exists on disk.
+    If missing, checks GOOGLE_CREDENTIALS_JSON environment variable and writes it physically.
+    Supports Render Docker (/app/credentials.json), local project root, and secret mounts.
+    """
+    if explicit_path and explicit_path.is_file():
+        return explicit_path
+
+    root = project_root or Path(__file__).resolve().parent.parent.parent
+    local_path = root / "credentials.json"
+    app_path = Path("/app/credentials.json")
+
+    # If running in Docker or Linux, prefer /app/credentials.json if it exists
+    if app_path.is_file():
+        return app_path
+    if local_path.is_file():
+        return local_path
+
+    # Check common secret mount paths on Render
+    render_secret = Path("/etc/secrets/credentials.json")
+    if render_secret.is_file():
+        return render_secret
+
+    # Check environment variable GOOGLE_CREDENTIALS_JSON
+    env_creds = os.environ.get("GOOGLE_CREDENTIALS_JSON")
+    if env_creds and env_creds.strip():
+        # Prefer /app/credentials.json in Linux/container if /app exists or is current dir
+        if os.name != "nt" and (Path("/app").is_dir() or str(root).startswith("/app")):
+            target_path = app_path
+        else:
+            target_path = explicit_path or local_path
+
+        try:
+            os.makedirs(os.path.dirname(str(target_path)), exist_ok=True)
+            with open(target_path, "w", encoding="utf-8") as f:
+                f.write(env_creds.strip())
+            print(f"Archivo {target_path} generado con éxito desde variable de entorno.")
+            # Also write to local_path if distinct
+            if target_path != local_path and not local_path.is_file():
+                try:
+                    os.makedirs(os.path.dirname(str(local_path)), exist_ok=True)
+                    with open(local_path, "w", encoding="utf-8") as f:
+                        f.write(env_creds.strip())
+                except Exception:
+                    pass
+            return target_path
+        except Exception as e:
+            print(f"Error escribiendo credentials.json: {e}")
+
+    return explicit_path or (app_path if (os.name != "nt" and Path("/app").is_dir()) else local_path)
+
+
+def ensure_google_token_file(
+    explicit_path: Optional[Path] = None,
+    project_root: Optional[Path] = None,
+) -> Path:
+    """
+    Ensure Google token.json exists on disk.
+    If missing, checks GOOGLE_TOKEN_JSON environment variable and writes it physically.
+    """
+    if explicit_path and explicit_path.is_file():
+        return explicit_path
+
+    root = project_root or Path(__file__).resolve().parent.parent.parent
+    local_path = root / "token.json"
+    app_path = Path("/app/token.json")
+
+    if app_path.is_file():
+        return app_path
+    if local_path.is_file():
+        return local_path
+
+    render_token = Path("/etc/secrets/token.json")
+    if render_token.is_file():
+        return render_token
+
+    env_token = os.environ.get("GOOGLE_TOKEN_JSON")
+    if env_token and env_token.strip():
+        target_path = app_path if (os.name != "nt" and (Path("/app").is_dir() or str(root).startswith("/app"))) else local_path
+        if explicit_path:
+            target_path = explicit_path
+
+        try:
+            os.makedirs(os.path.dirname(str(target_path)), exist_ok=True)
+            with open(target_path, "w", encoding="utf-8") as f:
+                f.write(env_token.strip())
+            print(f"Archivo {target_path} generado con éxito desde variable de entorno.")
+            return target_path
+        except Exception as e:
+            print(f"Error escribiendo token.json: {e}")
+
+    return explicit_path or (app_path if (os.name != "nt" and Path("/app").is_dir()) else local_path)
+
+
 class GoogleDriveStorage:
     """Client for authenticating with Google Drive OAuth and uploading files."""
 
@@ -35,8 +133,11 @@ class GoogleDriveStorage:
         token_path: Optional[str] = None,
     ):
         project_root = Path(__file__).resolve().parent.parent.parent
-        self.credentials_path = Path(credentials_path) if credentials_path else project_root / "credentials.json"
-        self.token_path = Path(token_path) if token_path else project_root / "token.json"
+        explicit_creds = Path(credentials_path) if credentials_path else None
+        self.credentials_path = ensure_google_credentials_file(explicit_creds, project_root)
+
+        explicit_token = Path(token_path) if token_path else None
+        self.token_path = ensure_google_token_file(explicit_token, project_root)
         self._service: Optional[Any] = None
 
     def is_connected(self) -> bool:

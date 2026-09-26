@@ -86,6 +86,18 @@ get_data_input_dir()
 get_data_output_dir()
 get_data_campaigns_dir()
 
+# Support Google Credentials via Environment Variable (Render Docker / Cloud Run)
+_credentials_path = "/app/credentials.json"
+_env_creds = os.environ.get("GOOGLE_CREDENTIALS_JSON")
+if _env_creds and not os.path.exists(_credentials_path):
+    try:
+        os.makedirs(os.path.dirname(_credentials_path), exist_ok=True)
+        with open(_credentials_path, "w", encoding="utf-8") as _f:
+            _f.write(_env_creds)
+        print(f"Archivo {_credentials_path} generado con éxito desde variable de entorno.")
+    except Exception as _e:
+        print(f"Error escribiendo credentials.json: {_e}")
+
 app = FastAPI(
     title="WhisperDnD - Live Session Recorder & Living Campaign Journal",
     description="Dual-channel audio recording with faster-whisper, Gemini Living Campaign Journal & Google Drive.",

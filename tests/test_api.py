@@ -958,7 +958,28 @@ El problema del conocimiento.
                         _, kwargs = mock_pipeline.call_args
                         self.assertEqual(kwargs.get("groq_api_key"), "custom-groq-key")
 
+    def test_ensure_google_credentials_file_from_env(self):
+        from src.storage.drive_client import ensure_google_credentials_file
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            temp_root = Path(tmp_dir)
+            fake_json = '{"installed":{"client_id":"test-client-id"}}'
+            with patch.dict("os.environ", {"GOOGLE_CREDENTIALS_JSON": fake_json}):
+                cred_path = ensure_google_credentials_file(project_root=temp_root)
+                self.assertTrue(cred_path.is_file())
+                self.assertEqual(cred_path.read_text(encoding="utf-8"), fake_json)
+
+    def test_ensure_google_token_file_from_env(self):
+        from src.storage.drive_client import ensure_google_token_file
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            temp_root = Path(tmp_dir)
+            fake_token = '{"token":"test-token","refresh_token":"test-refresh"}'
+            with patch.dict("os.environ", {"GOOGLE_TOKEN_JSON": fake_token}):
+                token_path = ensure_google_token_file(project_root=temp_root)
+                self.assertTrue(token_path.is_file())
+                self.assertEqual(token_path.read_text(encoding="utf-8"), fake_token)
+
 
 if __name__ == "__main__":
     unittest.main()
+
 
