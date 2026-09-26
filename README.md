@@ -104,6 +104,10 @@ La aplicación incluye soporte nativo para despliegue en contenedores sin estado
 - **Formatos de Descarga**:
   - **Markdown (`.md`)**: Tablas de misiones, directorio de PNJs y capítulos cronológicos.
   - **Microsoft Word (`.docx`)**: Formateado profesional con estilos universitarios o de fantasía medieval, tablas estilizadas y márgenes normalizados.
+- **Exportación e Importación Completa de Campañas (ZIP / JSON Bundle)**:
+  - **Exportar Campaña (`GET /api/campaigns/{id}/export`)**: Empaqueta en un archivo comprimido descargable (`Campaña_[Nombre]_[Fecha].zip`) toda la configuración de la campaña (DM, jugadores, Discord, clases), las entidades de la Wiki (PNJs, lugares, misiones, protagonistas), crónicas de sesión y transcripciones (`.txt`, `.md`, `.docx`), junto a su `manifest.json`.
+  - **Importar Campaña (`POST /api/campaigns/import`)**: Permite subir archivos `.zip` o `.json` para restaurar instantáneamente el estado completo de la campaña, regenerar el Grimorio vivo y, si Google Drive está conectado, generar una copia de respaldo automática en la nube.
+  - **Persistencia Multi-Dispositivo**: Al importar o sincronizar una campaña en el servidor (ej. `whisperdnd.onrender.com`), las sesiones, fichas y Wiki quedan registradas centralmente, permitiendo que cualquier dispositivo (móvil, tablet o PC) acceda inmediatamente a los mismos datos.
 - **Google Drive OAuth 2.0 Dinámico & Sincronización Bidireccional**:
   - Detección automática del dominio en producción mediante `RENDER_EXTERNAL_URL` o cabeceras de proxy (`Host`, `X-Forwarded-Proto`).
   - Soporte de rutas duales de callback: `/oauth2callback` y `/api/auth/drive/callback`.

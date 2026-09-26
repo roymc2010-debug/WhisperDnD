@@ -2,12 +2,15 @@
 
 import asyncio
 import datetime
+import io
+import json
 import os
 import re
 import shutil
 import time
 import tempfile
 import urllib.parse
+import zipfile
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
@@ -16,7 +19,7 @@ load_dotenv(override=True)
 
 from fastapi import FastAPI, File, Form, HTTPException, Query, UploadFile, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse, JSONResponse
+from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field, ConfigDict
 from starlette.concurrency import run_in_threadpool
@@ -2815,6 +2818,341 @@ async def download_campaign_md(campaign_name: str):
         filename=target.name,
         media_type="text/markdown",
     )
+
+
+@app.get("/api/campaigns/{campaign_name}/export")
+async def export_campaign_bundle(campaign_name: str):
+    """
+    Export the entire campaign as a portable ZIP bundle containing:
+    1. campaign.json (Roster, DM, universal PCs, Discord bindings, quests, NPCs, locations, sessions metadata).
+    2. outputs/ (Consolidated Markdown and Word Grimorios, individual session chronicles and raw transcripts).
+    3. manifest.json (Metadata, versions and file index).
+    Returns a downloadable ZIP file named Campaña_[Nombre]_[Fecha].zip.
+    """
+    manager = CampaignManager()
+    state = None
+
+    # Try direct / sanitized load first
+    try:
+        file_path = manager.get_campaign_path(campaign_name)
+        if file_path.is_file():
+            state = manager.load_campaign(campaign_name)
+    except Exception:
+        state = None
+
+    if not state:
+        # Search by campaign_id or case-insensitive name match
+        for f in manager.campaigns_dir.glob("*.json"):
+            try:
+                data = json.loads(f.read_text(encoding="utf-8"))
+                if (
+                    data.get("campaign_id") == campaign_name
+                    or (data.get("campaign_name", "").strip().lower() == campaign_name.strip().lower())
+                    or f.stem.lower() == manager.sanitize_name(campaign_name).lower()
+                ):
+                    state = data
+                    break
+            except Exception:
+                continue
+
+    if not state:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Campaña '{campaign_name}' no encontrada para exportar."
+        )
+
+    real_campaign_name = state.get("campaign_name", campaign_name)
+    safe_name = manager.sanitize_name(real_campaign_name)
+    now_dt = datetime.datetime.now()
+    date_str = now_dt.strftime("%Y-%m-%d")
+
+    # Build ZIP in-memory
+    zip_buffer = io.BytesIO()
+    with zipfile.ZipFile(zip_buffer, mode="w", compression=zipfile.ZIP_DEFLATED) as zf:
+        # 1. campaign.json
+        campaign_json_bytes = json.dumps(state, indent=2, ensure_ascii=False).encode("utf-8")
+        zf.writestr("campaign.json", campaign_json_bytes)
+
+        # 2. Collect session and output files from output dir
+        output_dir = get_data_output_dir()
+        included_files = ["campaign.json"]
+
+        # Consolidated grimorio files
+        grimorio_md_path = output_dir / f"{safe_name}_grimorio.md"
+        if grimorio_md_path.is_file():
+            zf.write(grimorio_md_path, arcname=f"outputs/{grimorio_md_path.name}")
+            included_files.append(f"outputs/{grimorio_md_path.name}")
+        else:
+            try:
+                md_path_str = export_living_journal_md(state)
+                gen_path = Path(md_path_str)
+                if gen_path.is_file():
+                    zf.write(gen_path, arcname=f"outputs/{gen_path.name}")
+                    included_files.append(f"outputs/{gen_path.name}")
+            except Exception as e:
+                print(f"[export_campaign] Warning generating md: {e}")
+
+        grimorio_docx_path = output_dir / f"{safe_name}_grimorio.docx"
+        if grimorio_docx_path.is_file():
+            zf.write(grimorio_docx_path, arcname=f"outputs/{grimorio_docx_path.name}")
+            included_files.append(f"outputs/{grimorio_docx_path.name}")
+        else:
+            try:
+                docx_path_str = export_living_journal_docx(state)
+                gen_docx = Path(docx_path_str)
+                if gen_docx.is_file():
+                    zf.write(gen_docx, arcname=f"outputs/{gen_docx.name}")
+                    included_files.append(f"outputs/{gen_docx.name}")
+            except Exception as e:
+                print(f"[export_campaign] Warning generating docx: {e}")
+
+        # Individual transcripts & chronicles matching pattern
+        for f in output_dir.glob(f"{safe_name}_*"):
+            if f.is_file() and f.suffix in [".txt", ".md", ".docx"]:
+                arc_name = f"outputs/{f.name}"
+                if arc_name not in included_files:
+                    zf.write(f, arcname=arc_name)
+                    included_files.append(arc_name)
+
+        # Ensure every session in state has individual chronicle & transcript preserved
+        for sess in state.get("sessions", []):
+            s_num = sess.get("session_number", 0)
+            c_md = sess.get("chronicle_markdown") or sess.get("chronicle_text")
+            if c_md:
+                c_arc = f"sessions/sesion_{s_num}_cronica.md"
+                if c_arc not in included_files:
+                    zf.writestr(c_arc, c_md.encode("utf-8"))
+                    included_files.append(c_arc)
+            raw_t = sess.get("raw_transcript") or sess.get("transcript")
+            if raw_t:
+                t_arc = f"sessions/sesion_{s_num}_transcripcion.txt"
+                if t_arc not in included_files:
+                    zf.writestr(t_arc, raw_t.encode("utf-8"))
+                    included_files.append(t_arc)
+
+        # 3. manifest.json
+        manifest = {
+            "format": "WhisperDnD_Campaign_Bundle",
+            "version": "1.0",
+            "exported_at": now_dt.isoformat(),
+            "campaign_name": real_campaign_name,
+            "campaign_id": state.get("campaign_id", safe_name),
+            "dungeon_master": state.get("dm_name") or state.get("dm") or state.get("dungeon_master") or "",
+            "dungeon_master_discord": state.get("dm_discord_id") or "",
+            "sessions_count": len(state.get("sessions", [])),
+            "npcs_count": len(state.get("npcs", [])),
+            "quests_count": len(state.get("quests", [])),
+            "locations_count": len(state.get("locations", [])),
+            "pcs_count": len(state.get("universal_pcs", [])),
+            "files": included_files,
+        }
+        zf.writestr("manifest.json", json.dumps(manifest, indent=2, ensure_ascii=False).encode("utf-8"))
+
+    zip_bytes = zip_buffer.getvalue()
+
+    # Filename format: Campaña_[Nombre]_[Fecha].zip
+    clean_title = re.sub(r'[^\w\-]', '_', real_campaign_name).strip('_') or "Principal"
+    zip_filename = f"Campaña_{clean_title}_{date_str}.zip"
+    ascii_filename = f"Campana_{clean_title}_{date_str}.zip"
+    encoded_filename = urllib.parse.quote(zip_filename)
+
+    headers = {
+        "Content-Disposition": f'attachment; filename="{ascii_filename}"; filename*=UTF-8\'\'{encoded_filename}',
+        "Content-Type": "application/zip",
+        "Cache-Control": "no-cache",
+    }
+    return Response(content=zip_bytes, media_type="application/zip", headers=headers)
+
+
+@app.post("/api/campaigns/import")
+async def import_campaign_bundle(
+    file: UploadFile = File(...),
+):
+    """
+    Import a full campaign bundle from a .zip or .json file.
+    Restores the campaign configuration, roster, wiki entities, session chronicles,
+    and transcripts into server directories (data/campaigns/ and data/output/).
+    If Google Drive is connected, automatically uploads a backup copy to Google Drive.
+    """
+    if not file or not file.filename:
+        raise HTTPException(status_code=400, detail="No se proporcionó ningún archivo para importar.")
+
+    fname = file.filename.lower()
+    if not (fname.endswith(".zip") or fname.endswith(".json")):
+        raise HTTPException(
+            status_code=400,
+            detail="Formato no compatible. Por favor sube un archivo .zip o .json de campaña."
+        )
+
+    content_bytes = await file.read()
+    if not content_bytes:
+        raise HTTPException(status_code=400, detail="El archivo subido está vacío.")
+
+    manager = CampaignManager()
+    camp_dir = get_data_campaigns_dir()
+    out_dir = get_data_output_dir()
+    wiki_dir = camp_dir / "wiki"
+    wiki_dir.mkdir(parents=True, exist_ok=True)
+
+    campaign_state = None
+    files_restored = 0
+
+    if fname.endswith(".zip"):
+        try:
+            with zipfile.ZipFile(io.BytesIO(content_bytes), "r") as zf:
+                namelist = zf.namelist()
+
+                # Look for campaign.json first, or any top-level json with campaign fields
+                campaign_json_entry = None
+                if "campaign.json" in namelist:
+                    campaign_json_entry = "campaign.json"
+                else:
+                    for name in namelist:
+                        if name.endswith(".json") and not name.endswith("manifest.json"):
+                            try:
+                                candidate = json.loads(zf.read(name).decode("utf-8"))
+                                if isinstance(candidate, dict) and (
+                                    "campaign_name" in candidate
+                                    or "universal_pcs" in candidate
+                                    or "sessions" in candidate
+                                ):
+                                    campaign_json_entry = name
+                                    campaign_state = candidate
+                                    break
+                            except Exception:
+                                continue
+
+                if not campaign_state and campaign_json_entry:
+                    campaign_state = json.loads(zf.read(campaign_json_entry).decode("utf-8"))
+
+                if not campaign_state:
+                    raise HTTPException(
+                        status_code=400,
+                        detail="El archivo ZIP no contiene una estructura válida de campaña (campaign.json)."
+                    )
+
+                c_name = campaign_state.get("campaign_name")
+                if not c_name:
+                    c_name = Path(file.filename).stem.replace("Campaña_", "").replace("Campana_", "") or "Campaña Importada"
+                    campaign_state["campaign_name"] = c_name
+
+                safe_name = manager.sanitize_name(c_name)
+
+                # Save main campaign state
+                target_json_path = camp_dir / f"{safe_name}.json"
+                target_json_path.write_bytes(json.dumps(campaign_state, indent=2, ensure_ascii=False).encode("utf-8"))
+                files_restored += 1
+
+                # Extract outputs, sessions, and wiki files
+                for item in namelist:
+                    if item.endswith("/") or item in ["campaign.json", "manifest.json"]:
+                        continue
+                    item_data = zf.read(item)
+                    item_path = Path(item)
+                    item_name = item_path.name
+
+                    # If inside wiki/
+                    if item.startswith("wiki/"):
+                        (wiki_dir / item_name).write_bytes(item_data)
+                        files_restored += 1
+                    # If inside outputs/ or sessions/ or standalone output document
+                    elif item.startswith("outputs/") or item.startswith("sessions/") or item.endswith((".md", ".docx", ".txt")):
+                        (out_dir / item_name).write_bytes(item_data)
+                        files_restored += 1
+
+        except zipfile.BadZipFile:
+            raise HTTPException(status_code=400, detail="El archivo ZIP está dañado o no es válido.")
+        except HTTPException:
+            raise
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Error descomprimiendo el archivo: {str(e)}")
+
+    else:
+        # Single .json file
+        try:
+            parsed = json.loads(content_bytes.decode("utf-8"))
+            if not isinstance(parsed, dict) or not (
+                "campaign_name" in parsed
+                or "universal_pcs" in parsed
+                or "sessions" in parsed
+                or "roster" in parsed
+            ):
+                raise HTTPException(
+                    status_code=400,
+                    detail="El archivo JSON no contiene una estructura de campaña de WhisperDnD válida."
+                )
+            campaign_state = parsed
+            c_name = campaign_state.get("campaign_name")
+            if not c_name:
+                c_name = Path(file.filename).stem or "Campaña Importada"
+                campaign_state["campaign_name"] = c_name
+
+            safe_name = manager.sanitize_name(c_name)
+            target_json_path = camp_dir / f"{safe_name}.json"
+            target_json_path.write_bytes(json.dumps(campaign_state, indent=2, ensure_ascii=False).encode("utf-8"))
+            files_restored += 1
+        except json.JSONDecodeError:
+            raise HTTPException(status_code=400, detail="El archivo JSON está mal formado o no es válido.")
+
+    # Re-export fresh unified living grimorio documents (.md and .docx) if possible
+    c_name = campaign_state.get("campaign_name", "Campaña")
+    safe_name = manager.sanitize_name(c_name)
+    try:
+        export_living_journal_md(campaign_state)
+    except Exception as e:
+        print(f"[import_campaign] Warning generating md: {e}")
+    try:
+        export_living_journal_docx(campaign_state)
+    except Exception as e:
+        print(f"[import_campaign] Warning generating docx: {e}")
+
+    # Also restore individual session transcript files if not already written
+    for sess in campaign_state.get("sessions", []):
+        s_num = sess.get("session_number")
+        raw_t = sess.get("raw_transcript") or sess.get("transcript")
+        if s_num is not None and raw_t:
+            t_file = out_dir / f"{safe_name}_sesion_{s_num}_transcripcion.txt"
+            if not t_file.is_file():
+                try:
+                    t_file.write_text(raw_t, encoding="utf-8")
+                    files_restored += 1
+                except Exception:
+                    pass
+
+    # If Google Drive is connected, upload backup copy to Google Drive automatically
+    drive_uploaded = False
+    try:
+        drive_storage = GoogleDriveStorage()
+        if drive_storage.is_connected():
+            target_json_path = camp_dir / f"{safe_name}.json"
+            asyncio.create_task(
+                run_in_threadpool(
+                    drive_storage.upload_file,
+                    str(target_json_path.resolve()),
+                    "WhisperDnD",
+                )
+            )
+            drive_uploaded = True
+    except Exception as e:
+        print(f"[import_campaign] Warning backing up to Drive: {e}")
+
+    sess_count = len(campaign_state.get("sessions", []))
+    npcs_count = len(campaign_state.get("npcs", []))
+    pcs_count = len(campaign_state.get("universal_pcs", []))
+
+    msg = f"Campaña '{c_name}' importada exitosamente con {sess_count} sesiones, {pcs_count} protagonistas y {npcs_count} PNJs."
+    if drive_uploaded:
+        msg += " Respaldo en Google Drive sincronizado automáticamente."
+
+    return {
+        "status": "success",
+        "campaign_name": c_name,
+        "campaign_id": campaign_state.get("campaign_id", safe_name),
+        "sessions_count": sess_count,
+        "files_restored": files_restored,
+        "drive_backup": drive_uploaded,
+        "message": msg,
+    }
 
 
 @app.get("/api/download/transcript/{filename}")

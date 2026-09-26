@@ -1,6 +1,7 @@
 """Unit tests for FastAPI backend endpoints."""
 
 import asyncio
+import os
 import shutil
 import tempfile
 import unittest
@@ -1056,6 +1057,138 @@ El problema del conocimiento.
                 downloaded_file = camp_dir / "campaign_dragons.json"
                 self.assertTrue(downloaded_file.is_file())
                 self.assertIn("Dragons of Stormwreck", downloaded_file.read_text(encoding="utf-8"))
+
+    def test_campaign_export_not_found(self):
+        from fastapi.testclient import TestClient
+        client = TestClient(app)
+        res = client.get("/api/campaigns/NonExistentCampaign999/export")
+        self.assertEqual(res.status_code, 404)
+
+    def test_campaign_export_and_import_zip_bundle(self):
+        import io
+        import json
+        import zipfile
+        from fastapi.testclient import TestClient
+        from src.storage.campaign_manager import CampaignManager
+        client = TestClient(app)
+
+        # 1. Create a campaign on disk with sessions, roster, and output files
+        camp_name = "Curse of Strahd"
+        manager = CampaignManager(campaigns_dir=self.temp_camp_dir)
+        camp_data = {
+            "campaign_name": camp_name,
+            "campaign_id": "curse_of_strahd",
+            "dm_name": "Matt Mercer",
+            "dm_discord_id": "123456789",
+            "roster": [
+                {"role": "Dungeon Master (DM)", "character_name": "(DM)", "player_name": "Matt Mercer", "discord_id": "123456789"},
+                {"role": "Jugador", "character_name": "Grog", "player_name": "Travis", "character_class": "Barbarian"}
+            ],
+            "universal_pcs": [
+                {"name": "Grog", "character_name": "Grog", "player_name": "Travis", "character_class": "Barbarian"}
+            ],
+            "npcs": [
+                {"name": "Strahd von Zarovich", "role": "Vampire Lord", "location": "Castle Ravenloft"}
+            ],
+            "quests": [
+                {"title": "Find the Sunsword", "status": "in_progress"}
+            ],
+            "sessions": [
+                {
+                    "session_number": 1,
+                    "chapter_title": "Arrival in Barovia",
+                    "chronicle_markdown": "# Capítulo 1: Barovia\nLlegaron al valle brumoso.",
+                    "raw_transcript": "[00:00:01] Bienvenidos a Barovia."
+                }
+            ]
+        }
+        manager.save_campaign(camp_data)
+
+        # Write output files in self.temp_out_dir
+        safe_name = manager.sanitize_name(camp_name)
+        out_dir = Path(self.temp_out_dir)
+        (out_dir / f"{safe_name}_grimorio.md").write_text("# Grimorio Curse of Strahd", encoding="utf-8")
+        (out_dir / f"{safe_name}_sesion_1_transcripcion.txt").write_text("[00:00:01] Bienvenidos a Barovia.", encoding="utf-8")
+
+        # 2. Test export endpoint
+        res = client.get(f"/api/campaigns/{camp_name}/export")
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.headers.get("content-type"), "application/zip")
+        self.assertIn("filename=", res.headers.get("content-disposition", ""))
+        self.assertIn("Campana_Curse_of_Strahd", res.headers.get("content-disposition", ""))
+
+        # Verify ZIP contents
+        zip_bytes = res.content
+        with zipfile.ZipFile(io.BytesIO(zip_bytes), "r") as zf:
+            namelist = zf.namelist()
+            self.assertIn("campaign.json", namelist)
+            self.assertIn("manifest.json", namelist)
+            self.assertIn(f"outputs/{safe_name}_grimorio.md", namelist)
+
+            extracted_camp = json.loads(zf.read("campaign.json").decode("utf-8"))
+            self.assertEqual(extracted_camp.get("campaign_name"), camp_name)
+            self.assertEqual(extracted_camp.get("dm_name"), "Matt Mercer")
+
+            manifest = json.loads(zf.read("manifest.json").decode("utf-8"))
+            self.assertEqual(manifest.get("campaign_name"), camp_name)
+            self.assertEqual(manifest.get("sessions_count"), 1)
+
+        # 3. Test import endpoint into a fresh directory
+        shutil.rmtree(self.temp_camp_dir, ignore_errors=True)
+        shutil.rmtree(self.temp_out_dir, ignore_errors=True)
+        os.makedirs(self.temp_camp_dir, exist_ok=True)
+        os.makedirs(self.temp_out_dir, exist_ok=True)
+
+        files = {"file": ("Campana_Curse_of_Strahd_2026-09-25.zip", zip_bytes, "application/zip")}
+        import_res = client.post("/api/campaigns/import", files=files)
+        self.assertEqual(import_res.status_code, 200)
+        import_data = import_res.json()
+        self.assertEqual(import_data.get("status"), "success")
+        self.assertEqual(import_data.get("campaign_name"), camp_name)
+        self.assertEqual(import_data.get("sessions_count"), 1)
+
+        # Verify restored files on disk
+        restored_json = Path(self.temp_camp_dir) / f"{safe_name}.json"
+        self.assertTrue(restored_json.is_file())
+        restored_data = json.loads(restored_json.read_text(encoding="utf-8"))
+        self.assertEqual(restored_data.get("dm_name"), "Matt Mercer")
+        self.assertEqual(len(restored_data.get("universal_pcs", [])), 1)
+
+        # Verify restored output files
+        self.assertTrue((Path(self.temp_out_dir) / f"{safe_name}_grimorio.md").is_file())
+        self.assertTrue((Path(self.temp_out_dir) / f"{safe_name}_sesion_1_transcripcion.txt").is_file())
+
+    def test_campaign_import_json_file(self):
+        import json
+        from fastapi.testclient import TestClient
+        client = TestClient(app)
+
+        camp_payload = {
+            "campaign_name": "Lost Mine of Phandelver",
+            "campaign_id": "lost_mine",
+            "dm": "Chris Perkins",
+            "sessions": [
+                {"session_number": 1, "chapter_title": "Goblin Ambush", "raw_transcript": "Flechas vuelan."}
+            ],
+            "universal_pcs": [
+                {"character_name": "Sildar", "player_name": "NPC"}
+            ],
+            "npcs": [
+                {"name": "Klarg", "role": "Bugbear Leader"}
+            ]
+        }
+        json_bytes = json.dumps(camp_payload).encode("utf-8")
+        files = {"file": ("lost_mine.json", json_bytes, "application/json")}
+
+        res = client.post("/api/campaigns/import", files=files)
+        self.assertEqual(res.status_code, 200)
+        data = res.json()
+        self.assertEqual(data.get("status"), "success")
+        self.assertEqual(data.get("campaign_name"), "Lost Mine of Phandelver")
+
+        # Verify on disk
+        target_file = Path(self.temp_camp_dir) / "lost_mine_of_phandelver.json"
+        self.assertTrue(target_file.is_file())
 
 
 if __name__ == "__main__":

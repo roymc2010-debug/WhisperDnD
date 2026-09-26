@@ -411,6 +411,19 @@
                 <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
                 <span>Mis Campañas</span>
               </button>
+              <button type="button" id="btnImportCampaign" onclick="triggerImportCampaign()"
+                title="Importar campaña completa (ZIP o JSON) con sesiones, wiki y roster"
+                class="min-h-[44px] inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-xs font-semibold transition active:scale-[0.98] duration-150 cursor-pointer shrink-0">
+                <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                <span>📥 Importar</span>
+              </button>
+              <button type="button" id="btnExportCampaign" onclick="exportCurrentCampaign()"
+                title="Exportar campaña activa completa en un paquete ZIP (sesiones, wiki, roster y transcripciones)"
+                class="min-h-[44px] inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 text-xs font-semibold transition active:scale-[0.98] duration-150 cursor-pointer shrink-0">
+                <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                <span>📤 Exportar</span>
+              </button>
+              <input type="file" id="campaignImportFileInput" accept=".zip,.json" class="hidden" onchange="handleCampaignImportFile(event)">
             </div>
             <div class="flex items-center gap-2">
               <label for="sessionNumberInput" class="text-xs text-slate-400 font-medium whitespace-nowrap">Sesión #:</label>
@@ -1185,6 +1198,11 @@
             <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 21h5v-5"/></svg>
           </button>
           <div class="flex items-center gap-1.5 pl-1 border-l border-slate-800">
+            <button type="button" onclick="exportCurrentCampaignFromWiki()" title="Exportar Paquete Completo de Campaña (ZIP con Wiki, Sesiones y Roster)"
+              class="min-h-[44px] px-3 py-2 rounded-xl bg-indigo-500/15 hover:bg-indigo-500/25 text-indigo-300 border border-indigo-500/30 text-xs font-semibold transition flex items-center gap-1.5 cursor-pointer active:scale-[0.98]">
+              <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+              <span>Exportar ZIP</span>
+            </button>
             <button type="button" onclick="downloadCampaignDocx()" title="Descargar Grimorio Completo en Word (.docx)"
               class="min-h-[44px] px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-semibold transition flex items-center gap-1.5 cursor-pointer active:scale-[0.98]">
               <svg class="w-3.5 h-3.5 text-sky-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/></svg>
@@ -1570,7 +1588,12 @@
         <!-- Footer -->
         <div class="border-t border-slate-800 pt-3 flex items-center justify-between gap-2 flex-wrap">
           <span id="campaignManagerCount" class="text-[11px] text-slate-500 font-mono">0 campañas guardadas</span>
-          <div class="flex items-center gap-2">
+          <div class="flex items-center gap-2 flex-wrap">
+            <button type="button" onclick="triggerImportCampaign()" title="Importar campaña completa desde archivo ZIP o JSON"
+              class="px-3 py-1.5 rounded-xl bg-emerald-600/20 hover:bg-emerald-600/30 border border-emerald-500/30 text-emerald-300 text-xs font-semibold flex items-center gap-1.5 transition duration-150 cursor-pointer">
+              <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              <span>📥 Importar Campaña</span>
+            </button>
             <button id="btnSyncDriveModal" type="button" onclick="syncWithGoogleDrive()" title="Descargar campañas y notas guardadas en Google Drive"
               class="hidden px-3 py-1.5 rounded-xl bg-indigo-600/20 hover:bg-indigo-600/30 border border-indigo-500/30 text-indigo-300 text-xs font-semibold flex items-center gap-1.5 transition duration-150 cursor-pointer">
               <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
@@ -3502,12 +3525,16 @@ function refreshAudioDevices() {
               ${lastUpdated ? `<span class="text-[10px] text-slate-500">Actualizada: ${escapeHtml(lastUpdated)}</span>` : ""}
             </div>
           </button>
-          <div class="flex items-center gap-2 shrink-0">
+          <div class="flex items-center gap-1.5 shrink-0">
             <span class="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-500/15 text-amber-300 border border-amber-500/25 whitespace-nowrap">
               ${sessLabel}
             </span>
+            <button type="button" onclick="exportCampaignByName('${escapeHtml(cName)}')" title="Exportar paquete ZIP de la campaña (${escapeHtml(cName)})"
+              class="w-7 h-7 flex items-center justify-center rounded-lg bg-indigo-950/40 hover:bg-indigo-900/80 text-indigo-300 hover:text-white border border-indigo-800/40 transition cursor-pointer text-xs active:scale-95">
+              📤
+            </button>
             <button type="button" onclick="confirmDeleteCampaign('${escapeHtml(cName)}')" title="Eliminar campaña y todo su historial"
-              class="w-7 h-7 flex items-center justify-center rounded-lg bg-rose-950/40 hover:bg-rose-900/80 text-rose-300 hover:text-white border border-rose-800/40 transition cursor-pointer text-xs">
+              class="w-7 h-7 flex items-center justify-center rounded-lg bg-rose-950/40 hover:bg-rose-900/80 text-rose-300 hover:text-white border border-rose-800/40 transition cursor-pointer text-xs active:scale-95">
               🗑️
             </button>
           </div>
@@ -7416,6 +7443,128 @@ async function selectWikiEntity(type, key, data) {
       window.location.href = `/api/campaigns/${encodeURIComponent(campName)}/download-md`;
     }
 
+    function exportCampaignByName(campName) {
+      const name = (campName || "").trim();
+      if (!name) {
+        showAlert("Por favor especifica el nombre de la campaña a exportar.");
+        return;
+      }
+      showInfoAlert(`Generando paquete ZIP para '${name}' con todas sus sesiones, wiki y roster...`);
+      const link = document.createElement("a");
+      link.href = `/api/campaigns/${encodeURIComponent(name)}/export`;
+      link.setAttribute("download", "");
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      setTimeout(() => {
+        showSuccessAlert(`Descarga de la campaña '${name}' iniciada.`);
+      }, 1000);
+    }
+
+    function exportCurrentCampaign() {
+      const campInput = document.getElementById("campaignNameInput");
+      const name = campInput ? campInput.value.trim() : "";
+      if (!name) {
+        showAlert("Selecciona o escribe el nombre de una campaña antes de exportar.");
+        if (campInput) campInput.focus();
+        return;
+      }
+      exportCampaignByName(name);
+    }
+
+    function exportCurrentCampaignFromWiki() {
+      const select = document.getElementById("wikiCampaignSelect");
+      const campInput = document.getElementById("campaignNameInput");
+      const name = (select && select.value.trim()) || (campInput && campInput.value.trim());
+      if (!name) {
+        showAlert("Selecciona una campaña en el selector superior para exportarla.");
+        return;
+      }
+      exportCampaignByName(name);
+    }
+
+    function triggerImportCampaign() {
+      const fileInput = document.getElementById("campaignImportFileInput");
+      if (fileInput) {
+        fileInput.value = "";
+        fileInput.click();
+      }
+    }
+
+    async function handleCampaignImportFile(event) {
+      const file = event.target.files && event.target.files[0];
+      if (!file) return;
+
+      const lowerName = file.name.toLowerCase();
+      if (!lowerName.endsWith(".zip") && !lowerName.endsWith(".json")) {
+        showAlert("Formato no compatible. Por favor sube un archivo .zip o .json de campaña.");
+        return;
+      }
+
+      showInfoAlert(`Importando campaña desde '${file.name}' al servidor...`);
+      const importBtn = document.getElementById("btnImportCampaign");
+      const origText = importBtn ? importBtn.innerHTML : "";
+      if (importBtn) {
+        importBtn.disabled = true;
+        importBtn.innerHTML = `<span class="inline-block animate-spin">⏳</span><span>Importando...</span>`;
+      }
+
+      try {
+        const formData = new FormData();
+        formData.append("file", file);
+
+        const res = await fetch("/api/campaigns/import", {
+          method: "POST",
+          body: formData,
+        });
+
+        const data = await res.json();
+        if (!res.ok || data.status === "error") {
+          throw new Error(data.message || data.detail || "Error al importar la campaña.");
+        }
+
+        showSuccessAlert(data.message || `Campaña '${data.campaign_name}' importada con éxito.`);
+
+        // Set imported campaign as active
+        const campInput = document.getElementById("campaignNameInput");
+        if (campInput && data.campaign_name) {
+          campInput.value = data.campaign_name;
+        }
+
+        // Refresh campaign options
+        const campaigns = await loadCampaignList();
+
+        // Refresh modal if open
+        const modal = document.getElementById("campaignManagerModal");
+        if (modal && !modal.classList.contains("hidden") && typeof renderCampaignManagerList === "function") {
+          renderCampaignManagerList(campaigns);
+        }
+
+        // Refresh active campaign data, roster, and Wiki
+        await onCampaignChange();
+        await loadCurrentCampaign();
+        if (typeof refreshWikiCampaigns === "function") {
+          await refreshWikiCampaigns();
+          const wikiSelect = document.getElementById("wikiCampaignSelect");
+          if (wikiSelect && data.campaign_name) {
+            wikiSelect.value = data.campaign_name;
+            if (typeof onWikiCampaignSelected === "function") {
+              onWikiCampaignSelected(data.campaign_name);
+            }
+          }
+        }
+      } catch (err) {
+        console.error("Import campaign error:", err);
+        showAlert("Error al importar la campaña: " + err.message);
+      } finally {
+        if (importBtn) {
+          importBtn.disabled = false;
+          importBtn.innerHTML = origText;
+        }
+        event.target.value = "";
+      }
+    }
+
     function downloadTranscriptTxt() {
       if (currentResult && currentResult.txt_filename) {
         window.location.href = `/api/download/transcript/${encodeURIComponent(currentResult.txt_filename)}`;
@@ -8022,6 +8171,11 @@ async function selectWikiEntity(type, key, data) {
     window.syncWithGoogleDrive = syncWithGoogleDrive;
     window.showInfoAlert = showInfoAlert;
     window.showSuccessAlert = showSuccessAlert;
+    window.exportCampaignByName = exportCampaignByName;
+    window.exportCurrentCampaign = exportCurrentCampaign;
+    window.exportCurrentCampaignFromWiki = exportCurrentCampaignFromWiki;
+    window.triggerImportCampaign = triggerImportCampaign;
+    window.handleCampaignImportFile = handleCampaignImportFile;
 
   </script>
 </body>
