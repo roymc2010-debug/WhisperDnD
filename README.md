@@ -104,10 +104,14 @@ La aplicación incluye soporte nativo para despliegue en contenedores sin estado
 - **Formatos de Descarga**:
   - **Markdown (`.md`)**: Tablas de misiones, directorio de PNJs y capítulos cronológicos.
   - **Microsoft Word (`.docx`)**: Formateado profesional con estilos universitarios o de fantasía medieval, tablas estilizadas y márgenes normalizados.
-- **Google Drive OAuth 2.0 Dinámico**:
+- **Google Drive OAuth 2.0 Dinámico & Sincronización Bidireccional**:
   - Detección automática del dominio en producción mediante `RENDER_EXTERNAL_URL` o cabeceras de proxy (`Host`, `X-Forwarded-Proto`).
   - Soporte de rutas duales de callback: `/oauth2callback` y `/api/auth/drive/callback`.
-  - Subida directa a la carpeta *"Whisper AI - Transcripciones"* en tu Google Drive.
+  - Soporte de inyección de credenciales mediante variables de entorno en Render/Cloud Run (`GOOGLE_CREDENTIALS_JSON` y `GOOGLE_TOKEN_JSON`).
+  - **Sincronización Bidireccional y Restauración Automática**:
+    - **Startup en la nube**: Al iniciar el servidor en entornos efímeros (como Render Docker), si Google Drive está conectado, descarga y restaura automáticamente el estado de todas las campañas (`.json`) y notas/crónicas (`.md`, `.docx`, `.txt`).
+    - **Botón `[ 🔄 Sincronizar Campañas con Drive ]`**: Disponible en la cabecera, en la sección de Ajustes y en el gestor de "Mis Campañas" para descargar y fusionar campañas existentes y respaldar las locales en tiempo real sin recargar la página.
+    - **Respaldos automáticos**: Cada guardado o modificación de campaña sincroniza el estado directamente con Google Drive en segundo plano.
 
 ---
 

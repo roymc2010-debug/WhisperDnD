@@ -107,7 +107,20 @@ app = FastAPI(
 
 @app.on_event("startup")
 async def on_server_startup():
-    """Auto-deduplicate campaign entities across all saved campaigns on server start."""
+    """Restore campaigns from Google Drive if connected and auto-deduplicate campaign entities on start."""
+    try:
+        drive_storage = GoogleDriveStorage()
+        if drive_storage.is_connected():
+            print("[Server Startup] Google Drive connected. Restoring campaigns and notes from Drive...")
+            sync_res = await run_in_threadpool(
+                drive_storage.sync_from_google_drive,
+                get_data_campaigns_dir(),
+                get_data_output_dir(),
+            )
+            print(f"[Server Startup] Drive restore complete: {sync_res.get('message', '')}")
+    except Exception as exc:
+        print(f"[Server Startup] Drive restore on startup skipped or failed: {exc}")
+
     try:
         manager = CampaignManager()
         results = manager.deduplicate_all_campaigns()
@@ -2603,7 +2616,19 @@ async def create_or_init_campaign(payload: CreateCampaignRequest):
         modified = True
 
     if modified:
-        manager.save_campaign(state)
+        saved_path = manager.save_campaign(state)
+        try:
+            ds = GoogleDriveStorage()
+            if ds.is_connected():
+                asyncio.create_task(
+                    run_in_threadpool(
+                        ds.upload_file,
+                        str(saved_path.resolve()),
+                        "WhisperDnD",
+                    )
+                )
+        except Exception:
+            pass
     return state
 
 
@@ -3063,6 +3088,18 @@ async def drive_callback(
             redirect_uri=target_redirect,
             state=state,
         )
+        # Trigger background pull & restore from Google Drive on successful authentication
+        try:
+            asyncio.create_task(
+                run_in_threadpool(
+                    drive_storage.sync_from_google_drive,
+                    get_data_campaigns_dir(),
+                    get_data_output_dir(),
+                )
+            )
+        except Exception as _sync_err:
+            print(f"[drive_callback] Warning scheduling initial drive sync: {_sync_err}")
+
         return RedirectResponse(url="/?drive_connected=true", status_code=302)
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"Error al canjear código de OAuth: {exc}") from exc
@@ -3092,5 +3129,26 @@ async def connect_drive(request: Request = None):
         }
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"Error al iniciar autenticación de Google Drive: {exc}") from exc
+
+
+@app.post("/api/drive/sync")
+async def sync_drive_endpoint():
+    """Trigger bidirectional sync of campaigns and notes with Google Drive."""
+    drive_storage = GoogleDriveStorage()
+    if not drive_storage.is_connected():
+        return {
+            "status": "not_connected",
+            "synced_campaigns": 0,
+            "synced_notes": 0,
+            "message": "Google Drive no está conectado. Inicia sesión con Google Drive primero.",
+        }
+    try:
+        camp_dir = get_data_campaigns_dir()
+        out_dir = get_data_output_dir()
+        res = await run_in_threadpool(drive_storage.sync_from_google_drive, camp_dir, out_dir)
+        return res
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Error durante sincronización con Drive: {exc}") from exc
+
 
 

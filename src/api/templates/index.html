@@ -270,7 +270,7 @@
             </div>
             <div class="flex items-center justify-between">
               <span class="text-slate-400">Google Drive</span>
-              <div id="driveHeaderWidget" class="flex items-center">
+              <div id="driveHeaderWidget" class="flex items-center gap-1.5">
                 <button id="btnConnectDriveHeader" onclick="connectGoogleDriveUpfront()" type="button"
                   class="px-2.5 py-1 rounded text-[11px] font-medium bg-slate-800 hover:bg-slate-700 text-slate-300 border border-white/10 transition cursor-pointer">
                   Conectar Drive
@@ -279,6 +279,11 @@
                   <span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
                   <span>Conectado</span>
                 </span>
+                <button id="btnSyncDriveHeader" onclick="syncWithGoogleDrive()" type="button" title="Sincronizar Campañas y Notas con Drive"
+                  class="hidden inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-300 border border-indigo-500/30 transition cursor-pointer">
+                  <svg class="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
+                  <span>Sincronizar</span>
+                </button>
               </div>
             </div>
           </div>
@@ -1526,12 +1531,19 @@
                 <span>Gemini 2.5 Flash</span>
               </span>
             </div>
-            <div class="p-3 rounded-xl bg-slate-950 border border-slate-800 space-y-1">
+            <div class="p-3 rounded-xl bg-slate-950 border border-slate-800 space-y-2">
               <span class="text-[11px] text-slate-400 block">Google Drive</span>
-              <button type="button" onclick="connectGoogleDriveUpfront()"
-                class="min-h-[36px] px-3 py-1 rounded-lg text-xs font-semibold bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 border border-emerald-500/30 transition flex items-center gap-1.5 cursor-pointer">
-                <span>Conectar / Verificar</span>
-              </button>
+              <div class="flex items-center gap-2 flex-wrap">
+                <button type="button" onclick="connectGoogleDriveUpfront()"
+                  class="min-h-[36px] px-3 py-1 rounded-lg text-xs font-semibold bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 border border-emerald-500/30 transition flex items-center gap-1.5 cursor-pointer">
+                  <span>Conectar / Verificar</span>
+                </button>
+                <button id="btnSyncDriveSettings" type="button" onclick="syncWithGoogleDrive()"
+                  class="hidden min-h-[36px] px-3 py-1 rounded-lg text-xs font-semibold bg-indigo-500/15 hover:bg-indigo-500/25 text-indigo-300 border border-indigo-500/30 transition flex items-center gap-1.5 cursor-pointer">
+                  <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
+                  <span>🔄 Sincronizar Campañas con Drive</span>
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -1556,9 +1568,16 @@
           <p class="text-slate-400 text-center py-6">Cargando campañas...</p>
         </div>
         <!-- Footer -->
-        <div class="border-t border-slate-800 pt-3 flex items-center justify-between">
+        <div class="border-t border-slate-800 pt-3 flex items-center justify-between gap-2 flex-wrap">
           <span id="campaignManagerCount" class="text-[11px] text-slate-500 font-mono">0 campañas guardadas</span>
-          <button type="button" onclick="toggleCampaignManagerModal(false)" class="px-4 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 active:scale-[0.98] text-slate-300 text-xs font-semibold transition duration-150 cursor-pointer">Cerrar</button>
+          <div class="flex items-center gap-2">
+            <button id="btnSyncDriveModal" type="button" onclick="syncWithGoogleDrive()" title="Descargar campañas y notas guardadas en Google Drive"
+              class="hidden px-3 py-1.5 rounded-xl bg-indigo-600/20 hover:bg-indigo-600/30 border border-indigo-500/30 text-indigo-300 text-xs font-semibold flex items-center gap-1.5 transition duration-150 cursor-pointer">
+              <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
+              <span>Sincronizar con Drive</span>
+            </button>
+            <button type="button" onclick="toggleCampaignManagerModal(false)" class="px-4 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 active:scale-[0.98] text-slate-300 text-xs font-semibold transition duration-150 cursor-pointer">Cerrar</button>
+          </div>
         </div>
       </div>
     </div>
@@ -2996,25 +3015,39 @@ function refreshAudioDevices() {
           updateKeyBadge("badgeGroqStatus", data.groq, "Groq", data.groq_message);
           updateKeyBadge("badgeGeminiStatus", data.gemini, "Gemini", data.gemini_message);
 
-          const btn = document.getElementById("btnConnectDriveHeader");
-          const badge = document.getElementById("badgeConnectedDriveHeader");
-          if (data.drive) {
-            if (btn) btn.classList.add("hidden");
-            if (badge) {
-              badge.classList.remove("hidden");
-              badge.innerHTML = `<span class="w-2 h-2 rounded-full bg-emerald-400"></span> 🟢 Google Drive Conectado`;
-            }
-          } else {
-            if (btn) {
-              btn.classList.remove("hidden");
-              btn.disabled = false;
-              btn.innerHTML = `<span>🔗</span> Conectar Google Drive`;
-            }
-            if (badge) badge.classList.add("hidden");
-          }
+          updateDriveUIState(Boolean(data.drive));
         }
       } catch (err) {
         console.warn("Could not check API keys status:", err);
+      }
+    }
+
+    function updateDriveUIState(isConnected) {
+      const btn = document.getElementById("btnConnectDriveHeader");
+      const badge = document.getElementById("badgeConnectedDriveHeader");
+      const btnSyncHeader = document.getElementById("btnSyncDriveHeader");
+      const btnSyncSettings = document.getElementById("btnSyncDriveSettings");
+      const btnSyncModal = document.getElementById("btnSyncDriveModal");
+
+      if (isConnected) {
+        if (btn) btn.classList.add("hidden");
+        if (badge) {
+          badge.classList.remove("hidden");
+          badge.innerHTML = `<span class="w-2 h-2 rounded-full bg-emerald-400"></span> 🟢 Google Drive Conectado`;
+        }
+        if (btnSyncHeader) btnSyncHeader.classList.remove("hidden");
+        if (btnSyncSettings) btnSyncSettings.classList.remove("hidden");
+        if (btnSyncModal) btnSyncModal.classList.remove("hidden");
+      } else {
+        if (btn) {
+          btn.classList.remove("hidden");
+          btn.disabled = false;
+          btn.innerHTML = `<span>🔗</span> Conectar Google Drive`;
+        }
+        if (badge) badge.classList.add("hidden");
+        if (btnSyncHeader) btnSyncHeader.classList.add("hidden");
+        if (btnSyncSettings) btnSyncSettings.classList.add("hidden");
+        if (btnSyncModal) btnSyncModal.classList.add("hidden");
       }
     }
 
@@ -3041,22 +3074,7 @@ function refreshAudioDevices() {
         const res = await fetch("/api/drive/status");
         if (res.ok) {
           const data = await res.json();
-          const btn = document.getElementById("btnConnectDriveHeader");
-          const badge = document.getElementById("badgeConnectedDriveHeader");
-          if (data.connected) {
-            if (btn) btn.classList.add("hidden");
-            if (badge) {
-              badge.classList.remove("hidden");
-              badge.innerHTML = `<span class="w-2 h-2 rounded-full bg-emerald-400"></span> 🟢 Google Drive Conectado`;
-            }
-          } else {
-            if (btn) {
-              btn.classList.remove("hidden");
-              btn.disabled = false;
-              btn.innerHTML = `<span>🔗</span> Conectar Google Drive`;
-            }
-            if (badge) badge.classList.add("hidden");
-          }
+          updateDriveUIState(Boolean(data.connected));
         }
       } catch (err) {
         console.warn("Could not check Google Drive status:", err);
@@ -3083,6 +3101,75 @@ function refreshAudioDevices() {
           btn.disabled = false;
           btn.innerHTML = `<span>🔗</span> Conectar Google Drive`;
         }
+      }
+    }
+
+    async function syncWithGoogleDrive() {
+      const btnHeader = document.getElementById("btnSyncDriveHeader");
+      const btnSettings = document.getElementById("btnSyncDriveSettings");
+      const btnModal = document.getElementById("btnSyncDriveModal");
+
+      const setButtonsLoading = (loading) => {
+        if (btnHeader) {
+          btnHeader.disabled = loading;
+          btnHeader.innerHTML = loading ? `<span class="inline-block animate-spin">⏳</span>` : `<svg class="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg><span>Sincronizar</span>`;
+        }
+        if (btnSettings) {
+          btnSettings.disabled = loading;
+          btnSettings.innerHTML = loading ? `<span class="inline-block animate-spin">⏳</span> Buscando en Drive...` : `<svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg><span>🔄 Sincronizar Campañas con Drive</span>`;
+        }
+        if (btnModal) {
+          btnModal.disabled = loading;
+          btnModal.innerHTML = loading ? `<span class="inline-block animate-spin">⏳</span> Buscando...` : `<svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg><span>Sincronizar con Drive</span>`;
+        }
+      };
+
+      setButtonsLoading(true);
+      showInfoAlert("Buscando campañas y notas en Google Drive...");
+
+      try {
+        const res = await fetch("/api/drive/sync", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          }
+        });
+
+        const data = await res.json();
+        if (!res.ok || data.status === "error") {
+          throw new Error(data.message || data.detail || "Error al sincronizar con Google Drive");
+        }
+
+        const downloaded = data.downloaded_campaigns || 0;
+        const uploaded = data.uploaded_campaigns || 0;
+        const notes = data.downloaded_notes || 0;
+
+        let msg = `Sincronización completada con éxito. `;
+        if (downloaded > 0 || uploaded > 0 || notes > 0) {
+          msg += `(📥 ${downloaded} campañas descargadas, 📤 ${uploaded} campañas respaldadas, 📝 ${notes} notas restauradas)`;
+        } else {
+          msg += `Tus campañas y notas locales están al día con Google Drive.`;
+        }
+
+        showSuccessAlert(msg);
+
+        // Refrescar automáticamente la lista de campañas en el selector y las notas académicas
+        const campaigns = await loadCampaignList();
+        const modal = document.getElementById("campaignManagerModal");
+        if (modal && !modal.classList.contains("hidden") && typeof renderCampaignManagerList === "function") {
+          renderCampaignManagerList(campaigns);
+        }
+        if (typeof loadCurrentCampaign === "function") {
+          await loadCurrentCampaign();
+        }
+        if (typeof loadAcademicNotesHistory === "function") {
+          await loadAcademicNotesHistory(false);
+        }
+      } catch (err) {
+        console.error("Sync Drive error:", err);
+        showAlert("Error en la sincronización con Drive: " + err.message);
+      } finally {
+        setButtonsLoading(false);
       }
     }
 
@@ -7591,14 +7678,34 @@ async function selectWikiEntity(type, key, data) {
 
     function showAlert(msg) {
       const box = document.getElementById("alertBox");
+      if (!box) return;
       document.getElementById("alertMessage").textContent = msg;
       document.getElementById("alertIcon").innerHTML = `<span class="text-rose-400">⚠️</span>`;
       box.className = "rounded-xl border border-rose-800 bg-rose-950/40 p-4 text-sm flex items-start gap-3 text-rose-200";
       box.classList.remove("hidden");
     }
 
+    function showInfoAlert(msg) {
+      const box = document.getElementById("alertBox");
+      if (!box) return;
+      document.getElementById("alertMessage").textContent = msg;
+      document.getElementById("alertIcon").innerHTML = `<span class="text-indigo-400">ℹ️</span>`;
+      box.className = "rounded-xl border border-indigo-800 bg-indigo-950/40 p-4 text-sm flex items-start gap-3 text-indigo-200";
+      box.classList.remove("hidden");
+    }
+
+    function showSuccessAlert(msg) {
+      const box = document.getElementById("alertBox");
+      if (!box) return;
+      document.getElementById("alertMessage").textContent = msg;
+      document.getElementById("alertIcon").innerHTML = `<span class="text-emerald-400">✅</span>`;
+      box.className = "rounded-xl border border-emerald-800 bg-emerald-950/40 p-4 text-sm flex items-start gap-3 text-emerald-200";
+      box.classList.remove("hidden");
+    }
+
     function hideAlert() {
-      document.getElementById("alertBox").classList.add("hidden");
+      const box = document.getElementById("alertBox");
+      if (box) box.classList.add("hidden");
     }
 
     function renderTranscriptText(text) {
@@ -7912,6 +8019,9 @@ async function selectWikiEntity(type, key, data) {
     window.showResults = showResults;
     window.displayResults = displayResults;
     window.renderMarkdownWithKaTeX = renderMarkdownWithKaTeX;
+    window.syncWithGoogleDrive = syncWithGoogleDrive;
+    window.showInfoAlert = showInfoAlert;
+    window.showSuccessAlert = showSuccessAlert;
 
   </script>
 </body>

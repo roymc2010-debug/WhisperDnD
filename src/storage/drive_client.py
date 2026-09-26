@@ -1,5 +1,7 @@
 """Google Drive storage client for uploading transcripts and chronicles."""
 
+import io
+import json
 import mimetypes
 import os
 from pathlib import Path
@@ -9,7 +11,7 @@ from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
-from googleapiclient.http import MediaFileUpload
+from googleapiclient.http import MediaFileUpload, MediaIoBaseDownload
 
 SCOPES: List[str] = ["https://www.googleapis.com/auth/drive.file"]
 DEFAULT_FOLDER_NAME: str = "Whisper AI - Transcripciones"
@@ -320,7 +322,7 @@ class GoogleDriveStorage:
         folder_name: str = DEFAULT_FOLDER_NAME,
     ) -> Dict[str, str]:
         """
-        Upload a file to the specified folder in Google Drive.
+        Upload or update a file in the specified folder in Google Drive.
 
         :param file_path: Absolute or relative local path to the file.
         :param folder_name: Name of the destination folder in Drive.
@@ -340,26 +342,229 @@ class GoogleDriveStorage:
             mimetype = "text/markdown"
         elif ext == ".txt":
             mimetype = "text/plain"
+        elif ext == ".json":
+            mimetype = "application/json"
         else:
             mimetype, _ = mimetypes.guess_type(str(local_path))
             if not mimetype:
                 mimetype = "application/octet-stream"
 
         media = MediaFileUpload(str(local_path), mimetype=mimetype, resumable=True)
-        file_metadata = {
-            "name": local_path.name,
-            "parents": [folder_id],
-        }
-
         service = self.service
-        uploaded = service.files().create(
-            body=file_metadata,
-            media_body=media,
-            fields="id, name, webViewLink",
-        ).execute()
 
+        # Check if file with same name already exists in destination folder to update rather than duplicate
+        escaped_filename = local_path.name.replace("'", "\\'")
+        check_q = f"name = '{escaped_filename}' and '{folder_id}' in parents and trashed = false"
+        try:
+            existing = service.files().list(q=check_q, spaces="drive", fields="files(id, name, webViewLink)").execute().get("files", [])
+        except Exception:
+            existing = []
+
+        if existing:
+            file_id = existing[0]["id"]
+            uploaded = service.files().update(
+                fileId=file_id,
+                media_body=media,
+                fields="id, name, webViewLink",
+            ).execute()
+        else:
+            file_metadata = {
+                "name": local_path.name,
+                "parents": [folder_id],
+            }
+            uploaded = service.files().create(
+                body=file_metadata,
+                media_body=media,
+                fields="id, name, webViewLink",
+            ).execute()
+
+        web_link = uploaded.get("webViewLink") or (f"https://drive.google.com/file/d/{uploaded.get('id')}/view" if uploaded.get("id") else "")
         return {
             "file_id": uploaded.get("id", ""),
             "file_name": uploaded.get("name", local_path.name),
-            "web_view_link": uploaded.get("webViewLink", ""),
+            "web_view_link": web_link,
+        }
+
+    def download_file_bytes(self, file_id: str) -> bytes:
+        """Download binary content of a file from Google Drive."""
+        service = self.service
+        request = service.files().get_media(fileId=file_id)
+        fh = io.BytesIO()
+        downloader = MediaIoBaseDownload(fh, request)
+        done = False
+        while not done:
+            status, done = downloader.next_chunk()
+        return fh.getvalue()
+
+    def sync_from_google_drive(
+        self,
+        campaigns_dir: Optional[Path] = None,
+        output_dir: Optional[Path] = None,
+    ) -> Dict[str, Any]:
+        """
+        Bidirectional sync with Google Drive:
+        1. Finds app root folder(s) in Google Drive ('WhisperDnD', 'Whisper AI - Transcripciones', etc.).
+        2. Recursively searches subfolders for campaign JSONs (.json) and session chronicles / notes (.md, .docx, .txt).
+        3. Downloads remote campaign states to local data/campaigns/ and restores them into memory.
+        4. Downloads remote notes to local data/output/.
+        5. Pushes local campaigns up to Drive if not present in Drive.
+        """
+        if not self.is_connected():
+            return {
+                "status": "not_connected",
+                "synced_campaigns": 0,
+                "synced_notes": 0,
+                "message": "Google Drive no está conectado. Inicia sesión con Google Drive primero.",
+            }
+
+        project_root = Path(__file__).resolve().parent.parent.parent
+        c_dir = campaigns_dir or (project_root / "data" / "campaigns")
+        o_dir = output_dir or (project_root / "data" / "output")
+        c_dir.mkdir(parents=True, exist_ok=True)
+        o_dir.mkdir(parents=True, exist_ok=True)
+
+        service = self.service
+
+        # 1. Locate app folders
+        folder_candidates = ["WhisperDnD", DEFAULT_FOLDER_NAME, "Whisper AI - Transcripciones", "WhisperApp"]
+        env_folder = os.environ.get("GOOGLE_DRIVE_FOLDER_NAME")
+        if env_folder and env_folder not in folder_candidates:
+            folder_candidates.insert(0, env_folder)
+
+        found_root_ids: List[str] = []
+        seen_ids = set()
+        for fname in folder_candidates:
+            escaped_name = fname.replace("'", "\\'")
+            query = f"name = '{escaped_name}' and mimeType = 'application/vnd.google-apps.folder' and trashed = false"
+            try:
+                res = service.files().list(q=query, spaces="drive", fields="files(id, name)").execute()
+                for item in res.get("files", []):
+                    fid = item["id"]
+                    if fid not in seen_ids:
+                        seen_ids.add(fid)
+                        found_root_ids.append(fid)
+            except Exception as e:
+                print(f"[GoogleDriveStorage] Error searching folder '{fname}': {e}")
+
+        # If none found, create 'WhisperDnD'
+        if not found_root_ids:
+            try:
+                primary_id = self.get_or_create_folder("WhisperDnD")
+                found_root_ids.append(primary_id)
+            except Exception as e:
+                print(f"[GoogleDriveStorage] Could not create primary folder: {e}")
+
+        # 2. Traverse folders recursively to find all files
+        drive_files: List[Dict[str, Any]] = []
+        folder_queue = list(found_root_ids)
+        visited_folders = set(found_root_ids)
+
+        while folder_queue:
+            cur_fid = folder_queue.pop(0)
+            page_token = None
+            while True:
+                try:
+                    res = service.files().list(
+                        q=f"'{cur_fid}' in parents and trashed = false",
+                        spaces="drive",
+                        fields="nextPageToken, files(id, name, mimeType, modifiedTime, size)",
+                        pageToken=page_token,
+                        pageSize=100,
+                    ).execute()
+                    for f in res.get("files", []):
+                        if f.get("mimeType") == "application/vnd.google-apps.folder":
+                            if f["id"] not in visited_folders:
+                                visited_folders.add(f["id"])
+                                folder_queue.append(f["id"])
+                        else:
+                            drive_files.append(f)
+                    page_token = res.get("nextPageToken")
+                    if not page_token:
+                        break
+                except Exception as e:
+                    print(f"[GoogleDriveStorage] Error listing folder '{cur_fid}': {e}")
+                    break
+
+        synced_campaign_names: List[str] = []
+        downloaded_campaigns = 0
+        uploaded_campaigns = 0
+        downloaded_notes = 0
+        remote_filenames = {f.get("name"): f for f in drive_files if f.get("name")}
+
+        # 3. PULL: Download from Google Drive to local server
+        for f in drive_files:
+            fname = f.get("name", "")
+            fid = f.get("id")
+            if not fname or not fid:
+                continue
+
+            lower_name = fname.lower()
+            if lower_name.endswith(".json"):
+                try:
+                    content = self.download_file_bytes(fid)
+                    data = json.loads(content.decode("utf-8"))
+                    if isinstance(data, dict) and (
+                        "campaign_name" in data
+                        or "campaign_id" in data
+                        or "universal_pcs" in data
+                        or "sessions" in data
+                        or "roster" in data
+                    ):
+                        local_target = c_dir / fname
+                        should_write = True
+                        if local_target.is_file():
+                            try:
+                                local_data = json.loads(local_target.read_text(encoding="utf-8"))
+                                local_sess = int(local_data.get("last_session", 0))
+                                remote_sess = int(data.get("last_session", 0))
+                                if local_sess > remote_sess:
+                                    should_write = False
+                            except Exception:
+                                should_write = True
+
+                        if should_write:
+                            local_target.write_bytes(content)
+                            downloaded_campaigns += 1
+                            c_name = data.get("campaign_name", local_target.stem)
+                            if c_name not in synced_campaign_names:
+                                synced_campaign_names.append(c_name)
+                    else:
+                        local_target = o_dir / fname
+                        if not local_target.is_file():
+                            local_target.write_bytes(content)
+                            downloaded_notes += 1
+                except Exception as exc:
+                    print(f"[GoogleDriveStorage] Error processing json {fname}: {exc}")
+
+            elif lower_name.endswith((".md", ".docx", ".txt")):
+                local_target = o_dir / fname
+                if not local_target.is_file():
+                    try:
+                        content = self.download_file_bytes(fid)
+                        local_target.write_bytes(content)
+                        downloaded_notes += 1
+                    except Exception as exc:
+                        print(f"[GoogleDriveStorage] Error downloading file {fname}: {exc}")
+
+        # 4. PUSH: Upload local campaigns not yet in Google Drive
+        primary_folder = "WhisperDnD"
+        for local_json in c_dir.glob("*.json"):
+            if local_json.name not in remote_filenames:
+                try:
+                    self.upload_file(str(local_json.resolve()), folder_name=primary_folder)
+                    uploaded_campaigns += 1
+                    if local_json.stem not in synced_campaign_names:
+                        synced_campaign_names.append(local_json.stem)
+                except Exception as exc:
+                    print(f"[GoogleDriveStorage] Error uploading local campaign {local_json.name}: {exc}")
+
+        return {
+            "status": "success",
+            "synced_campaigns": len(synced_campaign_names),
+            "downloaded_campaigns": downloaded_campaigns,
+            "uploaded_campaigns": uploaded_campaigns,
+            "downloaded_notes": downloaded_notes,
+            "campaign_names": synced_campaign_names,
+            "synced_notes": downloaded_notes,
+            "message": f"Sincronización con Drive completada: {len(synced_campaign_names)} campañas ({downloaded_campaigns} descargadas, {uploaded_campaigns} respaldadas) y {downloaded_notes} notas/documentos sincronizados.",
         }

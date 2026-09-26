@@ -978,6 +978,85 @@ El problema del conocimiento.
                 self.assertTrue(token_path.is_file())
                 self.assertEqual(token_path.read_text(encoding="utf-8"), fake_token)
 
+    def test_drive_sync_endpoint_not_connected(self):
+        from fastapi.testclient import TestClient
+        client = TestClient(app)
+        with patch("src.api.server.GoogleDriveStorage") as mock_storage_cls:
+            mock_storage = MagicMock()
+            mock_storage.is_connected.return_value = False
+            mock_storage_cls.return_value = mock_storage
+
+            res = client.post("/api/drive/sync")
+            self.assertEqual(res.status_code, 200)
+            data = res.json()
+            self.assertEqual(data.get("status"), "not_connected")
+            self.assertEqual(data.get("synced_campaigns"), 0)
+
+    def test_drive_sync_endpoint_success(self):
+        from fastapi.testclient import TestClient
+        client = TestClient(app)
+        with patch("src.api.server.GoogleDriveStorage") as mock_storage_cls:
+            mock_storage = MagicMock()
+            mock_storage.is_connected.return_value = True
+            mock_storage.sync_from_google_drive.return_value = {
+                "status": "success",
+                "downloaded_campaigns": 2,
+                "uploaded_campaigns": 1,
+                "downloaded_notes": 3,
+                "synced_campaigns": 3,
+                "synced_notes": 3,
+            }
+            mock_storage_cls.return_value = mock_storage
+
+            res = client.post("/api/drive/sync")
+            self.assertEqual(res.status_code, 200)
+            data = res.json()
+            self.assertEqual(data.get("status"), "success")
+            self.assertEqual(data.get("downloaded_campaigns"), 2)
+            self.assertEqual(data.get("uploaded_campaigns"), 1)
+            self.assertEqual(data.get("synced_notes"), 3)
+
+    def test_sync_from_google_drive_method(self):
+        from src.storage.drive_client import GoogleDriveStorage
+        with patch.object(GoogleDriveStorage, "is_connected", return_value=True):
+            storage = GoogleDriveStorage(credentials_path="dummy_cred.json", token_path="dummy_tok.json")
+            mock_service = MagicMock()
+            storage._service = mock_service
+
+            # Simulate list calls:
+            # 1. Folder queries return folder WhisperDnD
+            # 2. Files queries inside folder return campaign_test.json
+            def mock_list(q="", **kwargs):
+                req = MagicMock()
+                if "application/vnd.google-apps.folder" in q:
+                    req.execute.return_value = {
+                        "files": [{"id": "fld_1", "name": "WhisperDnD", "mimeType": "application/vnd.google-apps.folder"}]
+                    }
+                elif "trashed = false" in q:
+                    req.execute.return_value = {
+                        "files": [
+                            {"id": "file_camp_1", "name": "campaign_dragons.json", "mimeType": "application/json"}
+                        ]
+                    }
+                else:
+                    req.execute.return_value = {"files": []}
+                return req
+
+            mock_service.files().list.side_effect = mock_list
+
+            with patch.object(storage, "download_file_bytes") as mock_download:
+                mock_download.return_value = b'{"campaign_name": "Dragons of Stormwreck", "universal_pcs": [], "sessions": []}'
+                camp_dir = Path(self.temp_camp_dir)
+                out_dir = Path(self.temp_out_dir)
+
+                result = storage.sync_from_google_drive(campaigns_dir=camp_dir, output_dir=out_dir)
+                self.assertEqual(result.get("status"), "success")
+                self.assertEqual(result.get("downloaded_campaigns"), 1)
+
+                downloaded_file = camp_dir / "campaign_dragons.json"
+                self.assertTrue(downloaded_file.is_file())
+                self.assertIn("Dragons of Stormwreck", downloaded_file.read_text(encoding="utf-8"))
+
 
 if __name__ == "__main__":
     unittest.main()
