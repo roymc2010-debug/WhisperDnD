@@ -1,48 +1,55 @@
-# 🐉 WhisperDnD / ⚡ AudioWorkspace
+# 🐉 WhisperDnD & Study / ⚡ AudioWorkspace
 
-> **Plataforma Integral de Transcripción de Audio, Crónicas Vivas de Rol y Síntesis Ejecutiva con Inteligencia Artificial**
+> **Plataforma Integral de Transcripción de Audio, Crónicas Vivas de Rol, Síntesis Académica y Apuntes Ejecutivos con IA.**
 
 [![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/downloads/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.115%2B-009688.svg)](https://fastapi.tiangolo.com)
-[![Tailwind CSS](https://img.shields.io/badge/TailwindCSS-v3-38bdf8.svg)](https://tailwindcss.com)
-[![Groq Whisper](https://img.shields.io/badge/STT-Groq%20Whisper%20Large--v3-f55036.svg)](https://groq.com)
-[![faster-whisper](https://img.shields.io/badge/STT-faster--whisper-orange.svg)](https://github.com/SYSTRAN/faster-whisper)
-[![Google Gemini](https://img.shields.io/badge/LLM-Gemini%202.5%20%2F%201.5-8e75ff.svg)](https://ai.google.dev/)
+[![Docker](https://img.shields.io/badge/Docker-Cloud%20Run%20Ready-2496ed.svg)](https://cloud.google.com/run)
 [![PWA Ready](https://img.shields.io/badge/PWA-Installable%20Mobile%20%26%20Desktop-success.svg)](https://web.dev/progressive-web-apps/)
+[![STT Groq](https://img.shields.io/badge/STT-Groq%20Whisper%20Large--v3-f55036.svg)](https://groq.com)
+[![LLM Gemini](https://img.shields.io/badge/LLM-Gemini%202.5%20%2F%201.5-8e75ff.svg)](https://ai.google.dev/)
+[![Tests](https://img.shields.io/badge/Tests-152%20passing-brightgreen.svg)](#-pruebas-automatizadas)
 
 ---
 
 ## 📖 Visión General
 
-**WhisperDnD** (también conocido como **AudioWorkspace**) es una aplicación web local de alto rendimiento diseñada para transcribir, analizar y sintetizar audio de larga duración. Su arquitectura integra dos motores de reconocimiento de voz (**Groq Whisper Cloud** y **faster-whisper local**), modelos de lenguaje de última generación (**Google Gemini**) y una interfaz reactiva diseñada bajo los más exigentes estándares de diseño táctil (`@ui-ux-pro-max`, `impeccable` y `emil-design-eng`).
+**WhisperDnD & Study** (también conocido como **AudioWorkspace**) es una plataforma de alto rendimiento para transcripción, análisis y síntesis de audio de larga duración. Su arquitectura desacoplada combina dos motores de transcripción (**Groq Whisper Cloud** y **faster-whisper local**), modelos de lenguaje multimodal (**Google Gemini**), un motor de exportación a Word (`.docx`) y Markdown (`.md`), y una interfaz reactiva diseñada bajo rigurosos principios ergonómicos táctiles.
 
-La aplicación incorpora una **arquitectura de espacios duales** que adapta la experiencia visual, operativa y los modelos de IA según el contexto:
-1. **🐉 Modo D&D (Grimorio de Campaña)**: Diseñado para mesas de rol (D&D 5e/5.5e, Pathfinder, etc.), con seguimiento continuo de misiones, personajes (PCs y PNJs), coaching de rol narrativo y generación de crónicas épicas continuas.
-2. **⚡ Modo Work & Study (Productividad & Academia)**: Diseñado para conferencias universitarias, clases magistrales y reuniones ejecutivas, con una **Directiva de Profundidad Explicativa** que produce apuntes exhaustivos, conservando ejemplos reales, casos de estudio y derivaciones técnicas.
+El sistema cuenta con una **arquitectura de espacios de trabajo duales estrictamente aislados**:
+
+1. **🐉 Modo D&D (Grimorio de Campaña)**: Para mesas de rol (D&D 5e/5.5e, Pathfinder), con memoria acumulativa entre sesiones, deduplicación inteligente de entidades (PNJs y PCs), seguimiento vivo de misiones, registro de combate, coaching narrativo y exportación del Grimorio consolidado.
+2. **⚡ Modo Work & Study (Productividad & Academia)**: Para conferencias universitarias, clases magistrales y reuniones ejecutivas, con una **Directiva Backend de Profundidad Explicativa** que produce apuntes exhaustivos, conservando analogías técnicas, fórmulas LaTeX (KaTeX), glosarios y compromisos adquiridos (*action items*).
 
 ---
 
 ## ✨ Características Principales
 
-### 1. 🎛️ Arquitectura de Espacios de Trabajo Duales
-- **Selector Segmentado Superior**: Alterna instantáneamente entre contextos con objetivos táctiles de $\ge 44 \times 44\text{ px}$ y persistencia en `localStorage`.
-- **Tema A: D&D (`theme-dnd`)**:
-  - Estética de grimorio de fantasía oscura: Fondo obsidiana (`#0c0d12`), superficies de piedra pulida (`#14161f`), acentos en oro viejo/ámbar (`#d97706`, `#fbbf24`) y tipografía medieval `Cinzel`.
-  - **Diario Vivo de Campaña**: Memoria acumulativa entre sesiones, control automático de numeración de sesiones con candado en vivo (`#sessionLockBadge`) para prevenir sobrescritura accidental.
-  - **Barra Compacta de Fichas (Party Chips Bar)**: Visualización limpia de jugadores, razas, clases y DM con drawer colapsable.
-  - **Wiki de Campaña Desacoplada**: Consultoría de misiones activas/completadas, catálogo de PNJs y Directorio Universal de Aventureros.
-- **Tema B: Work & Study (`theme-work-study`)**:
-  - Estética minimalista de alta densidad (estilo Linear / Raycast): Fondo carbón profundo (`#090a0f`), bordes sutiles y acentos en cyan eléctrico (`#0ea5e9`).
-  - **Intake Rápido**: Formulario minimalista de un solo campo para tema/reunión con fecha auto-asignada.
-  - Ocultamiento inteligente de elementos de rol (wiki, fichas de jugadores, razas) para máxima concentración.
+### 1. 🎛️ Arquitectura de Espacios de Trabajo Duales con Aislamiento Estricto
+- **Selector Segmentado Superior**: Alterna instantáneamente de contexto con persistencia en `localStorage`.
+- **Aislamiento Total de Pestañas y Datos en el Visor de Resultados**:
+  - **Work & Study (4 pestañas permitidas)**:
+    1. `[ 📄 Executive Briefing / Apuntes ]`: Resumen ejecutivo estructurado con soporte de fórmulas KaTeX.
+    2. `[ ⭐ Puntos Clave y Glosario ]`: Conceptos clave, definiciones técnicas y taxonomías.
+    3. `[ ✅ Tareas y Encargos ]`: Compromisos, fechas de entrega y tareas detectadas (desacopladas totalmente de misiones de rol).
+    4. `[ 📝 Transcripción ]`: Transcripción completa con marcas de tiempo.
+    *Ocultamiento estricto de elementos de rol (PNJs, PCs, Grimorio y Misiones).*
+  - **D&D Roleplay (6 pestañas completas)**:
+    1. `[ 📖 Crónica de Sesión ]`: Relato narrativo inmersivo.
+    2. `[ 🗺️ Misiones Activas ]`: Registro de misiones nuevas, avanzadas y completadas.
+    3. `[ 🎭 Directorio PNJs ]`: Fichas de personajes no jugadores con roles, ubicaciones y notas.
+    4. `[ 🛡️ Directorio PCs ]`: Personajes jugadores y ficha personal del usuario.
+    5. `[ 📜 Grimorio Completo (.md) ]`: Documento vivo acumulativo de campaña.
+    6. `[ 📝 Transcripción ]`: Transcripción con etiquetado de hablantes.
 
 ---
 
-### 2. 🧠 Directiva Backend de Profundidad Explicativa (Work & Study)
-En `src/summarizer/prompts.py`, el sistema rechaza resúmenes superficiales y viñetas vagas mediante una regla explícita:
-- **Introducción y Contexto**: Tesis central del ponente y marco conceptual.
-- **Recorrido Temático Exhaustivo**: Progresión temática profunda que **conserva y explica todos los ejemplos del mundo real, analogías técnicas, casos de estudio y casos extremos (*edge cases*)**.
-- **Conclusiones y Datos Concretos (Al Cierre)**: Métricas numéricas, herramientas citadas, compromisos adquiridos y preguntas de autoevaluación.
+### 2. 👥 Deduplicación Inteligente de Entidades (Retroactiva & Proactiva)
+- **Filtro Proactivo**: Previene la fragmentación de entidades cuando un personaje se menciona por nombre de pila o título.
+- **Deduplicación Retroactiva en Servidor**:
+  - Al iniciar el servidor o cargar una campaña, el sistema analiza las entidades existentes.
+  - Si detecta nombres que son subcadenas de otros más completos (ej. `"Octus"` y `"Octus Taconis"`), fusiona automáticamente su biografía, rol, notas y misiones en la ficha completa, añade el nombre corto a `aliases: ["Octus"]` y elimina de disco el fichero JSON duplicado huérfano.
+- **Botón Manual de Reparación**: Accesible con 1 clic en la cabecera de la Wiki de Campaña (`[ 🔄 Reparar y Fusionar Duplicados ]`).
 
 ---
 
@@ -51,45 +58,55 @@ En `src/summarizer/prompts.py`, el sistema rechaza resúmenes superficiales y vi
 | Vía de Entrada | Descripción | Casos de Uso |
 | :--- | :--- | :--- |
 | **🎙️ Grabación en Vivo (Mic)** | Captura en tiempo real con monitoreo visual VU (RMS) reactivo. Permite elegir entre **PC Host (Dual-Canal)** o **Móvil / Mic Navegador (`MediaRecorder`)**. | Partidas en Discord, partidas presenciales, conferencias en el aula, reuniones de trabajo. |
-| **📺 Enlace de YouTube** | Descarga directa de audio en streaming ligero con `yt-dlp` y transcripción inmediata. | VODs de Critical Role, tutoriales técnicos, podcasts, conferencias grabadas. |
-| **📁 Archivo Local** | Subida por arrastrar y soltar de archivos de audio (`.mp3`, `.wav`, `.m4a`, `.webm`, `.flac`, `.ogg`). | Grabaciones previas con grabadora de voz, audios de WhatsApp, notas de voz. |
+| **📺 Enlace de YouTube** | Descarga de audio optimizada con `yt-dlp` en streaming ligero y transcripción directa. Limpieza automática del audio descargado tras el procesado. | VODs de sesiones, tutoriales técnicos, podcasts, conferencias grabadas. |
+| **📁 Archivo Local** | Carga por arrastrar y soltar de archivos de audio (`.mp3`, `.wav`, `.m4a`, `.webm`, `.flac`, `.ogg`). | Grabaciones de notas de voz, audios de grabadora, reuniones exportadas. |
 
 ---
 
-### 4. 📱 PWA & Grabación Móvil con Túnel HTTPS
-- **Progressive Web App (PWA)**:
-  - Instalable nativamente en **Android (Chrome)** e **iOS (Safari)** sin necesidad de tiendas de aplicaciones.
-  - Interfaz a pantalla completa (`display: standalone`), sin barras de navegador y con iconos de alta resolución.
-  - Service Worker (`/sw.js`) con estrategia network-first para funcionamiento offline y caché de activos estáticos.
-- **Captura con Micrófono del Teléfono (`MediaRecorder` API)**:
-  - Al conectarte desde tu smartphone, la app puede grabar directamente con el micrófono de tu teléfono en lugar de usar la tarjeta de sonido de la PC.
-  - Medidor de audio en vivo a 60 fps mediante la **Web Audio API** (`AudioContext` + `AnalyserNode`).
+### 4. 📱 Progressive Web App (PWA) & Micrófono Móvil
+- **PWA Instalable Nativa**:
+  - Instalable en **Android (Chrome)** e **iOS (Safari)** sin necesidad de pasar por tiendas de aplicaciones.
+  - Manifest oficial configurado (`WhisperDnD & Study`, `display: standalone`, `orientation: portrait-primary`, `viewport-fit=cover`).
+  - **Service Worker (`/sw.js`)**: Estrategia de red prioritaria (*Network-First*) con respaldo en caché (*Cache Fallback*) para navegación offline y cabecera `Service-Worker-Allowed: /`.
+- **Grabación Móvil (`MediaRecorder` API)**:
+  - Graba directamente con el micrófono de tu teléfono móvil a través de la Web Audio API con indicador VU a 60 fps.
 - **Lanzador de Túneles HTTPS con 1 Clic**:
-  - Los navegadores móviles exigen HTTPS para habilitar el micrófono y la instalación PWA. WhisperDnD incluye scripts automáticos para exponer el servidor:
+  - Scripts interactivos para habilitar permisos de micrófono y PWA en dispositivos remotos:
     - **Cloudflare Quick Tunnel**: `cloudflared tunnel --url http://localhost:8080` (gratuito, sin registro).
-    - **Localtunnel**: `npx -y localtunnel --port 8080` (solo requiere Node.js).
-    - **Lanzador Windows**: Doble clic en `scripts\start_tunnel.bat` o ejecución de `.\scripts\tunnel.ps1`.
-  - Soporte CORS completo para túneles remotos (`allow_origin_regex=r"https?://.*"`).
+    - **Localtunnel**: `npx -y localtunnel --port 8080`.
+    - **Lanzadores Windows**: `scripts\start_tunnel.bat` o `.\scripts\tunnel.ps1`.
 
 ---
 
-### 5. 🎧 Integración Discord RPC (Local)
-- **Detección Automática de Discord**: Cliente WebSocket local que escanea automáticamente los puertos `6463` a `6472` utilizando la cabecera `Origin: https://streamkit.discord.com`.
-- **Participantes en Canal de Voz**: Muestra en tiempo real qué jugadores están conectados al canal de Discord, quién está hablando y vincula automáticamente sus identificadores al Roster de la partida.
+### 5. ☁️ Preparado para Google Cloud Run & Docker
+
+La aplicación incluye soporte nativo para despliegue en contenedores sin estado:
+
+- **`Dockerfile` optimizado**: Basado en `python:3.10-slim` con `ffmpeg`, `libasound2` y dependencias compiladas.
+- **Puerto Dinámico**: Lectura automática de `${PORT:-8080}` y enlace a `0.0.0.0`.
+- **Almacenamiento Efímero en Memoria (`/tmp` y `outputs/`)**:
+  - En Cloud Run o entornos Linux, el audio temporal se aloja en `/tmp` (tmpfs en RAM) y se elimina automáticamente tras la transcripción para evitar fugas de memoria.
+  - Los documentos generados (`.docx`, `.md`) se canalizan a la carpeta configurable `outputs/` mediante las variables `WHISPER_INPUT_DIR`, `WHISPER_OUTPUT_DIR` y `WHISPER_CAMPAIGNS_DIR`.
+
+---
+
+### 6. 🎧 Integración Discord RPC (Local)
+- **Detección Local**: Cliente WebSocket que localiza la instancia de Discord abierta en los puertos `6463` a `6472`.
+- **Canal de Voz en Tiempo Real**: Detecta quién está en el canal, quién está hablando y vincula automáticamente sus identificadores al Roster de la partida.
 - **Captura Dual de Audio (PC Host)**:
-  - **Canal 1 (Izquierdo)**: Tu micrófono local.
-  - **Canal 2 (Derecho)**: El audio de tus audífonos/altavoces (Discord loopback) a través de la librería `soundcard`.
-  - Whisper analiza ambos canales para etiquetar con precisión quién habló en cada momento (`[Tu]` vs `[Discord]`).
+  - **Canal 1 (Izquierdo)**: Micrófono local.
+  - **Canal 2 (Derecho)**: Audio de retorno (Discord/auriculares) mediante `soundcard`.
+  - Etiquetado diferencial automático (`[Tu]` vs `[Discord]`).
 
 ---
 
-### 6. 📄 Exportación & Sincronización en la Nube
+### 7. 📄 Exportación & Sincronización en la Nube
 - **Formatos de Descarga**:
-  - **Markdown (`.md`)**: Formato limpio con tablas, bloques de combate y citas narrativas.
-  - **Microsoft Word (`.docx`)**: Documento formateado con portada, tipografías personalizadas y tablas estilizadas listo para imprimir o compartir.
-- **Sincronización con Google Drive**:
-  - Autenticación OAuth 2.0 directa desde la cabecera (`credentials.json`).
-  - Sube automáticamente las crónicas y apuntes generados a una carpeta dedicada en tu unidad de Google Drive.
+  - **Markdown (`.md`)**: Tablas de misiones, directorio de PNJs y capítulos cronológicos.
+  - **Microsoft Word (`.docx`)**: Formateado profesional con estilos universitarios o de fantasía medieval, tablas estilizadas y márgenes normalizados.
+- **Google Drive OAuth 2.0**:
+  - Autenticación con 1 clic (`credentials.json`).
+  - Subida directa a la carpeta *"Whisper AI - Transcripciones"* en tu Google Drive.
 
 ---
 
@@ -100,7 +117,7 @@ En `src/summarizer/prompts.py`, el sistema rechaza resúmenes superficiales y vi
    python --version
    ```
 2. **FFmpeg**:
-   Requerido para la decodificación de audio de `faster-whisper` y `yt-dlp`.
+   Requerido para la decodificación de audio, segmentación ultrarrápida y `yt-dlp`.
    - **Windows (Winget)**:
      ```powershell
      winget install Gyan.FFmpeg
@@ -111,13 +128,13 @@ En `src/summarizer/prompts.py`, el sistema rechaza resúmenes superficiales y vi
      ```
    - **Linux (Ubuntu/Debian)**:
      ```bash
-     sudo apt update && sudo apt install ffmpeg
+     sudo apt update && sudo apt install ffmpeg libasound2
      ```
 3. *(Opcional para túnel móvil)* **Node.js** (para `npx localtunnel`) o **Cloudflare CLI** (`cloudflared`).
 
 ---
 
-## 🚀 Instalación y Puesta en Marcha
+## 🚀 Instalación y Puesta en Marcha Local
 
 ### 1. Clonar el Repositorio
 ```bash
@@ -157,9 +174,9 @@ GEMINI_API_KEY=tu_clave_gemini_aqui
 # Obtén tu clave gratuita en: https://console.groq.com/
 GROQ_API_KEY=tu_clave_groq_aqui
 
-# Puerto y Host
+# Configuración del Servidor
 PORT=8080
-HOST=127.0.0.1
+HOST=0.0.0.0
 ```
 
 ### 5. Iniciar la Aplicación
@@ -170,30 +187,57 @@ Abre tu navegador en: **`http://localhost:8080`**
 
 ---
 
-## 🌐 Conexión desde el Móvil (Túnel HTTPS)
+## 🐳 Despliegue con Docker y Google Cloud Run
 
-1. Con el servidor corriendo en tu PC, ejecuta el lanzador:
+### Construcción Local de la Imagen Docker
+```bash
+docker build -t whisperdnd:latest .
+docker run -p 8080:8080 --env-file .env whisperdnd:latest
+```
+
+### Despliegue en Google Cloud Run
+```bash
+# 1. Autenticar en Google Cloud
+gcloud auth login
+gcloud config set project TU_PROYECTO_GCP
+
+# 2. Desplegar directamente desde el código fuente
+gcloud run deploy whisperdnd \
+  --source . \
+  --platform managed \
+  --region us-central1 \
+  --allow-unauthenticated \
+  --set-env-vars GEMINI_API_KEY="tu_clave_gemini",GROQ_API_KEY="tu_clave_groq" \
+  --memory 2Gi \
+  --cpu 2
+```
+
+---
+
+## 🌐 Conexión desde el Móvil (PWA & Túnel HTTPS)
+
+1. Con el servidor corriendo localmente, ejecuta el túnel:
    - **Windows**: Doble clic en `scripts\start_tunnel.bat` o en PowerShell: `.\scripts\tunnel.ps1`.
-   - **Manual (Cloudflare)**: `cloudflared tunnel --url http://localhost:8080`.
-   - **Manual (Localtunnel)**: `npx -y localtunnel --port 8080`.
-2. Abre la URL HTTPS generada en tu teléfono móvil (ej. `https://xxxx.trycloudflare.com`).
+   - **Cloudflare**: `cloudflared tunnel --url http://localhost:8080`.
+   - **Localtunnel**: `npx -y localtunnel --port 8080`.
+2. Abre la URL HTTPS en tu smartphone (ej. `https://xxxx.trycloudflare.com`).
 3. **Instala la PWA**:
    - En **Android (Chrome)**: Toca `⋮` &rarr; *"Instalar aplicación"*.
-   - En **iOS (Safari)**: Toca el botón Compartir `⎋` &rarr; *"Añadir a pantalla de inicio"*.
-4. **Graba con tu Teléfono**: Selecciona la fuente **📱 Móvil / Mic Navegador** y pulsa *"Iniciar Grabación"*.
+   - En **iOS (Safari)**: Toca Compartir `⎋` &rarr; *"Añadir a pantalla de inicio"*.
+4. Selecciona la fuente **📱 Móvil / Mic Navegador** y pulsa *"Iniciar Grabación"*.
 
 ---
 
 ## 🧪 Pruebas Automatizadas
 
-El proyecto cuenta con una suite integral de 135 pruebas unitarias y de integración que validan endpoints, exportadores, clientes de IA y canalizaciones de audio:
+El proyecto incluye una suite completa de **152 pruebas automatizadas** que validan endpoints REST, aislamiento de espacios, deduplicación de entidades, exportadores Word/Markdown, motor Groq y cliente Gemini:
 
 ```bash
 # Ejecutar toda la suite de pruebas
-.\.venv\Scripts\python.exe -m unittest discover -s tests
+.\.venv\Scripts\python.exe -m unittest discover -s tests -p "test_*.py"
 
 # Resultado esperado:
-# Ran 135 tests in ~25s -> OK
+# Ran 152 tests in ~16s -> OK
 ```
 
 ---
@@ -202,34 +246,38 @@ El proyecto cuenta con una suite integral de 135 pruebas unitarias y de integrac
 
 ```text
 WhisperDnD/
-├── data/                       # Almacenamiento local de audio y estado de campañas
-│   ├── campaigns/              # Ficheros JSON de campañas y crónicas acumulativas
-│   ├── input/                  # Archivos de audio subidos o grabados
+├── data/                       # Almacenamiento local persistente
+│   ├── campaigns/              # Ficheros JSON de campañas y fichas de personajes
+│   ├── input/                  # Archivos de audio subidos o grabados localmente
 │   └── output/                 # Documentos .md y .docx generados
-├── docs/                       # Guías técnicas y documentación de arquitectura
+├── outputs/                    # Directorio de trabajo unificado para exportaciones
+├── docs/                       # Guías técnicas y manuales de arquitectura
 │   └── mobile_pwa_and_tunnel.md# Manual detallado de PWA y túneles HTTPS
-├── scripts/                    # Scripts de utilidad y lanzadores
+├── scripts/                    # Scripts de automatización y túneles
 │   ├── start_tunnel.bat        # Lanzador rápido de túnel para Windows
 │   ├── tunnel.ps1              # Script PowerShell interactivo de túneles
 │   └── test_transcription.py   # Diagnóstico de audio por consola
 ├── src/                        # Código fuente modular
-│   ├── api/                    # Servidor FastAPI, rutas REST y WebSockets
-│   │   ├── server.py           # Endpoints de audio, transcripción, PWA y tareas
+│   ├── api/                    # Servidor FastAPI, endpoints REST y WebSockets
+│   │   ├── server.py           # Enrutamiento, PWA, aislamiento de tabs y deduplicación
+│   │   ├── app.py              # Alias de inicialización de FastAPI
 │   │   └── templates/          # Plantilla HTML sincronizada
-│   ├── exporters/              # Generadores de documentos Markdown y Word (.docx)
+│   ├── exporters/              # Generadores de Word (.docx) y Markdown (.md)
 │   ├── storage/                # Gestor de campañas vivas y cliente Google Drive
-│   ├── summarizer/             # Cliente Google Gemini y arquitecturas de prompts
-│   └── transcription/          # Motores Groq Whisper, faster-whisper, Discord RPC
-├── static/                     # Activos web estáticos
-│   ├── icon-192.png            # Icono PWA (192x192)
-│   ├── icon-512.png            # Icono PWA (512x512)
-│   ├── manifest.json           # Manifiesto Web PWA
-│   ├── sw.js                   # Service Worker PWA (Network-first)
+│   ├── summarizer/             # Cliente Gemini, directiva académica y prompts
+│   └── transcription/          # Groq Whisper, faster-whisper, YouTube y Discord RPC
+├── static/                     # Activos web estáticos y cliente PWA
+│   ├── icon-192.png            # Icono PWA (192x192 maskable)
+│   ├── icon-512.png            # Icono PWA (512x512 maskable)
+│   ├── manifest.json           # Manifiesto Web PWA oficial
+│   ├── sw.js                   # Service Worker PWA (Network-first / Offline shell)
 │   └── index.html              # Interfaz interactiva SPA (Dual Workspace)
-├── tests/                      # Suite de pruebas unitarias (135 tests)
-├── .env.example                # Plantilla de variables de entorno
-├── main.py                     # Punto de entrada de la aplicación
-└── requirements.txt            # Dependencias de Python
+├── tests/                      # Suite de 152 pruebas automatizadas
+├── .dockerignore               # Exclusiones de construcción Docker
+├── Dockerfile                  # Contenedor optimizado para Google Cloud Run
+├── requirements.txt            # Dependencias de Python
+├── main.py                     # Lanzador principal Uvicorn
+└── render.yaml                 # Manifiesto de despliegue en Render
 ```
 
 ---

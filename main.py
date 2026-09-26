@@ -20,8 +20,9 @@ def main():
         print("    Please install the dependencies: pip install -r requirements.txt")
         sys.exit(1)
 
+    import os
     host = "0.0.0.0"
-    port = 8080
+    port = int(os.environ.get("PORT", 8080))
 
     print("=" * 60)
     print(" WhisperDnD - Web Application Server")

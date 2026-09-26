@@ -20,8 +20,14 @@ def slice_audio_for_groq(input_audio_path: str, chunk_minutes: int = 15) -> List
     for instant slicing in ~1.5s with zero CPU re-encoding overhead.
     Falls back to '-c:a libmp3lame -b:a 64k' only if stream copy fails or for raw audio formats.
     """
-    project_root = Path(__file__).resolve().parent.parent.parent
-    input_dir = Path(os.environ.get("WHISPER_INPUT_DIR", project_root / "data" / "input"))
+    env_input = os.environ.get("WHISPER_INPUT_DIR")
+    if env_input:
+        input_dir = Path(env_input).resolve()
+    elif os.path.exists("/tmp") and os.path.isdir("/tmp") and sys.platform != "win32":
+        input_dir = Path("/tmp/whisper_input").resolve()
+    else:
+        project_root = Path(__file__).resolve().parent.parent.parent
+        input_dir = (project_root / "data" / "input").resolve()
     chunks_dir = input_dir / "chunks"
     chunks_dir.mkdir(parents=True, exist_ok=True)
 
@@ -70,8 +76,14 @@ def slice_audio_for_groq(input_audio_path: str, chunk_minutes: int = 15) -> List
 
 def clean_groq_chunks() -> None:
     """Delete temporary chunk files in data/input/chunks to keep disk clean."""
-    project_root = Path(__file__).resolve().parent.parent.parent
-    input_dir = Path(os.environ.get("WHISPER_INPUT_DIR", project_root / "data" / "input"))
+    env_input = os.environ.get("WHISPER_INPUT_DIR")
+    if env_input:
+        input_dir = Path(env_input).resolve()
+    elif os.path.exists("/tmp") and os.path.isdir("/tmp") and sys.platform != "win32":
+        input_dir = Path("/tmp/whisper_input").resolve()
+    else:
+        project_root = Path(__file__).resolve().parent.parent.parent
+        input_dir = (project_root / "data" / "input").resolve()
     chunks_dir = input_dir / "chunks"
     if chunks_dir.exists():
         for f in chunks_dir.glob("chunk_*"):
@@ -288,13 +300,13 @@ class GroqWhisperTranscriber:
 
         file_size = path.stat().st_size
         if file_size <= self.MAX_FILE_SIZE_BYTES:
-            min_pct = 35 if source == "youtube" else 0
-            max_pct = 80 if source == "youtube" else 75
+            min_pct = 30.0
+            max_pct = 80.0
             if on_progress:
-                on_progress(min_pct, "Enviando audio a Groq Cloud (whisper-large-v3)...")
+                on_progress(min_pct, "Transcribiendo audio (Fragmento 1 de 1 - 30.0%)...")
             res = self._transcribe_single_file(str(path), language=language)
             if on_progress:
-                on_progress(max_pct, f"Transcripción de Groq completada ({max_pct}%).")
+                on_progress(max_pct, "Transcribiendo audio (Fragmento 1 de 1 - 80.0%)")
         else:
             # File is > 24 MB: slice using fast FFmpeg CLI
             res = self._transcribe_chunked(
@@ -427,19 +439,15 @@ class GroqWhisperTranscriber:
         """
         # Progress range calibration
         # If source is YouTube: maps from 35% to 80%
-        # If source is Local / Live Discord: maps from 0% to 75%
-        if source == "youtube":
-            min_pct = 35
-            max_pct = 80
-        else:
-            min_pct = 0
-            max_pct = 75
+        # Fase 3: Transcripción con Whisper en Groq (30.0% a 80.0%)
+        min_pct = 30.0
+        max_pct = 80.0
 
         if on_progress:
-            on_progress(
-                min_pct,
-                f"Archivo extenso detectado (>24 MB). Dividiendo en fragmentos de {self.DEFAULT_CHUNK_MINUTES} minutos con FFmpeg...",
-            )
+            if source == "youtube":
+                on_progress(25.0, "Segmentando audio de YouTube...")
+            else:
+                on_progress(25.0, "Segmentando archivo en el servidor...")
 
         chunks_list = self._slice_audio(audio_path, chunk_minutes=self.DEFAULT_CHUNK_MINUTES)
         num_chunks = len(chunks_list)
@@ -478,12 +486,12 @@ class GroqWhisperTranscriber:
                 current_time_offset += chunk_dur
                 total_duration += chunk_dur
 
-                # Update progress after completed chunk
-                chunk_pct = min_pct + int(((idx + 1) / max(1, num_chunks)) * (max_pct - min_pct))
+                # Update progress after completed chunk (Fase 3: 30.0% + (i / total) * 50.0%)
+                chunk_pct = round(min_pct + (((idx + 1) / max(1, num_chunks)) * (max_pct - min_pct)), 1)
                 if on_progress:
                     on_progress(
                         chunk_pct,
-                        f"Transcribiendo fragmento {idx + 1} de {num_chunks} con Groq (Large-v3)...",
+                        f"Transcribiendo audio (Fragmento {idx + 1} de {num_chunks} - {chunk_pct:.1f}%)",
                     )
         finally:
             # Chunk Cleanup: Immediately after all chunks are transcribed, delete the chunks directory contents

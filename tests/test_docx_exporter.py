@@ -182,6 +182,87 @@ Revisar conceptos de polos complejos.
             if test_out.is_file():
                 test_out.unlink()
 
+    def test_clean_math_delimiters_for_docx(self):
+        from src.exporters.docx_exporter import clean_math_delimiters_for_docx
+        raw = r"La ganancia esperada es $$\mathbb{E}[X] = \sum x_i \cdot p_i = \$1,000$$ con valor \(P(A \le 5)\)."
+        cleaned = clean_math_delimiters_for_docx(raw)
+        self.assertNotIn("$$", cleaned)
+        self.assertNotIn(r"\(", cleaned)
+        self.assertNotIn(r"\)", cleaned)
+        self.assertIn("$1,000", cleaned)
+        self.assertIn("≤", cleaned)
+
+    def test_export_code_block_consolas_formatting(self):
+        from src.exporters.docx_exporter import export_academic_notes_docx
+        from docx.shared import Pt
+
+        sample_code_md = """# Guía de Algoritmos
+## 1. Implementación de Árbol
+```python
+def dfs(node):
+    if not node:
+        return
+    print(node.val)
+```
+Fin de la explicación.
+"""
+        test_out = Path(self.temp_dir) / "test_code_export.docx"
+        try:
+            exported_path = export_academic_notes_docx(
+                notes_md=sample_code_md,
+                subject="Algoritmos",
+                topic="DFS",
+                output_path=str(test_out),
+            )
+            doc = docx.Document(exported_path)
+            # Find code paragraphs
+            code_paras = [p for p in doc.paragraphs if "def dfs" in p.text or "print(node.val)" in p.text]
+            self.assertTrue(len(code_paras) >= 2)
+            for p in code_paras:
+                self.assertEqual(p.paragraph_format.line_spacing, 1.0)
+                self.assertEqual(p.paragraph_format.space_after, Pt(0))
+                self.assertTrue(len(p.runs) >= 1)
+                self.assertEqual(p.runs[0].font.name, "Consolas")
+                self.assertEqual(p.runs[0].font.size, Pt(8.5))
+        finally:
+            if test_out.is_file():
+                test_out.unlink()
+
+    def test_export_markdown_table_formatting(self):
+        from src.exporters.docx_exporter import export_academic_notes_docx
+
+        sample_table_md = """# Guía de Modelos
+## 1. Comparativa de Modelos
+| Modelo | Parámetros | Precisión |
+|---|---|---|
+| GPT-4 | 1.8T | 92.5% |
+| Claude 3.5 | 500B | 93.1% |
+
+Conclusión comparativa.
+"""
+        test_out = Path(self.temp_dir) / "test_table_export.docx"
+        try:
+            exported_path = export_academic_notes_docx(
+                notes_md=sample_table_md,
+                subject="Inteligencia Artificial",
+                topic="Modelos de Lenguaje",
+                output_path=str(test_out),
+            )
+            doc = docx.Document(exported_path)
+            # Should have created a table from the Markdown table
+            self.assertTrue(len(doc.tables) >= 1)
+            tbl = doc.tables[0]
+            self.assertEqual(len(tbl.rows), 3)  # header + 2 rows
+            self.assertEqual(len(tbl.columns), 3)
+            self.assertEqual(tbl.rows[0].cells[0].text, "Modelo")
+            self.assertEqual(tbl.rows[0].cells[1].text, "Parámetros")
+            self.assertEqual(tbl.rows[1].cells[0].text, "GPT-4")
+            self.assertEqual(tbl.rows[2].cells[0].text, "Claude 3.5")
+            self.assertTrue(tbl.rows[0].cells[0].paragraphs[0].runs[0].font.bold)
+        finally:
+            if test_out.is_file():
+                test_out.unlink()
+
 
 if __name__ == "__main__":
     unittest.main()

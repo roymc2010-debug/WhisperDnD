@@ -69,6 +69,7 @@ class LocalWhisperTranscriber:
     def transcribe(
         self,
         audio_path: str,
+        language: Optional[str] = None,
         on_info: Optional[Any] = None,
         on_segment: Optional[Any] = None,
         user_char_name: Optional[str] = None,
@@ -79,6 +80,7 @@ class LocalWhisperTranscriber:
         Transcribe an audio file using faster-whisper with Voice Activity Detection (VAD).
 
         :param audio_path: Path to the audio file to transcribe.
+        :param language: Optional language code (e.g. 'es', 'en') to force transcription language.
         :param on_info: Optional callback invoked with info (language, duration).
         :param on_segment: Optional callback invoked for each transcribed segment in real-time.
         :param user_char_name: Optional user player character name for transcript tagging.
@@ -96,9 +98,13 @@ class LocalWhisperTranscriber:
             raise FileNotFoundError(f"Audio file does not exist: {path.resolve()}")
 
         # Run transcription with Voice Activity Detection enabled
+        transcribe_kwargs = {"vad_filter": True}
+        if language:
+            transcribe_kwargs["language"] = language
+
         segments_generator, info = self.model.transcribe(
             str(path),
-            vad_filter=True,
+            **transcribe_kwargs,
         )
 
         if on_info is not None:

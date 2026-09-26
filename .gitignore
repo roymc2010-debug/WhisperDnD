@@ -229,6 +229,8 @@ data/input/*
 !data/input/.gitkeep
 data/output/*
 !data/output/.gitkeep
+outputs/*
+!outputs/.gitkeep
 
 # Model weights cache directories
 models/
@@ -247,4 +249,7 @@ data/.discord_token.json
 # Local Campaign State Files
 data/campaigns/*.json
 !data/campaigns/.gitkeep
+
+scratch/
+
 

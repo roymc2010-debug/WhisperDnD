@@ -49,9 +49,12 @@ def build_dnd_session_prompt(
 
     if is_english:
         lang_instruction = """⚠️ CRITICAL LANGUAGE DIRECTIVE (100% ENGLISH MANDATORY):
+Generate all content (Executive Briefing, Detailed Notes, Action Items, Key Points, Chronicle) strictly in English (e.g., English if 'en', Spanish if 'es'). Match the language requested by the user.
 - Target language is ENGLISH.
 - 100% of the generated output (act and scene titles, headings, tables, combat breakdown, quotes, and synopsis) MUST be in English.
-- STRICTLY FORBIDDEN to output text in any other language."""
+- STRICTLY FORBIDDEN to output text in any other language.
+- ⚠️ CRITICAL DIAGRAMMING DIRECTIVE: Do NOT generate fragile ASCII text diagrams (boxes made of '+---+' or '|'). To represent comparisons, workflows, decision matrices, or state transitions, ALWAYS use native Markdown tables or structured step-by-step lists.
+- When outputting mathematical or probabilistic formulas involving money, escape currency dollar signs inside math blocks (e.g., use '\\$1,000' or write 'USD 1,000') so they do not collide with LaTeX delimiters. Ensure equations are cleanly structured for KaTeX rendering."""
         header_title = "# 📜 D&D SESSION COMPREHENSIVE REPORT"
         sec0_title = "# 🎭 ADVENTURING COMPANY (DETECTED PROTAGONISTS)"
         sec0_body = """Generate a Markdown table of the detected protagonist characters in this session:
@@ -163,11 +166,13 @@ FULL SESSION AUDIO TRANSCRIPT:
 """
 
     # Spanish (Default)
-    lang_instruction = """⚠️ DIRECTIVA DE IDIOMA Y JERGA NATURAL DE D&D:
+    lang_instruction = """⚠️ DIRECTIVA CRÍTICA DE IDIOMA Y JERGA NATURAL DE D&D:
+Generate all content (Executive Briefing, Detailed Notes, Action Items, Key Points, Chronicle) strictly in Spanish (e.g., English if 'en', Spanish if 'es'). Match the language requested by the user.
 - Redacta la crónica, el informe y la narrativa en ESPAÑOL FLUIDO Y NATURAL.
 - NO fuerces traducciones artificiales u ortopédicas de la terminología oficial de D&D.
 - PRESERVA INTACTOS los términos oficiales de D&D, nombres de conjuros, clases, dotes, maniobras, tiradas de salvación y mecánicas en inglés o spanglish tal como se hablan en la mesa de juego (ej. Action Surge, Sneak Attack, Divine Smite, Battle Master, Insight check, Death saving throw, Saving throw, Short rest, Long rest, nat 20, nat 1).
-- Usa títulos y encabezados de actos y escenas en español (ej. 'Acto I: Escena 1', 'Crónica Narrativa')."""
+- Usa títulos y encabezados de actos y escenas en español (ej. 'Acto I: Escena 1', 'Crónica Narrativa').
+- Al generar fórmulas matemáticas o probabilísticas que involucren cantidades monetarias, escapa los signos de dólar dentro de los bloques matemáticos (ej. usa '\\$1,000' o escribe 'USD 1,000') para que no colisionen con los delimitadores de LaTeX."""
     header_title = "# 📜 INFORME COMPLETO DE SESIÓN DE D&D"
     sec0_title = "# 🎭 COMPAÑÍA DE AVENTUREROS (PROTAGONISTAS DETECTADOS)"
     sec0_body = """Genera una tabla Markdown con los personajes protagonistas de esta sesión:
@@ -198,6 +203,7 @@ FULL SESSION AUDIO TRANSCRIPT:
 - ⚠️ VOCABULARIO LITERAL DE MESA Y PROHIBICIÓN DE ARCAÍSMOS:
   * PROHIBIDO usar arcaísmos o sinónimos medievales rebuscados (ej. NUNCA uses 'sierpe' para dragón, 'pertrechos' para suministros o equipo, 'yacija', 'mengua').
   * Usa vocabulario directo de la mesa de D&D y spanglish natural: 'dragón', 'trol', 'suministros', 'equipo', 'pociones', 'trampa'.
+- ⚠️ DIRECTIVA CRÍTICA DE DIAGRAMAS Y TABLAS: Queda estrictamente PROHIBIDO generar diagramas frágiles en texto ASCII (cajas compuestas por '+---+' o '|'). Para representar comparaciones, flujos de trabajo, matrices de decisión o transiciones de estado, utiliza SIEMPRE tablas nativas en Markdown o listas estructuradas paso a paso.
 - ⚠️ REGISTRO DE COMPAÑEROS, MASCOTAS Y RELEVOS DE PERSONAJE:
   * Registra adecuadamente acompañantes, familiares o mascotas de la party (ej. Minipeko) y cambios o relevos de personajes.
 - ⚠️ REGLA UNIVERSAL DE TRANSICIÓN Y RELEVO DE PERSONAJES A MITAD DE SESIÓN:
@@ -395,9 +401,11 @@ LORE PREVIO Y RESUMEN DE SESIONES ANTERIORES (CONTEXTO DE LA CAMPAÑA):
 
     if is_english:
         lang_banner = """⚠️ CRITICAL LANGUAGE DIRECTIVE (100% ENGLISH MANDATORY):
+Generate all content (Executive Briefing, Detailed Notes, Action Items, Key Points, Chronicle) strictly in English (e.g., English if 'en', Spanish if 'es'). Match the language requested by the user.
 - Target language is ENGLISH.
 - 100% of all generated JSON text values ('title', 'chronicle_text', 'closing_expectations', 'episode_synopsis', 'updated_quests', 'subobjectives', 'rol_en_sesion', 'notes', 'clase', 'especie') MUST be written in natural, fluent English.
-- STRICTLY FORBIDDEN to leave text in any other language."""
+- STRICTLY FORBIDDEN to leave text in any other language.
+- When outputting mathematical or probabilistic formulas involving money, escape currency dollar signs inside math blocks (e.g., use '\\$1,000' or write 'USD 1,000') so they do not collide with LaTeX delimiters. Ensure equations are cleanly structured for KaTeX rendering."""
         json_quotes_rule = """⚠️ CRITICAL JSON SYNTAX RULE (STRICTLY NO DOUBLE QUOTES INSIDE STRINGS):
 - NEVER use raw double quotes (") inside JSON string values (for nicknames, character aliases, titles, or dialogue quotes).
 - STRICTLY USE single quotes (') for any nicknames, titles, or dialogue quotes (e.g. 'Hal', 'Wiki', 'The Undying', 'He shouted: Attack!').
@@ -424,12 +432,15 @@ LORE PREVIO Y RESUMEN DE SESIONES ANTERIORES (CONTEXTO DE LA CAMPAÑA):
   * Capture party animal companions, familiars, or mascots (e.g. Minipeko) and character switches/retirements."""
         chronicle_json_desc = "Deep chronicle strictly organized into chronological Acts and Scenes (e.g. '### Act I: Scene 1: ...', '### Scene 2: ...'). Dedicate 2-3 detailed paragraphs per scene with verbatim dialogue quotes, player strategic discussions, explicit dice rolls (Athletics, Perception, nat 20s, nat 1s), and step-by-step tactical combat maneuvers (spells, maneuvers, damage taken). STRICTLY FORBIDDEN to compress into a generic 3-paragraph summary."
     else:
-        lang_banner = """⚠️ DIRECTIVA DE IDIOMA Y JERGA NATURAL DE D&D:
+        lang_banner = """⚠️ DIRECTIVA CRÍTICA DE IDIOMA Y JERGA NATURAL DE D&D:
+Generate all content (Executive Briefing, Detailed Notes, Action Items, Key Points, Chronicle) strictly in Spanish (e.g., English if 'en', Spanish if 'es'). Match the language requested by the user.
 - Redacta la crónica, la narrativa, las misiones y las notas en ESPAÑOL FLUIDO Y NATURAL.
 - NO fuerces traducciones artificiales u ortopédicas de la terminología oficial de D&D.
 - PRESERVA INTACTOS los términos oficiales de D&D, nombres de conjuros, clases, dotes, maniobras, habilidades, tiradas de salvación y mecánicas en inglés o spanglish tal como se hablan en la mesa de juego (ej. Action Surge, Sneak Attack, Divine Smite, Battle Master, Insight check, Death saving throw, Saving throw, Short rest, Long rest, nat 20, nat 1).
 - Usa títulos y encabezados de actos y escenas en español (ej. 'Acto I: Escena 1: El Camino del Bosque', 'Acto II: Escena 2: Emboscada').
-- Todos los textos explicativos, descripciones de contexto y diálogos deben fluir con naturalidad en español."""
+- Todos los textos explicativos, descripciones de contexto y diálogos deben fluir con naturalidad en español.
+- Al generar fórmulas matemáticas o probabilísticas que involucren cantidades monetarias, escapa los signos de dólar dentro de los bloques matemáticos (ej. usa '\\$1,000' o escribe 'USD 1,000') para que no colisionen con los delimitadores de LaTeX.
+- Queda estrictamente PROHIBIDO generar diagramas frágiles en texto ASCII (cajas compuestas por '+---+' o '|'). Para representar comparaciones, flujos de trabajo, matrices de decisión o transiciones de estado, utiliza SIEMPRE tablas nativas en Markdown o listas estructuradas paso a paso."""
         json_quotes_rule = """⚠️ REGLA CRÍTICA DE SINTAXIS JSON (PROHIBIDO EL USO DE COMILLAS DOBLES DENTRO DE STRINGS):
 - NUNCA uses comillas dobles (") dentro de los valores de texto del JSON (por ejemplo para apodos, alias, títulos, nombres entre comillas o citas textuales de diálogos).
 - Usa OBLIGATORIAMENTE comillas simples (') para cualquier apodo, alias, título o diálogo textual (ejemplo: 'Hal', 'Wiki', 'Escudo de Roble', 'Dijo: Adelante').
@@ -663,6 +674,14 @@ When players speak generically on the audio channel without saying character nam
      * Out-of-game jokes and unrelated conversation having zero bearing on the adventure."""
     )
 
+    creative_title_instruction = (
+        """⚠️ DIRECTIVA DE TÍTULO CREATIVO DE SESIÓN:
+Genera un título creativo, épico o divertido para la sesión basado en los eventos clave (ej. 'Cucharas, runas y sangre en las alturas'). Devuélvelo en el campo JSON 'session_title' y dentro de 'session_chapter.title'."""
+        if not is_english
+        else """⚠️ CREATIVE SESSION TITLE DIRECTIVE:
+Generate a creative, epic, or fun title for the session based on key events (e.g. 'Spoons, runes, and blood at high altitudes'). Return it in the JSON field 'session_title' and inside 'session_chapter.title'."""
+    )
+
     return f"""ROSTER DE LA MESA (D&D 5e / 5.5e):
 {roster_formatted}
 
@@ -687,6 +706,7 @@ INSTRUCCIONES DE ANÁLISIS:
 
 {json_quotes_rule}
 
+{creative_title_instruction}
 {scene_instructions}
 {table_talk_filter_instruction}
 {coaching_instructions}
@@ -696,8 +716,10 @@ INSTRUCCIONES DE ANÁLISIS:
 5. Devuelve la respuesta OBLIGATORIAMENTE como un objeto JSON válido con la siguiente estructura exacta (sin texto introductorio, solo el JSON puro o dentro de un bloque ```json):
 
 {{
+  "session_title": "Título creativo, épico o divertido para la sesión basado en los eventos clave (ej. 'Cucharas, runas y sangre en las alturas')",
   "session_chapter": {{
-    "title": "Título sugerente y temático para la Sesión #{session_number}",
+    "title": "Título creativo, épico o divertido para la sesión basado en los eventos clave",
+    "session_title": "Título creativo, épico o divertido para la sesión basado en los eventos clave",
     "chronicle_text": "{chronicle_json_desc}",
     "closing_expectations": "Momentos culminantes de la sesión, botín u oro obtenido, y los planes inmediatos o expectativas de los jugadores para la próxima partida.",
     {closing_section_desc}
@@ -786,6 +808,8 @@ def build_academic_lecture_prompt(
     top = topic.strip() if topic and topic.strip() else ("Lecture Topic" if is_english else "Tema de Clase")
     date_line = f"DATE: {date_str}\n" if (date_str and is_english) else (f"FECHA: {date_str}\n" if date_str else "")
 
+    lang_name = "English" if is_english else "Spanish"
+
     if is_english:
         return f"""COURSE / SUBJECT: {subj}
 LECTURE / MEETING TOPIC: {top}
@@ -796,6 +820,16 @@ Analyze the following transcript recorded via microphone.
 Filter background noise, coughs, audio pauses, or irrelevant off-topic side comments.
 Organize and synthesize the speaker's presentation into a rigorous, deeply explanatory, and structured Markdown document IN ENGLISH.
 
+================================================================================
+CRITICAL LANGUAGE ENFORCEMENT DIRECTIVE:
+Generate all content (Executive Briefing, Detailed Notes, Action Items, Key Points) strictly in English (e.g., English if 'en', Spanish if 'es'). Match the language requested by the user.
+100% of all headings, narrative notes, terms, action items, and review questions MUST be written in English.
+================================================================================
+CRITICAL MATHEMATICAL & FORMULA FORMATTING DIRECTIVE:
+When outputting mathematical or probabilistic formulas involving money, escape currency dollar signs inside math blocks (e.g., use '\\$1,000' or write 'USD 1,000') so they do not collide with LaTeX delimiters. Ensure equations are cleanly structured for KaTeX rendering.
+================================================================================
+CRITICAL DIAGRAMMING & TABLE DIRECTIVE:
+Do NOT generate fragile ASCII text diagrams (boxes made of '+---+' or '|'). To represent comparisons, workflows, decision matrices, or state transitions, ALWAYS use native Markdown tables or structured step-by-step lists.
 ================================================================================
 CRITICAL EXPLANATORY DIRECTIVE (WORK & STUDY):
 Do NOT output lazy, shallow summaries or disconnected bullet points. Write a comprehensive, deeply explanatory narrative breakdown of the talk/lecture.
@@ -825,8 +859,8 @@ Structure the guide into the following 6 sections:
 # 4. Solved Examples & Practical Applications
 - Detailed breakdown of practical exercises, case studies, code patterns, or real-world dilemmas discussed, including problem statement, methodology, steps, and resolution.
 
-# 5. Announcements, Deadlines & Next Steps
-- Explicit record of announced exam dates, deliverables, homework, required readings, follow-up meetings, or action items. (If none mentioned, state clearly).
+# 5. Announcements, Deadlines & Next Steps (STRICTLY CONDITIONAL)
+- Deadlines & Action Items Section: Include this section ONLY IF concrete homework assignments, project deadlines, or explicit organizational announcements were stated in the audio. If NO actionable tasks or deadlines exist (e.g. YouTube educational videos, general keynotes), OMIT this section entirely. Do NOT output placeholder text such as 'No assignments were mentioned'.
 
 # 6. Key Takeaways, Metrics & Action Items
 - Reserve concise bullet points strictly for this final section:
@@ -850,6 +884,16 @@ Analiza la siguiente transcripción grabada mediante micrófono.
 Filtra ruidos de fondo, carraspeos, pausas de audio o comentarios irrelevantes fuera de tema.
 Organiza y sintetiza el contenido impartido en una Guía de Estudio y Síntesis Ejecutiva rigurosa, profunda y estructurada en Markdown en español.
 
+================================================================================
+DIRECTIVA CRÍTICA DE IDIOMA OBLIGATORIO:
+Generate all content (Executive Briefing, Detailed Notes, Action Items, Key Points) strictly in Spanish (e.g., English if 'en', Spanish if 'es'). Match the language requested by the user.
+El 100% de los encabezados, textos narrativos, glosarios, tareas y preguntas DEBEN generarse estrictamente en español.
+================================================================================
+DIRECTIVA CRÍTICA DE FORMATEO MATEMÁTICO Y FÓRMULAS:
+When outputting mathematical or probabilistic formulas involving money, escape currency dollar signs inside math blocks (e.g., use '\\$1,000' or write 'USD 1,000') so they do not collide with LaTeX delimiters. Ensure equations are cleanly structured for KaTeX rendering.
+================================================================================
+DIRECTIVA CRÍTICA DE DIAGRAMAS Y TABLAS:
+Queda estrictamente PROHIBIDO generar diagramas frágiles en texto ASCII (cajas compuestas por '+---+' o '|'). Para representar comparaciones, flujos de trabajo, matrices de decisión o transiciones de estado, utiliza SIEMPRE tablas nativas en Markdown (| Columna 1 | Columna 2 |) o listas estructuradas paso a paso.
 ================================================================================
 DIRECTIVA CRÍTICA DE PROFUNDIDAD EXPLICATIVA (WORK & STUDY):
 NO generes resúmenes superficiales, perezosos ni listas de viñetas desconectadas. Escribe un desglose narrativo exhaustivo, profundo y detallado de la exposición/clase/reunión.
@@ -879,8 +923,8 @@ Estructura obligatoriamente la respuesta en las siguientes 6 secciones:
 # 4. Ejemplos Resueltos y Casos Prácticos
 - Desglose exhaustivo de los problemas prácticos, ejercicios o casos de negocio discutidos durante la sesión, detallando su planteamiento, desarrollo analítico y conclusión.
 
-# 5. Avisos Relevantes, Tareas y Próximos Pasos
-- Registro explícito de fechas de exámenes, entregas, lecturas obligatorias, compromisos adquiridos o acuerdos para la próxima sesión. (Si no se mencionaron avisos, indícalo claramente).
+# 5. Avisos Relevantes, Tareas y Próximos Pasos (ESTRICTAMENTE CONDICIONAL)
+- Sección de Avisos, Tareas y Próximos Pasos: Incluye esta sección ÚNICAMENTE SI en el audio se mencionaron explícitamente tareas concretas, fechas de examen, entregas de proyectos o avisos organizativos formales. Si NO existen tareas ni fechas límite accionables (por ejemplo, videos educativos de YouTube, charlas magistrales o ponencias generales), OMITE esta sección por completo. Queda estrictamente PROHIBIDO emitir texto de relleno como 'No se anunciaron exámenes ni tareas pendientes'.
 
 # 6. Conclusiones Clave, Métricas y Acciones
 - Reserva las viñetas concisas EXCLUSIVAMENTE para esta sección de cierre:

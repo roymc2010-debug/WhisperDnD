@@ -77,6 +77,120 @@ def is_npc_name_match(name1: str, name2: str) -> bool:
     return False
 
 
+def is_entity_substring_duplicate(
+    short_name: str,
+    long_name: str,
+    entity1: Optional[Dict[str, Any]] = None,
+    entity2: Optional[Dict[str, Any]] = None,
+) -> bool:
+    """
+    Detect if short_name represents an incomplete or unexpanded duplicate of long_name.
+    For instance: 'Octus' vs 'Octus Taconis', or 'Thiazi' vs 'Thiazi Coldbreaker'.
+    Does not match distinct entities sharing common generic words (e.g. 'Lord', 'Guardia')
+    or different family members with different first names (e.g. 'Hiro Fang' vs 'Thjazi Fang').
+    """
+    s1 = (short_name or "").strip()
+    s2 = (long_name or "").strip()
+    if not s1 or not s2:
+        return False
+    if s1.lower() == s2.lower():
+        return True
+    if len(s1) >= len(s2):
+        return False
+
+    l1 = s1.lower()
+    l2 = s2.lower()
+
+    if "[" in l1 or "sin nombre" in l1 or "unnamed" in l1:
+        return False
+
+    generic_titles = {
+        "lord", "lady", "sir", "dame", "king", "queen", "rey", "reina",
+        "captain", "capitán", "capitan", "guard", "guardia", "soldier", "soldado",
+        "master", "dm", "el", "la", "los", "las", "the", "de", "del", "of",
+        "don", "doña", "padre", "madre", "hermano", "hermana", "brother", "sister"
+    }
+    if l1 in generic_titles:
+        return False
+
+    # If both entities have player names specified and they match (and not empty / generic)
+    if entity1 and entity2:
+        pl1 = str(entity1.get("jugador") or entity1.get("player_name") or "").strip().lower()
+        pl2 = str(entity2.get("jugador") or entity2.get("player_name") or "").strip().lower()
+        if pl1 and pl2 and pl1 not in ("-", "desconocido", "n/a", "") and pl2 not in ("-", "desconocido", "n/a", ""):
+            if pl1 == pl2:
+                c1 = re.sub(r"[^\w\s]", "", l1)
+                c2 = re.sub(r"[^\w\s]", "", l2)
+                t1 = set(c1.split())
+                t2 = set(c2.split())
+                if t1.issubset(t2) or c1 in c2:
+                    return True
+
+    c1 = re.sub(r"[^\w\s]", "", l1)
+    c2 = re.sub(r"[^\w\s]", "", l2)
+    tokens1 = [t for t in c1.split() if t and t not in generic_titles]
+    tokens2 = [t for t in c2.split() if t and t not in generic_titles]
+    if not tokens1 or not tokens2:
+        return False
+
+    set1 = set(tokens1)
+    set2 = set(tokens2)
+    if set1.issubset(set2) and all(len(t) >= 3 for t in tokens1):
+        return True
+
+    if len(c1) >= 3 and re.search(rf"\b{re.escape(c1)}\b", c2):
+        return True
+
+    if is_npc_name_match(s1, s2):
+        return True
+
+    return False
+
+
+def _extract_sess_number(milestone_text: Any) -> int:
+    m = re.search(r"^(?:sesi[oó]n|session)\s*#?(\d+)", str(milestone_text).strip(), re.IGNORECASE)
+    return int(m.group(1)) if m else 9999
+
+
+def _merge_milestones(h1: Any, h2: Any) -> List[str]:
+    combined: List[str] = []
+    seen = set()
+    list1 = h1 if isinstance(h1, list) else ([h1] if h1 else [])
+    list2 = h2 if isinstance(h2, list) else ([h2] if h2 else [])
+    for h in list1 + list2:
+        h_str = str(h).strip() if isinstance(h, str) else str(h.get("hito") or h.get("text") or h).strip()
+        if not h_str:
+            continue
+        norm = re.sub(r"\s+", " ", h_str).lower()
+        if norm not in seen:
+            seen.add(norm)
+            combined.append(h_str)
+    combined.sort(key=_extract_sess_number)
+    return combined
+
+
+def _merge_notes_list(n1: Any, n2: Any) -> List[str]:
+    combined: List[str] = []
+    seen = set()
+    list1 = n1 if isinstance(n1, list) else ([n1] if n1 else [])
+    list2 = n2 if isinstance(n2, list) else ([n2] if n2 else [])
+    for n in list1 + list2:
+        n_str = str(n).strip() if isinstance(n, str) else str(n.get("note") or n.get("text") or n).strip()
+        if not n_str:
+            continue
+        norm = re.sub(r"\s+", " ", n_str).lower()
+        if norm not in seen:
+            seen.add(norm)
+            combined.append(n_str)
+    return combined
+
+
+def deduplicate_campaign_entities(campaign_id: str, campaigns_dir: Optional[str] = None) -> Dict[str, Any]:
+    """Standalone wrapper to deduplicate campaign entities."""
+    mgr = CampaignManager(campaigns_dir=campaigns_dir)
+    return mgr.deduplicate_campaign_entities(campaign_id)
+
+
 def purge_session_data(campaign_data: dict, session_num: int) -> dict:
     """
     Explicitly purge session records, milestones, and quest completion tags
@@ -160,6 +274,10 @@ class CampaignManager:
                     "total_sessions": sessions_count,
                     "updated_at": last_updated,
                     "prior_lore": data.get("prior_lore", ""),
+                    "dm": data.get("dm") or data.get("dungeon_master") or data.get("dm_name") or "",
+                    "dungeon_master": data.get("dm") or data.get("dungeon_master") or data.get("dm_name") or "",
+                    "dm_name": data.get("dm") or data.get("dungeon_master") or data.get("dm_name") or "",
+                    "dm_discord_id": data.get("dm_discord_id") or data.get("dm_discord_user_id") or "",
                 })
             except Exception as exc:
                 print(f"[CampaignManager] Error reading {file}: {exc}")
@@ -234,6 +352,27 @@ class CampaignManager:
                     data["universal_pcs"] = []
                 if "prior_lore" not in data:
                     data["prior_lore"] = ""
+                # Backfill DM fields
+                dm_val = data.get("dm") or data.get("dungeon_master") or data.get("dm_name") or ""
+                if not dm_val and data.get("roster") and len(data["roster"]) > 0:
+                    r0 = data["roster"][0]
+                    if r0.get("character_name") == "(DM)" or r0.get("role") == "Dungeon Master (DM)":
+                        dm_val = (r0.get("player_name") or "").strip()
+                data["dm"] = dm_val
+                data["dungeon_master"] = dm_val
+                data["dm_name"] = dm_val
+                if "dm_discord_id" not in data:
+                    data["dm_discord_id"] = data.get("dm_discord_user_id") or ""
+                if "dm_discord_user_id" not in data:
+                    data["dm_discord_user_id"] = data.get("dm_discord_id") or ""
+                # Auto-deduplicate entities on campaign load (e.g. Octus -> Octus Taconis)
+                merged = self._deduplicate_state(data, campaign_name=data.get("campaign_name", name))
+                if merged:
+                    data["updated_at"] = datetime.datetime.now().isoformat()
+                    try:
+                        file_path.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
+                    except Exception as e:
+                        print(f"[CampaignManager] Could not save deduplicated state to {file_path}: {e}")
                 return data
             except Exception as exc:
                 print(f"[CampaignManager] Error loading {file_path}: {exc}. Initializing fallback.")
@@ -246,6 +385,11 @@ class CampaignManager:
             "updated_at": now_iso,
             "last_session": 0,
             "prior_lore": "",
+            "dm": "",
+            "dungeon_master": "",
+            "dm_name": "",
+            "dm_discord_id": "",
+            "dm_discord_user_id": "",
             "roster": [],
             "universal_pcs": [],
             "quests": [],
@@ -459,10 +603,14 @@ class CampaignManager:
         synopsis_text = (session_chapter.get("episode_synopsis") or "").strip()
         coaching = (session_chapter.get("user_coaching") or session_chapter.get("markus_coaching") or "").strip()
 
+        raw_title = str(session_chapter.get("session_title") or session_chapter.get("title") or f"Sesión {actual_session_num}").strip()
+        clean_title = re.sub(r"^(?:sesi[oó]n|session)\s*#?\d+\s*[:\-]\s*", "", raw_title, flags=re.IGNORECASE).strip() or raw_title
+
         chapter_record = {
             "session_number": actual_session_num,
             "date": datetime.datetime.now().strftime("%d/%m/%Y"),
-            "title": session_chapter.get("title", f"Sesión {actual_session_num}"),
+            "session_title": clean_title,
+            "title": clean_title,
             "recap_text": recap_text,
             "next_session_script": recap_text,
             "episode_synopsis": synopsis_text,
@@ -885,3 +1033,322 @@ class CampaignManager:
 
         self.save_campaign(state)
         return state
+
+    def _clean_entity_disk_files(self, entity_name: str, campaign_name: str):
+        """Remove any orphaned entity files from disk matching the incomplete name."""
+        clean_stem = self.sanitize_name(entity_name)
+        camp_clean = self.sanitize_name(campaign_name)
+        candidates = [
+            self.campaigns_dir / f"{clean_stem}.json",
+            self.campaigns_dir / f"{clean_stem}.md",
+            self.campaigns_dir / camp_clean / f"{clean_stem}.json",
+            self.campaigns_dir / camp_clean / f"{clean_stem}.md",
+            self.campaigns_dir / "entities" / f"{clean_stem}.json",
+            self.campaigns_dir / "entities" / f"{clean_stem}.md",
+        ]
+        out_dir = Path(os.environ.get("WHISPER_OUTPUT_DIR", self.campaigns_dir.parent / "output"))
+        if out_dir.is_dir():
+            candidates.extend([
+                out_dir / f"{clean_stem}.json",
+                out_dir / f"{clean_stem}.md",
+                out_dir / f"{clean_stem}.docx",
+            ])
+        for p in candidates:
+            if p.is_file():
+                try:
+                    p.unlink()
+                    print(f"[CampaignManager] Deleted duplicate entity disk file: {p}")
+                except Exception as e:
+                    print(f"[CampaignManager] Could not delete duplicate entity file {p}: {e}")
+
+    def _sync_roster_and_sessions(self, state: dict, source_name: str, target_name: str):
+        """Update any reference to source_name with target_name in roster and session chapters."""
+        roster = state.get("roster", [])
+        new_roster = []
+        seen_chars = set()
+        for r in roster:
+            c_name = str(r.get("character_name", "")).strip()
+            if c_name.lower() == source_name.lower():
+                r["character_name"] = target_name
+                c_name = target_name
+            key = c_name.lower()
+            if key not in seen_chars:
+                seen_chars.add(key)
+                new_roster.append(r)
+        state["roster"] = new_roster
+
+        for s in state.get("sessions", []):
+            for p in s.get("detected_pcs", []):
+                if str(p.get("personaje", "")).strip().lower() == source_name.lower():
+                    p["personaje"] = target_name
+            for p in s.get("detected_party", []):
+                if str(p.get("character_name", "")).strip().lower() == source_name.lower():
+                    p["character_name"] = target_name
+            s["detected_npc_names"] = [
+                target_name if str(n).strip().lower() == source_name.lower() else n
+                for n in s.get("detected_npc_names", [])
+            ]
+
+    def _deduplicate_state(self, state: Dict[str, Any], campaign_name: str = "") -> List[Dict[str, Any]]:
+        """
+        Inspects universal_pcs and npcs in state for substring duplicates.
+        Merges content, hitos/notes, adds alias, removes old duplicate, syncs roster, and deletes orphaned disk files.
+        Returns list of merged event records.
+        """
+        merged_events = []
+        camp_name = campaign_name or state.get("campaign_name", "")
+
+        # --- 1. Deduplicate universal_pcs ---
+        pcs = state.get("universal_pcs", [])
+        i = 0
+        while i < len(pcs):
+            merged_any = False
+            j = 0
+            while j < len(pcs):
+                if i != j:
+                    p1 = pcs[i]
+                    p2 = pcs[j]
+                    n1 = str(p1.get("personaje") or p1.get("name") or "").strip()
+                    n2 = str(p2.get("personaje") or p2.get("name") or "").strip()
+                    if is_entity_substring_duplicate(n1, n2, p1, p2):
+                        # p1 is shorter duplicate of p2. Merge p1 into p2!
+                        aliases = p2.setdefault("aliases", [])
+                        if n1 and n1 not in aliases:
+                            aliases.append(n1)
+                        for a in p1.get("aliases", []):
+                            if a not in aliases and a != n2:
+                                aliases.append(a)
+
+                        for field in ("jugador", "especie", "clase", "subclase"):
+                            v2 = str(p2.get(field) or "").strip()
+                            v1 = str(p1.get(field) or "").strip()
+                            if (not v2 or v2 in ("-", "Desconocido", "N/A")) and (v1 and v1 not in ("-", "Desconocido", "N/A")):
+                                p2[field] = v1
+
+                        d1 = int(p1.get("debut_sesion") or 9999)
+                        d2 = int(p2.get("debut_sesion") or 9999)
+                        p2["debut_sesion"] = min(d1, d2)
+
+                        p2["hitos_acumulados"] = _merge_milestones(p2.get("hitos_acumulados", []), p1.get("hitos_acumulados", []))
+
+                        pcs.pop(i)
+                        self._clean_entity_disk_files(n1, camp_name)
+                        self._sync_roster_and_sessions(state, n1, n2)
+
+                        merged_events.append({
+                            "type": "pc",
+                            "source": n1,
+                            "target": n2,
+                        })
+                        merged_any = True
+                        break
+                j += 1
+            if not merged_any:
+                i += 1
+
+        # --- 2. Deduplicate npcs ---
+        npcs = state.get("npcs", [])
+        i = 0
+        while i < len(npcs):
+            merged_any = False
+            j = 0
+            while j < len(npcs):
+                if i != j:
+                    npc1 = npcs[i]
+                    npc2 = npcs[j]
+                    n1 = str(npc1.get("name") or "").strip()
+                    n2 = str(npc2.get("name") or "").strip()
+                    if is_entity_substring_duplicate(n1, n2, npc1, npc2):
+                        aliases = npc2.setdefault("aliases", [])
+                        if n1 and n1 not in aliases:
+                            aliases.append(n1)
+                        for a in npc1.get("aliases", []):
+                            if a not in aliases and a != n2:
+                                aliases.append(a)
+
+                        r2 = str(npc2.get("role") or "").strip()
+                        r1 = str(npc1.get("role") or "").strip()
+                        if (not r2 or r2 in ("-", "Desconocido / PNJ", "N/A")) and (r1 and r1 not in ("-", "Desconocido / PNJ", "N/A")):
+                            npc2["role"] = r1
+                        elif r1 and len(r1) > len(r2):
+                            npc2["role"] = r1
+
+                        if npc1.get("tipo") == "importantes":
+                            npc2["tipo"] = "importantes"
+
+                        f1 = int(npc1.get("first_seen_session") or 9999)
+                        f2 = int(npc2.get("first_seen_session") or 9999)
+                        npc2["first_seen_session"] = min(f1, f2)
+
+                        npc2["notes"] = _merge_notes_list(npc2.get("notes", []), npc1.get("notes", []))
+
+                        npcs.pop(i)
+                        self._clean_entity_disk_files(n1, camp_name)
+                        self._sync_roster_and_sessions(state, n1, n2)
+
+                        merged_events.append({
+                            "type": "npc",
+                            "source": n1,
+                            "target": n2,
+                        })
+                        merged_any = True
+                        break
+                j += 1
+            if not merged_any:
+                i += 1
+
+        return merged_events
+
+    def deduplicate_campaign_entities(self, campaign_id: str) -> Dict[str, Any]:
+        """
+        Scans and merges duplicate entities in a campaign.
+        If 'Octus' and 'Octus Taconis' exist:
+        1. Merges content, hitos, notes into 'Octus Taconis'.
+        2. Adds 'Octus' to aliases: aliases: ['Octus'].
+        3. Removes old duplicate 'Octus' and deletes orphaned files.
+        4. Saves and returns the clean campaign state.
+        """
+        file_path = self.get_campaign_path(campaign_id)
+        if not file_path.is_file():
+            matched = None
+            for f in self.campaigns_dir.glob("*.json"):
+                if f.stem.lower() == self.sanitize_name(campaign_id).lower():
+                    matched = f
+                    break
+            if matched:
+                file_path = matched
+            else:
+                raise ValueError(f"Campaña con ID/Nombre '{campaign_id}' no encontrada.")
+
+        data = json.loads(file_path.read_text(encoding="utf-8"))
+        merged_events = self._deduplicate_state(data, campaign_name=data.get("campaign_name", campaign_id))
+
+        if merged_events:
+            data["updated_at"] = datetime.datetime.now().isoformat()
+            file_path.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
+            print(f"[CampaignManager] Deduplicated {len(merged_events)} entities in '{campaign_id}': {merged_events}")
+
+        return {
+            "campaign_id": campaign_id,
+            "merged_count": len(merged_events),
+            "merged": merged_events,
+            "campaign_state": data,
+        }
+
+    def deduplicate_all_campaigns(self) -> List[Dict[str, Any]]:
+        """Run deduplication on all campaigns in the campaigns directory."""
+        results = []
+        for file in self.campaigns_dir.glob("*.json"):
+            try:
+                res = self.deduplicate_campaign_entities(file.stem)
+                if res.get("merged_count", 0) > 0:
+                    results.append(res)
+            except Exception as exc:
+                print(f"[CampaignManager] Error deduplicating {file}: {exc}")
+        return results
+
+    def merge_entities(
+        self,
+        campaign_name: str,
+        source_name: str,
+        target_name: str,
+        entity_type: str = "pc",
+        keep_name: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """
+        Manually merge two entities in a campaign.
+        'source_name' will be absorbed into 'target_name', and recorded as an alias.
+        """
+        state = self.load_campaign(campaign_name)
+        s_clean = source_name.strip()
+        t_clean = target_name.strip()
+        if not s_clean or not t_clean:
+            raise ValueError("Se requieren tanto el personaje origen como el destino.")
+        if s_clean.lower() == t_clean.lower():
+            raise ValueError("No se puede fusionar un personaje consigo mismo.")
+
+        pcs = state.setdefault("universal_pcs", [])
+        npcs = state.setdefault("npcs", [])
+
+        source_pc = next((p for p in pcs if str(p.get("personaje") or p.get("name") or "").strip().lower() == s_clean.lower()), None)
+        target_pc = next((p for p in pcs if str(p.get("personaje") or p.get("name") or "").strip().lower() == t_clean.lower()), None)
+
+        source_npc = next((n for n in npcs if str(n.get("name") or "").strip().lower() == s_clean.lower()), None)
+        target_npc = next((n for n in npcs if str(n.get("name") or "").strip().lower() == t_clean.lower()), None)
+
+        merged_record = {}
+
+        if target_pc and (source_pc or source_npc):
+            aliases = target_pc.setdefault("aliases", [])
+            if s_clean not in aliases:
+                aliases.append(s_clean)
+
+            if source_pc:
+                for a in source_pc.get("aliases", []):
+                    if a not in aliases and a != target_pc.get("personaje"):
+                        aliases.append(a)
+                for field in ("jugador", "especie", "clase", "subclase"):
+                    v2 = str(target_pc.get(field) or "").strip()
+                    v1 = str(source_pc.get(field) or "").strip()
+                    if (not v2 or v2 in ("-", "Desconocido", "N/A")) and (v1 and v1 not in ("-", "Desconocido", "N/A")):
+                        target_pc[field] = v1
+                d1 = int(source_pc.get("debut_sesion") or 9999)
+                d2 = int(target_pc.get("debut_sesion") or 9999)
+                target_pc["debut_sesion"] = min(d1, d2)
+                target_pc["hitos_acumulados"] = _merge_milestones(target_pc.get("hitos_acumulados", []), source_pc.get("hitos_acumulados", []))
+                pcs[:] = [p for p in pcs if p is not source_pc]
+            elif source_npc:
+                for a in source_npc.get("aliases", []):
+                    if a not in aliases and a != target_pc.get("personaje"):
+                        aliases.append(a)
+                target_pc["hitos_acumulados"] = _merge_milestones(target_pc.get("hitos_acumulados", []), source_npc.get("notes", []))
+                npcs[:] = [n for n in npcs if n is not source_npc]
+
+            final_name = keep_name or target_pc.get("personaje") or t_clean
+            target_pc["personaje"] = final_name
+            self._clean_entity_disk_files(s_clean, campaign_name)
+            self._sync_roster_and_sessions(state, s_clean, final_name)
+            merged_record = {"type": "pc", "source": s_clean, "target": final_name}
+
+        elif target_npc and (source_npc or source_pc):
+            aliases = target_npc.setdefault("aliases", [])
+            if s_clean not in aliases:
+                aliases.append(s_clean)
+
+            if source_npc:
+                for a in source_npc.get("aliases", []):
+                    if a not in aliases and a != target_npc.get("name"):
+                        aliases.append(a)
+                r2 = str(target_npc.get("role") or "").strip()
+                r1 = str(source_npc.get("role") or "").strip()
+                if (not r2 or r2 in ("-", "Desconocido / PNJ", "N/A")) and (r1 and r1 not in ("-", "Desconocido / PNJ", "N/A")):
+                    target_npc["role"] = r1
+                elif r1 and len(r1) > len(r2):
+                    target_npc["role"] = r1
+                if source_npc.get("tipo") == "importantes":
+                    target_npc["tipo"] = "importantes"
+                f1 = int(source_npc.get("first_seen_session") or 9999)
+                f2 = int(target_npc.get("first_seen_session") or 9999)
+                target_npc["first_seen_session"] = min(f1, f2)
+                target_npc["notes"] = _merge_notes_list(target_npc.get("notes", []), source_npc.get("notes", []))
+                npcs[:] = [n for n in npcs if n is not source_npc]
+            elif source_pc:
+                target_npc["notes"] = _merge_notes_list(target_npc.get("notes", []), source_pc.get("hitos_acumulados", []))
+                pcs[:] = [p for p in pcs if p is not source_pc]
+
+            final_name = keep_name or target_npc.get("name") or t_clean
+            target_npc["name"] = final_name
+            self._clean_entity_disk_files(s_clean, campaign_name)
+            self._sync_roster_and_sessions(state, s_clean, final_name)
+            merged_record = {"type": "npc", "source": s_clean, "target": final_name}
+        elif target_pc and any(s_clean.lower() == str(a).lower() for a in target_pc.get("aliases", [])):
+            final_name = keep_name or target_pc.get("personaje") or t_clean
+            merged_record = {"type": "pc", "source": s_clean, "target": final_name, "already_merged": True}
+        elif target_npc and any(s_clean.lower() == str(a).lower() for a in target_npc.get("aliases", [])):
+            final_name = keep_name or target_npc.get("name") or t_clean
+            merged_record = {"type": "npc", "source": s_clean, "target": final_name, "already_merged": True}
+        else:
+            raise ValueError(f"No se pudo encontrar a '{s_clean}' o '{t_clean}' en los personajes de la campaña.")
+
+        self.save_campaign(state)
+        return merged_record

@@ -1,8 +1,11 @@
-// Audio Workspace Service Worker (PWA)
-const CACHE_NAME = 'audio-workspace-v1';
+// Service Worker para WhisperDnD & Study PWA
+const CACHE_NAME = 'whisper-dnd-study-v2';
 const ASSETS_TO_CACHE = [
   '/',
   '/manifest.json',
+  '/static/manifest.json',
+  '/static/icon-192.png',
+  '/static/icon-512.png',
   '/icon-192.png',
   '/icon-512.png'
 ];
@@ -12,7 +15,7 @@ self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
       return cache.addAll(ASSETS_TO_CACHE).catch((err) => {
-        console.warn('Failed to pre-cache some assets during SW install:', err);
+        console.warn('Fallo al pre-cachear algunos assets durante la instalación del SW:', err);
       });
     })
   );
@@ -35,12 +38,12 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
 
-  // Bypass API calls, audio streaming, and WebSocket-like requests directly to network
+  // Omitir endpoints API, streaming de audio o peticiones que no sean GET
   if (url.pathname.startsWith('/api/') || event.request.method !== 'GET') {
     return;
   }
 
-  // Network-first strategy with cache fallback for HTML and app assets
+  // Estrategia Network-First con fallback a Caché para experiencia offline
   event.respondWith(
     fetch(event.request)
       .then((networkResponse) => {

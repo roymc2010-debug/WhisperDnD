@@ -6,18 +6,21 @@ import os
 import re
 import shutil
 import time
+import tempfile
+import urllib.parse
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 from dotenv import load_dotenv
 load_dotenv(override=True)
 
-from fastapi import FastAPI, File, Form, HTTPException, Query, UploadFile
+from fastapi import FastAPI, File, Form, HTTPException, Query, UploadFile, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
+from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 from starlette.concurrency import run_in_threadpool
+from starlette.background import BackgroundTask
 
 from src.exporters.docx_exporter import (
     export_chronicle_docx,
@@ -45,19 +48,35 @@ template_path = Path(__file__).resolve().parent / "templates" / "index.html"
 
 
 def get_data_input_dir() -> Path:
-    p = Path(os.environ.get("WHISPER_INPUT_DIR", project_root / "data" / "input"))
+    env_dir = os.environ.get("WHISPER_INPUT_DIR")
+    if env_dir:
+        p = Path(env_dir).resolve()
+    elif os.path.exists("/tmp") and os.path.isdir("/tmp") and sys.platform != "win32":
+        p = Path("/tmp/whisper_input").resolve()
+    else:
+        p = (project_root / "data" / "input").resolve()
     p.mkdir(parents=True, exist_ok=True)
     return p
 
 
 def get_data_output_dir() -> Path:
-    p = Path(os.environ.get("WHISPER_OUTPUT_DIR", project_root / "data" / "output"))
+    env_dir = os.environ.get("WHISPER_OUTPUT_DIR")
+    if env_dir:
+        p = Path(env_dir).resolve()
+    elif (project_root / "outputs").is_dir():
+        p = (project_root / "outputs").resolve()
+    else:
+        p = (project_root / "data" / "output").resolve()
     p.mkdir(parents=True, exist_ok=True)
     return p
 
 
 def get_data_campaigns_dir() -> Path:
-    p = Path(os.environ.get("WHISPER_CAMPAIGNS_DIR", project_root / "data" / "campaigns"))
+    env_dir = os.environ.get("WHISPER_CAMPAIGNS_DIR")
+    if env_dir:
+        p = Path(env_dir).resolve()
+    else:
+        p = (project_root / "data" / "campaigns").resolve()
     p.mkdir(parents=True, exist_ok=True)
     return p
 
@@ -72,6 +91,19 @@ app = FastAPI(
     description="Dual-channel audio recording with faster-whisper, Gemini Living Campaign Journal & Google Drive.",
     version="3.0.0",
 )
+
+
+@app.on_event("startup")
+async def on_server_startup():
+    """Auto-deduplicate campaign entities across all saved campaigns on server start."""
+    try:
+        manager = CampaignManager()
+        results = manager.deduplicate_all_campaigns()
+        if results:
+            print(f"[Server Startup] Retroactive entity deduplication applied: {len(results)} campaign(s) cleaned: {results}")
+    except Exception as e:
+        print(f"[Server Startup] Error during retroactive entity deduplication: {e}")
+
 
 app.add_middleware(
     CORSMiddleware,
@@ -91,6 +123,8 @@ if static_dir.is_dir():
 # Pydantic Request Models
 # ---------------------------------------------------------------------------
 class PlayerMetadata(BaseModel):
+    model_config = ConfigDict(extra="allow")
+
     player_name: str = Field(default="", description="Name of the player")
     character_name: str = Field(default="-", description="Character name")
     species: Optional[str] = Field(default="", description="Species or race (e.g. Elfo, Humano)")
@@ -98,6 +132,9 @@ class PlayerMetadata(BaseModel):
     subclass: Optional[str] = Field(default="", description="Subclass (e.g. Battle Master)")
     is_user_character: Optional[bool] = Field(default=False, description="Whether this character is the user's personal character for roleplay reflection")
     discord_user_id: Optional[str] = Field(default=None, description="Linked Discord user ID for immutable speaker identification")
+    discord_id: Optional[str] = Field(default=None, description="Linked Discord ID")
+    discord_username: Optional[str] = Field(default=None, description="Linked Discord username")
+    discord_tag: Optional[str] = Field(default=None, description="Linked Discord tag")
 
 
 class StartRecordingRequest(BaseModel):
@@ -120,14 +157,18 @@ class StopAndProcessRequest(BaseModel):
 
 
 class YouTubeTranscribeRequest(BaseModel):
+    model_config = ConfigDict(extra="allow")
+
     url: str = Field(..., description="YouTube video URL to transcribe")
     model_size: str = Field(default="base", description="Whisper model size (tiny, base)")
     engine: str = Field(default="groq", description="Transcription engine ('groq' or 'local')")
-    campaign_name: Optional[str] = Field(default="Campaña Principal", description="Name of the campaign")
+    campaign_name: Optional[str] = Field(default=None, description="Name of the campaign")
+    campaign_id: Optional[str] = Field(default=None, description="Optional campaign ID")
     session_number: Optional[int] = Field(default=None, description="Optional manual session number")
     roster: Optional[List[PlayerMetadata]] = Field(default_factory=list, description="Party roster")
     task_id: Optional[str] = Field(default=None, description="Task ID for progress tracking")
     recording_mode: str = Field(default="roleplay", description="Recording mode ('roleplay' or 'class')")
+    workspace: Optional[str] = Field(default="dnd", description="Workspace mode ('dnd' or 'work_and_study')")
     subject: Optional[str] = Field(default="", description="Materia / Asignatura for university lecture")
     topic: Optional[str] = Field(default="", description="Tema de la clase for university lecture")
     target_language: str = Field(default="es", description="Target language ('es' or 'en')")
@@ -157,10 +198,83 @@ class TranscribeResponse(BaseModel):
     detected_party: Optional[List[Dict[str, Any]]] = None
     detected_pcs: Optional[List[Dict[str, Any]]] = None
     txt_filename: Optional[str] = None
+    action_items: Optional[List[str]] = None
+    key_points: Optional[str] = None
+
+
+def extract_academic_sections(chronicle_md: str) -> Tuple[List[str], str]:
+    """
+    Extract action items / tasks list and key points / glossary from academic markdown.
+    """
+    if not chronicle_md:
+        return [], ""
+
+    action_items: List[str] = []
+    # 1. Search for Section 5: Avisos Relevantes, Tareas y Próximos Pasos / Announcements, Deadlines & Next Steps
+    sec5_match = re.search(
+        r'(?:^|\n)#+\s*5\.\s*(?:Avisos Relevantes|Avisos|Tareas y Próximos Pasos|Tareas|Pendientes|Action Items|Announcements|Deadlines).*?\n(.*?)(?=\n#+\s*6\.|\n#+\s*\d\.|\Z)',
+        chronicle_md,
+        re.DOTALL | re.IGNORECASE,
+    )
+    if sec5_match:
+        content = sec5_match.group(1).strip()
+        for line in content.split('\n'):
+            line_str = line.strip()
+            m = re.match(r'^(?:[-*+]\s*(?:\[[ xX]\]\s*)?|\d+[\.)]\s+)(.+)$', line_str)
+            if m:
+                item_text = m.group(1).strip()
+                if item_text and not item_text.lower().startswith(('no se anunciaron', 'no hay tareas', 'ninguna', 'ninguno', 'no assignments', 'none')):
+                    action_items.append(item_text)
+
+    # 2. Check Section 6 if Section 5 yielded no action items
+    sec6_match = re.search(
+        r'(?:^|\n)#+\s*6\.\s*(?:Conclusiones Clave|Conclusiones|Key Takeaways).*?\n(.*?)(?=\n#+\s*\d\.|\Z)',
+        chronicle_md,
+        re.DOTALL | re.IGNORECASE,
+    )
+    if not action_items and sec6_match:
+        sec6_content = sec6_match.group(1).strip()
+        task_sub = re.search(
+            r'(?:Tareas y acuerdos|Acciones|Action items|Tareas|Tasks).*?\n(.*?)(?=\n\s*[-*+]\s*3\s*(?:a|to)\s*5|\n#+|\Z)',
+            sec6_content,
+            re.DOTALL | re.IGNORECASE,
+        )
+        if task_sub:
+            for line in task_sub.group(1).split('\n'):
+                m = re.match(r'^(?:[-*+]\s*(?:\[[ xX]\]\s*)?|\d+[\.)]\s+)(.+)$', line.strip())
+                if m:
+                    item_text = m.group(1).strip()
+                    if item_text and not item_text.lower().startswith(('no se anunciaron', 'no hay', 'ninguna', 'ninguno', 'no assignments', 'none')):
+                        action_items.append(item_text)
+
+    # 3. Extract Key Points / Glossary (Section 2 and Section 6)
+    key_points_parts: List[str] = []
+    sec2_match = re.search(
+        r'(?:^|\n)(#+\s*2\.\s*(?:Conceptos Teóricos|Conceptos|Glosario|Fundamental Theoretical|Theoretical Concepts).*?)(?=\n#+\s*3\.|\Z)',
+        chronicle_md,
+        re.DOTALL | re.IGNORECASE,
+    )
+    if sec2_match:
+        key_points_parts.append(sec2_match.group(1).strip())
+
+    if sec6_match:
+        key_points_parts.append(sec6_match.group(0).strip())
+
+    key_points = "\n\n---\n\n".join(key_points_parts)
+    return action_items, key_points
 
 
 class CreateCampaignRequest(BaseModel):
+    model_config = ConfigDict(extra="allow")
+
     campaign_name: str = Field(..., description="Name of the campaign")
+    dm: Optional[str] = Field(default=None, description="Dungeon Master name")
+    dungeon_master: Optional[str] = Field(default=None, description="Dungeon Master name alias")
+    dm_name: Optional[str] = Field(default=None, description="Dungeon Master name alias")
+    dm_discord_id: Optional[str] = Field(default=None, description="Dungeon Master Discord user ID")
+    dm_discord_user_id: Optional[str] = Field(default=None, description="Dungeon Master Discord user ID alias")
+    dm_discord_username: Optional[str] = Field(default=None, description="Dungeon Master Discord username")
+    dm_discord_tag: Optional[str] = Field(default=None, description="Dungeon Master Discord tag")
     roster: Optional[List[PlayerMetadata]] = Field(default_factory=list, description="Party roster")
     prior_lore: Optional[str] = Field(default="", description="Prior lore / backstory for ongoing campaigns")
 
@@ -193,6 +307,15 @@ class DriveExportRequest(BaseModel):
     file_path: str = Field(..., description="Local path or filename of the file to upload to Google Drive")
 
 
+class MergeEntitiesRequest(BaseModel):
+    model_config = ConfigDict(extra="allow")
+
+    source_name: str = Field(..., description="Name of the entity to merge and remove")
+    target_name: str = Field(..., description="Name of the primary entity to keep")
+    entity_type: Optional[str] = Field(default="pc", description="Entity type: 'pc' or 'npc'")
+    keep_name: Optional[str] = Field(default=None, description="Optional custom target name")
+
+
 class DeleteAudioRequest(BaseModel):
     filename: str = Field(..., description="Filename of original audio in data/input to delete")
 
@@ -209,15 +332,29 @@ class SwitchLanguageRequest(BaseModel):
 
 
 class ReprocessCampaignRequest(BaseModel):
+    model_config = ConfigDict(extra="allow")
+
     transcript_text: str = Field(..., description="Speech-to-text transcript")
     campaign_name: Optional[str] = Field(default="Campaña Principal", description="Campaign name")
     session_number: Optional[int] = Field(default=None, description="Session number")
     roster: Optional[List[PlayerMetadata]] = Field(default_factory=list, description="Party roster")
     target_language: str = Field(default="es", description="Target language ('es' or 'en')")
     recording_mode: str = Field(default="roleplay", description="'roleplay' or 'class'")
+    workspace: Optional[str] = Field(default="dnd", description="'dnd' or 'work_and_study'")
     subject: Optional[str] = Field(default="", description="Subject for lecture")
     topic: Optional[str] = Field(default="", description="Topic for lecture")
     is_youtube: Optional[bool] = Field(default=False, description="Whether this session was ingested from YouTube")
+
+
+class SaveAcademicNoteRequest(BaseModel):
+    model_config = ConfigDict(extra="allow")
+
+    filename: Optional[str] = Field(default=None, description="Filename (e.g. apuntes_materia_2026.md)")
+    title: Optional[str] = Field(default=None, description="Title of the note")
+    subject: Optional[str] = Field(default="Materia Universitaria", description="Subject")
+    topic: Optional[str] = Field(default="Tema de Clase", description="Topic")
+    content: str = Field(..., description="Markdown content of the note")
+    transcript: Optional[str] = Field(default=None, description="Raw audio transcript")
 
 
 class DriveExportResponse(BaseModel):
@@ -245,7 +382,7 @@ async def serve_index():
     return response
 
 
-@app.get("/manifest.json")
+@app.api_route("/manifest.json", methods=["GET", "HEAD"])
 async def get_manifest():
     manifest_file = project_root / "static" / "manifest.json"
     if manifest_file.is_file():
@@ -253,7 +390,7 @@ async def get_manifest():
     raise HTTPException(status_code=404, detail="manifest.json not found")
 
 
-@app.get("/sw.js")
+@app.api_route("/sw.js", methods=["GET", "HEAD"])
 async def get_service_worker():
     sw_file = project_root / "static" / "sw.js"
     if sw_file.is_file():
@@ -265,7 +402,7 @@ async def get_service_worker():
     raise HTTPException(status_code=404, detail="sw.js not found")
 
 
-@app.get("/icon-192.png")
+@app.api_route("/icon-192.png", methods=["GET", "HEAD"])
 async def get_icon_192():
     icon_file = project_root / "static" / "icon-192.png"
     if icon_file.is_file():
@@ -273,7 +410,7 @@ async def get_icon_192():
     raise HTTPException(status_code=404, detail="icon-192.png not found")
 
 
-@app.get("/icon-512.png")
+@app.api_route("/icon-512.png", methods=["GET", "HEAD"])
 async def get_icon_512():
     icon_file = project_root / "static" / "icon-512.png"
     if icon_file.is_file():
@@ -339,6 +476,11 @@ def process_session_for_campaign(
         is_youtube=is_youtube,
         prior_lore=active_ctx.get("prior_lore", ""),
     )
+
+    s_title = session_data.get("session_title") or session_data.get("session_chapter", {}).get("session_title") or session_data.get("session_chapter", {}).get("title")
+    if s_title:
+        session_data.setdefault("session_chapter", {})["session_title"] = s_title
+        session_data["session_chapter"]["title"] = s_title
 
     detected_party = session_data.get("detected_party", [])
     detected_pcs = session_data.get("detected_pcs", [])
@@ -483,9 +625,90 @@ def process_session_for_campaign(
 task_progress_state: Dict[str, Dict[str, Any]] = {}
 
 
+def diagnose_exception(exc: Exception) -> tuple[str, str, str]:
+    """
+    Classify an exception into (error_type, friendly_spanish_message, stage).
+    """
+    err = str(exc)
+    err_lower = err.lower()
+    exc_type = type(exc).__name__
+
+    # 1. YouTube issues
+    if "yt_dlp" in err_lower or "youtube" in err_lower or "video unavailable" in err_lower or "sign in to confirm" in err_lower:
+        return (
+            "YouTubeDownloadError",
+            f"Error al descargar el audio del enlace de YouTube: {err}",
+            "Descarga de YouTube",
+        )
+
+    # 2. Transcription with Groq or faster-whisper
+    if "groq" in err_lower or "whisper" in err_lower or "transcri" in err_lower:
+        if "429" in err or "rate limit" in err_lower:
+            return (
+                "TranscriptionError",
+                "Límite de tasa excedido en la API de Groq Whisper (Rate Limit). Espera unos instantes antes de intentar nuevamente.",
+                "Transcripción con Groq",
+            )
+        if "groq_api_key" in err_lower or "clave de api" in err_lower:
+            return (
+                "TranscriptionError",
+                "Clave de API de Groq no configurada o inválida en el servidor.",
+                "Transcripción con Groq",
+            )
+        return (
+            "TranscriptionError",
+            f"Fallo durante la transcripción de audio con Groq: {err}",
+            "Transcripción con Groq",
+        )
+
+    # 3. Gemini API / LLM issues
+    if "gemini" in err_lower or "google.api_core" in err_lower or "google.genai" in err_lower or "generativeai" in err_lower or "resource_exhausted" in err_lower:
+        if "resource_exhausted" in err_lower or "quota" in err_lower or "429" in err:
+            return (
+                "GeminiAPIError",
+                "Cuota de la API de Google Gemini excedida temporalmente o límite de tasa alcanzado. Intenta nuevamente en un momento.",
+                "Síntesis con Gemini",
+            )
+        return (
+            "GeminiAPIError",
+            f"Error al generar la crónica o apuntes con Google Gemini: {err}",
+            "Síntesis con Gemini",
+        )
+
+    # 4. FFmpeg / Audio cutting
+    if "ffmpeg" in err_lower:
+        return (
+            "AudioProcessingError",
+            f"Error al procesar o segmentar el archivo de audio con FFmpeg: {err}",
+            "Segmentación de audio",
+        )
+
+    # 5. Network / Timeout
+    if "timeout" in err_lower or "timed out" in err_lower:
+        return (
+            "TimeoutError",
+            "Tiempo de espera agotado al conectar con los servicios en la nube.",
+            "Conectividad de red",
+        )
+
+    # Default fallback
+    fallback_type = "ServerError" if exc_type in ("Exception", "RuntimeError") else exc_type
+    return (
+        fallback_type,
+        f"Error en el procesamiento del servidor: {err}",
+        "Procesamiento",
+    )
+
+
+def format_human_error(exc: Exception) -> str:
+    """Format exceptions into clear, actionable human-readable messages."""
+    _, msg, _ = diagnose_exception(exc)
+    return msg
+
+
 def update_task_progress(
     task_id: Optional[str],
-    percent: int,
+    percent: Union[int, float],
     step: str,
     message: str = "",
     status: Optional[str] = None,
@@ -494,18 +717,20 @@ def update_task_progress(
     """Update progress for a specific task ID."""
     if not task_id:
         return
-    pct = max(0, min(100, int(percent)))
-    current_status = status or ("completed" if pct >= 100 else "running")
+    pct = round(max(0.0, min(100.0, float(percent))), 1)
+    current_status = status or ("completed" if pct >= 100.0 else "running")
 
     # Determine or preserve stage
     prev_task = task_progress_state.get(task_id, {})
     current_stage = stage or prev_task.get("stage")
     if not current_stage:
-        if pct < 30:
+        if pct < 20.0:
             current_stage = "audio"
-        elif pct < 75:
+        elif pct < 30.0:
+            current_stage = "segmenting"
+        elif pct < 80.0:
             current_stage = "transcribing"
-        elif pct < 100:
+        elif pct < 100.0:
             current_stage = "analyzing"
         else:
             current_stage = "done"
@@ -521,49 +746,82 @@ def update_task_progress(
     }
 
 
-def set_task_error(task_id: Optional[str], error_message: str) -> None:
+def set_task_error(
+    task_id: Optional[str],
+    error_message: str,
+    error_type: str = "ServerError",
+    stage: str = "Procesamiento",
+    details: str = "",
+) -> None:
     """Register an error state for a task so frontend displays prominent error card."""
     if not task_id:
         return
     task_progress_state[task_id] = {
         "task_id": task_id,
-        "percent": 0,
-        "step": "Error en el proceso",
+        "percent": 0.0,
+        "step": f"Error en {stage}",
         "message": error_message,
         "error_message": error_message,
+        "error_type": error_type,
+        "stage": stage,
+        "details": details or error_message,
         "timestamp": time.time(),
         "status": "error",
-        "stage": "error",
+        "success": False,
     }
-
-
-def format_human_error(exc: Exception) -> str:
-    """Format exceptions into clear, actionable human-readable messages."""
-    err = str(exc)
-    err_lower = err.lower()
-    if "rate limit" in err_lower or "429" in err:
-        return f"Límite de tasa excedido en la API (Rate Limit): {err}"
-    if "quota" in err_lower or "resource_exhausted" in err_lower:
-        return f"Cuota de API agotada o excedida temporalmente: {err}"
-    if "ffmpeg" in err_lower:
-        return f"Error al procesar/dividir el audio con FFmpeg: {err}"
-    if "timeout" in err_lower or "timed out" in err_lower:
-        return f"Tiempo de espera agotado al comunicar con el servicio: {err}"
-    if "invalid_request_error" in err_lower:
-        return f"Petición no válida a la API: {err}"
-    return f"Error en el procesamiento: {err}"
 
 
 def get_task_progress(task_id: str) -> Dict[str, Any]:
     """Retrieve progress state for a task."""
     return task_progress_state.get(task_id, {
         "task_id": task_id,
-        "percent": 0,
+        "percent": 0.0,
         "step": "Iniciando proceso...",
         "message": "Preparando...",
         "status": "pending",
         "stage": "audio",
     })
+
+
+# ---------------------------------------------------------------------------
+# Global Exception Handlers (Always return structured JSON diagnostics)
+# ---------------------------------------------------------------------------
+@app.exception_handler(HTTPException)
+async def http_exception_handler(request: Request, exc: HTTPException):
+    err_type, human_msg, stage = diagnose_exception(exc)
+    detail = exc.detail
+    details_str = str(detail)
+    if isinstance(detail, dict):
+        return JSONResponse(status_code=exc.status_code, content=detail)
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={
+            "success": False,
+            "error_type": err_type,
+            "message": str(detail) if detail else human_msg,
+            "stage": stage,
+            "details": details_str,
+            "detail": str(detail) if detail else human_msg,
+        },
+    )
+
+
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    import traceback
+    tb = traceback.format_exc()
+    err_type, human_msg, stage = diagnose_exception(exc)
+    return JSONResponse(
+        status_code=500,
+        content={
+            "success": False,
+            "error_type": err_type,
+            "message": human_msg,
+            "stage": stage,
+            "details": tb,
+            "detail": human_msg,
+        },
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -573,6 +831,7 @@ def transcribe_audio_pipeline(
     audio_path: str,
     engine: str = "groq",
     model_size: str = "base",
+    language: str = "es",
     on_progress: Optional[Callable[[int, str], None]] = None,
     source: str = "local",
     user_char_name: Optional[str] = None,
@@ -584,6 +843,7 @@ def transcribe_audio_pipeline(
     Falls back gracefully to local whisper if Groq is requested but fails or lacks API key.
     """
     engine_choice = (engine or "groq").lower().strip()
+    whisper_lang = "en" if str(language).lower().startswith("en") else "es"
 
     if engine_choice == "groq":
         try:
@@ -591,10 +851,11 @@ def transcribe_audio_pipeline(
             if not groq_key:
                 print("[transcribe_pipeline] Warning: GROQ_API_KEY not configured. Falling back to local whisper.")
                 raise ValueError("GROQ_API_KEY no configurada en .env")
-            print(f"[transcribe_pipeline] Transcribing with Groq Cloud (whisper-large-v3): {audio_path}")
+            print(f"[transcribe_pipeline] Transcribing with Groq Cloud (whisper-large-v3, lang={whisper_lang}): {audio_path}")
             transcriber = GroqWhisperTranscriber()
             result = transcriber.transcribe(
                 audio_path,
+                language=whisper_lang,
                 on_progress=on_progress,
                 source=source,
                 user_char_name=user_char_name,
@@ -607,11 +868,12 @@ def transcribe_audio_pipeline(
             print(f"[transcribe_pipeline] Groq transcription failed ({exc}). Falling back to local whisper.")
 
     if on_progress:
-        on_progress(40, f"Transcribiendo con faster-whisper local ({model_size})...")
-    print(f"[transcribe_pipeline] Transcribing with local faster-whisper ({model_size}): {audio_path}")
+        on_progress(40, f"Transcribiendo con faster-whisper local ({model_size}, lang={whisper_lang})...")
+    print(f"[transcribe_pipeline] Transcribing with local faster-whisper ({model_size}, lang={whisper_lang}): {audio_path}")
     transcriber = LocalWhisperTranscriber(model_size=model_size)
     result = transcriber.transcribe(
         audio_path,
+        language=whisper_lang,
         user_char_name=user_char_name,
         speaking_log=speaking_log,
         roster=roster,
@@ -719,23 +981,25 @@ async def stop_and_process(payload: StopAndProcessRequest):
         raise HTTPException(status_code=400, detail="No hay ninguna sesión de grabación activa.")
 
     task_id = payload.task_id
-    update_task_progress(task_id, 2, "Deteniendo grabación de audio...", "Finalizando captura de audio...", stage="transcribing")
+    update_task_progress(task_id, 20.0, "Preparando grabación en el servidor...", "Finalizando captura de audio...", stage="audio")
     start_time = time.time()
 
     # 1. Stop audio recording
     try:
         wav_path = active_recorder.stop()
     except Exception as exc:
-        update_task_progress(task_id, 0, f"Error deteniendo grabación: {exc}", stage="error")
-        raise HTTPException(status_code=500, detail=f"Error al detener la grabación: {exc}") from exc
+        err_type, human_err, stage = diagnose_exception(exc)
+        import traceback
+        set_task_error(task_id, human_err, error_type=err_type, stage=stage, details=traceback.format_exc())
+        raise HTTPException(status_code=500, detail=human_err) from exc
 
     if not wav_path or not Path(wav_path).is_file():
-        update_task_progress(task_id, 0, "Audio no encontrado en disco.", stage="error")
+        set_task_error(task_id, "El archivo de audio grabado no se encontró en disco.", error_type="AudioFileError", stage="Grabación en Vivo")
         raise HTTPException(status_code=500, detail="El archivo de audio grabado no se encontró en disco.")
 
-    update_task_progress(task_id, 5, "Audio guardado. Iniciando transcripción...", "Iniciando motor de audio...", stage="transcribing")
+    update_task_progress(task_id, 20.0, "Preparando grabación en el servidor...", "Iniciando motor de audio...", stage="transcribing")
 
-    def progress_cb(pct: int, msg: str):
+    def progress_cb(pct: float, msg: str):
         update_task_progress(task_id, pct, msg, stage="transcribing")
 
     # 2. Run Whisper Transcription (Groq Cloud or Local faster-whisper)
@@ -756,6 +1020,7 @@ async def stop_and_process(payload: StopAndProcessRequest):
             audio_path=wav_path,
             engine=engine,
             model_size=model_size,
+            language=payload.target_language,
             on_progress=progress_cb,
             source="live",
             user_char_name=user_char_name,
@@ -763,8 +1028,9 @@ async def stop_and_process(payload: StopAndProcessRequest):
             roster=roster_dicts,
         )
     except Exception as exc:
-        human_err = format_human_error(exc)
-        set_task_error(task_id, human_err)
+        err_type, human_err, stage = diagnose_exception(exc)
+        import traceback
+        set_task_error(task_id, human_err, error_type=err_type, stage=stage, details=traceback.format_exc())
         raise HTTPException(
             status_code=500,
             detail=human_err,
@@ -775,7 +1041,7 @@ async def stop_and_process(payload: StopAndProcessRequest):
     # 3. Check Mode: In-Person University Lecture vs D&D Roleplay
     is_class_mode = (payload.recording_mode == "class") or (getattr(active_recorder, "mode", "roleplay") == "class")
     if is_class_mode:
-        update_task_progress(task_id, 80, "Analizando clase universitaria con Gemini...", "Sintetizando conceptos teóricos y fórmulas...")
+        update_task_progress(task_id, 82.0, "Generando crónica / apuntes explicativos con IA...", "Sintetizando conceptos teóricos y fórmulas...", stage="analyzing")
         subj = (payload.subject or "").strip() or "Materia Universitaria"
         top = (payload.topic or "").strip() or "Tema de Clase"
         now_str = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -797,7 +1063,7 @@ async def stop_and_process(payload: StopAndProcessRequest):
                 f"**Transcripción obtenida:**\n\n{transcript_text}"
             )
 
-        update_task_progress(task_id, 95, "Generando documento y preparando exportación...", "Creando archivos de apuntes...")
+        update_task_progress(task_id, 95.0, "Generando documentos (.docx y .md)...", "Creando archivos de apuntes...", stage="analyzing")
         clean_subj = re.sub(r'[\\/*?:"<>|]', "", subj.strip()) or "Materia"
         safe_subj = re.sub(r"\s+", "_", clean_subj)
         docx_filename = f"apuntes_{safe_subj}_{now_str}.docx"
@@ -806,23 +1072,15 @@ async def stop_and_process(payload: StopAndProcessRequest):
         docx_out_path = get_data_output_dir() / docx_filename
         md_out_path = get_data_output_dir() / md_filename
         txt_out_path = get_data_output_dir() / txt_filename
-
         try:
-            await run_in_threadpool(
-                export_academic_notes_docx,
-                notes_md=chronicle_md,
-                subject=subj,
-                topic=top,
-                lecture_date=now_formatted,
-                output_path=str(docx_out_path),
-            )
+            # Store only .md and .txt in disk; docx is generated dynamically on demand
             md_out_path.write_text(chronicle_md, encoding="utf-8")
             txt_out_path.write_text(transcript_text, encoding="utf-8")
             (get_data_output_dir() / f"{safe_subj}_transcripcion.txt").write_text(transcript_text, encoding="utf-8")
         except Exception as exc:
             print(f"[!] Warning: academic notes export failed: {exc}")
 
-        update_task_progress(task_id, 100, "¡Completado!", "Guía de estudio generada exitosamente.")
+        update_task_progress(task_id, 100.0, "¡Completado!", "Guía de estudio generada exitosamente.", stage="done")
         elapsed_time = round(time.time() - start_time, 2)
         language_code = transcription_result.get("language_code") or (
             transcription_result["language"]["code"]
@@ -830,6 +1088,7 @@ async def stop_and_process(payload: StopAndProcessRequest):
             else str(transcription_result.get("language", ""))
         )
 
+        action_items, key_points = extract_academic_sections(chronicle_md)
         return {
             "status": "completed",
             "recording_mode": "class",
@@ -848,10 +1107,12 @@ async def stop_and_process(payload: StopAndProcessRequest):
             "txt_filename": txt_filename,
             "wav_filename": Path(wav_path).name,
             "target_language": payload.target_language,
+            "action_items": action_items,
+            "key_points": key_points,
         }
 
     # 4. Roleplay Mode: Living Campaign Journal or Single Session Chronicle
-    update_task_progress(task_id, 80, "Analizando narrativa, misiones y NPCs con Gemini...", "Extrayendo hechos e inventario...", stage="analyzing")
+    update_task_progress(task_id, 82.0, "Generando crónica / apuntes explicativos con IA...", "Extrayendo hechos e inventario...", stage="analyzing")
     if not roster_dicts and payload.roster:
         roster_dicts = [p.model_dump() for p in payload.roster]
     chronicle_md = ""
@@ -868,7 +1129,7 @@ async def stop_and_process(payload: StopAndProcessRequest):
 
     if payload.campaign_name:
         try:
-            update_task_progress(task_id, 85, "Actualizando Quest Tracker y Directorio Universal de NPCs...", stage="analyzing")
+            update_task_progress(task_id, 85.0, "Actualizando Quest Tracker y Directorio Universal de NPCs...", stage="analyzing")
             camp_res = await run_in_threadpool(
                 process_session_for_campaign,
                 campaign_name=payload.campaign_name,
@@ -923,7 +1184,7 @@ async def stop_and_process(payload: StopAndProcessRequest):
         except Exception as exc:
             print(f"[!] Warning: docx export failed: {exc}")
 
-    update_task_progress(task_id, 95, "Generando documento y preparando exportación...", "Creando archivos del Grimorio (.docx y .md)...", stage="analyzing")
+    update_task_progress(task_id, 95.0, "Generando documentos (.docx y .md)...", "Creando archivos del Grimorio (.docx y .md)...", stage="analyzing")
     elapsed_time = round(time.time() - start_time, 2)
     language_code = transcription_result.get("language_code") or (
         transcription_result["language"]["code"]
@@ -941,7 +1202,7 @@ async def stop_and_process(payload: StopAndProcessRequest):
         except Exception as exc:
             print(f"[!] Warning: txt export failed: {exc}")
 
-    update_task_progress(task_id, 100, "¡Completado!", "Sesión procesada exitosamente.", stage="done")
+    update_task_progress(task_id, 100.0, "¡Completado!", "Sesión procesada exitosamente.", stage="done")
 
     return {
         "status": "completed",
@@ -1015,9 +1276,316 @@ async def delete_recording_audio(payload: DeleteAudioRequest):
 
 
 # ---------------------------------------------------------------------------
+# Academic Notes & Study Guides History (Work & Study Workspace)
+# ---------------------------------------------------------------------------
+
+
+
+def extract_clean_note_title(filename: str, content: str) -> str:
+    lines = content.strip().split("\n")
+    if lines:
+        for line in lines[:6]:
+            line_str = line.strip()
+            if line_str.startswith("#"):
+                cleaned = re.sub(r"^#+\s*", "", line_str)
+                cleaned = re.sub(r"[\U00010000-\U0010ffff\u2600-\u26ff\u2700-\u27bf]\s*", "", cleaned)
+                cleaned = re.sub(
+                    r"^(?:BRIEFING EJECUTIVO Y GU[ÍI]A DE ESTUDIO PROFUNDA|EXECUTIVE BRIEFING & DEEP STUDY GUIDE|GU[ÍI]A DE ESTUDIO|STUDY GUIDE|BRIEFING EJECUTIVO|EXECUTIVE BRIEFING|APUNTES|NOTAS DE CLASE|TOPIC|MATERIA|TEMA):?\s*",
+                    "",
+                    cleaned,
+                    flags=re.IGNORECASE,
+                ).strip()
+                if cleaned and len(cleaned) > 2:
+                    return cleaned
+    stem = Path(filename).stem
+    stem = re.sub(r"^apuntes_(?:file_)?", "", stem)
+    stem = re.sub(r"_\d{8}_\d{6}$", "", stem)
+    stem = re.sub(r"_(?:es|en)$", "", stem)
+    stem = stem.replace("_", " ").strip()
+    return stem or "Apuntes de Clase"
+
+
+def format_note_date(mtime: float, filename: str) -> str:
+    ts_match = re.search(r"(\d{4})(\d{2})(\d{2})_(\d{2})(\d{2})(\d{2})", filename)
+    if ts_match:
+        y, m, d, H, M, _ = ts_match.groups()
+        return f"{d}/{m}/{y} • {H}:{M}"
+    dt = datetime.datetime.fromtimestamp(mtime)
+    return dt.strftime("%d/%m/%Y • %H:%M")
+
+
+@app.get("/api/academic-notes")
+async def list_academic_notes():
+    """List all saved academic notes and study guides in data/output/."""
+    output_dir = get_data_output_dir()
+    notes = []
+    if output_dir.exists():
+        for md_file in output_dir.glob("apuntes_*.md"):
+            try:
+                stat = md_file.stat()
+                content = md_file.read_text(encoding="utf-8", errors="replace")
+                title = extract_clean_note_title(md_file.name, content)
+                formatted_date = format_note_date(stat.st_mtime, md_file.name)
+                words = len(content.split())
+
+                docx_filename = md_file.name.replace(".md", ".docx")
+                txt_filename = md_file.name.replace(".md", "_transcripcion.txt")
+                if not (output_dir / txt_filename).is_file():
+                    txt_cand = md_file.name.replace(".md", ".txt")
+                    if (output_dir / txt_cand).is_file():
+                        txt_filename = txt_cand
+                    else:
+                        txt_filename = None
+
+                lines = content.strip().split("\n")
+                clean_lines = [l for l in lines[1:8] if l.strip() and not l.strip().startswith("---") and not l.strip().startswith("#")]
+                excerpt = " ".join(clean_lines)[:240] if clean_lines else (content[:240] + "...")
+
+                notes.append({
+                    "filename": md_file.name,
+                    "title": title,
+                    "topic": title,
+                    "date": formatted_date,
+                    "created_at": formatted_date,
+                    "word_count": words,
+                    "timestamp": stat.st_mtime,
+                    "size_bytes": stat.st_size,
+                    "docx_filename": docx_filename,
+                    "txt_filename": txt_filename if txt_filename and (output_dir / txt_filename).is_file() else None,
+                    "excerpt": excerpt,
+                })
+            except Exception:
+                continue
+
+    notes.sort(key=lambda x: x.get("timestamp", 0), reverse=True)
+    return {"notes": notes}
+
+
+@app.get("/api/academic-notes/{filename}")
+@app.get("/api/notes/{filename}")
+async def get_academic_note(filename: str):
+    """Retrieve full content and metadata of a specific academic note."""
+    decoded_filename = urllib.parse.unquote(filename)
+    safe_filename = Path(decoded_filename).name
+
+    output_dir = get_data_output_dir()
+    file_path = output_dir / safe_filename
+
+    # If extension or prefix was omitted, search candidate variations
+    if not file_path.is_file():
+        candidates = [
+            safe_filename,
+            f"{safe_filename}.md",
+            safe_filename.rsplit(".", 1)[0] + ".md" if "." in safe_filename else f"{safe_filename}.md",
+            f"apuntes_{safe_filename}",
+            f"apuntes_{safe_filename}.md"
+        ]
+        for c in candidates:
+            p = output_dir / c
+            if p.is_file():
+                file_path = p
+                safe_filename = c
+                break
+
+    if not file_path.is_file():
+        raise HTTPException(status_code=404, detail="Nota de estudio no encontrada.")
+
+    content = file_path.read_text(encoding="utf-8", errors="replace")
+    stat = file_path.stat()
+    title = extract_clean_note_title(safe_filename, content)
+    formatted_date = format_note_date(stat.st_mtime, safe_filename)
+    words = len(content.split())
+
+    docx_filename = safe_filename.replace(".md", ".docx")
+    txt_filename = safe_filename.replace(".md", "_transcripcion.txt")
+    if not (output_dir / txt_filename).is_file():
+        cand_txt = safe_filename.replace(".md", ".txt")
+        if (output_dir / cand_txt).is_file():
+            txt_filename = cand_txt
+        else:
+            txt_filename = None
+
+    return {
+        "filename": safe_filename,
+        "title": title,
+        "topic": title,
+        "date": formatted_date,
+        "created_at": formatted_date,
+        "word_count": words,
+        "content": content,
+        "docx_filename": docx_filename,
+        "txt_filename": txt_filename,
+    }
+
+
+@app.delete("/api/academic-notes/{filename}")
+@app.delete("/api/notes/{filename}")
+async def delete_academic_note(filename: str):
+    """Permanently delete an academic study note and its associated .docx, .txt, and .json files."""
+    decoded_filename = urllib.parse.unquote(filename)
+    safe_filename = Path(decoded_filename).name
+    if not (safe_filename.endswith(".md") or safe_filename.endswith(".docx") or safe_filename.endswith(".txt")):
+        raise HTTPException(status_code=400, detail="Nombre de archivo inválido.")
+
+    stem = Path(safe_filename).stem
+    if stem.endswith("_transcripcion"):
+        stem = stem[:-14]
+
+    output_dir = get_data_output_dir()
+    deleted_files = []
+
+    # Target related files
+    candidates = [
+        output_dir / f"{stem}.md",
+        output_dir / f"{stem}.docx",
+        output_dir / f"{stem}.json",
+        output_dir / f"{stem}_transcripcion.txt",
+        output_dir / f"{stem}.txt",
+        output_dir / safe_filename,
+    ]
+
+    for c in set(candidates):
+        try:
+            if c.is_file():
+                c.unlink()
+                deleted_files.append(c.name)
+        except Exception as exc:
+            print(f"[delete_academic_note] Warning deleting {c}: {exc}")
+
+    if not deleted_files and not (output_dir / safe_filename).is_file():
+        raise HTTPException(status_code=404, detail="La nota de estudio no fue encontrada en el servidor.")
+
+    return {
+        "success": True,
+        "status": "deleted",
+        "deleted_files": deleted_files,
+        "message": f"Nota {safe_filename} y archivos asociados eliminados correctamente."
+    }
+
+
+@app.post("/api/notes/save")
+@app.post("/api/academic-notes/save")
+async def save_academic_note_endpoint(payload: SaveAcademicNoteRequest):
+    """Save an academic study note, exporting markdown, docx, and optional transcript text."""
+    content = payload.content.strip()
+    if not content:
+        raise HTTPException(status_code=400, detail="El contenido de la nota no puede estar vacío.")
+
+    output_dir = get_data_output_dir()
+    now_str = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+    now_formatted = datetime.datetime.now().strftime("%d/%m/%Y %H:%M")
+
+    subject = (payload.subject or "Materia").strip()
+    topic = (payload.topic or payload.title or "Apuntes").strip()
+
+    safe_subject = re.sub(r'[\\/*?:"<>|]', "", subject)
+    safe_subject = re.sub(r"\s+", "_", safe_subject) or "Materia"
+
+    if payload.filename and payload.filename.strip():
+        safe_filename = Path(payload.filename.strip()).name
+        if not safe_filename.endswith(".md"):
+            safe_filename += ".md"
+        if not safe_filename.startswith("apuntes_"):
+            safe_filename = f"apuntes_{safe_filename}"
+    else:
+        safe_filename = f"apuntes_{safe_subject}_{now_str}.md"
+
+    md_path = output_dir / safe_filename
+    md_path.write_text(content, encoding="utf-8")
+
+    docx_filename = safe_filename.replace(".md", ".docx")
+    docx_path = output_dir / docx_filename
+
+    # If transcript is provided, save it
+    if payload.transcript and payload.transcript.strip():
+        txt_filename = safe_filename.replace(".md", "_transcripcion.txt")
+        (output_dir / txt_filename).write_text(payload.transcript.strip(), encoding="utf-8")
+
+    return {
+        "success": True,
+        "status": "saved",
+        "filename": safe_filename,
+        "docx_filename": docx_filename,
+        "message": f"Nota '{safe_filename}' guardada exitosamente."
+    }
+
+
+@app.get("/api/academic-notes/download/{filename}")
+@app.get("/api/notes/download/{filename}")
+@app.get("/api/download/docx/{filename}")
+async def download_academic_note_docx(filename: str):
+    """Download an academic note Word .docx document, compiling on the fly if needed."""
+    decoded_filename = urllib.parse.unquote(filename)
+    safe_filename = Path(decoded_filename).name
+
+    output_dir = get_data_output_dir()
+    file_path = output_dir / safe_filename
+
+    # If it already exists on disk, serve directly
+    if file_path.is_file() and safe_filename.endswith(".docx"):
+        return FileResponse(
+            path=file_path,
+            filename=safe_filename,
+            media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            headers={"Content-Disposition": f'attachment; filename="{safe_filename}"'},
+        )
+
+    # Otherwise compile on demand from .md
+    md_filename = safe_filename.replace(".docx", ".md") if safe_filename.endswith(".docx") else safe_filename
+    if not md_filename.endswith(".md"):
+        md_filename += ".md"
+
+    md_path = output_dir / md_filename
+    if not md_path.is_file():
+        cand = output_dir / f"apuntes_{md_filename}"
+        if cand.is_file():
+            md_path = cand
+            md_filename = cand.name
+
+    if not md_path.is_file():
+        raise HTTPException(status_code=404, detail="Archivo de apuntes (.md) no encontrado para generar docx.")
+
+    content = md_path.read_text(encoding="utf-8", errors="replace")
+    clean_title = extract_clean_note_title(md_filename, content)
+    formatted_date = format_note_date(md_path.stat().st_mtime, md_filename)
+    out_docx_filename = md_filename.replace(".md", ".docx")
+
+    temp_dir = Path(tempfile.gettempdir())
+    temp_docx_path = temp_dir / f"temp_{os.getpid()}_{int(time.time()*1000)}_{out_docx_filename}"
+
+    try:
+        await run_in_threadpool(
+            export_academic_notes_docx,
+            notes_md=content,
+            subject=clean_title,
+            topic=clean_title,
+            lecture_date=formatted_date,
+            output_path=str(temp_docx_path),
+        )
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Error al compilar documento Word: {exc}")
+
+    def cleanup():
+        try:
+            if temp_docx_path.is_file():
+                temp_docx_path.unlink()
+        except Exception:
+            pass
+
+    return FileResponse(
+        path=temp_docx_path,
+        filename=out_docx_filename,
+        media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        headers={"Content-Disposition": f'attachment; filename="{out_docx_filename}"'},
+        background=BackgroundTask(cleanup),
+    )
+
+
+# ---------------------------------------------------------------------------
 # Endpoints: YouTube & Local File Transcription
 # ---------------------------------------------------------------------------
 @app.post("/api/transcribe/youtube", response_model=TranscribeResponse)
+@app.post("/api/process-youtube", response_model=TranscribeResponse)
 async def transcribe_youtube(payload: YouTubeTranscribeRequest):
     """Download audio from YouTube and transcribe it using Groq Whisper or faster-whisper."""
     task_id = payload.task_id
@@ -1086,10 +1654,16 @@ async def transcribe_youtube(payload: YouTubeTranscribeRequest):
     updated_npcs = None
     detected_npc_names = None
     detected_party = None
+    detected_pcs = None
     chronicle_md = None
 
-    if payload.recording_mode == "class":
-        update_task_progress(task_id, 80, "Analizando clase universitaria con Gemini...", "Sintetizando conceptos teóricos y fórmulas...")
+    is_work_study = payload.recording_mode == "class" or payload.workspace == "work_and_study"
+    is_academic = is_work_study
+    subj = (payload.subject or "").strip() or "Materia Universitaria"
+    top = (payload.topic or "").strip() or "Tema de Clase"
+
+    if is_academic:
+        update_task_progress(task_id, 80, "Analizando clase universitaria con Gemini...", "Sintetizando conceptos teóricos y fórmulas...", stage="analyzing")
         subj = (payload.subject or "").strip() or "Materia Universitaria"
         top = (payload.topic or "").strip() or "Tema de Clase"
         now_str = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -1107,40 +1681,38 @@ async def transcribe_youtube(payload: YouTubeTranscribeRequest):
             )
             clean_subj = re.sub(r'[\\/*?:"<>|]', "", subj.strip()) or "Materia"
             safe_subj = re.sub(r"\s+", "_", clean_subj)
-            docx_filename = f"apuntes_{safe_subj}_{payload.target_language}_{now_str}.docx"
-            md_filename = f"apuntes_{safe_subj}_{payload.target_language}_{now_str}.md"
-            txt_filename = f"apuntes_{safe_subj}_{payload.target_language}_{now_str}_transcripcion.txt"
+            clean_top = re.sub(r'[\\/*?:"<>|]', "", top.strip()) or "Tema"
+            safe_top = re.sub(r"\s+", "_", clean_top)
+
+            docx_filename = f"apuntes_youtube_{safe_subj}_{now_str}.docx"
+            md_filename = f"apuntes_youtube_{safe_subj}_{now_str}.md"
+            txt_filename = f"apuntes_youtube_{safe_subj}_{now_str}_transcripcion.txt"
             docx_out_path = get_data_output_dir() / docx_filename
             md_out_path = get_data_output_dir() / md_filename
             txt_out_path = get_data_output_dir() / txt_filename
 
-            await run_in_threadpool(
-                export_academic_notes_docx,
-                notes_md=chronicle_md,
-                subject=subj,
-                topic=top,
-                lecture_date=now_formatted,
-                output_path=str(docx_out_path),
-            )
+            # Store only .md and .txt on disk; docx is generated dynamically on demand
             md_out_path.write_text(chronicle_md, encoding="utf-8")
             txt_out_path.write_text(transcript_text, encoding="utf-8")
-            (get_data_output_dir() / f"{safe_subj}_transcripcion.txt").write_text(transcript_text, encoding="utf-8")
+            (get_data_output_dir() / f"{safe_top}_transcripcion.txt").write_text(transcript_text, encoding="utf-8")
             file_path_str = str(docx_out_path.resolve())
         except Exception as exc:
             chronicle_md = f"# ⚠️ Error generando guía académica con Gemini:\n\n> {exc}\n\n**Texto:**\n\n{transcript_text}"
             print(f"[transcribe_youtube] Warning: academic notes export failed: {exc}")
 
-        update_task_progress(task_id, 100, "¡Completado!", "Guía de estudio generada exitosamente.", stage="done")
+        update_task_progress(task_id, 95.0, "Generando documentos (.docx y .md)...", "Creando archivos de apuntes...", stage="analyzing")
+        update_task_progress(task_id, 100.0, "¡Completado!", "Guía de estudio generada exitosamente.", stage="done")
     else:
-        update_task_progress(task_id, 80, "Analizando narrativa, NPCs y misiones con Gemini...", "Extrayendo hechos e inventario...", stage="analyzing")
+        update_task_progress(task_id, 82.0, "Generando crónica / apuntes explicativos con IA...", "Extrayendo hechos e inventario...", stage="analyzing")
 
         detected_pcs = None
-        if payload.campaign_name:
+        campaign_name = payload.campaign_name or payload.campaign_id or "Campaña Principal"
+        if campaign_name:
             try:
-                update_task_progress(task_id, 85, "Actualizando Quest Tracker y Directorio Universal de NPCs...", stage="analyzing")
+                update_task_progress(task_id, 85.0, "Actualizando Quest Tracker y Directorio Universal de NPCs...", stage="analyzing")
                 camp_res = await run_in_threadpool(
                     process_session_for_campaign,
-                    campaign_name=payload.campaign_name,
+                    campaign_name=campaign_name,
                     transcript_text=transcript_text,
                     roster_dicts=roster_dicts,
                     session_number=payload.session_number,
@@ -1188,8 +1760,8 @@ async def transcribe_youtube(payload: YouTubeTranscribeRequest):
                 docx_filename = None
                 md_filename = Path(out_md_path).name
 
-        update_task_progress(task_id, 95, "Generando documento y preparando exportación...", "Creando archivos del Grimorio (.docx y .md)...", stage="analyzing")
-        update_task_progress(task_id, 100, "¡Completado!", "Sesión procesada exitosamente.", stage="done")
+        update_task_progress(task_id, 95.0, "Generando documentos (.docx y .md)...", "Creando archivos del Grimorio (.docx y .md)...", stage="analyzing")
+        update_task_progress(task_id, 100.0, "¡Completado!", "Sesión procesada exitosamente.", stage="done")
 
     # Auto-Delete YouTube Audio:
     # Once the campaign chapter is successfully generated and exported to Drive/Output,
@@ -1201,6 +1773,11 @@ async def transcribe_youtube(payload: YouTubeTranscribeRequest):
             print(f"[transcribe_youtube] Auto-deleted downloaded YouTube master audio: {yt_p.name}")
     except Exception as exc:
         print(f"[transcribe_youtube] Warning: could not auto-delete YouTube audio: {exc}")
+
+    action_items = None
+    key_points = None
+    if is_work_study:
+        action_items, key_points = extract_academic_sections(chronicle_md or "")
 
     return TranscribeResponse(
         text=transcript_text,
@@ -1215,16 +1792,22 @@ async def transcribe_youtube(payload: YouTubeTranscribeRequest):
         txt_filename=txt_filename,
         campaign_state=campaign_state,
         session_chapter=session_chapter,
-        updated_quests=updated_quests,
-        updated_npcs=updated_npcs,
-        detected_npc_names=detected_npc_names,
-        detected_party=detected_party,
-        detected_pcs=detected_pcs,
+        updated_quests=updated_quests or [],
+        updated_npcs=updated_npcs or [],
+        detected_npc_names=detected_npc_names or [],
+        detected_party=detected_party or [],
+        detected_pcs=detected_pcs or [],
         chronicle=chronicle_md,
+        recording_mode="class" if is_work_study else "roleplay",
+        subject=subj if is_work_study else None,
+        topic=top if is_work_study else None,
         target_language=payload.target_language,
+        action_items=action_items,
+        key_points=key_points,
     )
 
 
+@app.post("/api/upload", response_model=TranscribeResponse)
 @app.post("/api/transcribe/file", response_model=TranscribeResponse)
 async def transcribe_file(
     file: UploadFile = File(...),
@@ -1243,7 +1826,7 @@ async def transcribe_file(
     if not file.filename:
         raise HTTPException(status_code=400, detail="No file uploaded.")
 
-    update_task_progress(task_id, 2, "Guardando archivo de audio...", "Guardando en almacenamiento local...", stage="transcribing")
+    update_task_progress(task_id, 20.0, "Segmentando archivo en el servidor...", "Guardando en almacenamiento local...", stage="segmenting")
     clean_filename = Path(file.filename).name
     save_dest = get_data_input_dir() / clean_filename
     start_time = time.time()
@@ -1252,12 +1835,14 @@ async def transcribe_file(
         with open(save_dest, "wb") as buffer:
             shutil.copyfileobj(file.file, buffer)
     except Exception as exc:
-        update_task_progress(task_id, 0, f"Error al guardar archivo: {exc}", stage="error")
-        raise HTTPException(status_code=500, detail=f"Error al guardar archivo: {exc}") from exc
+        err_type, human_err, stage = diagnose_exception(exc)
+        import traceback
+        set_task_error(task_id, human_err, error_type=err_type, stage=stage, details=traceback.format_exc())
+        raise HTTPException(status_code=500, detail=human_err) from exc
     finally:
         await file.close()
 
-    update_task_progress(task_id, 5, "Archivo guardado. Preparando motor de transcripción...", stage="transcribing")
+    update_task_progress(task_id, 20.0, "Segmentando archivo en el servidor...", "Iniciando motor de audio...", stage="segmenting")
 
     import json
     roster_dicts = []
@@ -1273,7 +1858,7 @@ async def transcribe_file(
         except Exception:
             roster_dicts = []
 
-    def progress_cb(pct: int, msg: str):
+    def progress_cb(pct: float, msg: str):
         update_task_progress(task_id, pct, msg, stage="transcribing")
 
     try:
@@ -1282,14 +1867,16 @@ async def transcribe_file(
             audio_path=str(save_dest),
             engine=engine,
             model_size=model_size,
+            language=target_language,
             on_progress=progress_cb,
             source="local",
             user_char_name=user_char_name,
             roster=roster_dicts,
         )
     except Exception as exc:
-        human_err = format_human_error(exc)
-        set_task_error(task_id, human_err)
+        err_type, human_err, stage = diagnose_exception(exc)
+        import traceback
+        set_task_error(task_id, human_err, error_type=err_type, stage=stage, details=traceback.format_exc())
         raise HTTPException(status_code=500, detail=human_err) from exc
 
     elapsed_time = round(time.time() - start_time, 2)
@@ -1311,7 +1898,7 @@ async def transcribe_file(
     chronicle_md = None
 
     if recording_mode == "class":
-        update_task_progress(task_id, 80, "Analizando clase universitaria con Gemini...", "Sintetizando conceptos teóricos y fórmulas...")
+        update_task_progress(task_id, 82.0, "Generando crónica / apuntes explicativos con IA...", "Sintetizando conceptos teóricos y fórmulas...", stage="analyzing")
         subj = (subject or "").strip() or "Materia Universitaria"
         top = (topic or "").strip() or "Tema de Clase"
         now_str = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -1330,7 +1917,7 @@ async def transcribe_file(
         except Exception as exc:
             chronicle_md = f"# ⚠️ Error generando guía académica con Gemini:\n\n> {exc}\n\n**Texto:**\n\n{transcript_text}"
 
-        update_task_progress(task_id, 95, "Generando documento y preparando exportación...", "Creando archivos de apuntes...")
+        update_task_progress(task_id, 95.0, "Generando documentos (.docx y .md)...", "Creando archivos de apuntes...", stage="analyzing")
         clean_subj = re.sub(r'[\\/*?:"<>|]', "", subj.strip()) or "Materia"
         safe_subj = re.sub(r"\s+", "_", clean_subj)
         docx_filename = f"apuntes_file_{safe_subj}_{now_str}.docx"
@@ -1339,16 +1926,8 @@ async def transcribe_file(
         docx_out_path = get_data_output_dir() / docx_filename
         md_out_path = get_data_output_dir() / md_filename
         txt_out_path = get_data_output_dir() / txt_filename
-
         try:
-            await run_in_threadpool(
-                export_academic_notes_docx,
-                notes_md=chronicle_md,
-                subject=subj,
-                topic=top,
-                lecture_date=now_formatted,
-                output_path=str(docx_out_path),
-            )
+            # Store only .md and .txt in disk; docx is generated dynamically on demand
             md_out_path.write_text(chronicle_md, encoding="utf-8")
             txt_out_path.write_text(transcript_text, encoding="utf-8")
             (get_data_output_dir() / f"{safe_subj}_transcripcion.txt").write_text(transcript_text, encoding="utf-8")
@@ -1356,7 +1935,8 @@ async def transcribe_file(
         except Exception as exc:
             print(f"[transcribe_file] Warning: academic notes export failed: {exc}")
 
-        update_task_progress(task_id, 100, "¡Completado!", "Guía de estudio generada exitosamente.")
+        update_task_progress(task_id, 100.0, "¡Completado!", "Guía de estudio generada exitosamente.", stage="done")
+        action_items, key_points = extract_academic_sections(chronicle_md or "")
         return TranscribeResponse(
             text=transcript_text,
             segments=result["segments"],
@@ -1373,14 +1953,16 @@ async def transcribe_file(
             topic=top,
             chronicle=chronicle_md,
             target_language=target_language,
+            action_items=action_items,
+            key_points=key_points,
         )
 
-    update_task_progress(task_id, 80, "Analizando narrativa, misiones y NPCs con Gemini...", "Extrayendo hechos e inventario...", stage="analyzing")
+    update_task_progress(task_id, 82.0, "Generando crónica / apuntes explicativos con IA...", "Extrayendo hechos e inventario...", stage="analyzing")
 
     detected_pcs = None
     if campaign_name:
         try:
-            update_task_progress(task_id, 85, "Actualizando Quest Tracker y Directorio Universal de NPCs...", stage="analyzing")
+            update_task_progress(task_id, 85.0, "Actualizando Quest Tracker y Directorio Universal de NPCs...", stage="analyzing")
             camp_res = await run_in_threadpool(
                 process_session_for_campaign,
                 campaign_name=campaign_name,
@@ -1430,8 +2012,8 @@ async def transcribe_file(
             docx_filename = None
             md_filename = Path(out_md_path).name
 
-    update_task_progress(task_id, 95, "Generando documento y preparando exportación...", "Creando archivos del Grimorio (.docx y .md)...", stage="analyzing")
-    update_task_progress(task_id, 100, "¡Completado!", "Sesión procesada exitosamente.", stage="done")
+    update_task_progress(task_id, 95.0, "Generando documentos (.docx y .md)...", "Creando archivos del Grimorio (.docx y .md)...", stage="analyzing")
+    update_task_progress(task_id, 100.0, "¡Completado!", "Sesión procesada exitosamente.", stage="done")
 
     return TranscribeResponse(
         text=transcript_text,
@@ -1506,16 +2088,8 @@ async def switch_summary_language(payload: SwitchLanguageRequest):
         docx_out_path = get_data_output_dir() / docx_filename
         md_out_path = get_data_output_dir() / md_filename
         (get_data_output_dir() / txt_filename).write_text(transcript_text, encoding="utf-8")
-
         try:
-            await run_in_threadpool(
-                export_academic_notes_docx,
-                notes_md=chronicle_md,
-                subject=subj,
-                topic=top,
-                lecture_date=now_formatted,
-                output_path=str(docx_out_path),
-            )
+            # Store only .md and .txt in disk; docx is generated dynamically on demand
             md_out_path.write_text(chronicle_md, encoding="utf-8")
             file_path_str = str(docx_out_path.resolve())
         except Exception as exc:
@@ -1573,6 +2147,11 @@ async def switch_summary_language(payload: SwitchLanguageRequest):
                 print(f"[switch_language] Warning: single docx export failed: {exc}")
 
     elapsed_time = round(time.time() - start_time, 2)
+    action_items = None
+    key_points = None
+    if is_class_mode:
+        action_items, key_points = extract_academic_sections(chronicle_md or "")
+
     return TranscribeResponse(
         text=transcript_text,
         segments=[],
@@ -1596,6 +2175,8 @@ async def switch_summary_language(payload: SwitchLanguageRequest):
         subject=payload.subject,
         topic=payload.topic,
         target_language=target_lang,
+        action_items=action_items,
+        key_points=key_points,
     )
 
 
@@ -1612,7 +2193,7 @@ async def reprocess_campaign(payload: ReprocessCampaignRequest):
         raise HTTPException(status_code=400, detail="El texto de transcripción está vacío.")
 
     target_lang = (payload.target_language or "es").lower().strip()
-    is_class_mode = payload.recording_mode == "class"
+    is_class_mode = payload.recording_mode == "class" or payload.workspace == "work_and_study"
     start_time = time.time()
     now_str = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
     now_formatted = datetime.datetime.now().strftime("%d/%m/%Y %H:%M")
@@ -1651,16 +2232,8 @@ async def reprocess_campaign(payload: ReprocessCampaignRequest):
         docx_out_path = get_data_output_dir() / docx_filename
         md_out_path = get_data_output_dir() / md_filename
         (get_data_output_dir() / txt_filename).write_text(transcript_text, encoding="utf-8")
-
         try:
-            await run_in_threadpool(
-                export_academic_notes_docx,
-                notes_md=chronicle_md,
-                subject=subj,
-                topic=top,
-                lecture_date=now_formatted,
-                output_path=str(docx_out_path),
-            )
+            # Store only .md and .txt in disk; docx is generated dynamically on demand
             md_out_path.write_text(chronicle_md, encoding="utf-8")
             file_path_str = str(docx_out_path.resolve())
         except Exception as exc:
@@ -1699,6 +2272,11 @@ async def reprocess_campaign(payload: ReprocessCampaignRequest):
             raise HTTPException(status_code=500, detail=f"Error al procesar la campaña con Gemini: {exc}")
 
     elapsed_time = round(time.time() - start_time, 2)
+    action_items = None
+    key_points = None
+    if is_class_mode:
+        action_items, key_points = extract_academic_sections(chronicle_md or "")
+
     return TranscribeResponse(
         text=transcript_text,
         segments=[],
@@ -1718,10 +2296,12 @@ async def reprocess_campaign(payload: ReprocessCampaignRequest):
         detected_party=detected_party,
         detected_pcs=detected_pcs,
         chronicle=chronicle_md,
-        recording_mode=payload.recording_mode,
-        subject=payload.subject,
-        topic=payload.topic,
+        recording_mode="class" if is_class_mode else "roleplay",
+        subject=subj if is_class_mode else None,
+        topic=top if is_class_mode else None,
         target_language=target_lang,
+        action_items=action_items,
+        key_points=key_points,
     )
 
 
@@ -1818,7 +2398,8 @@ async def get_campaign_session_endpoint(campaign_name: str, session_num: int):
     return {
         "campaign_name": campaign_name,
         "session_number": int(session_num),
-        "title": target_session.get("title", f"Sesión {session_num}"),
+        "title": target_session.get("session_title") or target_session.get("title", f"Sesión {session_num}"),
+        "session_title": target_session.get("session_title") or target_session.get("title", f"Sesión {session_num}"),
         "date": target_session.get("date", ""),
         "chronicle_markdown": chronicle_md,
         "raw_transcript": raw_transcript,
@@ -1845,16 +2426,54 @@ async def delete_campaign_endpoint(campaign_name: str):
 
 @app.post("/api/campaigns")
 async def create_or_init_campaign(payload: CreateCampaignRequest):
-    """Create or load campaign state, optionally setting roster and prior lore."""
+    """Create or load campaign state, optionally setting roster, DM, and prior lore."""
     manager = CampaignManager()
     state = manager.load_campaign(payload.campaign_name)
     modified = False
-    if payload.roster:
-        state["roster"] = [p.model_dump() for p in payload.roster]
+
+    dm_val = payload.dm or payload.dungeon_master or payload.dm_name
+    if dm_val is not None:
+        state["dm"] = dm_val.strip()
+        state["dungeon_master"] = dm_val.strip()
+        state["dm_name"] = dm_val.strip()
         modified = True
+
+    dm_discord_val = payload.dm_discord_id or payload.dm_discord_user_id
+    if dm_discord_val is not None:
+        state["dm_discord_id"] = dm_discord_val.strip()
+        state["dm_discord_user_id"] = dm_discord_val.strip()
+        if payload.dm_discord_username:
+            state["dm_discord_username"] = payload.dm_discord_username.strip()
+        if payload.dm_discord_tag:
+            state["dm_discord_tag"] = payload.dm_discord_tag.strip()
+        modified = True
+
+    if payload.roster is not None:
+        state["roster"] = [p.model_dump() for p in payload.roster]
+        # Auto-sync DM from first roster row if applicable
+        if state["roster"] and (
+            state["roster"][0].get("character_name") == "(DM)"
+            or state["roster"][0].get("role") == "Dungeon Master (DM)"
+        ):
+            dm_p_name = state["roster"][0].get("player_name", "").strip()
+            if dm_p_name:
+                state["dm"] = dm_p_name
+                state["dungeon_master"] = dm_p_name
+                state["dm_name"] = dm_p_name
+            dm_disc = state["roster"][0].get("discord_id") or state["roster"][0].get("discord_user_id")
+            if dm_disc:
+                state["dm_discord_id"] = dm_disc
+                state["dm_discord_user_id"] = dm_disc
+            if state["roster"][0].get("discord_username"):
+                state["dm_discord_username"] = state["roster"][0]["discord_username"]
+            if state["roster"][0].get("discord_tag"):
+                state["dm_discord_tag"] = state["roster"][0]["discord_tag"]
+        modified = True
+
     if payload.prior_lore is not None and payload.prior_lore.strip():
         state["prior_lore"] = payload.prior_lore.strip()
         modified = True
+
     if modified:
         manager.save_campaign(state)
     return state
@@ -1958,6 +2577,57 @@ async def update_quest_status_endpoint(
         }
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@app.post("/api/campaigns/{campaign_name}/merge-entities")
+async def merge_campaign_entities_endpoint(campaign_name: str, payload: MergeEntitiesRequest):
+    """Manually merge two entities in a campaign."""
+    manager = CampaignManager()
+    try:
+        merged = manager.merge_entities(
+            campaign_name=campaign_name,
+            source_name=payload.source_name,
+            target_name=payload.target_name,
+            entity_type=payload.entity_type or "pc",
+            keep_name=payload.keep_name,
+        )
+        updated_state = manager.load_campaign(campaign_name)
+        try:
+            export_living_journal_docx(updated_state)
+            export_living_journal_md(updated_state)
+        except Exception:
+            pass
+        return {
+            "status": "success",
+            "message": f"Se fusionó '{payload.source_name}' en '{payload.target_name}' correctamente.",
+            "merged": merged,
+            "campaign_state": updated_state,
+        }
+    except ValueError as ve:
+        raise HTTPException(status_code=400, detail=str(ve)) from ve
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error al fusionar entidades: {e}") from e
+
+
+@app.post("/api/campaigns/{campaign_name}/deduplicate")
+async def deduplicate_campaign_endpoint(campaign_name: str):
+    """Run retroactive entity deduplication on a campaign."""
+    manager = CampaignManager()
+    try:
+        result = manager.deduplicate_campaign_entities(campaign_name)
+        try:
+            export_living_journal_docx(result["campaign_state"])
+            export_living_journal_md(result["campaign_state"])
+        except Exception:
+            pass
+        return {
+            "status": "success",
+            "merged_count": result.get("merged_count", 0),
+            "merged": result.get("merged", []),
+            "campaign_state": result.get("campaign_state"),
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error al deduplicar campaña: {e}") from e
 
 
 @app.get("/api/campaigns/{campaign_name}/download-docx")

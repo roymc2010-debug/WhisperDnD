@@ -1,12 +1,191 @@
 """Docx exporter for D&D session chronicles."""
 
 import os
+import re
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional
 import docx
 from docx.shared import Inches, Pt, RGBColor
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.enum.table import WD_TABLE_ALIGNMENT
+
+
+def render_markdown_to_docx(
+    doc: docx.Document,
+    md_text: str,
+    h1_font: Optional[str] = None,
+    h1_color: Optional[RGBColor] = None,
+    h2_font: Optional[str] = None,
+    h2_color: Optional[RGBColor] = None,
+    skip_h1_predicate: Optional[Callable[[str], bool]] = None,
+) -> None:
+    """
+    Renders structured Markdown into a python-docx Document.
+    - Code blocks and diagrams (```): Formats with Consolas 8.5 pt, 1.0 line spacing, 0 pt space after.
+    - Markdown tables (|...|...|): Formats as native Word tables (Table Grid, centered, bold headers).
+    - Headings (#, ##, ###, ####), lists (- / * / 1.), dividers (---), and text paragraphs.
+    """
+    if not md_text or not md_text.strip():
+        return
+
+    lines = md_text.splitlines()
+    in_code_block = False
+    table_lines: List[str] = []
+
+    def flush_table():
+        nonlocal table_lines
+        if not table_lines:
+            return
+        rows: List[List[str]] = []
+        for t_line in table_lines:
+            s = t_line.strip()
+            if not s:
+                continue
+            if re.match(r"^\|(?:\s*:?-+:?\s*\|)+\s*$", s):
+                continue
+            raw_cells = s[1:-1].split("|") if (s.startswith("|") and s.endswith("|")) else s.split("|")
+            rows.append([c.strip() for c in raw_cells])
+        table_lines = []
+
+        if not rows:
+            return
+
+        col_count = max(len(r) for r in rows)
+        if col_count == 0:
+            return
+
+        padded_rows = [r + [""] * (col_count - len(r)) for r in rows]
+        tbl = doc.add_table(rows=len(padded_rows), cols=col_count)
+        tbl.alignment = WD_TABLE_ALIGNMENT.CENTER
+        tbl.style = "Table Grid"
+
+        # Headers (Row 0)
+        for col_idx, cell in enumerate(tbl.rows[0].cells):
+            cell.text = padded_rows[0][col_idx]
+            for p in cell.paragraphs:
+                p.paragraph_format.space_before = Pt(2)
+                p.paragraph_format.space_after = Pt(2)
+                for r in p.runs:
+                    r.font.bold = True
+                    r.font.size = Pt(9.5)
+                    r.font.color.rgb = RGBColor(0x1F, 0x29, 0x37)
+
+        # Data rows (Row 1+)
+        for row_idx, r_data in enumerate(padded_rows[1:], start=1):
+            for col_idx, cell in enumerate(tbl.rows[row_idx].cells):
+                cell.text = r_data[col_idx]
+                for p in cell.paragraphs:
+                    p.paragraph_format.space_before = Pt(1)
+                    p.paragraph_format.space_after = Pt(1)
+                    for r in p.runs:
+                        r.font.size = Pt(9)
+                        r.font.color.rgb = RGBColor(0x37, 0x41, 0x51)
+
+        p_spacer = doc.add_paragraph()
+        p_spacer.paragraph_format.space_before = Pt(0)
+        p_spacer.paragraph_format.space_after = Pt(4)
+
+    for line in lines:
+        stripped = line.strip()
+
+        # 1. Code blocks / preformatted diagrams
+        if stripped.startswith("```"):
+            flush_table()
+            in_code_block = not in_code_block
+            if not in_code_block:
+                p_spacer = doc.add_paragraph()
+                p_spacer.paragraph_format.space_before = Pt(0)
+                p_spacer.paragraph_format.space_after = Pt(4)
+            continue
+
+        if in_code_block:
+            p = doc.add_paragraph()
+            p.paragraph_format.space_before = Pt(0)
+            p.paragraph_format.space_after = Pt(0)
+            p.paragraph_format.line_spacing = 1.0
+            run = p.add_run(line if line else " ")
+            run.font.name = "Consolas"
+            run.font.size = Pt(8.5)
+            run.font.color.rgb = RGBColor(0x1F, 0x29, 0x37)
+            try:
+                rPr = run._r.get_or_add_rPr()
+                rFonts = rPr.get_or_add_rFonts()
+                rFonts.set(docx.oxml.ns.qn('w:ascii'), 'Consolas')
+                rFonts.set(docx.oxml.ns.qn('w:hAnsi'), 'Consolas')
+                rFonts.set(docx.oxml.ns.qn('w:cs'), 'Consolas')
+            except Exception:
+                pass
+            continue
+
+        # 2. Markdown tables (|...|...|)
+        if stripped.startswith("|") and stripped.endswith("|") and stripped.count("|") >= 2:
+            table_lines.append(stripped)
+            continue
+        else:
+            flush_table()
+
+        if not stripped:
+            continue
+
+        # 3. Headings, Lists, Dividers, Paragraphs
+        if stripped.startswith("# "):
+            h_text = stripped[2:].strip()
+            if skip_h1_predicate and skip_h1_predicate(h_text):
+                continue
+            h = doc.add_heading(h_text, level=1)
+            h.paragraph_format.space_before = Pt(14)
+            h.paragraph_format.space_after = Pt(4)
+            if h1_font or h1_color:
+                for r in h.runs:
+                    if h1_font:
+                        r.font.name = h1_font
+                    if h1_color:
+                        r.font.color.rgb = h1_color
+        elif stripped.startswith("## "):
+            h = doc.add_heading(stripped[3:].strip(), level=2)
+            h.paragraph_format.space_before = Pt(12)
+            h.paragraph_format.space_after = Pt(3)
+            if h2_font or h2_color:
+                for r in h.runs:
+                    if h2_font:
+                        r.font.name = h2_font
+                    if h2_color:
+                        r.font.color.rgb = h2_color
+        elif stripped.startswith("### "):
+            h = doc.add_heading(stripped[4:].strip(), level=3)
+            h.paragraph_format.space_before = Pt(8)
+            h.paragraph_format.space_after = Pt(2)
+        elif stripped.startswith("#### "):
+            h = doc.add_heading(stripped[5:].strip(), level=4)
+            h.paragraph_format.space_before = Pt(6)
+            h.paragraph_format.space_after = Pt(2)
+        elif stripped.startswith("- ") or stripped.startswith("* "):
+            p = doc.add_paragraph(stripped[2:].strip(), style="List Bullet")
+            p.paragraph_format.space_after = Pt(3)
+        elif stripped.startswith("1. ") or (len(stripped) > 2 and stripped[:2].isdigit() and stripped[2:4] == ". "):
+            idx = stripped.find(". ")
+            p = doc.add_paragraph(stripped[idx + 2:].strip(), style="List Number")
+            p.paragraph_format.space_after = Pt(3)
+        elif stripped == "---":
+            continue
+        else:
+            p = doc.add_paragraph(stripped)
+            p.paragraph_format.space_after = Pt(6)
+
+    flush_table()
+
+
+def _get_default_output_dir() -> Path:
+    if os.environ.get("WHISPER_OUTPUT_DIR"):
+        p = Path(os.environ["WHISPER_OUTPUT_DIR"]).resolve()
+    else:
+        root = Path(__file__).resolve().parent.parent.parent
+        if (root / "outputs").is_dir():
+            p = (root / "outputs").resolve()
+        else:
+            p = (root / "data" / "output").resolve()
+    p.mkdir(parents=True, exist_ok=True)
+    return p
 
 
 def export_chronicle_docx(
@@ -25,8 +204,7 @@ def export_chronicle_docx(
     :return: Absolute file path to the generated .docx.
     """
     if not output_path:
-        out_dir = Path(os.environ["WHISPER_OUTPUT_DIR"]).resolve() if os.environ.get("WHISPER_OUTPUT_DIR") else (Path(__file__).resolve().parent.parent.parent / "data" / "output")
-        out_dir.mkdir(parents=True, exist_ok=True)
+        out_dir = _get_default_output_dir()
         import datetime
         ts = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
         output_path = str((out_dir / f"cronica_sesion_{ts}.docx").resolve())
@@ -95,36 +273,9 @@ def export_chronicle_docx(
 
         doc.add_paragraph().paragraph_format.space_after = Pt(12)
 
-    # Parse Chronicle Markdown content
-    lines = chronicle_md.strip().split("\n")
-    for line in lines:
-        stripped = line.strip()
-        if not stripped:
-            continue
-
-        if stripped.startswith("# "):
-            h = doc.add_heading(stripped[2:].strip(), level=1)
-            h.paragraph_format.space_before = Pt(14)
-            h.paragraph_format.space_after = Pt(6)
-        elif stripped.startswith("## "):
-            h = doc.add_heading(stripped[3:].strip(), level=2)
-            h.paragraph_format.space_before = Pt(12)
-            h.paragraph_format.space_after = Pt(4)
-        elif stripped.startswith("### "):
-            h = doc.add_heading(stripped[4:].strip(), level=3)
-            h.paragraph_format.space_before = Pt(8)
-            h.paragraph_format.space_after = Pt(2)
-        elif stripped.startswith("- ") or stripped.startswith("* "):
-            doc.add_paragraph(stripped[2:].strip(), style="List Bullet")
-        elif stripped.startswith("1. ") or (len(stripped) > 2 and stripped[:2].isdigit() and stripped[2:4] == ". "):
-            idx = stripped.find(". ")
-            doc.add_paragraph(stripped[idx + 2:].strip(), style="List Number")
-        elif stripped == "---":
-            # Divider
-            continue
-        else:
-            p = doc.add_paragraph(stripped)
-            p.paragraph_format.space_after = Pt(6)
+    # Parse Chronicle Markdown content (with math delimiters cleaned)
+    cleaned_chronicle = clean_math_delimiters_for_docx(chronicle_md)
+    render_markdown_to_docx(doc, cleaned_chronicle)
 
     target = Path(output_path).resolve()
     target.parent.mkdir(parents=True, exist_ok=True)
@@ -150,8 +301,7 @@ def export_living_journal_docx(
     safe_name = re.sub(r"\s+", "_", clean_name) or "Campana_Principal"
 
     if not output_path:
-        out_dir = Path(os.environ["WHISPER_OUTPUT_DIR"]).resolve() if os.environ.get("WHISPER_OUTPUT_DIR") else (Path(__file__).resolve().parent.parent.parent / "data" / "output")
-        out_dir.mkdir(parents=True, exist_ok=True)
+        out_dir = _get_default_output_dir()
         output_path = str((out_dir / f"{safe_name}_Grimorio.docx").resolve())
 
     doc = docx.Document()
@@ -515,18 +665,7 @@ def export_living_journal_docx(
                 ch_title = doc.add_heading(f"{sec_num}. Crónica Narrativa y Desglose de Combates", level=3)
                 ch_title.paragraph_format.space_before = Pt(10)
                 ch_title.paragraph_format.space_after = Pt(3)
-                for line in s["chronicle_text"].strip().split("\n"):
-                    stripped = line.strip()
-                    if not stripped:
-                        continue
-                    if stripped.startswith("### "):
-                        h = doc.add_heading(stripped[4:], level=4)
-                        h.paragraph_format.space_before = Pt(6)
-                        h.paragraph_format.space_after = Pt(2)
-                    elif stripped.startswith("- ") or stripped.startswith("* "):
-                        doc.add_paragraph(stripped[2:], style="List Bullet")
-                    else:
-                        doc.add_paragraph(stripped)
+                render_markdown_to_docx(doc, clean_math_delimiters_for_docx(s["chronicle_text"]))
                 sec_num += 1
 
             # 2. Closing & Expectations
@@ -592,6 +731,35 @@ def export_living_journal_docx(
     return str(target)
 
 
+def clean_math_delimiters_for_docx(text: str) -> str:
+    """
+    Clean LaTeX and $$ math delimiters so mathematical equations appear
+    as clean, human-readable formatted text in Word rather than raw code.
+    """
+    if not text:
+        return text
+    import re
+    # Strip block $$...$$ equations
+    cleaned = re.sub(r'\$\$\s*([\s\S]*?)\s*\$\$', r'\1', text)
+    # Remove any stray $$
+    cleaned = cleaned.replace("$$", "")
+    # Remove inline math delimiters \(...\) and \[...\]
+    cleaned = re.sub(r'\\\[\s*([\s\S]*?)\s*\\\]', r'\1', cleaned)
+    cleaned = re.sub(r'\\\(\s*([\s\S]*?)\s*\\\)', r'\1', cleaned)
+    # Unescape escaped currency dollar signs (\$1,000 -> $1,000)
+    cleaned = cleaned.replace(r"\$", "$")
+    # Simplify common LaTeX text formatting inside math
+    cleaned = re.sub(r'\\text\{([^}]+)\}', r'\1', cleaned)
+    cleaned = re.sub(r'\\mathbf\{([^}]+)\}', r'\1', cleaned)
+    cleaned = re.sub(r'\\mathrm\{([^}]+)\}', r'\1', cleaned)
+    # Replace common LaTeX operators with readable unicode
+    cleaned = cleaned.replace(r"\cdot", "·").replace(r"\times", "×")
+    cleaned = cleaned.replace(r"\neq", "≠").replace(r"\neg", "¬")
+    cleaned = cleaned.replace(r"\leq", "≤").replace(r"\le", "≤").replace(r"\geq", "≥").replace(r"\ge", "≥")
+    cleaned = cleaned.replace(r"\approx", "≈").replace(r"\pm", "±")
+    return cleaned
+
+
 def export_academic_notes_docx(
     notes_md: str,
     subject: str = "Materia Universitaria",
@@ -618,8 +786,7 @@ def export_academic_notes_docx(
     safe_top = re.sub(r"\s+", "_", clean_top)
 
     if not output_path:
-        out_dir = Path(os.environ["WHISPER_OUTPUT_DIR"]).resolve() if os.environ.get("WHISPER_OUTPUT_DIR") else (Path(__file__).resolve().parent.parent.parent / "data" / "output")
-        out_dir.mkdir(parents=True, exist_ok=True)
+        out_dir = _get_default_output_dir()
         ts = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
         output_path = str((out_dir / f"apuntes_{safe_subj}_{safe_top}_{ts}.docx").resolve())
 
@@ -661,47 +828,19 @@ def export_academic_notes_docx(
     meta_run.font.italic = True
     meta_run.font.color.rgb = RGBColor(0x6B, 0x72, 0x80)
 
-    # Parse and style Markdown lines
-    lines = notes_md.strip().split("\n")
-    for line in lines:
-        stripped = line.strip()
-        if not stripped:
-            continue
+    # Clean $$ math delimiters for clean readable Word text
+    cleaned_md = clean_math_delimiters_for_docx(notes_md)
 
-        if stripped.startswith("# "):
-            h_text = stripped[2:].strip()
-            # Skip duplicate main header if matches subject/topic
-            if subject.lower() in h_text.lower() and "guía de estudio" in h_text.lower():
-                continue
-            h = doc.add_heading(h_text, level=1)
-            h.paragraph_format.space_before = Pt(14)
-            h.paragraph_format.space_after = Pt(4)
-            for r in h.runs:
-                r.font.name = "Georgia"
-                r.font.color.rgb = RGBColor(0x1E, 0x3A, 0x8A)
-        elif stripped.startswith("## "):
-            h = doc.add_heading(stripped[3:].strip(), level=2)
-            h.paragraph_format.space_before = Pt(12)
-            h.paragraph_format.space_after = Pt(3)
-            for r in h.runs:
-                r.font.name = "Calibri"
-                r.font.color.rgb = RGBColor(0x25, 0x63, 0xEB)
-        elif stripped.startswith("### "):
-            h = doc.add_heading(stripped[4:].strip(), level=3)
-            h.paragraph_format.space_before = Pt(8)
-            h.paragraph_format.space_after = Pt(2)
-        elif stripped.startswith("- ") or stripped.startswith("* "):
-            p = doc.add_paragraph(stripped[2:].strip(), style="List Bullet")
-            p.paragraph_format.space_after = Pt(3)
-        elif stripped.startswith("1. ") or (len(stripped) > 2 and stripped[:2].isdigit() and stripped[2:4] == ". "):
-            idx = stripped.find(". ")
-            p = doc.add_paragraph(stripped[idx + 2:].strip(), style="List Number")
-            p.paragraph_format.space_after = Pt(3)
-        elif stripped == "---":
-            continue
-        else:
-            p = doc.add_paragraph(stripped)
-            p.paragraph_format.space_after = Pt(6)
+    # Parse and style Markdown lines (including code blocks with Consolas and native tables)
+    render_markdown_to_docx(
+        doc,
+        cleaned_md,
+        h1_font="Georgia",
+        h1_color=RGBColor(0x1E, 0x3A, 0x8A),
+        h2_font="Calibri",
+        h2_color=RGBColor(0x25, 0x63, 0xEB),
+        skip_h1_predicate=lambda h: subject.lower() in h.lower() and "guía de estudio" in h.lower(),
+    )
 
     target = Path(output_path).resolve()
     target.parent.mkdir(parents=True, exist_ok=True)

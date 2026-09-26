@@ -102,13 +102,13 @@ class TestYouTubeDownloader(unittest.TestCase):
             self.assertEqual(len(captured_opts["progress_hooks"]), 1)
             hook = captured_opts["progress_hooks"][0]
 
-            # Trigger hook simulating 50% download (should map to 15% out of 30%)
+            # Trigger hook simulating 50% download (should map to 10.0% out of 20.0%)
             hook({"status": "downloading", "downloaded_bytes": 500, "total_bytes": 1000})
-            self.assertTrue(any(pct == 15 for pct, _ in progress_calls))
+            self.assertTrue(any(pct == 10.0 for pct, _ in progress_calls))
 
-            # Trigger hook finished (should map to 30%)
+            # Trigger hook finished (should map to 20.0%)
             hook({"status": "finished"})
-            self.assertTrue(any(pct == 30 for pct, _ in progress_calls))
+            self.assertTrue(any(pct == 20.0 for pct, _ in progress_calls))
 
     def test_download_youtube_audio_native_options(self):
         try:

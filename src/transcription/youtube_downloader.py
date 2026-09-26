@@ -54,12 +54,12 @@ def download_youtube_audio(
         if on_progress and d.get("status") == "downloading":
             total = d.get("total_bytes") or d.get("total_bytes_estimate") or 1
             downloaded = d.get("downloaded_bytes", 0)
-            # Map 0% to 30% total progress
-            pct = int((downloaded / total) * 30)
-            pct_display = int((downloaded / total) * 100)
-            on_progress(pct, f"Descargando audio nativo de YouTube ({pct_display}%)...")
+            # Map 0.0% to 20.0% total progress
+            pct = round((downloaded / total) * 20.0, 1)
+            pct_display = round((downloaded / total) * 100.0, 1)
+            on_progress(pct, f"Descargando audio de YouTube... ({pct_display:.1f}%)")
         elif on_progress and d.get("status") == "finished":
-            on_progress(30, "Descarga completada. Procesando pista de audio nativa...")
+            on_progress(20.0, "Descargando audio de YouTube... (100.0%)")
 
     ydl_opts = {
         "format": "bestaudio[ext=m4a]/bestaudio/best",

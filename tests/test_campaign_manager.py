@@ -860,7 +860,150 @@ class TestCampaignManager(unittest.TestCase):
         self.assertIsNotNone(roster_octus)
         self.assertEqual(roster_octus["character_name"], "Octus Taconis")
 
+    def test_is_entity_substring_duplicate(self):
+        from src.storage.campaign_manager import is_entity_substring_duplicate
+
+        # Substring cases
+        self.assertTrue(is_entity_substring_duplicate("Octus", "Octus Taconis"))
+        self.assertTrue(is_entity_substring_duplicate("Thiazi", "Thiazi Coldbreaker"))
+        self.assertTrue(is_entity_substring_duplicate("Fothark Vanessa", "Fothark Vanessa Halovar"))
+
+        # Exact match
+        self.assertTrue(is_entity_substring_duplicate("Octus", "octus"))
+
+        # Reversed length (longer cannot be duplicate of shorter)
+        self.assertFalse(is_entity_substring_duplicate("Octus Taconis", "Octus"))
+
+        # Distinct people with shared surname or words
+        self.assertFalse(is_entity_substring_duplicate("Hiro Fang", "Thjazi Fang"))
+
+        # Generic titles
+        self.assertFalse(is_entity_substring_duplicate("Lord", "Lord Primus Taconis"))
+        self.assertFalse(is_entity_substring_duplicate("Guardia", "Guardia de la Puerta"))
+
+        # Unnamed descriptors
+        self.assertFalse(is_entity_substring_duplicate("[Sin nombre] Guardia norte", "[Sin nombre] Guardia sur"))
+
+    def test_retroactive_deduplicate_campaign_entities_octus(self):
+        import json
+        camp_name = "Retroactive Deduplication Test"
+        state = self.manager.load_campaign(camp_name)
+
+        # Pre-populate state with duplicate Octus and Octus Taconis entries
+        state["universal_pcs"] = [
+            {
+                "personaje": "Octus",
+                "jugador": "Alex Ward",
+                "especie": "Human",
+                "clase": "Rogue",
+                "subclase": "Arcane Trickster",
+                "debut_sesion": 1,
+                "hitos_acumulados": [
+                    "Sesión #1: Bypassed magical lock at flophouse.",
+                    "Sesión #2: Used Pin to spy on Vaelis.",
+                ]
+            },
+            {
+                "personaje": "Octus Taconis",
+                "jugador": "Alex Ward",
+                "especie": "Human",
+                "clase": "Rogue",
+                "subclase": "Arcane Trickster",
+                "debut_sesion": 3,
+                "hitos_acumulados": [
+                    "Sesión #3: Escorted to Palazzo DeVino.",
+                    "Sesión #4: Resurrected without heartbeat.",
+                    "Sesión #5: Returned from limbo.",
+                ]
+            }
+        ]
+        state["roster"] = [
+            {"player_name": "Alex Ward", "character_name": "Octus", "role": "Rogue"},
+            {"player_name": "Alex Ward", "character_name": "Octus Taconis", "role": "Rogue"}
+        ]
+        self.manager.save_campaign(state)
+
+        # Also create a dummy orphaned disk file for Octus
+        orphan_file = self.manager.campaigns_dir / "octus.json"
+        orphan_file.write_text("{}", encoding="utf-8")
+        self.assertTrue(orphan_file.is_file())
+
+        # Execute retroactive deduplication
+        result = self.manager.deduplicate_campaign_entities(camp_name)
+        self.assertEqual(result["merged_count"], 1)
+        self.assertEqual(result["merged"][0]["source"], "Octus")
+        self.assertEqual(result["merged"][0]["target"], "Octus Taconis")
+
+        # Reload campaign state
+        cleaned_state = self.manager.load_campaign(camp_name)
+        self.assertEqual(len(cleaned_state["universal_pcs"]), 1)
+        merged_pc = cleaned_state["universal_pcs"][0]
+        self.assertEqual(merged_pc["personaje"], "Octus Taconis")
+        self.assertEqual(merged_pc["debut_sesion"], 1)
+        self.assertIn("Octus", merged_pc.get("aliases", []))
+
+        # Check all 5 hitos are merged in order
+        hitos = merged_pc.get("hitos_acumulados", [])
+        self.assertEqual(len(hitos), 5)
+        self.assertTrue(hitos[0].startswith("Sesión #1:"))
+        self.assertTrue(hitos[1].startswith("Sesión #2:"))
+        self.assertTrue(hitos[2].startswith("Sesión #3:"))
+        self.assertTrue(hitos[3].startswith("Sesión #4:"))
+        self.assertTrue(hitos[4].startswith("Sesión #5:"))
+
+        # Check roster deduplication
+        self.assertEqual(len(cleaned_state["roster"]), 1)
+        self.assertEqual(cleaned_state["roster"][0]["character_name"], "Octus Taconis")
+
+        # Check orphaned file was deleted
+        self.assertFalse(orphan_file.is_file())
+
+    def test_manual_merge_entities(self):
+        camp_name = "Manual Merge Test"
+        state = self.manager.load_campaign(camp_name)
+        state["universal_pcs"] = [
+            {
+                "personaje": "Arthur",
+                "jugador": "Invitado",
+                "especie": "Humano",
+                "clase": "Guerrero",
+                "subclase": "-",
+                "debut_sesion": 2,
+                "hitos_acumulados": ["Sesión #2: Luchó en la taberna."]
+            },
+            {
+                "personaje": "Gareth",
+                "jugador": "Invitado Especial",
+                "especie": "Humano",
+                "clase": "Paladín",
+                "subclase": "Devotion",
+                "debut_sesion": 1,
+                "hitos_acumulados": ["Sesión #1: Llegó a la ciudad."]
+            }
+        ]
+        self.manager.save_campaign(state)
+
+        # Merge Arthur into Gareth manually
+        result = self.manager.merge_entities(
+            campaign_name=camp_name,
+            source_name="Arthur",
+            target_name="Gareth",
+            entity_type="pc"
+        )
+        self.assertEqual(result["source"], "Arthur")
+        self.assertEqual(result["target"], "Gareth")
+
+        cleaned = self.manager.load_campaign(camp_name)
+        self.assertEqual(len(cleaned["universal_pcs"]), 1)
+        target = cleaned["universal_pcs"][0]
+        self.assertEqual(target["personaje"], "Gareth")
+        self.assertIn("Arthur", target.get("aliases", []))
+        self.assertEqual(len(target["hitos_acumulados"]), 2)
+        self.assertTrue(target["hitos_acumulados"][0].startswith("Sesión #1:"))
+        self.assertTrue(target["hitos_acumulados"][1].startswith("Sesión #2:"))
+
 
 if __name__ == "__main__":
     unittest.main()
+
 

@@ -102,6 +102,39 @@ class TestAPIEndpoints(unittest.TestCase):
         self.assertEqual(len(response.segments), 1)
         self.assertTrue(response.file_path)
 
+    @patch("src.api.server.download_youtube_audio")
+    @patch("src.api.server.LocalWhisperTranscriber")
+    @patch("src.api.server.GeminiTTRPGSummarizer")
+    def test_transcribe_youtube_work_and_study_mode(self, mock_summarizer_class, mock_transcriber_class, mock_download):
+        mock_download.return_value = "/path/to/downloaded.mp3"
+        mock_instance = MagicMock()
+        mock_instance.transcribe.return_value = {
+            "text": "Bienvenidos a la clase magistral de Física Cuántica.",
+            "segments": [{"start": 0.0, "end": 2.0, "text": "Bienvenidos a la clase"}],
+            "language": {"code": "es", "probability": 0.99},
+            "language_code": "es",
+            "duration": 60.0,
+        }
+        mock_transcriber_class.return_value = mock_instance
+
+        mock_summarizer_instance = MagicMock()
+        mock_summarizer_instance.generate_academic_notes.return_value = "# Guía de Estudio: Física Cuántica\n\nContenido teórico..."
+        mock_summarizer_class.return_value = mock_summarizer_instance
+
+        request_payload = YouTubeTranscribeRequest(
+            url="https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+            model_size="base",
+            workspace="work_and_study",
+            topic="Física Cuántica",
+        )
+
+        response = asyncio.run(transcribe_youtube(request_payload))
+        self.assertEqual(response.recording_mode, "class")
+        self.assertEqual(response.topic, "Física Cuántica")
+        self.assertTrue(response.file_path)
+        self.assertIn("Física Cuántica", response.chronicle)
+        mock_summarizer_instance.generate_academic_notes.assert_called_once()
+
     @patch("src.api.server.GoogleDriveStorage")
     def test_export_to_drive_endpoint(self, mock_storage_class):
         # Create a dummy file in temp output
@@ -658,6 +691,168 @@ class TestAPIEndpoints(unittest.TestCase):
         self.assertEqual(len(res["participants"]), 2)
         self.assertEqual(res["participants"][1]["user_id"], "222")
         mock_tracker.ensure_running.assert_called_once()
+
+    def test_list_and_get_academic_notes(self):
+        from src.api.server import list_academic_notes, get_academic_note
+        out_dir = Path(self.temp_out_dir)
+        note_md = out_dir / "apuntes_Test_Topic_es_20260924_120000.md"
+        note_md.write_text("# 🎓 BRIEFING EJECUTIVO Y GUÍA DE ESTUDIO PROFUNDA: Test Topic\n\nContenido de prueba...", encoding="utf-8")
+        note_docx = out_dir / "apuntes_Test_Topic_es_20260924_120000.docx"
+        note_docx.write_bytes(b"PK fake docx")
+
+        res = asyncio.run(list_academic_notes())
+        self.assertIn("notes", res)
+        self.assertTrue(any(n["filename"] == note_md.name for n in res["notes"]))
+        found = next(n for n in res["notes"] if n["filename"] == note_md.name)
+        self.assertEqual(found["title"], "Test Topic")
+        detail = asyncio.run(get_academic_note(note_md.name))
+        self.assertEqual(detail["filename"], note_md.name)
+        self.assertIn("Contenido de prueba", detail["content"])
+        self.assertEqual(detail["docx_filename"], note_docx.name)
+
+    def test_save_academic_note_endpoint(self):
+        from src.api.server import save_academic_note_endpoint, SaveAcademicNoteRequest
+        payload = SaveAcademicNoteRequest(
+            subject="Inteligencia Artificial",
+            topic="Redes Neuronales",
+            content="# Apuntes de Redes Neuronales\n\nExplicación detallada de backpropagation...",
+            transcript="Transcripción de la clase de prueba",
+        )
+        res = asyncio.run(save_academic_note_endpoint(payload))
+        self.assertTrue(res["success"])
+        self.assertEqual(res["status"], "saved")
+        self.assertTrue(res["filename"].startswith("apuntes_Inteligencia_Artificial_"))
+        self.assertTrue(res["filename"].endswith(".md"))
+
+        out_dir = Path(self.temp_out_dir)
+        saved_md = out_dir / res["filename"]
+        self.assertTrue(saved_md.is_file())
+        self.assertIn("backpropagation", saved_md.read_text(encoding="utf-8"))
+
+        txt_name = res["filename"].replace(".md", "_transcripcion.txt")
+        saved_txt = out_dir / txt_name
+        self.assertTrue(saved_txt.is_file())
+        self.assertEqual(saved_txt.read_text(encoding="utf-8"), "Transcripción de la clase de prueba")
+
+    def test_save_academic_note_rejects_empty(self):
+        from src.api.server import save_academic_note_endpoint, SaveAcademicNoteRequest
+        from fastapi import HTTPException
+        payload = SaveAcademicNoteRequest(
+            subject="Curso Vacio",
+            content="   \n  \t  ",
+        )
+        with self.assertRaises(HTTPException) as cm:
+            asyncio.run(save_academic_note_endpoint(payload))
+        self.assertEqual(cm.exception.status_code, 400)
+        self.assertIn("vacío", cm.exception.detail)
+
+    def test_download_academic_note_docx(self):
+        from src.api.server import download_academic_note_docx
+        out_dir = Path(self.temp_out_dir)
+        test_docx = out_dir / "apuntes_Test_Docx_Download.docx"
+        test_docx.write_bytes(b"PK fake docx content")
+
+        resp = asyncio.run(download_academic_note_docx("apuntes_Test_Docx_Download.docx"))
+        self.assertEqual(resp.status_code, 200)
+        self.assertIn("apuntes_Test_Docx_Download.docx", resp.headers.get("content-disposition", ""))
+
+    def test_creative_session_title_in_campaign(self):
+        from src.storage.campaign_manager import CampaignManager
+        mgr = CampaignManager(campaigns_dir=self.temp_camp_dir)
+        state = mgr.record_session(
+            name="Campaña Creativa",
+            session_chapter={
+                "session_title": "Sesión #1: Cucharas, runas y sangre en las alturas",
+                "title": "Sesión #1: Cucharas, runas y sangre en las alturas",
+                "chronicle_text": "Texto de crónica",
+            },
+            session_number=1,
+        )
+        sess = state["sessions"][0]
+        # Verify prefix duplication was stripped
+        self.assertEqual(sess["session_title"], "Cucharas, runas y sangre en las alturas")
+        self.assertEqual(sess["title"], "Cucharas, runas y sangre en las alturas")
+
+    def test_extract_academic_sections_with_section_5(self):
+        from src.api.server import extract_academic_sections
+        sample_md = """
+# 🎓 BRIEFING EJECUTIVO Y GUÍA DE ESTUDIO PROFUNDA: Cálculo Avanzado
+## 📌 Tema: Series de Fourier
+
+# 1. Introducción y Contexto
+Introducción a la transformada ortogonal.
+
+# 2. Conceptos Teóricos Fundamentales y Terminología
+- **Serie de Fourier**: Descomposición en armónicos ortogonales.
+- **Convergencia de Dirichlet**: Condiciones de continuidad.
+
+# 3. Recorrido Temático Detallado
+Desarrollo paso a paso...
+
+# 4. Ejemplos Resueltos y Casos Prácticos
+Cálculo de onda cuadrada...
+
+# 5. Avisos Relevantes, Tareas y Próximos Pasos
+- Entregar ejercicios 3, 5 y 9 antes del viernes.
+- [ ] Revisar el teorema de Parseval en el libro guía.
+- Examen final programado para el 20 de Noviembre.
+
+# 6. Conclusiones Clave, Métricas y Acciones
+* Coeficientes decrecen como 1/n.
+"""
+        action_items, key_points = extract_academic_sections(sample_md)
+        self.assertEqual(len(action_items), 3)
+        self.assertIn("Entregar ejercicios 3, 5 y 9 antes del viernes.", action_items)
+        self.assertIn("Revisar el teorema de Parseval en el libro guía.", action_items)
+        self.assertIn("Examen final programado para el 20 de Noviembre.", action_items)
+        self.assertIn("Serie de Fourier", key_points)
+        self.assertIn("Conclusiones Clave", key_points)
+
+    def test_extract_academic_sections_fallback_section_6(self):
+        from src.api.server import extract_academic_sections
+        sample_md = """
+# 🎓 BRIEFING EJECUTIVO: Machine Learning
+## 📌 Tema: Redes Convolucionales
+
+# 1. Introducción y Contexto
+Visión por computadora moderna.
+
+# 2. Conceptos Teóricos Fundamentales y Terminología
+- **Kernels**: Filtros de convolución espacial.
+
+# 3. Recorrido Temático
+Capas conv2d y pooling...
+
+# 6. Conclusiones Clave, Métricas y Acciones
+* Precisión del 98.5% en CIFAR-10.
+Tareas y acuerdos de acción:
+- Configurar entorno de PyTorch en Google Colab
+- Entrenar modelo ResNet con data augmentation
+"""
+        action_items, key_points = extract_academic_sections(sample_md)
+        self.assertEqual(len(action_items), 2)
+        self.assertIn("Configurar entorno de PyTorch en Google Colab", action_items)
+        self.assertIn("Entrenar modelo ResNet con data augmentation", action_items)
+        self.assertIn("Kernels", key_points)
+
+    def test_extract_academic_sections_no_tasks(self):
+        from src.api.server import extract_academic_sections
+        sample_md = """
+# 🎓 BRIEFING EJECUTIVO: Historia de la Filosofía
+## 📌 Tema: Epistemología
+
+# 1. Introducción y Contexto
+El problema del conocimiento.
+
+# 2. Conceptos Teóricos Fundamentales y Terminología
+- **Empirismo**: Conocimiento a través de la experiencia.
+
+# 6. Conclusiones Clave, Métricas y Acciones
+* Preguntas de reflexión.
+"""
+        action_items, key_points = extract_academic_sections(sample_md)
+        self.assertEqual(action_items, [])
+        self.assertIn("Empirismo", key_points)
 
 
 if __name__ == "__main__":

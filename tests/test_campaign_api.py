@@ -260,6 +260,57 @@ class TestCampaignApi(unittest.TestCase):
         res = self.client.get("/api/campaigns/Inexistente/session/99")
         self.assertEqual(res.status_code, 404)
 
+    def test_merge_entities_endpoint(self):
+        from src.storage.campaign_manager import CampaignManager
+        manager = CampaignManager()
+        camp_name = "API Merge Entities Camp"
+
+        state = manager.load_campaign(camp_name)
+        state["universal_pcs"] = [
+            {"personaje": "Lancelot", "jugador": "Player1", "clase": "Paladín", "debut_sesion": 2, "hitos_acumulados": ["Sesión #2: Rescató aldeanos."]},
+            {"personaje": "Sir Lancelot Du Lac", "jugador": "Player1", "clase": "Paladín", "debut_sesion": 1, "hitos_acumulados": ["Sesión #1: Juró lealtad."]}
+        ]
+        manager.save_campaign(state)
+
+        # Call merge-entities endpoint
+        merge_payload = {
+            "source_name": "Lancelot",
+            "target_name": "Sir Lancelot Du Lac",
+            "entity_type": "pc"
+        }
+        res = self.client.post(f"/api/campaigns/{camp_name}/merge-entities", json=merge_payload)
+        self.assertEqual(res.status_code, 200)
+        data = res.json()
+        self.assertEqual(data["status"], "success")
+        self.assertIn("Sir Lancelot Du Lac", data["message"])
+        self.assertEqual(len(data["campaign_state"]["universal_pcs"]), 1)
+        merged = data["campaign_state"]["universal_pcs"][0]
+        self.assertEqual(merged["personaje"], "Sir Lancelot Du Lac")
+        self.assertIn("Lancelot", merged.get("aliases", []))
+        self.assertEqual(len(merged["hitos_acumulados"]), 2)
+
+    def test_deduplicate_campaign_endpoint(self):
+        from src.storage.campaign_manager import CampaignManager
+        manager = CampaignManager()
+        camp_name = "API Deduplicate Camp"
+
+        state = manager.load_campaign(camp_name)
+        state["universal_pcs"] = [
+            {"personaje": "Octus", "jugador": "Alex", "clase": "Rogue", "debut_sesion": 1, "hitos_acumulados": ["Sesión #1: Flophouse."]},
+            {"personaje": "Octus Taconis", "jugador": "Alex", "clase": "Rogue", "debut_sesion": 3, "hitos_acumulados": ["Sesión #3: Palazzo."]}
+        ]
+        manager.save_campaign(state)
+
+        res = self.client.post(f"/api/campaigns/{camp_name}/deduplicate")
+        self.assertEqual(res.status_code, 200)
+        data = res.json()
+        self.assertEqual(data["status"], "success")
+        self.assertEqual(data["merged_count"], 1)
+        self.assertEqual(len(data["campaign_state"]["universal_pcs"]), 1)
+        self.assertEqual(data["campaign_state"]["universal_pcs"][0]["personaje"], "Octus Taconis")
+        self.assertIn("Octus", data["campaign_state"]["universal_pcs"][0].get("aliases", []))
+
 
 if __name__ == "__main__":
     unittest.main()
+

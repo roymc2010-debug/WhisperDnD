@@ -29,7 +29,14 @@ def export_living_journal_md(
     safe_name = sanitize_filename(campaign_name)
 
     if not output_path:
-        out_dir = Path(os.environ["WHISPER_OUTPUT_DIR"]).resolve() if os.environ.get("WHISPER_OUTPUT_DIR") else (Path(__file__).resolve().parent.parent.parent / "data" / "output")
+        if os.environ.get("WHISPER_OUTPUT_DIR"):
+            out_dir = Path(os.environ["WHISPER_OUTPUT_DIR"]).resolve()
+        else:
+            root = Path(__file__).resolve().parent.parent.parent
+            if (root / "outputs").is_dir():
+                out_dir = (root / "outputs").resolve()
+            else:
+                out_dir = (root / "data" / "output").resolve()
         out_dir.mkdir(parents=True, exist_ok=True)
         output_path = str((out_dir / f"{safe_name}_Grimorio.md").resolve())
 
