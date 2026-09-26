@@ -182,7 +182,7 @@ def trigger_drive_sync_background(
                         p = Path(fp).resolve()
                         if p.is_file():
                             # Quality filter: reject tiny test or incomplete notes (<500 bytes or <100 words)
-                            if p.name.endswith(".md") and not p.name.endswith("_grimorio.md") and p.name != "manifest.md":
+                            if p.name.endswith(".md") and not p.name.lower().endswith("_grimorio.md") and p.name != "manifest.md":
                                 if p.stat().st_size < 500:
                                     continue
                                 txt_preview = p.read_text(encoding="utf-8", errors="replace")
@@ -1479,20 +1479,120 @@ async def delete_recording_audio(payload: DeleteAudioRequest):
 
 
 
-def extract_clean_note_title(filename: str, content: str) -> str:
-    lines = content.strip().split("\n")
+def is_academic_study_note(filename: str, content: str = "") -> bool:
+    """
+    Strict filter to separate Work & Study notes from D&D Living Campaign grimorios and logs.
+    - Exclusion: Immediately discards any file whose filename or first header contains:
+      'Grimorio de Campaña', 'grimorio_', 'sesion_', 'cronica_', 'campana_', etc.
+    - Inclusion: ONLY list files starting with 'apuntes_' prefix or containing study metadata.
+    """
+    fname_lower = filename.lower()
+
+    if fname_lower == "manifest.md":
+        return False
+
+    # Exclusion: Filename checks (case-insensitive)
+    dnd_file_markers = [
+        "grimorio",
+        "sesion_",
+        "sesion-",
+        "cronica_",
+        "cronica-",
+        "campana_",
+        "campana-",
+        "campaña_",
+        "campaña-",
+    ]
+    for marker in dnd_file_markers:
+        if marker in fname_lower:
+            return False
+
+    # Exclusion: First header / early lines check
+    if content:
+        lines = [line.strip() for line in content.splitlines()[:15] if line.strip()]
+        header_text = ""
+        for line in lines:
+            if line.startswith("#"):
+                header_text = line.lower()
+                break
+        if not header_text and lines:
+            header_text = lines[0].lower()
+
+        dnd_header_markers = [
+            "grimorio de campaña",
+            "grimorio de campana",
+            "grimorio",
+            "sesión",
+            "sesion",
+            "crónica",
+            "cronica",
+            "campaña",
+            "campana",
+            "living campaign",
+            "diario vivo de campaña",
+            "diario vivo de campana",
+            "directorio universal de aventureros",
+            "registro maestro de misiones",
+        ]
+        for marker in dnd_header_markers:
+            if marker in header_text:
+                return False
+
+    # Inclusion: Must start with 'apuntes_' or contain study metadata
+    if fname_lower.startswith("apuntes_"):
+        return True
+
+    if content:
+        content_sample = content[:3000].lower()
+        study_metadata_markers = [
+            "executive briefing",
+            "briefing ejecutivo",
+            "guía de estudio",
+            "guia de estudio",
+            "study guide",
+            "deep study guide",
+            "apuntes de clase",
+            "notas de clase",
+            "🎓",
+            "resumen ejecutivo",
+            "metadatos de estudio",
+            "conceptos clave",
+            "preguntas de repaso",
+            "preguntas de autoevaluación",
+            "glosario de términos",
+        ]
+        for marker in study_metadata_markers:
+            if marker in content_sample:
+                return True
+
+    return False
+
+
+def extract_clean_note_title(filename: str, content: str = "") -> str:
+    lines = content.strip().split("\n") if content else []
     if lines:
-        for line in lines[:6]:
+        for line in lines[:8]:
             line_str = line.strip()
             if line_str.startswith("#"):
                 cleaned = re.sub(r"^#+\s*", "", line_str)
-                cleaned = re.sub(r"[\U00010000-\U0010ffff\u2600-\u26ff\u2700-\u27bf]\s*", "", cleaned)
-                cleaned = re.sub(
-                    r"^(?:BRIEFING EJECUTIVO Y GU[ÍI]A DE ESTUDIO PROFUNDA|EXECUTIVE BRIEFING & DEEP STUDY GUIDE|GU[ÍI]A DE ESTUDIO|STUDY GUIDE|BRIEFING EJECUTIVO|EXECUTIVE BRIEFING|APUNTES|NOTAS DE CLASE|TOPIC|MATERIA|TEMA):?\s*",
-                    "",
-                    cleaned,
-                    flags=re.IGNORECASE,
-                ).strip()
+                cleaned = re.sub(r"[\U00010000-\U0010ffff\u2600-\u26ff\u2700-\u27bf\uFE0F]\s*", "", cleaned)
+                prev_cleaned = None
+                while prev_cleaned != cleaned:
+                    prev_cleaned = cleaned
+                    cleaned = re.sub(
+                        r"^(?:BRIEFING EJECUTIVO Y GU[ÍI]A DE ESTUDIO PROFUNDA|EXECUTIVE BRIEFING & DEEP STUDY GUIDE|GU[ÍI]A DE ESTUDIO PROFUNDA|DEEP STUDY GUIDE|GU[ÍI]A DE ESTUDIO|STUDY GUIDE|BRIEFING EJECUTIVO|EXECUTIVE BRIEFING|APUNTES DE CLASE|APUNTES|NOTAS DE CLASE|TOPIC|MATERIA|TEMA|RESUMEN EJECUTIVO|EXECUTIVE SUMMARY)[\s:–—\-]+",
+                        "",
+                        cleaned,
+                        flags=re.IGNORECASE,
+                    ).strip()
+                if ":" in cleaned:
+                    parts = [p.strip() for p in cleaned.split(":") if p.strip()]
+                    if len(parts) == 2 and parts[0].lower() == parts[1].lower():
+                        cleaned = parts[0]
+                    elif len(parts) >= 2 and parts[0].lower() in [
+                        "topic", "tema", "materia", "title", "título", "titulo", "subject"
+                    ]:
+                        cleaned = ": ".join(parts[1:]).strip()
                 if cleaned and len(cleaned) > 2:
                     return cleaned
     stem = Path(filename).stem
@@ -1559,14 +1659,15 @@ def update_consolidated_academic_notes_file() -> Path:
                 old_list = old_data.get("notes", []) if isinstance(old_data, dict) else []
                 for n in old_list:
                     if isinstance(n, dict) and n.get("filename"):
-                        existing_notes_map[n["filename"]] = n
+                        if is_academic_study_note(n["filename"], n.get("content", "")):
+                            existing_notes_map[n["filename"]] = n
             except Exception:
                 pass
 
     notes_by_filename = {}
     for o_dir in candidate_output_dirs:
         for md_file in o_dir.glob("*.md"):
-            if md_file.name.endswith("_grimorio.md") or md_file.name == "manifest.md":
+            if not is_academic_study_note(md_file.name):
                 continue
             try:
                 stat = md_file.stat()
@@ -1574,6 +1675,8 @@ def update_consolidated_academic_notes_file() -> Path:
                 if stat.st_size < 500:
                     continue
                 content = md_file.read_text(encoding="utf-8", errors="replace")
+                if not is_academic_study_note(md_file.name, content):
+                    continue
                 words = len(content.split())
                 # Quality filter: discard files < 100 words
                 if words < 100:
@@ -1617,10 +1720,14 @@ def update_consolidated_academic_notes_file() -> Path:
     # Merge any previously saved notes from existing_notes_map that were not in scanned files
     for fname, old_note in existing_notes_map.items():
         if fname not in notes_by_filename and old_note.get("content"):
+            if not is_academic_study_note(fname, old_note.get("content", "")):
+                continue
             old_size = int(old_note.get("size_bytes") or len(old_note.get("content", "").encode("utf-8")))
             old_words = int(old_note.get("word_count") or len(old_note.get("content", "").split()))
             if old_size < 500 or old_words < 100:
                 continue
+            old_note["title"] = extract_clean_note_title(fname, old_note.get("content", ""))
+            old_note["topic"] = old_note["title"]
             notes_by_filename[fname] = old_note
             # Self-heal: ensure written to output_dir
             try:
@@ -1670,9 +1777,13 @@ async def list_academic_notes():
             raw_hist_notes = h_data.get("notes", []) if isinstance(h_data, dict) else []
             for n in raw_hist_notes:
                 if isinstance(n, dict) and n.get("filename") and n.get("content"):
+                    if not is_academic_study_note(n["filename"], n.get("content", "")):
+                        continue
                     n_size = int(n.get("size_bytes") or len(n["content"].encode("utf-8")))
                     n_words = int(n.get("word_count") or len(n["content"].split()))
                     if n_size >= 500 and n_words >= 100:
+                        n["title"] = extract_clean_note_title(n["filename"], n.get("content", ""))
+                        n["topic"] = n["title"]
                         historial_notes.append(n)
                         fname = Path(n["filename"]).name
                         target_dirs_selfheal = [output_dir] if is_test_mode else [Path("/app/outputs"), output_dir, project_root / "outputs"]
@@ -1711,7 +1822,7 @@ async def list_academic_notes():
         for md_file in c_dir.glob("*.md"):
             if md_file.name in seen_filenames:
                 continue
-            if md_file.name.endswith("_grimorio.md") or md_file.name == "manifest.md":
+            if not is_academic_study_note(md_file.name):
                 continue
             try:
                 stat = md_file.stat()
@@ -1719,6 +1830,8 @@ async def list_academic_notes():
                 if stat.st_size < 500:
                     continue
                 content = md_file.read_text(encoding="utf-8", errors="replace")
+                if not is_academic_study_note(md_file.name, content):
+                    continue
                 words = len(content.split())
                 # Quality filter: reject files < 100 words
                 if words < 100:
@@ -1760,9 +1873,13 @@ async def list_academic_notes():
     if len(notes) < len(historial_notes):
         for hn in historial_notes:
             if isinstance(hn, dict) and hn.get("filename") and hn["filename"] not in seen_filenames:
+                if not is_academic_study_note(hn["filename"], hn.get("content", "")):
+                    continue
                 seen_filenames.add(hn["filename"])
                 hn_clean = dict(hn)
                 hn_clean.pop("content", None)
+                hn_clean["title"] = extract_clean_note_title(hn_clean["filename"], hn.get("content", ""))
+                hn_clean["topic"] = hn_clean["title"]
                 notes.append(hn_clean)
 
     notes.sort(key=lambda x: x.get("timestamp", 0), reverse=True)
@@ -1775,6 +1892,9 @@ async def get_academic_note(filename: str):
     """Retrieve full content and metadata of a specific academic note."""
     decoded_filename = urllib.parse.unquote(filename)
     safe_filename = Path(decoded_filename).name
+
+    if not is_academic_study_note(safe_filename):
+        raise HTTPException(status_code=404, detail="Nota de estudio no encontrada.")
 
     output_dir = get_data_output_dir()
     project_root = Path(__file__).resolve().parent.parent.parent
@@ -1836,6 +1956,9 @@ async def get_academic_note(filename: str):
         raise HTTPException(status_code=404, detail="Nota de estudio no encontrada.")
 
     content = file_path.read_text(encoding="utf-8", errors="replace")
+    if not is_academic_study_note(safe_filename, content):
+        raise HTTPException(status_code=404, detail="Nota de estudio no encontrada.")
+
     stat = file_path.stat()
     title = extract_clean_note_title(safe_filename, content)
     formatted_date = format_note_date(stat.st_mtime, safe_filename)
@@ -1871,6 +1994,10 @@ async def delete_academic_note(filename: str):
     safe_filename = Path(decoded_filename).name
     if not (safe_filename.endswith(".md") or safe_filename.endswith(".docx") or safe_filename.endswith(".txt")):
         raise HTTPException(status_code=400, detail="Nombre de archivo inválido.")
+
+    check_md_name = safe_filename.replace(".docx", ".md").replace(".txt", ".md").replace("_transcripcion", "")
+    if not is_academic_study_note(check_md_name):
+        raise HTTPException(status_code=400, detail="Operación no permitida: este endpoint es exclusivo para notas de estudio.")
 
     stem = Path(safe_filename).stem
     if stem.endswith("_transcripcion"):
@@ -2104,6 +2231,10 @@ async def download_academic_note_docx(filename: str):
     """Download an academic note Word .docx document, compiling on the fly if needed."""
     decoded_filename = urllib.parse.unquote(filename)
     safe_filename = Path(decoded_filename).name
+
+    md_check_name = safe_filename.replace(".docx", ".md") if safe_filename.endswith(".docx") else safe_filename
+    if not is_academic_study_note(md_check_name):
+        raise HTTPException(status_code=404, detail="Nota de estudio no encontrada.")
 
     output_dir = get_data_output_dir()
     project_root = Path(__file__).resolve().parent.parent.parent

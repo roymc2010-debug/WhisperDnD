@@ -8508,6 +8508,36 @@ async function selectWikiEntity(type, key, data) {
       }
     }
 
+    function cleanNoteDisplayTitle(titleStr, filename) {
+      let t = (titleStr || "").trim();
+      if (!t && filename) {
+        t = filename.replace(/^apuntes_(?:file_)?/i, '')
+                    .replace(/_\d{8}_\d{6}\.md$/i, '')
+                    .replace(/\.md$/i, '')
+                    .replace(/_(?:es|en)$/i, '')
+                    .replace(/_/g, ' ')
+                    .trim();
+      }
+      if (!t) return "Apuntes de Clase";
+      t = t.replace(/^#+\s*/, '')
+           .replace(/[\u{1F000}-\u{1FFFF}\u{2600}-\u{27BF}\u{FE00}-\u{FE0F}]/gu, '')
+           .trim();
+      let prev = "";
+      while (prev !== t) {
+        prev = t;
+        t = t.replace(/^(?:BRIEFING EJECUTIVO Y GU[ÍI]A DE ESTUDIO PROFUNDA|EXECUTIVE BRIEFING & DEEP STUDY GUIDE|GU[ÍI]A DE ESTUDIO PROFUNDA|DEEP STUDY GUIDE|GU[ÍI]A DE ESTUDIO|STUDY GUIDE|BRIEFING EJECUTIVO|EXECUTIVE BRIEFING|APUNTES DE CLASE|APUNTES|NOTAS DE CLASE|TOPIC|MATERIA|TEMA|RESUMEN EJECUTIVO|EXECUTIVE SUMMARY)[\s:–—\-]+/i, '').trim();
+      }
+      if (t.includes(':')) {
+        const parts = t.split(':').map(p => p.trim()).filter(Boolean);
+        if (parts.length === 2 && parts[0].toLowerCase() === parts[1].toLowerCase()) {
+          t = parts[0];
+        } else if (parts.length >= 2 && ['topic', 'tema', 'materia', 'title', 'título', 'titulo', 'subject'].includes(parts[0].toLowerCase())) {
+          t = parts.slice(1).join(': ').trim();
+        }
+      }
+      return t || "Apuntes de Clase";
+    }
+
     function renderAcademicNotesList(notes) {
       const container = document.getElementById("notesListContainer");
       if (!container) return;
@@ -8528,7 +8558,7 @@ async function selectWikiEntity(type, key, data) {
         }`;
         card.onclick = () => selectAcademicNote(note.filename);
 
-        const title = note.title || note.topic || note.filename.replace(/^apuntes_(?:file_)?/, '').replace(/_\d{8}_\d{6}\.md$/, '').replace(/\.md$/, '').replace(/_/g, ' ');
+        const title = cleanNoteDisplayTitle(note.title || note.topic, note.filename);
         const dateStr = note.date || note.created_at || "Sin fecha";
         const wordCount = note.word_count !== undefined ? note.word_count : 0;
         const excerpt = note.excerpt || "Sin extracto.";
@@ -8587,7 +8617,7 @@ async function selectWikiEntity(type, key, data) {
       emptyEl.classList.add("hidden");
       contentEl.classList.remove("hidden");
 
-      titleEl.textContent = note.title || note.topic || note.filename.replace(/\.md$/, "");
+      titleEl.textContent = cleanNoteDisplayTitle(note.title || note.topic, note.filename);
       const wordCount = note.word_count !== undefined ? note.word_count : 0;
       if (metaEl) {
         metaEl.textContent = `${note.date || note.created_at || 'Sin fecha'} • ${wordCount.toLocaleString()} palabras • ${note.filename}`;
@@ -8608,9 +8638,10 @@ async function selectWikiEntity(type, key, data) {
           if (resp.ok) {
             const data = await resp.json();
             note.content = data.content || "";
-            if (data.topic) {
-              note.topic = data.topic;
-              titleEl.textContent = data.topic;
+            if (data.topic || data.title) {
+              note.title = cleanNoteDisplayTitle(data.title || data.topic, data.filename || filename);
+              note.topic = note.title;
+              titleEl.textContent = note.title;
             }
             if (data.docx_filename && docxBtn) {
               docxBtn.href = `/api/academic-notes/download/${encodeURIComponent(data.docx_filename)}`;

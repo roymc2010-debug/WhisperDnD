@@ -1360,6 +1360,124 @@ El problema del conocimiento.
         self.assertIn("notes", data)
         self.assertTrue(any("calculo" in n.get("filename", "").lower() for n in data["notes"]))
 
+    def test_is_academic_study_note_filter(self):
+        from src.api.server import is_academic_study_note
+
+        # Valid academic notes
+        self.assertTrue(is_academic_study_note("apuntes_This_Paradox_Splits_Smart_People_5050_en_20260924_154157.md"))
+        self.assertTrue(is_academic_study_note("apuntes_algebra.md"))
+        self.assertTrue(is_academic_study_note("lecture_notes.md", "# 🎓 EXECUTIVE BRIEFING & DEEP STUDY GUIDE: Machine Learning"))
+        self.assertTrue(is_academic_study_note("custom_doc.md", "## Resumen Ejecutivo\nConceptos clave y glosario de términos."))
+
+        # D&D Grimorio and campaign files (must be False)
+        self.assertFalse(is_academic_study_note("Candlekeep_Grimorio.md"))
+        self.assertFalse(is_academic_study_note("Candlekeep_2.0_Grimorio.md"))
+        self.assertFalse(is_academic_study_note("Critical_Role_4_Grimorio.md"))
+        self.assertFalse(is_academic_study_note("sesion_1.md"))
+        self.assertFalse(is_academic_study_note("sesion_1_transcripcion.txt"))
+        self.assertFalse(is_academic_study_note("cronica_sesion_1.md"))
+        self.assertFalse(is_academic_study_note("campana_dragonlance.md"))
+        self.assertFalse(is_academic_study_note("manifest.md"))
+        self.assertFalse(is_academic_study_note("notes.md", "# 📜 Grimorio de Campaña: Candlekeep\n*Diario Vivo de Campaña*"))
+        self.assertFalse(is_academic_study_note("session_doc.md", "# Crónica Narrativa de la Sesión #1"))
+        self.assertFalse(is_academic_study_note("random.md", "Plain random text with no academic study metadata."))
+
+    def test_extract_clean_note_title_deduplication(self):
+        from src.api.server import extract_clean_note_title
+
+        # Briefing prefix removal
+        t1 = extract_clean_note_title(
+            "apuntes_This_Paradox.md",
+            "# 🎓 EXECUTIVE BRIEFING & DEEP STUDY GUIDE: This Paradox Splits Smart People 50/50"
+        )
+        self.assertEqual(t1, "This Paradox Splits Smart People 50/50")
+
+        # Nested topic prefix removal
+        t2 = extract_clean_note_title(
+            "apuntes_This_Paradox.md",
+            "# 🎓 EXECUTIVE BRIEFING & DEEP STUDY GUIDE: Topic: This Paradox Splits Smart People 50/50"
+        )
+        self.assertEqual(t2, "This Paradox Splits Smart People 50/50")
+
+        # Repeated duplicate colon segments
+        t3 = extract_clean_note_title(
+            "apuntes_This_Paradox.md",
+            "# 🎓 EXECUTIVE BRIEFING & DEEP STUDY GUIDE: This Paradox Splits Smart People 50/50: This Paradox Splits Smart People 50/50"
+        )
+        self.assertEqual(t3, "This Paradox Splits Smart People 50/50")
+
+        # Spanish briefing prefix
+        t4 = extract_clean_note_title(
+            "apuntes_Fisica.md",
+            "# 🎓 BRIEFING EJECUTIVO Y GUÍA DE ESTUDIO PROFUNDA: Termodinámica Estadística"
+        )
+        self.assertEqual(t4, "Termodinámica Estadística")
+
+    def test_notes_endpoints_strictly_exclude_dnd_grimorios(self):
+        from fastapi.testclient import TestClient
+        client = TestClient(app)
+
+        out_dir = Path(self.temp_out_dir)
+
+        # Place legitimate academic note
+        academic_file = out_dir / "apuntes_calculo_avanzado.md"
+        academic_file.write_text(
+            "# 🎓 GUÍA DE ESTUDIO: Calculo Avanzado\n\n"
+            "## 1. Integrales Triples y Coordenadas Cilíndricas\n"
+            "El cálculo de integrales múltiples sobre regiones tridimensionales generales requiere la transformación de variables mediante el jacobiano del mapeo de coordenadas curvilíneas. "
+            "En coordenadas cilíndricas y esféricas, las simetrías axiales o radiales simplifican notablemente el cálculo analítico de volúmenes, centros de masa e hipervolúmenes en espacios euclídeos continuos.\n\n"
+            "## 2. Campos Conservativos y Teorema de la Divergencia\n"
+            "Cuando el rotacional de un campo vectorial se anula idénticamente en una región simplemente conexa, el campo deriva de un potencial escalar y las integrales de línea son estrictamente independientes de la trayectoria elegida entre dos puntos de referencia coordenados.",
+            encoding="utf-8",
+        )
+
+        # Place D&D Grimorio files in outputs/
+        grimorio_file = out_dir / "Candlekeep_Grimorio.md"
+        grimorio_file.write_text(
+            "# 📜 Grimorio de Campaña: Candlekeep\n"
+            "*Diario Vivo de Campaña &bull; Última Sesión: #1*\n\n"
+            "## 🛡️ ZONA UNIVERSAL: Directorio Universal de Aventureros (PCs)\n"
+            "| Personaje | Jugador | Especie / Raza | Clase | Subclase |\n"
+            "| Markus Veyl | Roy | Humano | Guerrero | Battle Master |\n"
+            "Lideró el rastreo nocturno de Atou en el bosque y absorbió el embate del dragón.",
+            encoding="utf-8",
+        )
+
+        grimorio_2 = out_dir / "Critical_Role_4_Grimorio.md"
+        grimorio_2.write_text(
+            "# 📜 Grimorio de Campaña: Critical Role 4\n"
+            "*Diario Vivo de Campaña &bull; Última Sesión: #5*\n\n"
+            "Detalles de la campaña de rol crítico.",
+            encoding="utf-8",
+        )
+
+        # Query GET /api/notes and GET /api/academic-notes
+        for endpoint in ["/api/notes", "/api/academic-notes"]:
+            res = client.get(endpoint)
+            self.assertEqual(res.status_code, 200)
+            notes = res.json().get("notes", [])
+            fnames = [n.get("filename") for n in notes]
+
+            self.assertIn("apuntes_calculo_avanzado.md", fnames)
+            self.assertNotIn("Candlekeep_Grimorio.md", fnames)
+            self.assertNotIn("Critical_Role_4_Grimorio.md", fnames)
+
+            for note in notes:
+                self.assertNotIn("grimorio", note.get("filename", "").lower())
+                self.assertNotIn("grimorio", note.get("title", "").lower())
+
+        # Single note GET /api/notes/{filename} must return 404 for D&D Grimorio
+        res_grim = client.get("/api/notes/Candlekeep_Grimorio.md")
+        self.assertEqual(res_grim.status_code, 404)
+
+        # Single note DELETE /api/notes/{filename} must be rejected for D&D Grimorio
+        res_del = client.delete("/api/notes/Candlekeep_Grimorio.md")
+        self.assertEqual(res_del.status_code, 400)
+
+        # Download .docx endpoint must return 404 for D&D Grimorio
+        res_dl = client.get("/api/notes/download/Candlekeep_Grimorio.docx")
+        self.assertEqual(res_dl.status_code, 404)
+
 
 if __name__ == "__main__":
     unittest.main()
