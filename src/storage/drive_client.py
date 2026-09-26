@@ -442,6 +442,30 @@ class GoogleDriveStorage:
         c_dir.mkdir(parents=True, exist_ok=True)
         o_dir.mkdir(parents=True, exist_ok=True)
 
+        target_data_dirs: List[Path] = []
+        for d in [project_root / "data", c_dir.parent, Path("/app/data")]:
+            try:
+                if d.exists() or d.parent.exists():
+                    d.mkdir(parents=True, exist_ok=True)
+                    if d.resolve() not in [x.resolve() for x in target_data_dirs]:
+                        target_data_dirs.append(d)
+            except Exception:
+                pass
+        if not target_data_dirs:
+            target_data_dirs = [project_root / "data"]
+
+        target_output_dirs: List[Path] = []
+        for d in [o_dir, project_root / "outputs", project_root / "data" / "output", Path("/app/outputs")]:
+            try:
+                if d.exists() or d.parent.exists():
+                    d.mkdir(parents=True, exist_ok=True)
+                    if d.resolve() not in [x.resolve() for x in target_output_dirs]:
+                        target_output_dirs.append(d)
+            except Exception:
+                pass
+        if not target_output_dirs:
+            target_output_dirs = [o_dir]
+
         service = self.service
 
         # 1. Locate app folders
@@ -534,11 +558,13 @@ class GoogleDriveStorage:
                 if lower_name == "apuntes_historial.json":
                     try:
                         content = self.download_file_bytes(fid)
-                        data_historial_file = project_root / "data" / "apuntes_historial.json"
-                        data_historial_file.parent.mkdir(parents=True, exist_ok=True)
-                        data_historial_file.write_bytes(content)
+                        for d_dir in target_data_dirs:
+                            try:
+                                (d_dir / "apuntes_historial.json").write_bytes(content)
+                            except Exception:
+                                pass
 
-                        # Reconstruct any missing note .md files in o_dir
+                        # Reconstruct any missing note .md files across all target_output_dirs
                         parsed_notes = json.loads(content.decode("utf-8"))
                         notes_list = (
                             parsed_notes.get("notes", [])
@@ -547,10 +573,15 @@ class GoogleDriveStorage:
                         )
                         for note in notes_list:
                             if isinstance(note, dict) and note.get("filename") and note.get("content"):
-                                note_target = o_dir / Path(note["filename"]).name
-                                if not note_target.is_file():
-                                    note_target.write_text(note["content"], encoding="utf-8")
-                                    downloaded_notes += 1
+                                note_name = Path(note["filename"]).name
+                                for out_d in target_output_dirs:
+                                    try:
+                                        note_target = out_d / note_name
+                                        if not note_target.is_file():
+                                            note_target.write_text(note["content"], encoding="utf-8")
+                                    except Exception:
+                                        pass
+                                downloaded_notes += 1
                     except Exception as exc:
                         print(f"[GoogleDriveStorage] Error restoring apuntes_historial.json: {exc}")
                     continue
@@ -635,17 +666,23 @@ class GoogleDriveStorage:
                     print(f"[GoogleDriveStorage] Error processing zip {fname}: {exc}")
 
             elif lower_name.endswith((".md", ".docx", ".txt")):
-                local_target = o_dir / fname
-                if not local_target.is_file():
-                    try:
-                        content = self.download_file_bytes(fid)
-                        local_target.write_bytes(content)
+                try:
+                    content = self.download_file_bytes(fid)
+                    written_any = False
+                    for out_d in target_output_dirs:
+                        local_target = out_d / fname
+                        if not local_target.is_file():
+                            local_target.write_bytes(content)
+                            written_any = True
+                    if written_any:
                         downloaded_notes += 1
-                    except Exception as exc:
-                        print(f"[GoogleDriveStorage] Error downloading file {fname}: {exc}")
+                except Exception as exc:
+                    print(f"[GoogleDriveStorage] Error downloading file {fname}: {exc}")
 
-        # 4. PUSH: Upload local campaigns not yet in Google Drive
+        # 4. PUSH: Upload local campaigns and academic notes not yet in Google Drive
         primary_folder = "WhisperDnD"
+        uploaded_notes = 0
+
         for local_json in c_dir.glob("*.json"):
             if local_json.name not in remote_filenames:
                 try:
@@ -661,13 +698,31 @@ class GoogleDriveStorage:
                 except Exception as exc:
                     print(f"[GoogleDriveStorage] Error uploading local campaign {local_json.name}: {exc}")
 
-        # Push consolidated apuntes_historial.json if present locally
-        local_historial = project_root / "data" / "apuntes_historial.json"
-        if local_historial.is_file() and local_historial.name not in remote_filenames:
-            try:
-                self.upload_file(str(local_historial.resolve()), folder_name=primary_folder)
-            except Exception as exc:
-                print(f"[GoogleDriveStorage] Error uploading apuntes_historial.json: {exc}")
+        # Push consolidated apuntes_historial.json if present locally (upload or overwrite)
+        pushed_historial = False
+        for d_dir in target_data_dirs:
+            local_historial = d_dir / "apuntes_historial.json"
+            if local_historial.is_file() and not pushed_historial:
+                try:
+                    self.upload_file(str(local_historial.resolve()), folder_name=primary_folder)
+                    pushed_historial = True
+                    uploaded_notes += 1
+                except Exception as exc:
+                    print(f"[GoogleDriveStorage] Error uploading apuntes_historial.json: {exc}")
+
+        # Push any local apuntes_*.md files to Google Drive if not yet in Drive
+        seen_md_names = set()
+        for out_d in target_output_dirs:
+            if out_d.is_dir():
+                for note_p in out_d.glob("apuntes_*.md"):
+                    if note_p.name not in seen_md_names:
+                        seen_md_names.add(note_p.name)
+                        if note_p.name not in remote_filenames:
+                            try:
+                                self.upload_file(str(note_p.resolve()), folder_name=primary_folder)
+                                uploaded_notes += 1
+                            except Exception as exc:
+                                print(f"[GoogleDriveStorage] Error uploading local note {note_p.name}: {exc}")
 
         # Ensure all existing local campaigns are included in synced_campaign_names
         for local_json in c_dir.glob("*.json"):
@@ -679,13 +734,15 @@ class GoogleDriveStorage:
             except Exception:
                 pass
 
+        total_synced_notes = downloaded_notes + uploaded_notes
         return {
             "status": "success",
             "synced_campaigns": len(synced_campaign_names),
             "downloaded_campaigns": downloaded_campaigns,
             "uploaded_campaigns": uploaded_campaigns,
             "downloaded_notes": downloaded_notes,
+            "uploaded_notes": uploaded_notes,
             "campaign_names": synced_campaign_names,
-            "synced_notes": downloaded_notes,
-            "message": f"Sincronización con Drive completada: {len(synced_campaign_names)} campañas ({downloaded_campaigns} descargadas, {uploaded_campaigns} respaldadas) y {downloaded_notes} notas/documentos sincronizados.",
+            "synced_notes": total_synced_notes,
+            "message": f"Sincronización con Drive completada: {len(synced_campaign_names)} campañas ({downloaded_campaigns} descargadas, {uploaded_campaigns} respaldadas) y {total_synced_notes} notas/documentos sincronizados ({downloaded_notes} descargadas, {uploaded_notes} respaldadas).",
         }

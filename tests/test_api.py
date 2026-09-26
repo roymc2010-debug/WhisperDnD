@@ -1,6 +1,7 @@
 """Unit tests for FastAPI backend endpoints."""
 
 import asyncio
+import json
 import os
 import shutil
 import tempfile
@@ -1190,8 +1191,66 @@ El problema del conocimiento.
         target_file = Path(self.temp_camp_dir) / "lost_mine_of_phandelver.json"
         self.assertTrue(target_file.is_file())
 
+    def test_keep_alive_ping_endpoint(self):
+        """Verify /api/ping returns 200 OK with alive status to prevent Render container spindown."""
+        from fastapi.testclient import TestClient
+        client = TestClient(app)
+        res = client.get("/api/ping")
+        self.assertEqual(res.status_code, 200)
+        data = res.json()
+        self.assertEqual(data.get("status"), "alive")
+        self.assertIn("timestamp", data)
+        self.assertIsInstance(data["timestamp"], (int, float))
+
+    def test_academic_note_import_md(self):
+        """Verify POST /api/academic-notes/import correctly imports markdown study notes."""
+        from fastapi.testclient import TestClient
+        client = TestClient(app)
+
+        note_content = b"# Algebra Lineal\n\n## 1. Espacios Vectoriales\nDefinicion formal y combinaciones lineales."
+        files = {"file": ("algebra_lineal.md", note_content, "text/markdown")}
+
+        res = client.post("/api/academic-notes/import", files=files)
+        self.assertEqual(res.status_code, 200)
+        data = res.json()
+        self.assertEqual(data.get("status"), "success")
+        self.assertGreaterEqual(data.get("imported_notes", 0), 1)
+
+        # Verify note is listed
+        list_res = client.get("/api/academic-notes")
+        self.assertEqual(list_res.status_code, 200)
+        notes = list_res.json().get("notes", [])
+        self.assertTrue(any("algebra" in n.get("filename", "").lower() for n in notes))
+
+    def test_academic_notes_list_self_heals_from_historial(self):
+        """Verify GET /api/academic-notes self-heals missing .md files from data/apuntes_historial.json."""
+        from fastapi.testclient import TestClient
+        client = TestClient(app)
+
+        project_root = Path(__file__).resolve().parent.parent
+        historial_file = project_root / "data" / "apuntes_historial.json"
+        historial_file.parent.mkdir(parents=True, exist_ok=True)
+
+        historial_payload = {
+            "total_notes": 1,
+            "notes": [
+                {
+                    "filename": "apuntes_mecanica_cuantica_selfheal.md",
+                    "title": "Mecánica Cuántica",
+                    "content": "# Mecánica Cuántica\n\nPrincipio de incertidumbre de Heisenberg.",
+                }
+            ]
+        }
+        historial_file.write_text(json.dumps(historial_payload), encoding="utf-8")
+
+        res = client.get("/api/academic-notes")
+        self.assertEqual(res.status_code, 200)
+        notes = res.json().get("notes", [])
+        self.assertTrue(any(n.get("filename") == "apuntes_mecanica_cuantica_selfheal.md" for n in notes))
+
 
 if __name__ == "__main__":
     unittest.main()
+
 
 

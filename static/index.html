@@ -1335,6 +1335,12 @@
             class="min-h-[44px] min-w-[44px] p-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs border border-slate-700 transition flex items-center justify-center cursor-pointer active:scale-[0.98]">
             <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 21h5v-5"/></svg>
           </button>
+          <input type="file" id="academicNoteFileInput" accept=".md,.json,.zip,.txt" class="hidden" onchange="handleAcademicNoteImport(event)">
+          <button type="button" onclick="document.getElementById('academicNoteFileInput').click()" title="Importar apunte o respaldo (.md, .json, .zip, .txt)"
+            class="min-h-[44px] px-3.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold border border-slate-700 transition flex items-center gap-2 cursor-pointer active:scale-[0.98]">
+            <svg class="w-4 h-4 text-sky-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+            <span>Importar</span>
+          </button>
         </div>
       </div>
 
@@ -2641,6 +2647,9 @@ function refreshAudioDevices() {
       checkDriveStatus();
       loadCampaignList();
       refreshWikiCampaigns();
+      if (typeof loadAcademicNotesHistory === "function") {
+        loadAcademicNotesHistory(false);
+      }
 
       // Set default date for Work & Study
       const dateInput = document.getElementById("workStudyDateInput");
@@ -5159,6 +5168,30 @@ function refreshAudioDevices() {
       }
     }
 
+    let heartbeatInterval = null;
+
+    function startHeartbeat() {
+      stopHeartbeat();
+      // Keep Render instance awake: ping /api/ping every 5 minutes (300,000 ms) while recording
+      heartbeatInterval = setInterval(async () => {
+        try {
+          await fetch('/api/ping');
+          console.log('[Keep-Alive] Heartbeat ping sent to Render');
+        } catch (e) {
+          console.warn('[Keep-Alive] Heartbeat ping failed:', e);
+        }
+      }, 5 * 60 * 1000);
+      console.log('[Keep-Alive] Heartbeat started (interval: 5m)');
+    }
+
+    function stopHeartbeat() {
+      if (heartbeatInterval) {
+        clearInterval(heartbeatInterval);
+        heartbeatInterval = null;
+        console.log('[Keep-Alive] Heartbeat stopped');
+      }
+    }
+
     function setRecordingUI(isRecording) {
       const btnStart = document.getElementById("btnStartRecording");
       const btnStop = document.getElementById("btnStopRecording");
@@ -5167,6 +5200,7 @@ function refreshAudioDevices() {
       const timerEl = document.getElementById("liveTimer");
 
       if (isRecording) {
+        startHeartbeat();
         btnStart.disabled = true;
         btnStart.classList.add("opacity-40", "cursor-not-allowed");
         btnStop.disabled = false;
@@ -5182,6 +5216,7 @@ function refreshAudioDevices() {
         timerEl.classList.remove("text-slate-400");
         timerEl.classList.add("text-rose-400");
       } else {
+        stopHeartbeat();
         btnStart.disabled = false;
         btnStart.classList.remove("opacity-40", "cursor-not-allowed");
         btnStop.disabled = true;
@@ -8248,12 +8283,48 @@ async function selectWikiEntity(type, key, data) {
       popover.classList.toggle("hidden");
     }
 
+    async function handleAcademicNoteImport(event) {
+      const file = event.target.files && event.target.files[0];
+      if (!file) return;
+
+      const formData = new FormData();
+      formData.append("file", file);
+
+      try {
+        if (typeof showAlert === "function") {
+          showAlert("Importando apunte y respaldando en Google Drive...");
+        }
+        const resp = await fetch("/api/academic-notes/import", {
+          method: "POST",
+          body: formData,
+        });
+        const data = await resp.json();
+        if (!resp.ok) {
+          throw new Error(data.detail || "Error al importar el apunte.");
+        }
+        if (typeof showAlert === "function") {
+          showAlert(`✓ ${data.message || 'Apunte importado exitosamente.'}`);
+        }
+        if (typeof notifyDriveSaveEvent === "function") {
+          notifyDriveSaveEvent();
+        }
+        await loadAcademicNotesHistory(false);
+      } catch (err) {
+        console.error("Error importando apunte:", err);
+        alert("Error al importar apunte: " + err.message);
+      } finally {
+        event.target.value = "";
+      }
+    }
+
     // Expose all core UI and workflow functions globally on window
     window.setActiveView = setActiveView;
     window.setWorkspace = setWorkspace;
     window.switchMainTab = switchMainTab;
     window.startSessionRecording = startSessionRecording;
     window.stopSessionAndProcess = stopSessionAndProcess;
+    window.startHeartbeat = startHeartbeat;
+    window.stopHeartbeat = stopHeartbeat;
     window.loadCurrentCampaign = loadCurrentCampaign;
     window.onCampaignChange = onCampaignChange;
     window.loadCampaignRoster = loadCampaignRoster;
@@ -8277,6 +8348,7 @@ async function selectWikiEntity(type, key, data) {
     window.refreshDiscordParticipants = refreshDiscordParticipants;
     window.selectAcademicNote = selectAcademicNote;
     window.loadAcademicNotesHistory = loadAcademicNotesHistory;
+    window.handleAcademicNoteImport = handleAcademicNoteImport;
     window.toggleCampaignManagerModal = toggleCampaignManagerModal;
     window.toggleSystemStatusPopover = toggleSystemStatusPopover;
     window.saveCurrentCampaignLore = saveCurrentCampaignLore;

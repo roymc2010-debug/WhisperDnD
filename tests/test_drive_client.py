@@ -280,6 +280,75 @@ class TestGoogleDriveStorage(unittest.TestCase):
         self.assertEqual(saved_json["campaign_name"], "La Maldición de Strahd")
         self.assertEqual(saved_json["dm"], "Roy")
 
+    def test_sync_from_google_drive_academic_notes(self):
+        storage = GoogleDriveStorage(
+            credentials_path=str(self.dummy_creds),
+            token_path=str(self.dummy_token),
+        )
+        storage.is_connected = MagicMock(return_value=True)
+
+        mock_service = MagicMock()
+        mock_files = MagicMock()
+
+        def list_side_effect(q=None, **kwargs):
+            m = MagicMock()
+            if "name = 'WhisperDnD'" in (q or ""):
+                m.execute.return_value = {"files": [{"id": "folder_whisperdnd_123", "name": "WhisperDnD"}]}
+            elif "'folder_whisperdnd_123' in parents" in (q or ""):
+                m.execute.return_value = {
+                    "files": [
+                        {
+                            "id": "file_historial_json_111",
+                            "name": "apuntes_historial.json",
+                            "mimeType": "application/json",
+                        }
+                    ],
+                    "nextPageToken": None,
+                }
+            else:
+                m.execute.return_value = {"files": [], "nextPageToken": None}
+            return m
+
+        mock_files.list.side_effect = list_side_effect
+        mock_service.files.return_value = mock_files
+        storage._service = mock_service
+
+        historial_data = {
+            "total_notes": 1,
+            "notes": [
+                {
+                    "filename": "apuntes_calculo_vectorial.md",
+                    "title": "Cálculo Vectorial",
+                    "content": "# Cálculo Vectorial\n\nTeorema de Green y divergencia.",
+                }
+            ]
+        }
+        storage.download_file_bytes = MagicMock(return_value=json.dumps(historial_data).encode("utf-8"))
+        storage.upload_file = MagicMock(return_value={"file_id": "test_upload_id"})
+
+        c_dir = self.test_dir / "campaigns"
+        o_dir = self.test_dir / "output"
+        o_dir.mkdir(parents=True, exist_ok=True)
+
+        # Create a local note that is not on Drive to test PUSH
+        local_note = o_dir / "apuntes_fisica_cuantica.md"
+        local_note.write_text("# Física Cuántica\n\nEcuación de Schrödinger.", encoding="utf-8")
+
+        res = storage.sync_from_google_drive(campaigns_dir=c_dir, output_dir=o_dir)
+
+        self.assertEqual(res["status"], "success")
+        self.assertGreaterEqual(res["downloaded_notes"], 1)
+        self.assertGreaterEqual(res["uploaded_notes"], 1)
+
+        # Check restored file from historial
+        restored_note = o_dir / "apuntes_calculo_vectorial.md"
+        self.assertTrue(restored_note.is_file())
+        self.assertIn("Teorema de Green", restored_note.read_text(encoding="utf-8"))
+
+        # Verify upload_file was called for local_note
+        uploaded_names = [call.args[0] for call in storage.upload_file.call_args_list]
+        self.assertTrue(any("apuntes_fisica_cuantica.md" in name for name in uploaded_names))
+
 
 if __name__ == "__main__":
     unittest.main()

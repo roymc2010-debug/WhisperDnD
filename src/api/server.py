@@ -152,6 +152,13 @@ if static_dir.is_dir():
     app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
 
 
+@app.get("/api/ping")
+@app.get("/api/health")
+async def keep_alive_ping():
+    """Lightweight keep-alive heartbeat ping to prevent Render container spindown during active recording."""
+    return {"status": "alive", "timestamp": time.time()}
+
+
 def trigger_drive_sync_background(
     file_paths: Optional[List[Union[str, Path]]] = None,
     folder_name: str = "WhisperDnD",
@@ -1480,7 +1487,7 @@ def format_note_date(mtime: float, filename: str) -> str:
 
 def update_consolidated_academic_notes_file() -> Path:
     """
-    Consolidate all academic notes from data/output/ into data/apuntes_historial.json.
+    Consolidate all academic notes from outputs/ into data/apuntes_historial.json.
     Each note entry includes metadata and content for seamless cloud backup and restore.
     """
     output_dir = get_data_output_dir()
@@ -1488,9 +1495,45 @@ def update_consolidated_academic_notes_file() -> Path:
     historial_file = project_root / "data" / "apuntes_historial.json"
     historial_file.parent.mkdir(parents=True, exist_ok=True)
 
-    notes = []
-    if output_dir.exists():
-        for md_file in output_dir.glob("apuntes_*.md"):
+    # Collect candidate output dirs to scan
+    candidate_output_dirs: List[Path] = []
+    for d in [output_dir, project_root / "outputs", project_root / "data" / "output", Path("/app/outputs")]:
+        try:
+            if d.is_dir() and d.resolve() not in [x.resolve() for x in candidate_output_dirs]:
+                candidate_output_dirs.append(d)
+        except Exception:
+            pass
+    if not candidate_output_dirs:
+        candidate_output_dirs = [output_dir]
+
+    # Target data dirs to save apuntes_historial.json into
+    target_data_dirs: List[Path] = [historial_file.parent]
+    container_data = Path("/app/data")
+    if container_data.exists() or container_data.parent.exists():
+        try:
+            container_data.mkdir(parents=True, exist_ok=True)
+            if container_data.resolve() not in [x.resolve() for x in target_data_dirs]:
+                target_data_dirs.append(container_data)
+        except Exception:
+            pass
+
+    # Read existing notes if apuntes_historial.json exists to preserve notes whose .md might be temporarily missing
+    existing_notes_map = {}
+    for d_dir in target_data_dirs:
+        candidate_hist = d_dir / "apuntes_historial.json"
+        if candidate_hist.is_file():
+            try:
+                old_data = json.loads(candidate_hist.read_text(encoding="utf-8"))
+                old_list = old_data.get("notes", []) if isinstance(old_data, dict) else []
+                for n in old_list:
+                    if isinstance(n, dict) and n.get("filename"):
+                        existing_notes_map[n["filename"]] = n
+            except Exception:
+                pass
+
+    notes_by_filename = {}
+    for o_dir in candidate_output_dirs:
+        for md_file in o_dir.glob("apuntes_*.md"):
             try:
                 stat = md_file.stat()
                 content = md_file.read_text(encoding="utf-8", errors="replace")
@@ -1500,9 +1543,9 @@ def update_consolidated_academic_notes_file() -> Path:
 
                 docx_filename = md_file.name.replace(".md", ".docx")
                 txt_filename = md_file.name.replace(".md", "_transcripcion.txt")
-                if not (output_dir / txt_filename).is_file():
+                if not (o_dir / txt_filename).is_file():
                     txt_cand = md_file.name.replace(".md", ".txt")
-                    if (output_dir / txt_cand).is_file():
+                    if (o_dir / txt_cand).is_file():
                         txt_filename = txt_cand
                     else:
                         txt_filename = None
@@ -1511,7 +1554,7 @@ def update_consolidated_academic_notes_file() -> Path:
                 clean_lines = [l for l in lines[1:8] if l.strip() and not l.strip().startswith("---") and not l.strip().startswith("#")]
                 excerpt = " ".join(clean_lines)[:240] if clean_lines else (content[:240] + "...")
 
-                notes.append({
+                note_dict = {
                     "filename": md_file.name,
                     "title": title,
                     "topic": title,
@@ -1521,27 +1564,70 @@ def update_consolidated_academic_notes_file() -> Path:
                     "timestamp": stat.st_mtime,
                     "size_bytes": stat.st_size,
                     "docx_filename": docx_filename,
-                    "txt_filename": txt_filename if txt_filename and (output_dir / txt_filename).is_file() else None,
+                    "txt_filename": txt_filename if txt_filename and (o_dir / txt_filename).is_file() else None,
                     "excerpt": excerpt,
                     "content": content,
-                })
+                }
+                # Keep latest if duplicate filename across different folders
+                if md_file.name not in notes_by_filename or stat.st_mtime > notes_by_filename[md_file.name].get("timestamp", 0):
+                    notes_by_filename[md_file.name] = note_dict
             except Exception:
                 continue
 
+    # Merge any previously saved notes from existing_notes_map that were not in scanned files
+    for fname, old_note in existing_notes_map.items():
+        if fname not in notes_by_filename and old_note.get("content"):
+            notes_by_filename[fname] = old_note
+            # Self-heal: ensure written to output_dir
+            try:
+                (output_dir / fname).write_text(old_note["content"], encoding="utf-8")
+            except Exception:
+                pass
+
+    notes = list(notes_by_filename.values())
     notes.sort(key=lambda x: x.get("timestamp", 0), reverse=True)
     payload = {
         "updated_at": datetime.datetime.now().isoformat(),
         "total_notes": len(notes),
         "notes": notes,
     }
-    historial_file.write_text(json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8")
+    payload_str = json.dumps(payload, indent=2, ensure_ascii=False)
+    for d_dir in target_data_dirs:
+        try:
+            (d_dir / "apuntes_historial.json").write_text(payload_str, encoding="utf-8")
+        except Exception:
+            pass
+
     return historial_file
 
 
 @app.get("/api/academic-notes")
 async def list_academic_notes():
-    """List all saved academic notes and study guides in data/output/."""
+    """List all saved academic notes and study guides in outputs/ or restored from Google Drive."""
     output_dir = get_data_output_dir()
+    project_root = Path(__file__).resolve().parent.parent.parent
+
+    # Find apuntes_historial.json across candidates
+    historial_file = None
+    for h_cand in [project_root / "data" / "apuntes_historial.json", Path("/app/data/apuntes_historial.json")]:
+        if h_cand.is_file():
+            historial_file = h_cand
+            break
+
+    # If apuntes_historial.json exists, self-heal missing .md files to output_dir
+    historial_notes = []
+    if historial_file and historial_file.is_file():
+        try:
+            h_data = json.loads(historial_file.read_text(encoding="utf-8"))
+            historial_notes = h_data.get("notes", []) if isinstance(h_data, dict) else []
+            for n in historial_notes:
+                if isinstance(n, dict) and n.get("filename") and n.get("content"):
+                    t_p = output_dir / Path(n["filename"]).name
+                    if not t_p.is_file():
+                        t_p.write_text(n["content"], encoding="utf-8")
+        except Exception as exc:
+            print(f"[list_academic_notes] Warning reading historial_file: {exc}")
+
     notes = []
     if output_dir.exists():
         for md_file in output_dir.glob("apuntes_*.md"):
@@ -1580,6 +1666,15 @@ async def list_academic_notes():
                 })
             except Exception:
                 continue
+
+    # Fallback / merge if output_dir had fewer notes than historial_file
+    if len(notes) < len(historial_notes):
+        existing_filenames = {n["filename"] for n in notes}
+        for hn in historial_notes:
+            if isinstance(hn, dict) and hn.get("filename") and hn["filename"] not in existing_filenames:
+                hn_clean = dict(hn)
+                hn_clean.pop("content", None)
+                notes.append(hn_clean)
 
     notes.sort(key=lambda x: x.get("timestamp", 0), reverse=True)
     return {"notes": notes}
@@ -1609,6 +1704,26 @@ async def get_academic_note(filename: str):
             if p.is_file():
                 file_path = p
                 safe_filename = c
+                break
+
+    # Fallback to check apuntes_historial.json and restore if found
+    if not file_path.is_file():
+        project_root = Path(__file__).resolve().parent.parent.parent
+        for h_path in [project_root / "data" / "apuntes_historial.json", Path("/app/data/apuntes_historial.json")]:
+            if h_path.is_file():
+                try:
+                    h_data = json.loads(h_path.read_text(encoding="utf-8"))
+                    notes_list = h_data.get("notes", []) if isinstance(h_data, dict) else []
+                    for n in notes_list:
+                        if isinstance(n, dict) and (n.get("filename") == safe_filename or n.get("filename") == f"{safe_filename}.md"):
+                            if n.get("content"):
+                                file_path = output_dir / Path(n["filename"]).name
+                                file_path.write_text(n["content"], encoding="utf-8")
+                                safe_filename = file_path.name
+                                break
+                except Exception:
+                    pass
+            if file_path.is_file():
                 break
 
     if not file_path.is_file():
@@ -1752,6 +1867,111 @@ async def save_academic_note_endpoint(payload: SaveAcademicNoteRequest):
         "filename": safe_filename,
         "docx_filename": docx_filename,
         "message": f"Nota '{safe_filename}' guardada exitosamente."
+    }
+
+
+@app.post("/api/academic-notes/import")
+@app.post("/api/notes/import")
+async def import_academic_note_endpoint(file: UploadFile = File(...)):
+    """
+    Import an academic study note or backup archive (.md, .json, .zip, or .txt).
+    Restores note files, updates data/apuntes_historial.json, and triggers background Google Drive sync.
+    """
+    if not file.filename:
+        raise HTTPException(status_code=400, detail="No se seleccionó ningún archivo.")
+
+    lower_name = file.filename.lower()
+    if not (lower_name.endswith(".md") or lower_name.endswith(".json") or lower_name.endswith(".zip") or lower_name.endswith(".txt")):
+        raise HTTPException(
+            status_code=400,
+            detail="Formato de archivo no soportado. Se admiten archivos .md, .json, .zip y .txt de apuntes."
+        )
+
+    content_bytes = await file.read()
+    if not content_bytes:
+        raise HTTPException(status_code=400, detail="El archivo subido está vacío.")
+
+    output_dir = get_data_output_dir()
+    imported_count = 0
+    synced_files = []
+
+    if lower_name.endswith(".zip"):
+        try:
+            with zipfile.ZipFile(io.BytesIO(content_bytes), "r") as zf:
+                for item in zf.namelist():
+                    if item.endswith("/") or item in ["manifest.json"]:
+                        continue
+                    item_name = Path(item).name
+                    if item_name.endswith((".md", ".txt", ".docx", ".json")):
+                        item_bytes = zf.read(item)
+                        if item_name == "apuntes_historial.json":
+                            project_root = Path(__file__).resolve().parent.parent.parent
+                            (project_root / "data" / "apuntes_historial.json").write_bytes(item_bytes)
+                        else:
+                            target_p = output_dir / item_name
+                            target_p.write_bytes(item_bytes)
+                            if item_name.endswith(".md"):
+                                imported_count += 1
+                                synced_files.append(target_p)
+        except zipfile.BadZipFile:
+            raise HTTPException(status_code=400, detail="El archivo ZIP está dañado o no es válido.")
+
+    elif lower_name.endswith(".json"):
+        try:
+            parsed = json.loads(content_bytes.decode("utf-8"))
+            if isinstance(parsed, dict) and "notes" in parsed and isinstance(parsed["notes"], list):
+                # Consolidated apuntes_historial.json file
+                for n in parsed["notes"]:
+                    if isinstance(n, dict) and n.get("filename") and n.get("content"):
+                        target_p = output_dir / Path(n["filename"]).name
+                        target_p.write_text(n["content"], encoding="utf-8")
+                        imported_count += 1
+                        synced_files.append(target_p)
+            elif isinstance(parsed, dict) and ("content" in parsed or "chronicle" in parsed):
+                # Single note JSON
+                content = parsed.get("content") or parsed.get("chronicle")
+                title = parsed.get("title") or parsed.get("topic") or Path(file.filename).stem
+                safe_title = re.sub(r'[\\/*?:"<>|]', "", title)
+                safe_title = re.sub(r"\s+", "_", safe_title)
+                now_str = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+                target_filename = f"apuntes_{safe_title}_{now_str}.md"
+                target_p = output_dir / target_filename
+                target_p.write_text(content, encoding="utf-8")
+                imported_count += 1
+                synced_files.append(target_p)
+            else:
+                raise HTTPException(status_code=400, detail="El archivo JSON no contiene notas válidas.")
+        except json.JSONDecodeError:
+            raise HTTPException(status_code=400, detail="El archivo JSON no es válido.")
+
+    else:
+        # .md or .txt file
+        safe_name = Path(file.filename).name
+        if not safe_name.startswith("apuntes_"):
+            safe_name = f"apuntes_{safe_name}"
+        if lower_name.endswith(".txt") and not safe_name.endswith(".md"):
+            safe_name = safe_name.rsplit(".", 1)[0] + ".md"
+
+        target_p = output_dir / safe_name
+        target_p.write_bytes(content_bytes)
+        imported_count += 1
+        synced_files.append(target_p)
+
+    # Re-consolidate apuntes_historial.json and trigger background Drive sync
+    hist_file = update_consolidated_academic_notes_file()
+    if hist_file and hist_file.is_file():
+        synced_files.append(hist_file)
+
+    try:
+        if synced_files:
+            trigger_drive_sync_background(synced_files)
+    except Exception as exc:
+        print(f"[import_academic_note] Warning triggering drive sync: {exc}")
+
+    return {
+        "status": "success",
+        "imported_notes": imported_count,
+        "message": f"Se importaron exitosamente {imported_count} notas y se respaldaron en Google Drive.",
     }
 
 
