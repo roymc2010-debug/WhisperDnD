@@ -549,11 +549,14 @@ class GoogleDriveStorage:
 
         while folder_queue:
             cur_fid = folder_queue.pop(0)
+            folder_id = cur_fid
             page_token = None
             while True:
                 try:
+                    # Buscar tanto JSON de D&D como Markdown de Work & Study
+                    query = f"'{folder_id}' in parents and (name contains '.json' or name contains '.md' or mimeType = 'application/vnd.google-apps.folder') and trashed = false"
                     res = service.files().list(
-                        q=f"'{cur_fid}' in parents and trashed = false",
+                        q=query,
                         spaces="drive",
                         fields="nextPageToken, files(id, name, mimeType, modifiedTime, size)",
                         pageToken=page_token,
@@ -570,8 +573,24 @@ class GoogleDriveStorage:
                     if not page_token:
                         break
                 except Exception as e:
-                    print(f"[GoogleDriveStorage] Error listing folder '{cur_fid}': {e}")
+                    print(f"[GoogleDriveStorage] Error listing folder '{folder_id}': {e}")
                     break
+
+        # Fallback si no se detectaron notas en la carpeta específica: buscar archivos .md en Drive
+        if not any(f.get("name", "").lower().endswith(".md") for f in drive_files):
+            try:
+                orphan_query = "(name contains 'apuntes_' and name contains '.md') and trashed = false"
+                res_orphan = service.files().list(
+                    q=orphan_query,
+                    spaces="drive",
+                    fields="files(id, name, mimeType, modifiedTime, size)",
+                    pageSize=100,
+                ).execute()
+                for of in res_orphan.get("files", []):
+                    if of.get("id") not in [df.get("id") for df in drive_files]:
+                        drive_files.append(of)
+            except Exception as e:
+                print(f"[GoogleDriveStorage] Error searching orphan apuntes in Drive: {e}")
 
         synced_campaign_names: List[str] = []
         downloaded_campaigns = 0
@@ -700,15 +719,45 @@ class GoogleDriveStorage:
                 except Exception as exc:
                     print(f"[GoogleDriveStorage] Error processing zip {fname}: {exc}")
 
-            elif lower_name.endswith((".md", ".docx", ".txt")):
+            elif lower_name.endswith(".md"):
                 try:
                     content = self.download_file_bytes(fid)
                     written_any = False
+
+                    # Descarga física directa en /app/outputs/
+                    app_out = Path("/app/outputs")
+                    try:
+                        app_out.mkdir(parents=True, exist_ok=True)
+                        (app_out / fname).write_bytes(content)
+                        written_any = True
+                    except Exception:
+                        pass
+
+                    # Descarga física en todos los directorios destino configurados
                     for out_d in target_output_dirs:
-                        local_target = out_d / fname
-                        if not local_target.is_file():
-                            local_target.write_bytes(content)
+                        try:
+                            out_d.mkdir(parents=True, exist_ok=True)
+                            (out_d / fname).write_bytes(content)
                             written_any = True
+                        except Exception:
+                            pass
+
+                    if written_any:
+                        downloaded_notes += 1
+                except Exception as exc:
+                    print(f"[GoogleDriveStorage] Error downloading md note {fname}: {exc}")
+
+            elif lower_name.endswith((".docx", ".txt")):
+                try:
+                    content = self.download_file_bytes(fid)
+                    written_any = False
+                    for out_d in [Path("/app/outputs")] + list(target_output_dirs):
+                        try:
+                            out_d.mkdir(parents=True, exist_ok=True)
+                            (out_d / fname).write_bytes(content)
+                            written_any = True
+                        except Exception:
+                            pass
                     if written_any:
                         downloaded_notes += 1
                 except Exception as exc:

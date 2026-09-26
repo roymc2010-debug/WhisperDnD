@@ -1302,6 +1302,19 @@ El problema del conocimiento.
         self.assertEqual(res.json().get("status"), "success")
         self.assertFalse(txt_path.is_file())
 
+    def test_get_notes_lists_markdown_files_from_outputs(self):
+        from fastapi.testclient import TestClient
+        client = TestClient(app)
+
+        test_note = Path(self.temp_out_dir) / "apuntes_calculo_avanzado.md"
+        test_note.write_text("# Calculo Avanzado\n\nIntegrales triples y coordenadas cilindricas.", encoding="utf-8")
+
+        res = client.get("/api/notes")
+        self.assertEqual(res.status_code, 200)
+        data = res.json()
+        self.assertIn("notes", data)
+        self.assertTrue(any("calculo" in n.get("filename", "").lower() for n in data["notes"]))
+
 
 if __name__ == "__main__":
     unittest.main()

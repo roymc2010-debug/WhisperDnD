@@ -368,6 +368,56 @@ class TestGoogleDriveStorage(unittest.TestCase):
         self.assertTrue(self.dummy_token.is_file())
         self.assertEqual(json.loads(self.dummy_token.read_text(encoding="utf-8")), token_data)
 
+    def test_sync_from_google_drive_direct_markdown_files(self):
+        """Verify sync_from_google_drive downloads direct .md files using query with .json and .md."""
+        storage = GoogleDriveStorage(
+            credentials_path=str(self.dummy_creds),
+            token_path=str(self.dummy_token),
+        )
+        storage.is_connected = MagicMock(return_value=True)
+
+        mock_service = MagicMock()
+        mock_files = MagicMock()
+
+        def list_side_effect(q=None, **kwargs):
+            m = MagicMock()
+            if "name = 'WhisperDnD'" in (q or ""):
+                m.execute.return_value = {"files": [{"id": "folder_whisperdnd_123", "name": "WhisperDnD"}]}
+            elif "'folder_whisperdnd_123' in parents" in (q or ""):
+                m.execute.return_value = {
+                    "files": [
+                        {
+                            "id": "file_redes_md_999",
+                            "name": "apuntes_redes_neuronales.md",
+                            "mimeType": "text/markdown",
+                        }
+                    ],
+                    "nextPageToken": None,
+                }
+            else:
+                m.execute.return_value = {"files": [], "nextPageToken": None}
+            return m
+
+        mock_files.list.side_effect = list_side_effect
+        mock_service.files.return_value = mock_files
+        storage._service = mock_service
+
+        storage.download_file_bytes = MagicMock(return_value=b"# Redes Neuronales\n\nBackpropagation y descenso de gradiente.")
+        storage.upload_file = MagicMock(return_value={"file_id": "test_up"})
+
+        c_dir = self.test_dir / "campaigns"
+        o_dir = self.test_dir / "output"
+        o_dir.mkdir(parents=True, exist_ok=True)
+
+        res = storage.sync_from_google_drive(campaigns_dir=c_dir, output_dir=o_dir)
+
+        self.assertEqual(res["status"], "success")
+        self.assertGreaterEqual(res["downloaded_notes"], 1)
+
+        downloaded_md = o_dir / "apuntes_redes_neuronales.md"
+        self.assertTrue(downloaded_md.is_file())
+        self.assertIn("Backpropagation", downloaded_md.read_text(encoding="utf-8"))
+
 
 if __name__ == "__main__":
     unittest.main()

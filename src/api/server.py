@@ -1634,7 +1634,7 @@ async def list_academic_notes():
             historial_file = h_cand
             break
 
-    # If apuntes_historial.json exists, self-heal missing .md files to output_dir
+    # If apuntes_historial.json exists, self-heal missing .md files across output directories
     historial_notes = []
     if historial_file and historial_file.is_file():
         try:
@@ -1642,17 +1642,42 @@ async def list_academic_notes():
             historial_notes = h_data.get("notes", []) if isinstance(h_data, dict) else []
             for n in historial_notes:
                 if isinstance(n, dict) and n.get("filename") and n.get("content"):
-                    t_p = output_dir / Path(n["filename"]).name
-                    if not t_p.is_file():
-                        t_p.write_text(n["content"], encoding="utf-8")
+                    fname = Path(n["filename"]).name
+                    for t_dir in [Path("/app/outputs"), output_dir, project_root / "outputs"]:
+                        try:
+                            if t_dir.exists() or t_dir.parent.exists():
+                                t_dir.mkdir(parents=True, exist_ok=True)
+                                t_p = t_dir / fname
+                                if not t_p.is_file():
+                                    t_p.write_text(n["content"], encoding="utf-8")
+                        except Exception:
+                            pass
         except Exception as exc:
             print(f"[list_academic_notes] Warning reading historial_file: {exc}")
 
+    # Gather all candidate output directories: /app/outputs/, output_dir, outputs/
+    candidate_dirs: List[Path] = []
+    for cd in [Path("/app/outputs"), output_dir, project_root / "outputs", project_root / "data" / "output"]:
+        try:
+            if cd.exists():
+                cd_res = cd.resolve()
+                if cd_res not in [x.resolve() for x in candidate_dirs]:
+                    candidate_dirs.append(cd)
+        except Exception:
+            pass
+    if not candidate_dirs:
+        candidate_dirs = [output_dir]
+
     notes = []
-    if output_dir.exists():
-        for md_file in output_dir.glob("*.md"):
+    seen_filenames = set()
+
+    for c_dir in candidate_dirs:
+        for md_file in c_dir.glob("*.md"):
+            if md_file.name in seen_filenames:
+                continue
             if md_file.name.endswith("_grimorio.md") or md_file.name == "manifest.md":
                 continue
+            seen_filenames.add(md_file.name)
             try:
                 stat = md_file.stat()
                 content = md_file.read_text(encoding="utf-8", errors="replace")
@@ -1662,9 +1687,9 @@ async def list_academic_notes():
 
                 docx_filename = md_file.name.replace(".md", ".docx")
                 txt_filename = md_file.name.replace(".md", "_transcripcion.txt")
-                if not (output_dir / txt_filename).is_file():
+                if not (c_dir / txt_filename).is_file():
                     txt_cand = md_file.name.replace(".md", ".txt")
-                    if (output_dir / txt_cand).is_file():
+                    if (c_dir / txt_cand).is_file():
                         txt_filename = txt_cand
                     else:
                         txt_filename = None
@@ -1683,17 +1708,17 @@ async def list_academic_notes():
                     "timestamp": stat.st_mtime,
                     "size_bytes": stat.st_size,
                     "docx_filename": docx_filename,
-                    "txt_filename": txt_filename if txt_filename and (output_dir / txt_filename).is_file() else None,
+                    "txt_filename": txt_filename if txt_filename and (c_dir / txt_filename).is_file() else None,
                     "excerpt": excerpt,
                 })
             except Exception:
                 continue
 
-    # Fallback / merge if output_dir had fewer notes than historial_file
+    # Fallback / merge if candidate_dirs had fewer notes than historial_file
     if len(notes) < len(historial_notes):
-        existing_filenames = {n["filename"] for n in notes}
         for hn in historial_notes:
-            if isinstance(hn, dict) and hn.get("filename") and hn["filename"] not in existing_filenames:
+            if isinstance(hn, dict) and hn.get("filename") and hn["filename"] not in seen_filenames:
+                seen_filenames.add(hn["filename"])
                 hn_clean = dict(hn)
                 hn_clean.pop("content", None)
                 notes.append(hn_clean)
@@ -1710,23 +1735,40 @@ async def get_academic_note(filename: str):
     safe_filename = Path(decoded_filename).name
 
     output_dir = get_data_output_dir()
-    file_path = output_dir / safe_filename
+    project_root = Path(__file__).resolve().parent.parent.parent
 
-    # If extension or prefix was omitted, search candidate variations
-    if not file_path.is_file():
+    candidate_dirs: List[Path] = []
+    for cd in [Path("/app/outputs"), output_dir, project_root / "outputs", project_root / "data" / "output"]:
+        try:
+            if cd.exists():
+                cd_res = cd.resolve()
+                if cd_res not in [x.resolve() for x in candidate_dirs]:
+                    candidate_dirs.append(cd)
+        except Exception:
+            pass
+    if not candidate_dirs:
+        candidate_dirs = [output_dir]
+
+    file_path = None
+    for c_dir in candidate_dirs:
+        cand_p = c_dir / safe_filename
+        if cand_p.is_file():
+            file_path = cand_p
+            break
         candidates = [
-            safe_filename,
             f"{safe_filename}.md",
             safe_filename.rsplit(".", 1)[0] + ".md" if "." in safe_filename else f"{safe_filename}.md",
             f"apuntes_{safe_filename}",
             f"apuntes_{safe_filename}.md"
         ]
         for c in candidates:
-            p = output_dir / c
+            p = c_dir / c
             if p.is_file():
                 file_path = p
                 safe_filename = c
                 break
+        if file_path:
+            break
 
     # Fallback to check apuntes_historial.json and restore if found
     if not file_path.is_file():
@@ -1793,27 +1835,43 @@ async def delete_academic_note(filename: str):
         stem = stem[:-14]
 
     output_dir = get_data_output_dir()
+    project_root = Path(__file__).resolve().parent.parent.parent
+    candidate_dirs: List[Path] = []
+    for cd in [Path("/app/outputs"), output_dir, project_root / "outputs", project_root / "data" / "output"]:
+        try:
+            if cd.exists():
+                cd_res = cd.resolve()
+                if cd_res not in [x.resolve() for x in candidate_dirs]:
+                    candidate_dirs.append(cd)
+        except Exception:
+            pass
+    if not candidate_dirs:
+        candidate_dirs = [output_dir]
+
     deleted_files = []
 
-    # Target related files
-    candidates = [
-        output_dir / f"{stem}.md",
-        output_dir / f"{stem}.docx",
-        output_dir / f"{stem}.json",
-        output_dir / f"{stem}_transcripcion.txt",
-        output_dir / f"{stem}.txt",
-        output_dir / safe_filename,
-    ]
+    # Target related files across candidate dirs
+    candidates = []
+    for c_dir in candidate_dirs:
+        candidates.extend([
+            c_dir / f"{stem}.md",
+            c_dir / f"{stem}.docx",
+            c_dir / f"{stem}.json",
+            c_dir / f"{stem}_transcripcion.txt",
+            c_dir / f"{stem}.txt",
+            c_dir / safe_filename,
+        ])
 
     for c in set(candidates):
         try:
             if c.is_file():
                 c.unlink()
-                deleted_files.append(c.name)
+                if c.name not in deleted_files:
+                    deleted_files.append(c.name)
         except Exception as exc:
             print(f"[delete_academic_note] Warning deleting {c}: {exc}")
 
-    if not deleted_files and not (output_dir / safe_filename).is_file():
+    if not deleted_files and not any((c_dir / safe_filename).is_file() for c_dir in candidate_dirs):
         raise HTTPException(status_code=404, detail="La nota de estudio no fue encontrada en el servidor.")
 
     # Update consolidated academic notes file and sync with Google Drive
@@ -2006,30 +2064,49 @@ async def download_academic_note_docx(filename: str):
     safe_filename = Path(decoded_filename).name
 
     output_dir = get_data_output_dir()
-    file_path = output_dir / safe_filename
+    project_root = Path(__file__).resolve().parent.parent.parent
+
+    candidate_dirs: List[Path] = []
+    for cd in [Path("/app/outputs"), output_dir, project_root / "outputs", project_root / "data" / "output"]:
+        try:
+            if cd.exists():
+                cd_res = cd.resolve()
+                if cd_res not in [x.resolve() for x in candidate_dirs]:
+                    candidate_dirs.append(cd)
+        except Exception:
+            pass
+    if not candidate_dirs:
+        candidate_dirs = [output_dir]
 
     # If it already exists on disk, serve directly
-    if file_path.is_file() and safe_filename.endswith(".docx"):
-        return FileResponse(
-            path=file_path,
-            filename=safe_filename,
-            media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-            headers={"Content-Disposition": f'attachment; filename="{safe_filename}"'},
-        )
+    for c_dir in candidate_dirs:
+        cand_docx = c_dir / safe_filename
+        if cand_docx.is_file() and safe_filename.endswith(".docx"):
+            return FileResponse(
+                path=cand_docx,
+                filename=safe_filename,
+                media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                headers={"Content-Disposition": f'attachment; filename="{safe_filename}"'},
+            )
 
     # Otherwise compile on demand from .md
     md_filename = safe_filename.replace(".docx", ".md") if safe_filename.endswith(".docx") else safe_filename
     if not md_filename.endswith(".md"):
         md_filename += ".md"
 
-    md_path = output_dir / md_filename
-    if not md_path.is_file():
-        cand = output_dir / f"apuntes_{md_filename}"
+    md_path = None
+    for c_dir in candidate_dirs:
+        p = c_dir / md_filename
+        if p.is_file():
+            md_path = p
+            break
+        cand = c_dir / f"apuntes_{md_filename}"
         if cand.is_file():
             md_path = cand
             md_filename = cand.name
+            break
 
-    if not md_path.is_file():
+    if not md_path or not md_path.is_file():
         raise HTTPException(status_code=404, detail="Archivo de apuntes (.md) no encontrado para generar docx.")
 
     content = md_path.read_text(encoding="utf-8", errors="replace")

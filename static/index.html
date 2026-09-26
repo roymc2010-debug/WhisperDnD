@@ -236,68 +236,8 @@
 
     <!-- Sidebar Footer -->
     <div class="p-3 border-t border-slate-800 space-y-2 relative">
-      <div class="relative">
-        <button id="btnSystemStatus" onclick="toggleSystemStatusPopover()" type="button"
-          title="Estado general del sistema y servicios"
-          class="w-full min-h-[44px] inline-flex items-center justify-between px-3 py-2 rounded-xl text-xs font-mono font-medium bg-slate-900/90 hover:bg-slate-800 text-slate-300 border border-white/10 transition-colors duration-150 cursor-pointer active:scale-[0.98] select-none">
-          <div class="flex items-center gap-2">
-            <span id="systemStatusDot" class="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></span>
-            <span id="systemStatusText" class="text-slate-300">Systems Ready</span>
-          </div>
-          <svg class="w-3.5 h-3.5 text-slate-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg>
-        </button>
-
-        <!-- Diagnostic popover -->
-        <div id="systemStatusPopover" class="hidden absolute bottom-14 left-0 w-72 rounded-2xl bg-slate-900 border border-white/10 shadow-2xl p-4 z-50 space-y-3 text-xs">
-          <div class="flex items-center justify-between border-b border-white/5 pb-2">
-            <span class="font-semibold text-slate-200">Diagnóstico de Sistema</span>
-            <span class="text-[10px] text-slate-500 font-mono">0.0.0.0:8080</span>
-          </div>
-          <div class="space-y-2.5">
-            <div class="flex items-center justify-between">
-              <span class="text-slate-400">Transcripción</span>
-              <span id="badgeGroqStatus" class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[11px] font-medium bg-slate-800 text-slate-400 border border-white/5">
-                <span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
-                <span>Groq Cloud</span>
-              </span>
-            </div>
-            <div class="flex items-center justify-between">
-              <span class="text-slate-400">Modelo Crónicas</span>
-              <span id="badgeGeminiStatus" class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[11px] font-medium bg-slate-800 text-slate-400 border border-white/5">
-                <span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
-                <span>Gemini 2.5</span>
-              </span>
-            </div>
-            <div class="flex items-center justify-between">
-              <span class="text-slate-400">Google Drive</span>
-              <div id="driveHeaderWidget" class="flex items-center gap-1.5">
-                <button id="btnConnectDriveHeader" onclick="connectGoogleDriveUpfront()" type="button"
-                  class="px-2.5 py-1 rounded text-[11px] font-medium bg-slate-800 hover:bg-slate-700 text-slate-300 border border-white/10 transition cursor-pointer">
-                  Conectar Drive
-                </button>
-                <span id="badgeConnectedDriveHeader" class="hidden inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[11px] font-medium bg-emerald-500/10 text-emerald-300 border border-emerald-500/20">
-                  <span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
-                  <span>Conectado</span>
-                </span>
-                <span id="driveSyncStatusWidget" class="hidden inline-flex items-center gap-1 text-[11px] font-medium text-emerald-400/90">
-                  ☁️ Guardado en Drive
-                </span>
-                <button id="btnSyncDriveHeader" onclick="syncWithGoogleDrive()" type="button" title="Sincronizar Campañas y Notas con Drive"
-                  class="hidden inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-300 border border-indigo-500/30 transition cursor-pointer">
-                  <svg class="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
-                  <span>Sincronizar</span>
-                </button>
-              </div>
-            </div>
-          </div>
-          <div class="pt-2.5 border-t border-white/5 flex items-center justify-between">
-            <button id="btnWipeCacheHeader" onclick="wipeCacheAndStartOver()" type="button"
-              class="text-xs text-rose-400 hover:text-rose-300 hover:underline flex items-center gap-1.5 transition cursor-pointer">
-              <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
-              <span>Limpiar Caché Local</span>
-            </button>
-          </div>
-        </div>
+      <div id="systemStatusContainer" class="relative">
+        <button onclick="setActiveView('settings')" class="w-full text-left px-3 py-2 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-400 text-xs font-medium hover:bg-amber-500/20">⚠️ Configuración Requerida</button>
       </div>
 
       <!-- Quick Buttons for Mobile & Settings -->
@@ -3053,6 +2993,26 @@ function refreshAudioDevices() {
     // -----------------------------------------------------------------
     // Diagnóstico de API Keys & Integración de Google Drive
     // -----------------------------------------------------------------
+    let serverHasGroq = false;
+    let serverHasGemini = false;
+    let isGoogleDriveConnected = false;
+
+    function updateSystemStatusIndicator() {
+      const hasGroq = !!(localStorage.getItem('user_groq_key') || serverHasGroq);
+      const hasGemini = !!(localStorage.getItem('user_gemini_key') || serverHasGemini);
+      const hasDrive = !!isGoogleDriveConnected;
+      const isFullyReady = hasGroq && hasGemini && hasDrive;
+
+      const container = document.getElementById("systemStatusContainer");
+      if (!container) return;
+
+      if (isFullyReady) {
+        container.innerHTML = `<div class="px-3 py-2 text-xs text-emerald-400 font-medium">● Systems Ready</div>`;
+      } else {
+        container.innerHTML = `<button onclick="setActiveView('settings')" class="w-full text-left px-3 py-2 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-400 text-xs font-medium hover:bg-amber-500/20">⚠️ Configuración Requerida</button>`;
+      }
+    }
+
     async function checkApiKeysStatus() {
       try {
         const res = await fetch("/api/status/keys", {
@@ -3060,6 +3020,11 @@ function refreshAudioDevices() {
         });
         if (res.ok) {
           const data = await res.json();
+          serverHasGroq = Boolean(data.groq);
+          serverHasGemini = Boolean(data.gemini);
+          if (data.drive !== undefined) {
+            isGoogleDriveConnected = Boolean(data.drive);
+          }
           updateKeyBadge("badgeGroqStatus", data.groq, "Groq", data.groq_message);
           updateKeyBadge("badgeGeminiStatus", data.gemini, "Gemini", data.gemini_message);
 
@@ -3067,6 +3032,8 @@ function refreshAudioDevices() {
         }
       } catch (err) {
         console.warn("Could not check API keys status:", err);
+      } finally {
+        updateSystemStatusIndicator();
       }
     }
 
@@ -3147,7 +3114,9 @@ function refreshAudioDevices() {
       const btnSyncModal = document.getElementById("btnSyncDriveModal");
 
       _driveConnected = Boolean(isConnected);
+      isGoogleDriveConnected = Boolean(isConnected);
       updateDriveSyncIndicator(isConnected ? "saved" : "disconnected");
+      updateSystemStatusIndicator();
 
       if (isConnected) {
         if (btn) btn.classList.add("hidden");
@@ -8520,10 +8489,10 @@ async function selectWikiEntity(type, key, data) {
         container.innerHTML = `<div class="text-center py-8 text-xs text-slate-500 italic">Cargando apuntes guardados...</div>`;
       }
       try {
-        const resp = await fetch("/api/academic-notes");
+        const resp = await fetch("/api/notes");
         if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
         const data = await resp.json();
-        academicNotesList = data.notes || [];
+        academicNotesList = Array.isArray(data) ? data : (data.notes || []);
         if (countBadge) {
           countBadge.textContent = `${academicNotesList.length} nota${academicNotesList.length === 1 ? '' : 's'}`;
         }
@@ -8704,9 +8673,7 @@ async function selectWikiEntity(type, key, data) {
     }
   
     function toggleSystemStatusPopover() {
-      const popover = document.getElementById("systemStatusPopover");
-      if (!popover) return;
-      popover.classList.toggle("hidden");
+      setActiveView('settings');
     }
 
     async function handleAcademicNoteImport(event) {
