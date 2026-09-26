@@ -19,6 +19,13 @@ _active_oauth_flows: Dict[str, Any] = {}
 _active_oauth_flow: Optional[Any] = None
 
 
+def _get_default_redirect_uri() -> str:
+    render_url = os.environ.get("RENDER_EXTERNAL_URL")
+    if render_url:
+        return f"{render_url.rstrip('/')}/oauth2callback"
+    return "http://localhost:8080/api/auth/drive/callback"
+
+
 class GoogleDriveStorage:
     """Client for authenticating with Google Drive OAuth and uploading files."""
 
@@ -107,7 +114,7 @@ class GoogleDriveStorage:
 
     def get_authorization_url(
         self,
-        redirect_uri: str = "http://localhost:8080/api/auth/drive/callback",
+        redirect_uri: Optional[str] = None,
     ) -> str:
         """
         Generate Google OAuth authorization URL for web flow without running a blocking local server.
@@ -120,10 +127,11 @@ class GoogleDriveStorage:
                 "Descarga credentials.json desde Google Cloud Console y colócalo en la raíz del proyecto."
             )
 
+        active_redirect = redirect_uri or _get_default_redirect_uri()
         flow = InstalledAppFlow.from_client_secrets_file(
             str(self.credentials_path),
             SCOPES,
-            redirect_uri=redirect_uri,
+            redirect_uri=active_redirect,
         )
         auth_url, state = flow.authorization_url(
             prompt="consent",
@@ -138,7 +146,7 @@ class GoogleDriveStorage:
     def exchange_code_for_token(
         self,
         code: str,
-        redirect_uri: str = "http://localhost:8080/api/auth/drive/callback",
+        redirect_uri: Optional[str] = None,
         state: Optional[str] = None,
     ) -> Credentials:
         """
@@ -151,6 +159,7 @@ class GoogleDriveStorage:
                 f"No se encontró el archivo de credenciales de Google OAuth en: {self.credentials_path}."
             )
 
+        active_redirect = redirect_uri or _get_default_redirect_uri()
         flow: Optional[Any] = None
         if state and state in _active_oauth_flows:
             flow = _active_oauth_flows.pop(state)
@@ -161,7 +170,7 @@ class GoogleDriveStorage:
             flow = InstalledAppFlow.from_client_secrets_file(
                 str(self.credentials_path),
                 SCOPES,
-                redirect_uri=redirect_uri,
+                redirect_uri=active_redirect,
             )
 
         flow.fetch_token(code=code)

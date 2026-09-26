@@ -854,6 +854,110 @@ El problema del conocimiento.
         self.assertEqual(action_items, [])
         self.assertIn("Empirismo", key_points)
 
+    def test_extract_client_api_keys_prioritizes_headers(self):
+        from src.api.server import extract_client_api_keys
+        req = MagicMock()
+        req.headers = {
+            "X-Groq-Api-Key": "client_groq_123",
+            "X-Gemini-Api-Key": "client_gemini_456",
+        }
+        with patch.dict("os.environ", {"GROQ_API_KEY": "env_groq", "GEMINI_API_KEY": "env_gemini"}):
+            groq_k, gemini_k = extract_client_api_keys(req)
+            self.assertEqual(groq_k, "client_groq_123")
+            self.assertEqual(gemini_k, "client_gemini_456")
+
+    def test_extract_client_api_keys_falls_back_to_env(self):
+        from src.api.server import extract_client_api_keys
+        req = MagicMock()
+        req.headers = {}
+        with patch.dict("os.environ", {"GROQ_API_KEY": "env_groq", "GEMINI_API_KEY": "env_gemini"}):
+            groq_k, gemini_k = extract_client_api_keys(req)
+            self.assertEqual(groq_k, "env_groq")
+            self.assertEqual(gemini_k, "env_gemini")
+
+    def test_extract_client_api_keys_none_when_empty(self):
+        from src.api.server import extract_client_api_keys
+        req = MagicMock()
+        req.headers = {}
+        with patch.dict("os.environ", {"GROQ_API_KEY": "", "GEMINI_API_KEY": ""}, clear=True):
+            groq_k, gemini_k = extract_client_api_keys(req)
+            self.assertIsNone(groq_k)
+            self.assertIsNone(gemini_k)
+
+    def test_validate_api_keys_or_raise_401(self):
+        from src.api.server import validate_api_keys_or_raise
+        req = MagicMock()
+        with self.assertRaises(HTTPException) as ctx:
+            validate_api_keys_or_raise(req, groq_key=None, gemini_key=None, require_gemini=True)
+        self.assertEqual(ctx.exception.status_code, 401)
+        self.assertEqual(ctx.exception.detail.get("error"), "API_KEYS_REQUIRED")
+        self.assertIn("Ajustes", ctx.exception.detail.get("message", ""))
+
+    def test_validate_api_keys_or_raise_passes_with_keys(self):
+        from src.api.server import validate_api_keys_or_raise
+        req = MagicMock()
+        # Should not raise exception
+        validate_api_keys_or_raise(req, groq_key="key1", gemini_key="key2", require_gemini=True)
+
+    def test_get_oauth_redirect_uri_render_env(self):
+        from src.api.server import get_oauth_redirect_uri
+        with patch.dict("os.environ", {"RENDER_EXTERNAL_URL": "https://whisperdnd.onrender.com"}):
+            uri = get_oauth_redirect_uri()
+            self.assertEqual(uri, "https://whisperdnd.onrender.com/oauth2callback")
+
+    def test_get_oauth_redirect_uri_request_headers(self):
+        from src.api.server import get_oauth_redirect_uri
+        req = MagicMock()
+        req.headers = {"x-forwarded-host": "myapp.run.app", "x-forwarded-proto": "https"}
+        req.url.path = "/api/auth/drive/callback"
+        with patch.dict("os.environ", {}, clear=True):
+            uri = get_oauth_redirect_uri(req)
+            self.assertEqual(uri, "https://myapp.run.app/api/auth/drive/callback")
+
+    def test_get_oauth_redirect_uri_custom_override(self):
+        from src.api.server import get_oauth_redirect_uri
+        uri = get_oauth_redirect_uri(custom_redirect="https://custom.domain.com/callback")
+        self.assertEqual(uri, "https://custom.domain.com/callback")
+
+    def test_transcribe_endpoint_rejects_missing_keys_with_401(self):
+        from fastapi.testclient import TestClient
+        client = TestClient(app)
+        with patch.dict("os.environ", {"GROQ_API_KEY": "", "GEMINI_API_KEY": ""}, clear=True):
+            res = client.post("/api/process-youtube", json={"url": "https://www.youtube.com/watch?v=dQw4w9WgXcQ"})
+            self.assertEqual(res.status_code, 401)
+            data = res.json()
+            self.assertEqual(data.get("error"), "API_KEYS_REQUIRED")
+            self.assertIn("Ajustes", data.get("message", ""))
+
+    def test_transcribe_endpoint_accepts_client_headers(self):
+        from fastapi.testclient import TestClient
+        client = TestClient(app)
+        with patch.dict("os.environ", {"GROQ_API_KEY": "", "GEMINI_API_KEY": ""}, clear=True):
+            with patch("src.api.server.download_youtube_audio", return_value="/tmp/test.mp3"):
+                with patch("src.api.server.transcribe_audio_pipeline") as mock_pipeline:
+                    mock_pipeline.return_value = {
+                        "text": "test audio text",
+                        "segments": [],
+                        "language": "es",
+                        "duration": 5.0,
+                    }
+                    with patch("src.api.server.GeminiTTRPGSummarizer") as mock_summarizer_cls:
+                        mock_sum = MagicMock()
+                        mock_sum.generate_academic_notes.return_value = "# Apuntes\n- Item"
+                        mock_summarizer_cls.return_value = mock_sum
+                        res = client.post(
+                            "/api/process-youtube",
+                            json={"url": "https://www.youtube.com/watch?v=dQw4w9WgXcQ", "recording_mode": "class"},
+                            headers={
+                                "X-Groq-Api-Key": "custom-groq-key",
+                                "X-Gemini-Api-Key": "custom-gemini-key",
+                            }
+                        )
+                        self.assertEqual(res.status_code, 200)
+                        mock_summarizer_cls.assert_called_with(api_key="custom-gemini-key")
+                        _, kwargs = mock_pipeline.call_args
+                        self.assertEqual(kwargs.get("groq_api_key"), "custom-groq-key")
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -104,11 +104,20 @@ La aplicación incluye soporte nativo para despliegue en contenedores sin estado
 - **Formatos de Descarga**:
   - **Markdown (`.md`)**: Tablas de misiones, directorio de PNJs y capítulos cronológicos.
   - **Microsoft Word (`.docx`)**: Formateado profesional con estilos universitarios o de fantasía medieval, tablas estilizadas y márgenes normalizados.
-- **Google Drive OAuth 2.0**:
-  - Autenticación con 1 clic (`credentials.json`).
+- **Google Drive OAuth 2.0 Dinámico**:
+  - Detección automática del dominio en producción mediante `RENDER_EXTERNAL_URL` o cabeceras de proxy (`Host`, `X-Forwarded-Proto`).
+  - Soporte de rutas duales de callback: `/oauth2callback` y `/api/auth/drive/callback`.
   - Subida directa a la carpeta *"Whisper AI - Transcripciones"* en tu Google Drive.
 
 ---
+
+### 8. 🔑 Credenciales Multi-Tenant en el Cliente (BYOK - Bring Your Own Key)
+- **Ajustes Personales en el Navegador**:
+  - Los usuarios pueden ingresar sus claves personales de **Groq** (`GROQ_API_KEY`) y **Gemini** (`GEMINI_API_KEY`) desde la sección `[ ⚙️ Ajustes ]`.
+  - Las claves se almacenan exclusivamente en el navegador (`localStorage: user_groq_key, user_gemini_key`) y se envían cifradas en cada petición mediante cabeceras HTTP (`X-Groq-Api-Key`, `X-Gemini-Api-Key`).
+- **Prioridad Backend Estricta (Cabeceras > Entorno)**:
+  - El servidor prioriza las llaves enviadas por el cliente sobre las variables de entorno locales.
+  - Si un usuario no proporciona claves y el servidor no tiene variables configuradas, se devuelve un error HTTP 401 estructurado (`{"error": "API_KEYS_REQUIRED", "message": "..."}`) que redirige automáticamente a la pantalla de Ajustes.
 
 ## 🛠️ Requisitos Previos
 

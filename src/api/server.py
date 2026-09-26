@@ -428,6 +428,7 @@ def process_session_for_campaign(
     session_number: Optional[int] = None,
     target_language: str = "es",
     is_youtube: bool = False,
+    gemini_api_key: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
     Process a session transcript for a living campaign:
@@ -464,7 +465,7 @@ def process_session_for_campaign(
         if user_character is None:
             user_character = {}  # Explicitly empty: 0 selected characters, disable default Markus coaching
 
-    summarizer = GeminiTTRPGSummarizer()
+    summarizer = GeminiTTRPGSummarizer(api_key=gemini_api_key)
     session_data = summarizer.generate_campaign_session(
         transcript_text=transcript_text,
         roster=final_roster,
@@ -825,6 +826,69 @@ async def global_exception_handler(request: Request, exc: Exception):
 
 
 # ---------------------------------------------------------------------------
+# Multi-Tenant Client API Keys & Dynamic OAuth Helpers
+# ---------------------------------------------------------------------------
+def extract_client_api_keys(request: Optional[Request] = None) -> Tuple[Optional[str], Optional[str]]:
+    """
+    Extract multi-tenant client API keys:
+    Prioritize HTTP request headers ('X-Groq-Api-Key', 'X-Gemini-Api-Key') over server environment variables.
+    """
+    if request:
+        groq_key = (request.headers.get("X-Groq-Api-Key") or os.environ.get("GROQ_API_KEY", "")).strip() or None
+        gemini_key = (request.headers.get("X-Gemini-Api-Key") or os.environ.get("GEMINI_API_KEY", "")).strip() or None
+    else:
+        groq_key = os.environ.get("GROQ_API_KEY", "").strip() or None
+        gemini_key = os.environ.get("GEMINI_API_KEY", "").strip() or None
+    return groq_key, gemini_key
+
+
+def validate_api_keys_or_raise(
+    request: Optional[Request],
+    groq_key: Optional[str],
+    gemini_key: Optional[str],
+    require_gemini: bool = True,
+    require_groq: bool = False,
+) -> None:
+    """
+    If running via an HTTP request and neither key is provided, or if Gemini key is required and missing,
+    raise HTTP 401 with a clear multi-tenant message.
+    """
+    if request is not None:
+        if (not groq_key and not gemini_key) or (require_gemini and not gemini_key) or (require_groq and not groq_key):
+            raise HTTPException(
+                status_code=401,
+                detail={
+                    "error": "API_KEYS_REQUIRED",
+                    "message": "Por favor ingresa tus API keys de Groq y Gemini en la sección de Ajustes para continuar.",
+                },
+            )
+
+
+def get_oauth_redirect_uri(request: Optional[Request] = None, custom_redirect: Optional[str] = None) -> str:
+    """
+    Dynamically build OAuth redirect_uri:
+    1. custom_redirect if provided.
+    2. RENDER_EXTERNAL_URL if running on Render.
+    3. Host/Scheme headers from incoming HTTP request.
+    4. Fallback to http://localhost:8080.
+    """
+    if custom_redirect:
+        return custom_redirect
+    render_url = os.environ.get("RENDER_EXTERNAL_URL")
+    if render_url:
+        base = render_url.rstrip("/")
+    elif request:
+        host = request.headers.get("x-forwarded-host") or request.headers.get("host") or request.url.netloc or "localhost:8080"
+        scheme = request.headers.get("x-forwarded-proto") or request.url.scheme or "http"
+        base = f"{scheme}://{host}".rstrip("/")
+    else:
+        base = "http://localhost:8080"
+
+    path = "/api/auth/drive/callback" if (request and request.url.path.endswith("/api/auth/drive/callback")) else "/oauth2callback"
+    return f"{base}{path}"
+
+
+# ---------------------------------------------------------------------------
 # Helper: Audio Transcription Pipeline (Groq Cloud vs Local Whisper)
 # ---------------------------------------------------------------------------
 def transcribe_audio_pipeline(
@@ -837,6 +901,7 @@ def transcribe_audio_pipeline(
     user_char_name: Optional[str] = None,
     speaking_log: Optional[List[Dict[str, Any]]] = None,
     roster: Optional[List[Dict[str, Any]]] = None,
+    groq_api_key: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
     Route transcription to Groq Cloud (whisper-large-v3) or Local faster-whisper.
@@ -847,12 +912,12 @@ def transcribe_audio_pipeline(
 
     if engine_choice == "groq":
         try:
-            groq_key = os.getenv("GROQ_API_KEY", "").strip()
-            if not groq_key:
+            active_groq_key = (groq_api_key or os.getenv("GROQ_API_KEY", "")).strip()
+            if not active_groq_key:
                 print("[transcribe_pipeline] Warning: GROQ_API_KEY not configured. Falling back to local whisper.")
-                raise ValueError("GROQ_API_KEY no configurada en .env")
+                raise ValueError("GROQ_API_KEY no configurada")
             print(f"[transcribe_pipeline] Transcribing with Groq Cloud (whisper-large-v3, lang={whisper_lang}): {audio_path}")
-            transcriber = GroqWhisperTranscriber()
+            transcriber = GroqWhisperTranscriber(api_key=active_groq_key)
             result = transcriber.transcribe(
                 audio_path,
                 language=whisper_lang,
@@ -972,11 +1037,14 @@ async def get_recording_status():
 
 
 @app.post("/api/record/stop-and-process")
-async def stop_and_process(payload: StopAndProcessRequest):
+async def stop_and_process(payload: StopAndProcessRequest, request: Request = None):
     """
     Stop live recording, run faster-whisper, generate Gemini chronicle/campaign updates with roster,
     and produce downloadable .docx and .md Grimorio files.
     """
+    groq_key, gemini_key = extract_client_api_keys(request)
+    validate_api_keys_or_raise(request, groq_key, gemini_key, require_gemini=True)
+
     if not active_recorder.is_recording:
         raise HTTPException(status_code=400, detail="No hay ninguna sesión de grabación activa.")
 
@@ -1026,6 +1094,7 @@ async def stop_and_process(payload: StopAndProcessRequest):
             user_char_name=user_char_name,
             speaking_log=speaking_log,
             roster=roster_dicts,
+            groq_api_key=groq_key,
         )
     except Exception as exc:
         err_type, human_err, stage = diagnose_exception(exc)
@@ -1048,7 +1117,7 @@ async def stop_and_process(payload: StopAndProcessRequest):
         now_formatted = datetime.datetime.now().strftime("%d/%m/%Y %H:%M")
 
         try:
-            summarizer = GeminiTTRPGSummarizer()
+            summarizer = GeminiTTRPGSummarizer(api_key=gemini_key)
             chronicle_md = await run_in_threadpool(
                 summarizer.generate_academic_notes,
                 transcript_text=transcript_text,
@@ -1137,6 +1206,7 @@ async def stop_and_process(payload: StopAndProcessRequest):
                 roster_dicts=roster_dicts,
                 session_number=payload.session_number,
                 target_language=payload.target_language,
+                gemini_api_key=gemini_key,
             )
             campaign_state = camp_res.get("campaign_state")
             session_chapter = camp_res.get("session_chapter")
@@ -1154,7 +1224,7 @@ async def stop_and_process(payload: StopAndProcessRequest):
 
     if not docx_filename:
         try:
-            summarizer = GeminiTTRPGSummarizer()
+            summarizer = GeminiTTRPGSummarizer(api_key=gemini_key)
             chronicle_md = await run_in_threadpool(
                 summarizer.generate_chronicle,
                 transcript_text=transcript_text,
@@ -1586,8 +1656,11 @@ async def download_academic_note_docx(filename: str):
 # ---------------------------------------------------------------------------
 @app.post("/api/transcribe/youtube", response_model=TranscribeResponse)
 @app.post("/api/process-youtube", response_model=TranscribeResponse)
-async def transcribe_youtube(payload: YouTubeTranscribeRequest):
+async def transcribe_youtube(payload: YouTubeTranscribeRequest, request: Request = None):
     """Download audio from YouTube and transcribe it using Groq Whisper or faster-whisper."""
+    groq_key, gemini_key = extract_client_api_keys(request)
+    validate_api_keys_or_raise(request, groq_key, gemini_key, require_gemini=True)
+
     task_id = payload.task_id
     url = payload.url.strip()
     model_size = payload.model_size or "base"
@@ -1633,6 +1706,7 @@ async def transcribe_youtube(payload: YouTubeTranscribeRequest):
             source="youtube",
             user_char_name=user_char_name,
             roster=roster_dicts,
+            groq_api_key=groq_key,
         )
     except Exception as exc:
         human_err = format_human_error(exc)
@@ -1670,7 +1744,7 @@ async def transcribe_youtube(payload: YouTubeTranscribeRequest):
         now_formatted = datetime.datetime.now().strftime("%d/%m/%Y %H:%M")
 
         try:
-            summarizer = GeminiTTRPGSummarizer()
+            summarizer = GeminiTTRPGSummarizer(api_key=gemini_key)
             chronicle_md = await run_in_threadpool(
                 summarizer.generate_academic_notes,
                 transcript_text=transcript_text,
@@ -1718,6 +1792,7 @@ async def transcribe_youtube(payload: YouTubeTranscribeRequest):
                     session_number=payload.session_number,
                     target_language=payload.target_language,
                     is_youtube=True,
+                    gemini_api_key=gemini_key,
                 )
                 campaign_state = camp_res.get("campaign_state")
                 session_chapter = camp_res.get("session_chapter")
@@ -1808,6 +1883,7 @@ async def transcribe_youtube(payload: YouTubeTranscribeRequest):
 
 
 @app.post("/api/upload", response_model=TranscribeResponse)
+@app.post("/api/transcribe", response_model=TranscribeResponse)
 @app.post("/api/transcribe/file", response_model=TranscribeResponse)
 async def transcribe_file(
     file: UploadFile = File(...),
@@ -1821,8 +1897,12 @@ async def transcribe_file(
     subject: Optional[str] = Form(default=None),
     topic: Optional[str] = Form(default=None),
     target_language: str = Form(default="es"),
+    request: Request = None,
 ):
     """Accept an uploaded audio file and transcribe it using Groq Whisper or faster-whisper."""
+    groq_key, gemini_key = extract_client_api_keys(request)
+    validate_api_keys_or_raise(request, groq_key, gemini_key, require_gemini=True)
+
     if not file.filename:
         raise HTTPException(status_code=400, detail="No file uploaded.")
 
@@ -1872,6 +1952,7 @@ async def transcribe_file(
             source="local",
             user_char_name=user_char_name,
             roster=roster_dicts,
+            groq_api_key=groq_key,
         )
     except Exception as exc:
         err_type, human_err, stage = diagnose_exception(exc)
@@ -1905,7 +1986,7 @@ async def transcribe_file(
         now_formatted = datetime.datetime.now().strftime("%d/%m/%Y %H:%M")
 
         try:
-            summarizer = GeminiTTRPGSummarizer()
+            summarizer = GeminiTTRPGSummarizer(api_key=gemini_key)
             chronicle_md = await run_in_threadpool(
                 summarizer.generate_academic_notes,
                 transcript_text=transcript_text,
@@ -1970,6 +2051,7 @@ async def transcribe_file(
                 roster_dicts=roster_dicts,
                 session_number=session_number,
                 target_language=target_language,
+                gemini_api_key=gemini_key,
             )
             campaign_state = camp_res.get("campaign_state")
             session_chapter = camp_res.get("session_chapter")
@@ -2040,11 +2122,14 @@ async def transcribe_file(
 
 
 @app.post("/api/summarize/switch-language", response_model=TranscribeResponse)
-async def switch_summary_language(payload: SwitchLanguageRequest):
+async def switch_summary_language(payload: SwitchLanguageRequest, request: Request = None):
     """
     Re-generate the chronicle or academic notes in a new target language (ES/EN)
     using the cached transcript text, in ~5-10 seconds without re-downloading or re-transcribing audio.
     """
+    _, gemini_key = extract_client_api_keys(request)
+    validate_api_keys_or_raise(request, None, gemini_key, require_gemini=True)
+
     transcript_text = payload.transcript_text.strip()
     if not transcript_text:
         raise HTTPException(status_code=400, detail="El texto de transcripción está vacío.")
@@ -2067,7 +2152,7 @@ async def switch_summary_language(payload: SwitchLanguageRequest):
     detected_pcs = None
     chronicle_md = ""
 
-    summarizer = GeminiTTRPGSummarizer()
+    summarizer = GeminiTTRPGSummarizer(api_key=gemini_key)
 
     if is_class_mode:
         subj = (payload.subject or "").strip() or "Materia Universitaria"
@@ -2107,6 +2192,7 @@ async def switch_summary_language(payload: SwitchLanguageRequest):
                     roster_dicts=roster_dicts,
                     session_number=payload.session_number,
                     target_language=target_lang,
+                    gemini_api_key=gemini_key,
                 )
                 campaign_state = camp_res.get("campaign_state")
                 session_chapter = camp_res.get("session_chapter")
@@ -2181,13 +2267,17 @@ async def switch_summary_language(payload: SwitchLanguageRequest):
 
 
 @app.post("/api/campaign/reprocess", response_model=TranscribeResponse)
-async def reprocess_campaign(payload: ReprocessCampaignRequest):
+@app.post("/api/regenerate", response_model=TranscribeResponse)
+async def reprocess_campaign(payload: ReprocessCampaignRequest, request: Request = None):
     """
     Re-run ONLY the Gemini summarizer step using the cached transcript in ~10-15s
     (does NOT invoke Whisper or YouTube).
     Returns updated TranscribeResponse with populated chronicle, campaign_state,
     updated_quests, updated_npcs, detected_npc_names.
     """
+    _, gemini_key = extract_client_api_keys(request)
+    validate_api_keys_or_raise(request, None, gemini_key, require_gemini=True)
+
     transcript_text = payload.transcript_text.strip()
     if not transcript_text:
         raise HTTPException(status_code=400, detail="El texto de transcripción está vacío.")
@@ -2211,7 +2301,7 @@ async def reprocess_campaign(payload: ReprocessCampaignRequest):
     detected_pcs = None
     chronicle_md = ""
 
-    summarizer = GeminiTTRPGSummarizer()
+    summarizer = GeminiTTRPGSummarizer(api_key=gemini_key)
 
     if is_class_mode:
         subj = (payload.subject or "").strip() or "Materia Universitaria"
@@ -2254,6 +2344,7 @@ async def reprocess_campaign(payload: ReprocessCampaignRequest):
                 session_number=session_num,
                 target_language=target_lang,
                 is_youtube=bool(payload.is_youtube),
+                gemini_api_key=gemini_key,
             )
             campaign_state = camp_res.get("campaign_state")
             session_chapter = camp_res.get("session_chapter")
@@ -2805,13 +2896,14 @@ async def get_task_status_endpoint(task_id: str = Query(..., description="ID of 
 
 
 @app.get("/api/status/keys")
-async def check_api_keys():
+async def check_api_keys(request: Request = None):
     """
     Perform a lightweight 1-second ping to verify health and availability of
     Groq, Gemini, and Google Drive credentials.
     """
+    groq_key, gemini_key = extract_client_api_keys(request)
+
     # 1. Groq Check
-    groq_key = os.getenv("GROQ_API_KEY", "").strip()
     groq_ok = False
     groq_msg = ""
     if not groq_key:
@@ -2831,7 +2923,6 @@ async def check_api_keys():
             groq_msg = f"Error validando Groq: {exc}"
 
     # 2. Gemini Check
-    gemini_key = os.getenv("GEMINI_API_KEY", "").strip()
     gemini_ok = False
     gemini_msg = ""
     if not gemini_key:
@@ -2888,16 +2979,16 @@ async def get_drive_status():
 
 
 @app.get("/api/auth/drive/login")
-async def drive_login(redirect_uri: Optional[str] = None):
+async def drive_login(request: Request = None, redirect_uri: Optional[str] = None):
     """Generate Google Drive OAuth authorization URL without blocking the FastAPI server."""
     drive_storage = GoogleDriveStorage()
-    target_redirect = redirect_uri or "http://localhost:8080/api/auth/drive/callback"
+    target_redirect = get_oauth_redirect_uri(request, redirect_uri)
     try:
         auth_url = await run_in_threadpool(
             drive_storage.get_authorization_url,
             target_redirect,
         )
-        return {"auth_url": auth_url}
+        return {"auth_url": auth_url, "redirect_uri": target_redirect}
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except Exception as exc:
@@ -2905,7 +2996,9 @@ async def drive_login(redirect_uri: Optional[str] = None):
 
 
 @app.get("/api/auth/drive/callback")
+@app.get("/oauth2callback")
 async def drive_callback(
+    request: Request = None,
     code: Optional[str] = None,
     state: Optional[str] = None,
     error: Optional[str] = None,
@@ -2919,12 +3012,18 @@ async def drive_callback(
     if not code or not isinstance(code, str):
         raise HTTPException(status_code=400, detail="Código de autorización ausente en el callback.")
 
+    target_redirect = get_oauth_redirect_uri(request)
+    if request and request.url.path.endswith("/api/auth/drive/callback"):
+        render_url = os.environ.get("RENDER_EXTERNAL_URL")
+        base = render_url.rstrip("/") if render_url else f"{request.url.scheme}://{request.headers.get('host', request.url.netloc)}".rstrip("/")
+        target_redirect = f"{base}/api/auth/drive/callback"
+
     drive_storage = GoogleDriveStorage()
     try:
         await run_in_threadpool(
             drive_storage.exchange_code_for_token,
             code=code,
-            redirect_uri="http://localhost:8080/api/auth/drive/callback",
+            redirect_uri=target_redirect,
             state=state,
         )
         return RedirectResponse(url="/?drive_connected=true", status_code=302)
@@ -2933,7 +3032,7 @@ async def drive_callback(
 
 
 @app.post("/api/drive/connect")
-async def connect_drive():
+async def connect_drive(request: Request = None):
     """Generate Google Drive authorization URL upfront."""
     drive_storage = GoogleDriveStorage()
     if not drive_storage.credentials_path.is_file():
@@ -2941,15 +3040,17 @@ async def connect_drive():
             status_code=400,
             detail="No se encontró el archivo credentials.json en la raíz del proyecto. Coloca el archivo descargado de Google Cloud Console.",
         )
+    target_redirect = get_oauth_redirect_uri(request)
     try:
         auth_url = await run_in_threadpool(
             drive_storage.get_authorization_url,
-            "http://localhost:8080/api/auth/drive/callback",
+            target_redirect,
         )
         return {
             "status": "success",
             "connected": drive_storage.is_connected(),
             "auth_url": auth_url,
+            "redirect_uri": target_redirect,
             "message": "URL de autorización generada.",
         }
     except Exception as exc:
