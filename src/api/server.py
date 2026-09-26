@@ -84,6 +84,11 @@ def get_data_campaigns_dir() -> Path:
     return p
 
 
+def get_campaign_path(campaign_name: str) -> Path:
+    safe_name = CampaignManager().sanitize_name(str(campaign_name or "Campaña Principal"))
+    return get_data_campaigns_dir() / f"{safe_name}.json"
+
+
 # Ensure runtime directories exist
 get_data_input_dir()
 get_data_output_dir()
@@ -145,6 +150,38 @@ app.add_middleware(
 static_dir = project_root / "static"
 if static_dir.is_dir():
     app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
+
+
+def trigger_drive_sync_background(
+    file_paths: Optional[List[Union[str, Path]]] = None,
+    folder_name: str = "WhisperDnD",
+):
+    """
+    Fire-and-forget background upload of modified file(s) to Google Drive.
+    If Google Drive is not connected, fails silently and cleanly.
+    """
+    try:
+        ds = GoogleDriveStorage()
+        if not ds.is_connected():
+            return
+
+        async def _worker():
+            try:
+                if file_paths:
+                    for fp in file_paths:
+                        p = Path(fp).resolve()
+                        if p.is_file():
+                            await run_in_threadpool(ds.upload_file, str(p), folder_name=folder_name)
+                else:
+                    camp_dir = get_data_campaigns_dir()
+                    out_dir = get_data_output_dir()
+                    await run_in_threadpool(ds.sync_from_google_drive, camp_dir, out_dir)
+            except Exception as e:
+                print(f"[DriveBackgroundSync] Warning during background upload: {e}")
+
+        asyncio.create_task(_worker())
+    except Exception as exc:
+        print(f"[DriveBackgroundSync] Could not schedule background sync: {exc}")
 
 
 # ---------------------------------------------------------------------------
@@ -1178,6 +1215,19 @@ async def stop_and_process(payload: StopAndProcessRequest, request: Request = No
         except Exception as exc:
             print(f"[!] Warning: academic notes export failed: {exc}")
 
+        # Update consolidated academic notes and sync to Drive in background
+        files_to_sync = []
+        try:
+            hist_path = update_consolidated_academic_notes_file()
+            if hist_path and hist_path.is_file():
+                files_to_sync.append(hist_path)
+        except Exception as exc:
+            print(f"[!] Warning: error updating consolidated academic notes: {exc}")
+        if md_out_path and md_out_path.is_file():
+            files_to_sync.append(md_out_path)
+        if files_to_sync:
+            trigger_drive_sync_background(files_to_sync)
+
         update_task_progress(task_id, 100.0, "¡Completado!", "Guía de estudio generada exitosamente.", stage="done")
         elapsed_time = round(time.time() - start_time, 2)
         language_code = transcription_result.get("language_code") or (
@@ -1303,6 +1353,21 @@ async def stop_and_process(payload: StopAndProcessRequest, request: Request = No
 
     update_task_progress(task_id, 100.0, "¡Completado!", "Sesión procesada exitosamente.", stage="done")
 
+    # Background Drive Sync for campaign files and session documents
+    files_to_sync = []
+    if payload.campaign_name:
+        c_path = get_campaign_path(payload.campaign_name)
+        if c_path and c_path.is_file():
+            files_to_sync.append(c_path)
+    if md_filename:
+        m_p = get_data_output_dir() / md_filename
+        if m_p.is_file():
+            files_to_sync.append(m_p)
+    if docx_out_path and docx_out_path.is_file():
+        files_to_sync.append(docx_out_path)
+    if files_to_sync:
+        trigger_drive_sync_background(files_to_sync)
+
     return {
         "status": "completed",
         "engine_used": transcription_result.get("engine_used", engine),
@@ -1411,6 +1476,66 @@ def format_note_date(mtime: float, filename: str) -> str:
         return f"{d}/{m}/{y} • {H}:{M}"
     dt = datetime.datetime.fromtimestamp(mtime)
     return dt.strftime("%d/%m/%Y • %H:%M")
+
+
+def update_consolidated_academic_notes_file() -> Path:
+    """
+    Consolidate all academic notes from data/output/ into data/apuntes_historial.json.
+    Each note entry includes metadata and content for seamless cloud backup and restore.
+    """
+    output_dir = get_data_output_dir()
+    project_root = Path(__file__).resolve().parent.parent.parent
+    historial_file = project_root / "data" / "apuntes_historial.json"
+    historial_file.parent.mkdir(parents=True, exist_ok=True)
+
+    notes = []
+    if output_dir.exists():
+        for md_file in output_dir.glob("apuntes_*.md"):
+            try:
+                stat = md_file.stat()
+                content = md_file.read_text(encoding="utf-8", errors="replace")
+                title = extract_clean_note_title(md_file.name, content)
+                formatted_date = format_note_date(stat.st_mtime, md_file.name)
+                words = len(content.split())
+
+                docx_filename = md_file.name.replace(".md", ".docx")
+                txt_filename = md_file.name.replace(".md", "_transcripcion.txt")
+                if not (output_dir / txt_filename).is_file():
+                    txt_cand = md_file.name.replace(".md", ".txt")
+                    if (output_dir / txt_cand).is_file():
+                        txt_filename = txt_cand
+                    else:
+                        txt_filename = None
+
+                lines = content.strip().split("\n")
+                clean_lines = [l for l in lines[1:8] if l.strip() and not l.strip().startswith("---") and not l.strip().startswith("#")]
+                excerpt = " ".join(clean_lines)[:240] if clean_lines else (content[:240] + "...")
+
+                notes.append({
+                    "filename": md_file.name,
+                    "title": title,
+                    "topic": title,
+                    "date": formatted_date,
+                    "created_at": formatted_date,
+                    "word_count": words,
+                    "timestamp": stat.st_mtime,
+                    "size_bytes": stat.st_size,
+                    "docx_filename": docx_filename,
+                    "txt_filename": txt_filename if txt_filename and (output_dir / txt_filename).is_file() else None,
+                    "excerpt": excerpt,
+                    "content": content,
+                })
+            except Exception:
+                continue
+
+    notes.sort(key=lambda x: x.get("timestamp", 0), reverse=True)
+    payload = {
+        "updated_at": datetime.datetime.now().isoformat(),
+        "total_notes": len(notes),
+        "notes": notes,
+    }
+    historial_file.write_text(json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8")
+    return historial_file
 
 
 @app.get("/api/academic-notes")
@@ -1554,6 +1679,17 @@ async def delete_academic_note(filename: str):
     if not deleted_files and not (output_dir / safe_filename).is_file():
         raise HTTPException(status_code=404, detail="La nota de estudio no fue encontrada en el servidor.")
 
+    # Update consolidated academic notes file and sync with Google Drive
+    try:
+        hist_file = update_consolidated_academic_notes_file()
+        trigger_drive_sync_background([hist_file])
+        ds = GoogleDriveStorage()
+        if ds.is_connected():
+            asyncio.create_task(run_in_threadpool(ds.delete_file, safe_filename, "WhisperDnD"))
+            asyncio.create_task(run_in_threadpool(ds.delete_file, safe_filename.replace(".md", ".docx"), "WhisperDnD"))
+    except Exception as exc:
+        print(f"[delete_academic_note] Warning syncing with Drive: {exc}")
+
     return {
         "success": True,
         "status": "deleted",
@@ -1599,6 +1735,16 @@ async def save_academic_note_endpoint(payload: SaveAcademicNoteRequest):
     if payload.transcript and payload.transcript.strip():
         txt_filename = safe_filename.replace(".md", "_transcripcion.txt")
         (output_dir / txt_filename).write_text(payload.transcript.strip(), encoding="utf-8")
+
+    # Update consolidated history and trigger background Google Drive sync
+    try:
+        hist_file = update_consolidated_academic_notes_file()
+        sync_files = [hist_file, md_path]
+        if docx_path.is_file():
+            sync_files.append(docx_path)
+        trigger_drive_sync_background(sync_files)
+    except Exception as exc:
+        print(f"[save_academic_note] Warning syncing with Drive: {exc}")
 
     return {
         "success": True,
@@ -1878,6 +2024,33 @@ async def transcribe_youtube(payload: YouTubeTranscribeRequest, request: Request
     except Exception as exc:
         print(f"[transcribe_youtube] Warning: could not auto-delete YouTube audio: {exc}")
 
+    # Background Drive Sync
+    try:
+        files_to_sync = []
+        if is_work_study:
+            hist_path = update_consolidated_academic_notes_file()
+            if hist_path and hist_path.is_file():
+                files_to_sync.append(hist_path)
+            if md_filename:
+                m_p = get_data_output_dir() / md_filename
+                if m_p.is_file():
+                    files_to_sync.append(m_p)
+        else:
+            c_name = payload.campaign_name or payload.campaign_id or "Campaña Principal"
+            if c_name:
+                c_path = get_campaign_path(c_name)
+                if c_path and c_path.is_file():
+                    files_to_sync.append(c_path)
+            if md_filename:
+                m_p = get_data_output_dir() / md_filename
+                if m_p.is_file():
+                    files_to_sync.append(m_p)
+            if file_path_str and Path(file_path_str).is_file():
+                files_to_sync.append(Path(file_path_str))
+        if files_to_sync:
+            trigger_drive_sync_background(files_to_sync)
+    except Exception as exc:
+        print(f"[transcribe_youtube] Warning triggering drive sync: {exc}")
     action_items = None
     key_points = None
     if is_work_study:
@@ -2045,6 +2218,19 @@ async def transcribe_file(
         except Exception as exc:
             print(f"[transcribe_file] Warning: academic notes export failed: {exc}")
 
+        # Background Drive Sync for academic notes
+        try:
+            files_to_sync = []
+            hist_path = update_consolidated_academic_notes_file()
+            if hist_path and hist_path.is_file():
+                files_to_sync.append(hist_path)
+            if md_out_path and md_out_path.is_file():
+                files_to_sync.append(md_out_path)
+            if files_to_sync:
+                trigger_drive_sync_background(files_to_sync)
+        except Exception as exc:
+            print(f"[transcribe_file] Warning triggering drive sync: {exc}")
+
         update_task_progress(task_id, 100.0, "¡Completado!", "Guía de estudio generada exitosamente.", stage="done")
         action_items, key_points = extract_academic_sections(chronicle_md or "")
         return TranscribeResponse(
@@ -2123,8 +2309,25 @@ async def transcribe_file(
             docx_filename = None
             md_filename = Path(out_md_path).name
 
-    update_task_progress(task_id, 95.0, "Generando documentos (.docx y .md)...", "Creando archivos del Grimorio (.docx y .md)...", stage="analyzing")
     update_task_progress(task_id, 100.0, "¡Completado!", "Sesión procesada exitosamente.", stage="done")
+
+    # Background Drive Sync for campaign files and session documents
+    try:
+        files_to_sync = []
+        if campaign_name:
+            c_path = get_campaign_path(campaign_name)
+            if c_path and c_path.is_file():
+                files_to_sync.append(c_path)
+        if md_filename:
+            m_p = get_data_output_dir() / md_filename
+            if m_p.is_file():
+                files_to_sync.append(m_p)
+        if file_path_str and Path(file_path_str).is_file():
+            files_to_sync.append(Path(file_path_str))
+        if files_to_sync:
+            trigger_drive_sync_background(files_to_sync)
+    except Exception as exc:
+        print(f"[transcribe_file] Warning triggering drive sync: {exc}")
 
     return TranscribeResponse(
         text=transcript_text,
@@ -2267,6 +2470,33 @@ async def switch_summary_language(payload: SwitchLanguageRequest, request: Reque
     if is_class_mode:
         action_items, key_points = extract_academic_sections(chronicle_md or "")
 
+    # Background Drive Sync
+    try:
+        files_to_sync = []
+        if is_class_mode:
+            hist_path = update_consolidated_academic_notes_file()
+            if hist_path and hist_path.is_file():
+                files_to_sync.append(hist_path)
+            if md_filename:
+                m_p = get_data_output_dir() / md_filename
+                if m_p.is_file():
+                    files_to_sync.append(m_p)
+        else:
+            if payload.campaign_name:
+                c_path = get_campaign_path(payload.campaign_name)
+                if c_path and c_path.is_file():
+                    files_to_sync.append(c_path)
+            if md_filename:
+                m_p = get_data_output_dir() / md_filename
+                if m_p.is_file():
+                    files_to_sync.append(m_p)
+            if file_path_str and Path(file_path_str).is_file():
+                files_to_sync.append(Path(file_path_str))
+        if files_to_sync:
+            trigger_drive_sync_background(files_to_sync)
+    except Exception as exc:
+        print(f"[switch_language] Warning triggering drive sync: {exc}")
+
     return TranscribeResponse(
         text=transcript_text,
         segments=[],
@@ -2396,6 +2626,33 @@ async def reprocess_campaign(payload: ReprocessCampaignRequest, request: Request
     key_points = None
     if is_class_mode:
         action_items, key_points = extract_academic_sections(chronicle_md or "")
+
+    # Background Drive Sync
+    try:
+        files_to_sync = []
+        if is_class_mode:
+            hist_path = update_consolidated_academic_notes_file()
+            if hist_path and hist_path.is_file():
+                files_to_sync.append(hist_path)
+            if md_filename:
+                m_p = get_data_output_dir() / md_filename
+                if m_p.is_file():
+                    files_to_sync.append(m_p)
+        else:
+            if campaign_name:
+                c_path = get_campaign_path(campaign_name)
+                if c_path and c_path.is_file():
+                    files_to_sync.append(c_path)
+            if md_filename:
+                m_p = get_data_output_dir() / md_filename
+                if m_p.is_file():
+                    files_to_sync.append(m_p)
+            if file_path_str and Path(file_path_str).is_file():
+                files_to_sync.append(Path(file_path_str))
+        if files_to_sync:
+            trigger_drive_sync_background(files_to_sync)
+    except Exception as exc:
+        print(f"[reprocess_campaign] Warning triggering drive sync: {exc}")
 
     return TranscribeResponse(
         text=transcript_text,
@@ -2541,6 +2798,13 @@ async def delete_campaign_endpoint(campaign_name: str):
     deleted = manager.delete_campaign(campaign_name, delete_exports=True)
     if not deleted:
         raise HTTPException(status_code=404, detail=f"Campaña '{campaign_name}' no encontrada.")
+    safe_name = manager.sanitize_name(campaign_name)
+    try:
+        ds = GoogleDriveStorage()
+        if ds.is_connected():
+            asyncio.create_task(run_in_threadpool(ds.delete_file, f"{safe_name}.json", "WhisperDnD"))
+    except Exception as exc:
+        print(f"[delete_campaign] Warning deleting from Drive: {exc}")
     return {"status": "deleted", "campaign": campaign_name}
 
 
@@ -2620,18 +2884,7 @@ async def create_or_init_campaign(payload: CreateCampaignRequest):
 
     if modified:
         saved_path = manager.save_campaign(state)
-        try:
-            ds = GoogleDriveStorage()
-            if ds.is_connected():
-                asyncio.create_task(
-                    run_in_threadpool(
-                        ds.upload_file,
-                        str(saved_path.resolve()),
-                        "WhisperDnD",
-                    )
-                )
-        except Exception:
-            pass
+        trigger_drive_sync_background([saved_path])
     return state
 
 
@@ -2640,6 +2893,8 @@ async def update_campaign_prior_lore(campaign_name: str, payload: UpdatePriorLor
     """Update and persist prior lore for an ongoing campaign."""
     manager = CampaignManager()
     state = manager.set_prior_lore(campaign_name, payload.prior_lore)
+    saved_path = manager.get_campaign_path(campaign_name)
+    trigger_drive_sync_background([saved_path])
     return {
         "status": "success",
         "campaign_name": campaign_name,
@@ -2659,6 +2914,9 @@ async def process_campaign_session_endpoint(campaign_name: str, payload: Process
             roster_dicts=roster_dicts,
             session_number=payload.session_number,
         )
+        manager = CampaignManager()
+        saved_path = manager.get_campaign_path(campaign_name)
+        trigger_drive_sync_background([saved_path])
         return result
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"Error procesando sesión de campaña: {exc}") from exc
@@ -2676,6 +2934,9 @@ async def finalize_npcs(campaign_name: str, payload: FinalizeNpcsRequest):
     # Re-export documents with corrected names
     export_living_journal_docx(state)
     export_living_journal_md(state)
+
+    saved_path = manager.get_campaign_path(campaign_name)
+    trigger_drive_sync_background([saved_path])
 
     return {
         "status": "success",
@@ -2702,6 +2963,10 @@ async def update_quest_subobjective(
         # Re-export documents
         export_living_journal_docx(state)
         export_living_journal_md(state)
+
+        saved_path = manager.get_campaign_path(campaign_name)
+        trigger_drive_sync_background([saved_path])
+
         return {
             "status": "success",
             "campaign_state": state,
@@ -2727,6 +2992,10 @@ async def update_quest_status_endpoint(
         )
         export_living_journal_docx(state)
         export_living_journal_md(state)
+
+        saved_path = manager.get_campaign_path(campaign_name)
+        trigger_drive_sync_background([saved_path])
+
         return {
             "status": "success",
             "campaign_state": state,
@@ -2753,6 +3022,10 @@ async def merge_campaign_entities_endpoint(campaign_name: str, payload: MergeEnt
             export_living_journal_md(updated_state)
         except Exception:
             pass
+
+        saved_path = manager.get_campaign_path(campaign_name)
+        trigger_drive_sync_background([saved_path])
+
         return {
             "status": "success",
             "message": f"Se fusionó '{payload.source_name}' en '{payload.target_name}' correctamente.",
@@ -2776,6 +3049,10 @@ async def deduplicate_campaign_endpoint(campaign_name: str):
             export_living_journal_md(result["campaign_state"])
         except Exception:
             pass
+
+        saved_path = manager.get_campaign_path(campaign_name)
+        trigger_drive_sync_background([saved_path])
+
         return {
             "status": "success",
             "merged_count": result.get("merged_count", 0),

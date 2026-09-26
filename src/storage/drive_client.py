@@ -396,6 +396,25 @@ class GoogleDriveStorage:
             status, done = downloader.next_chunk()
         return fh.getvalue()
 
+    def delete_file(self, filename: str, folder_name: str = DEFAULT_FOLDER_NAME) -> bool:
+        """Trash or delete a file in the specified Drive folder."""
+        if not self.is_connected():
+            return False
+        try:
+            service = self.service
+            folder_id = self.get_or_create_folder(folder_name=folder_name)
+            escaped_name = filename.replace("'", "\\'")
+            q = f"name = '{escaped_name}' and '{folder_id}' in parents and trashed = false"
+            res = service.files().list(q=q, spaces="drive", fields="files(id, name)").execute()
+            deleted = False
+            for item in res.get("files", []):
+                service.files().delete(fileId=item["id"]).execute()
+                deleted = True
+            return deleted
+        except Exception as e:
+            print(f"[GoogleDriveStorage] Error deleting {filename} from Drive: {e}")
+            return False
+
     def sync_from_google_drive(
         self,
         campaigns_dir: Optional[Path] = None,
@@ -512,6 +531,30 @@ class GoogleDriveStorage:
             if lower_name.endswith(".json"):
                 if lower_name == "manifest.json":
                     continue
+                if lower_name == "apuntes_historial.json":
+                    try:
+                        content = self.download_file_bytes(fid)
+                        data_historial_file = project_root / "data" / "apuntes_historial.json"
+                        data_historial_file.parent.mkdir(parents=True, exist_ok=True)
+                        data_historial_file.write_bytes(content)
+
+                        # Reconstruct any missing note .md files in o_dir
+                        parsed_notes = json.loads(content.decode("utf-8"))
+                        notes_list = (
+                            parsed_notes.get("notes", [])
+                            if isinstance(parsed_notes, dict)
+                            else (parsed_notes if isinstance(parsed_notes, list) else [])
+                        )
+                        for note in notes_list:
+                            if isinstance(note, dict) and note.get("filename") and note.get("content"):
+                                note_target = o_dir / Path(note["filename"]).name
+                                if not note_target.is_file():
+                                    note_target.write_text(note["content"], encoding="utf-8")
+                                    downloaded_notes += 1
+                    except Exception as exc:
+                        print(f"[GoogleDriveStorage] Error restoring apuntes_historial.json: {exc}")
+                    continue
+
                 try:
                     content = self.download_file_bytes(fid)
                     data = json.loads(content.decode("utf-8"))
@@ -617,6 +660,14 @@ class GoogleDriveStorage:
                         synced_campaign_names.append(c_name)
                 except Exception as exc:
                     print(f"[GoogleDriveStorage] Error uploading local campaign {local_json.name}: {exc}")
+
+        # Push consolidated apuntes_historial.json if present locally
+        local_historial = project_root / "data" / "apuntes_historial.json"
+        if local_historial.is_file() and local_historial.name not in remote_filenames:
+            try:
+                self.upload_file(str(local_historial.resolve()), folder_name=primary_folder)
+            except Exception as exc:
+                print(f"[GoogleDriveStorage] Error uploading apuntes_historial.json: {exc}")
 
         # Ensure all existing local campaigns are included in synced_campaign_names
         for local_json in c_dir.glob("*.json"):

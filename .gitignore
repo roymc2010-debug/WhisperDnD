@@ -246,9 +246,10 @@ token.json
 data/.discord_token.json
 *.token.json
 
-# Local Campaign State Files
+# Local Campaign State Files & History
 data/campaigns/*.json
 !data/campaigns/.gitkeep
+data/*.json
 
 scratch/
 
