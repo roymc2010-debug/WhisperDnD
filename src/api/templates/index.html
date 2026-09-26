@@ -372,7 +372,7 @@
   </nav>
 
   <!-- Main Content Area (flex-1 h-screen overflow-y-auto) -->
-  <main class="flex-1 flex flex-col h-screen overflow-y-auto bg-slate-950 p-4 sm:p-6 pb-24 md:pb-6 relative">
+  <main class="flex-1 flex flex-col h-screen overflow-y-auto bg-slate-950 p-4 sm:p-6 pb-28 sm:pb-8 relative">
     <div id="alertBox" class="hidden rounded-xl border p-4 text-sm flex items-start gap-3 transition">
       <div id="alertIcon"></div>
       <div class="flex-1 text-slate-200" id="alertMessage"></div>
@@ -1044,9 +1044,6 @@
           <button id="btnDownloadAudio" onclick="downloadAudioFile()" class="hidden px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 active:scale-[0.98] duration-150 text-slate-200 hover:text-white text-xs font-medium border border-white/10 transition flex items-center gap-1.5 cursor-pointer" title="Descargar archivo de audio original (.wav)">
             <span>⬇️</span> <span id="btnDownloadAudioText">Descargar Audio</span>
           </button>
-          <button id="btnExportDrive" onclick="uploadCampaignToDrive()" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 active:scale-[0.98] duration-150 text-slate-200 hover:text-white text-xs font-medium border border-white/10 transition flex items-center gap-1.5 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed">
-            <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z"/></svg> <span id="btnDriveText">Subir a Drive</span>
-          </button>
           <button onclick="copyCurrentContent()" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 active:scale-[0.98] duration-150 text-slate-200 text-xs font-medium border border-slate-700 transition flex items-center gap-1.5 cursor-pointer">
             <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg> <span id="copyBtnText">Copiar</span>
           </button>
@@ -1072,6 +1069,26 @@
           <span>Abrir en Google Drive</span>
           <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path></svg>
         </a>
+      </div>
+
+      <!-- Banner de Retención de Transcripción (YouTube / Archivo Local) -->
+      <div id="transcriptRetentionPrompt" class="hidden p-3.5 bg-slate-900 border border-amber-500/40 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs shadow-md">
+        <div class="flex items-start gap-2.5">
+          <span class="text-lg shrink-0">🗑️</span>
+          <div>
+            <div class="font-semibold text-amber-300">¿Deseas conservar la transcripción completa de este video/archivo o solo los apuntes estructurados?</div>
+            <div class="text-slate-400 text-[11px] mt-0.5">Puedes descartar el texto en bruto para ahorrar espacio; tus apuntes y crónica estructurada ya están guardados.</div>
+          </div>
+        </div>
+        <div class="flex items-center gap-2 shrink-0 self-end sm:self-center">
+          <button type="button" onclick="confirmKeepTranscript()" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-medium border border-slate-700 transition cursor-pointer">
+            Conservar Todo
+          </button>
+          <button type="button" onclick="confirmDiscardTranscript()" class="px-3 py-1.5 rounded-lg bg-rose-600/80 hover:bg-rose-500 text-white text-xs font-semibold shadow transition cursor-pointer flex items-center gap-1">
+            <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
+            <span>Descartar Transcripción Cruda</span>
+          </button>
+        </div>
       </div>
 
       <!-- Selector de Pestañas de Resultados -->
@@ -3169,6 +3186,29 @@ function refreshAudioDevices() {
 
     let hasAutoSyncedDriveThisSession = false;
 
+    async function restoreDriveSessionFromClient() {
+      const cachedToken = localStorage.getItem("gdrive_auth_token");
+      if (!cachedToken) return false;
+      try {
+        const tokenObj = JSON.parse(cachedToken);
+        const res = await fetch("/api/auth/gdrive/restore", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ token_data: tokenObj })
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (data.connected) {
+            updateDriveUIState(true);
+            return true;
+          }
+        }
+      } catch (e) {
+        console.warn("[restoreDriveSessionFromClient] Could not restore Drive session from localStorage:", e);
+      }
+      return false;
+    }
+
     async function checkDriveStatus() {
       const urlParams = new URLSearchParams(window.location.search);
       const isJustConnected = urlParams.get("drive_connected") === "true";
@@ -3176,18 +3216,43 @@ function refreshAudioDevices() {
         window.history.replaceState({}, document.title, window.location.pathname);
       }
       try {
+        let isConnected = false;
         const res = await fetch("/api/drive/status");
         if (res.ok) {
           const data = await res.json();
-          const isConnected = Boolean(data.connected);
-          updateDriveUIState(isConnected);
+          isConnected = Boolean(data.connected);
+        }
 
-          if (isConnected) {
-            // Auto-sync on Drive connection or web page startup
-            if (isJustConnected || !hasAutoSyncedDriveThisSession) {
-              hasAutoSyncedDriveThisSession = true;
-              await syncWithGoogleDrive(!isJustConnected, isJustConnected);
+        // If backend session not active, restore using client's localStorage token
+        if (!isConnected && localStorage.getItem("gdrive_auth_token")) {
+          const restored = await restoreDriveSessionFromClient();
+          if (restored) {
+            isConnected = true;
+          }
+        }
+
+        updateDriveUIState(isConnected);
+
+        if (isConnected) {
+          // Cache token locally if missing in localStorage
+          if (!localStorage.getItem("gdrive_auth_token")) {
+            try {
+              const tRes = await fetch("/api/drive/token");
+              if (tRes.ok) {
+                const tData = await tRes.json();
+                if (tData.token) {
+                  localStorage.setItem("gdrive_auth_token", JSON.stringify(tData.token));
+                }
+              }
+            } catch (te) {
+              console.warn("Could not cache drive token:", te);
             }
+          }
+
+          // Auto-sync on Drive connection or web page startup
+          if (isJustConnected || !hasAutoSyncedDriveThisSession) {
+            hasAutoSyncedDriveThisSession = true;
+            await syncWithGoogleDrive(!isJustConnected, isJustConnected);
           }
         }
       } catch (err) {
@@ -5081,7 +5146,7 @@ function refreshAudioDevices() {
             }
             if (!res.ok) throw new Error(data.detail || "Error al procesar el audio del dispositivo.");
 
-            displayResults(data);
+            displayResults(data, { source: "live" });
             finishProgressTracking(true);
           } catch (err) {
             finishProgressTracking(false);
@@ -5160,7 +5225,7 @@ function refreshAudioDevices() {
         }
         if (!res.ok) throw new Error(data.detail || "Error al procesar la sesión.");
 
-        displayResults(data);
+        displayResults(data, { source: "live" });
         finishProgressTracking(true);
       } catch (err) {
         finishProgressTracking(false);
@@ -5367,7 +5432,7 @@ function refreshAudioDevices() {
           throw new Error("Credenciales de API requeridas.");
         }
         if (!res.ok) throw new Error(data.detail || "Error al transcribir YouTube.");
-        displayResults(data);
+        displayResults(data, { source: "youtube" });
         finishProgressTracking(true);
       } catch (err) {
         finishProgressTracking(false);
@@ -5449,7 +5514,7 @@ function refreshAudioDevices() {
           throw new Error("Credenciales de API requeridas.");
         }
         if (!res.ok) throw new Error(data.detail || "Error al transcribir archivo.");
-        displayResults(data);
+        displayResults(data, { source: "file" });
         finishProgressTracking(true);
       } catch (err) {
         finishProgressTracking(false);
@@ -5460,10 +5525,20 @@ function refreshAudioDevices() {
     // -----------------------------------------------------------------
     // Visualización de Resultados y Diario Vivo
     // -----------------------------------------------------------------
-    function displayResults(data) {
+    function displayResults(data, options = {}) {
       currentResult = data;
       notifyDriveSaveEvent();
       const isClassMode = (data.recording_mode === "class" || currentLiveMode === "class" || currentWorkspace === "work_and_study");
+
+      // Handle retention prompt (only prompt for YouTube and local file uploads)
+      const retentionPrompt = document.getElementById("transcriptRetentionPrompt");
+      if (retentionPrompt) {
+        if (options && (options.source === "youtube" || options.source === "file")) {
+          retentionPrompt.classList.remove("hidden");
+        } else {
+          retentionPrompt.classList.add("hidden");
+        }
+      }
 
       if (isClassMode) {
         const campLabel = document.getElementById("resCampaignLabel");
@@ -6430,11 +6505,17 @@ function refreshAudioDevices() {
       const pillQuests = document.getElementById("wikiPillQuests");
       const pillNpcs = document.getElementById("wikiPillNpcs");
       const pillPcs = document.getElementById("wikiPillPcs");
+      const pillLocations = document.getElementById("wikiPillLocations");
+      const pillItems = document.getElementById("wikiPillItems");
+      const pillSessions = document.getElementById("wikiPillSessions");
 
       const state = currentWikiCampaignState || {};
       const quests = state.quests || [];
       const npcs = state.npcs || [];
       const pcs = state.universal_pcs || [];
+      const locations = state.locations || [];
+      const items = state.items || [];
+      const sessionCount = (state.chronicles?.length || state.sessions?.length || Object.keys(state.history || {}).length || 0);
 
       const qCounter = document.getElementById("wikiQuestsCounter");
       if (qCounter) qCounter.textContent = quests.length;
@@ -6442,13 +6523,22 @@ function refreshAudioDevices() {
       if (nCounter) nCounter.textContent = npcs.length;
       const pCounter = document.getElementById("wikiPcsCounter");
       if (pCounter) pCounter.textContent = pcs.length;
+      const lCounter = document.getElementById("wikiLocationsCounter");
+      if (lCounter) lCounter.textContent = locations.length;
+      const iCounter = document.getElementById("wikiItemsCounter");
+      if (iCounter) iCounter.textContent = items.length;
+      const sCounter = document.getElementById("wikiSessionsCounter");
+      if (sCounter) sCounter.textContent = sessionCount;
 
-      const activeClass = "flex-1 py-1.5 px-2 rounded-lg text-xs font-semibold transition flex items-center justify-center gap-1.5 bg-amber-500/20 text-amber-300 border border-amber-500/30";
-      const inactiveClass = "flex-1 py-1.5 px-2 rounded-lg text-xs font-medium transition flex items-center justify-center gap-1.5 text-slate-400 hover:text-slate-200 border border-transparent";
+      const activeClass = "min-h-[44px] py-1.5 px-2 rounded-lg text-xs font-semibold transition flex items-center justify-center gap-1.5 bg-amber-500/20 text-amber-300 border border-amber-500/30 cursor-pointer";
+      const inactiveClass = "min-h-[44px] py-1.5 px-2 rounded-lg text-xs font-medium transition flex items-center justify-center gap-1.5 text-slate-400 hover:text-slate-200 border border-transparent cursor-pointer";
 
       if (pillQuests) pillQuests.className = (activeWikiCategory === "quests") ? activeClass : inactiveClass;
       if (pillNpcs) pillNpcs.className = (activeWikiCategory === "npcs") ? activeClass : inactiveClass;
       if (pillPcs) pillPcs.className = (activeWikiCategory === "pcs") ? activeClass : inactiveClass;
+      if (pillLocations) pillLocations.className = (activeWikiCategory === "locations") ? activeClass : inactiveClass;
+      if (pillItems) pillItems.className = (activeWikiCategory === "items") ? activeClass : inactiveClass;
+      if (pillSessions) pillSessions.className = (activeWikiCategory === "sessions") ? activeClass : inactiveClass;
     }
 
     function onWikiSearchInput() {
@@ -6635,10 +6725,12 @@ function refreshAudioDevices() {
           listEl.appendChild(card);
         });
       } else if (activeWikiCategory === "sessions") {
-        const sessions = (state.sessions || []).filter(s => {
+        const rawSessions = state.sessions || state.chronicles || [];
+        const sessionList = Array.isArray(rawSessions) ? rawSessions : Object.values(rawSessions);
+        const sessions = sessionList.filter(s => {
           if (!query) return true;
-          const num = String(s.session_number || "");
-          const sm = (s.summary || "").toLowerCase();
+          const num = String(s.session_number || s.number || "");
+          const sm = (s.summary || s.chronicle_text || s.title || "").toLowerCase();
           const dt = (s.date || "").toLowerCase();
           return num.includes(query) || sm.includes(query) || dt.includes(query);
         });
@@ -6649,19 +6741,19 @@ function refreshAudioDevices() {
         }
 
         sessions.forEach(s => {
-          const num = s.session_number || "1";
+          const num = s.session_number || s.number || "1";
           const rawTitle = (s.session_title || s.title || "").trim();
           const cleanTitle = rawTitle.replace(/^(?:sesi[oó]n|session)\s*#?\d+\s*[:\-]\s*/i, "").trim();
           const displayTitle = cleanTitle ? `Sesión #${num}: ${cleanTitle}` : `Sesión #${num}`;
 
-          const isSelected = selectedWikiEntity && selectedWikiEntity.type === "session" && selectedWikiEntity.key === s.session_number;
+          const isSelected = selectedWikiEntity && selectedWikiEntity.type === "session" && selectedWikiEntity.key === (s.session_number || num);
           const card = document.createElement("div");
           card.className = `p-3 rounded-xl border text-xs cursor-pointer transition flex items-center justify-between gap-2.5 ${
             isSelected
               ? "bg-amber-500/20 border-amber-500/40 text-amber-200 shadow-md"
               : "bg-slate-950/70 border-slate-800/80 hover:bg-slate-900 text-slate-300"
           }`;
-          card.onclick = () => selectWikiEntity("session", s.session_number, s);
+          card.onclick = () => selectWikiEntity("session", s.session_number || num, s);
 
           card.innerHTML = `
             <div class="min-w-0 flex-1">
@@ -7744,9 +7836,9 @@ async function selectWikiEntity(type, key, data) {
       const link = document.getElementById("driveViewLink");
       const fileNameEl = document.getElementById("driveUploadedFileName");
 
-      btn.disabled = true;
-      btnText.textContent = isWorkStudy ? "Subiendo Briefing..." : "Subiendo Grimorio...";
-      banner.classList.add("hidden");
+      if (btn) btn.disabled = true;
+      if (btnText) btnText.textContent = isWorkStudy ? "Subiendo Briefing..." : "Subiendo Grimorio...";
+      if (banner) banner.classList.add("hidden");
 
       try {
         let res;
@@ -7765,18 +7857,53 @@ async function selectWikiEntity(type, key, data) {
         const data = await res.json();
         if (!res.ok) throw new Error(data.detail || "Error al subir a Google Drive.");
 
-        fileNameEl.textContent = data.file_name;
-        link.href = data.web_view_link;
-        banner.classList.remove("hidden");
-        btnText.textContent = isWorkStudy ? "✓ Briefing en Drive" : "✓ Grimorio en Drive";
+        if (fileNameEl) fileNameEl.textContent = data.file_name;
+        if (link) link.href = data.web_view_link;
+        if (banner) banner.classList.remove("hidden");
+        if (btnText) btnText.textContent = isWorkStudy ? "✓ Briefing en Drive" : "✓ Grimorio en Drive";
         setTimeout(() => {
-          btnText.textContent = "Subir a Drive";
-          btn.disabled = false;
+          if (btnText) btnText.textContent = "Subir a Drive";
+          if (btn) btn.disabled = false;
         }, 3000);
       } catch (err) {
         showAlert(err.message);
-        btn.disabled = false;
-        btnText.textContent = "Subir a Drive";
+        if (btn) btn.disabled = false;
+        if (btnText) btnText.textContent = "Subir a Drive";
+      }
+    }
+
+    function confirmKeepTranscript() {
+      const promptEl = document.getElementById("transcriptRetentionPrompt");
+      if (promptEl) promptEl.classList.add("hidden");
+    }
+
+    async function confirmDiscardTranscript() {
+      const promptEl = document.getElementById("transcriptRetentionPrompt");
+      if (!currentResult) return;
+      try {
+        const payload = {
+          filename: currentResult.txt_filename || currentResult.transcript_filename || (currentResult.file_path ? currentResult.file_path.replace(/\.[^/.]+$/, ".txt") : null),
+          campaign_name: currentResult.campaign_name,
+          session_number: currentResult.session_number,
+          note_filename: currentResult.md_filename
+        };
+        const res = await fetch("/api/transcription/discard", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        });
+        if (res.ok) {
+          showSuccessAlert("Transcripción en bruto descartada correctamente. Los apuntes estructurados se mantienen intactos.");
+          if (promptEl) promptEl.classList.add("hidden");
+          const txtBtn = document.getElementById("btnDownloadTxt");
+          if (txtBtn) txtBtn.classList.add("hidden");
+        } else {
+          const errData = await res.json();
+          showAlert("Error al descartar la transcripción: " + (errData.detail || "Error desconocido"));
+        }
+      } catch (e) {
+        console.error("Error discarding transcription:", e);
+        showAlert("Error al descartar la transcripción.");
       }
     }
 

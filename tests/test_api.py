@@ -358,11 +358,13 @@ class TestAPIEndpoints(unittest.TestCase):
     def test_drive_callback_success(self, mock_storage_cls):
         mock_storage = MagicMock()
         mock_storage.exchange_code_for_token.return_value = MagicMock()
+        mock_storage.token_path = Path("/dummy/nonexistent/token.json")
         mock_storage_cls.return_value = mock_storage
 
         res = asyncio.run(drive_callback(code="test_auth_code"))
-        self.assertEqual(res.status_code, 302)
-        self.assertEqual(res.headers["location"], "/?drive_connected=true")
+        self.assertEqual(res.status_code, 200)
+        self.assertIn("gdrive_auth_token", res.body.decode("utf-8"))
+        self.assertIn("/?drive_connected=true", res.body.decode("utf-8"))
 
     def test_drive_callback_errors(self):
         with self.assertRaises(HTTPException) as ctx:
@@ -1248,9 +1250,62 @@ El problema del conocimiento.
         notes = res.json().get("notes", [])
         self.assertTrue(any(n.get("filename") == "apuntes_mecanica_cuantica_selfheal.md" for n in notes))
 
+    @patch("src.storage.drive_client.GoogleDriveStorage.restore_from_client_token")
+    @patch("src.storage.drive_client.GoogleDriveStorage.is_connected")
+    def test_restore_gdrive_session_endpoint(self, mock_connected, mock_restore):
+        from fastapi.testclient import TestClient
+        client = TestClient(app)
+
+        mock_restore.return_value = True
+        mock_connected.return_value = True
+
+        res = client.post(
+            "/api/auth/gdrive/restore",
+            json={"token_data": {"token": "test_token_123", "refresh_token": "refresh_123"}},
+        )
+        self.assertEqual(res.status_code, 200)
+        data = res.json()
+        self.assertEqual(data.get("status"), "success")
+        self.assertTrue(data.get("connected"))
+
+    def test_get_drive_token_endpoint(self):
+        from fastapi.testclient import TestClient
+        client = TestClient(app)
+
+        res = client.get("/api/drive/token")
+        self.assertEqual(res.status_code, 200)
+        data = res.json()
+        self.assertIn("status", data)
+
+    def test_get_notes_alias_endpoint(self):
+        from fastapi.testclient import TestClient
+        client = TestClient(app)
+
+        res = client.get("/api/notes")
+        self.assertEqual(res.status_code, 200)
+        self.assertIn("notes", res.json())
+
+    def test_discard_transcription_endpoint(self):
+        from fastapi.testclient import TestClient
+        client = TestClient(app)
+
+        # Create dummy transcript file in output dir
+        txt_path = Path(self.temp_out_dir) / "test_session_transcripcion.txt"
+        txt_path.write_text("Raw transcript text to be discarded.", encoding="utf-8")
+        self.assertTrue(txt_path.is_file())
+
+        res = client.post(
+            "/api/transcription/discard",
+            json={"filename": "test_session_transcripcion.txt"},
+        )
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.json().get("status"), "success")
+        self.assertFalse(txt_path.is_file())
+
 
 if __name__ == "__main__":
     unittest.main()
+
 
 
 

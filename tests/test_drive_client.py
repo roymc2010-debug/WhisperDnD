@@ -349,6 +349,25 @@ class TestGoogleDriveStorage(unittest.TestCase):
         uploaded_names = [call.args[0] for call in storage.upload_file.call_args_list]
         self.assertTrue(any("apuntes_fisica_cuantica.md" in name for name in uploaded_names))
 
+    @patch("src.storage.drive_client.build")
+    @patch("src.storage.drive_client.Credentials")
+    def test_restore_from_client_token(self, mock_creds_class, mock_build):
+        mock_creds = MagicMock()
+        mock_creds.valid = True
+        mock_creds_class.from_authorized_user_file.return_value = mock_creds
+
+        storage = GoogleDriveStorage(
+            credentials_path=str(self.dummy_creds),
+            token_path=str(self.dummy_token),
+        )
+        token_data = {"token": "test_token_123", "refresh_token": "refresh_123"}
+        success = storage.restore_from_client_token(token_data)
+
+        self.assertTrue(success)
+        mock_creds_class.from_authorized_user_file.assert_called_once_with(str(self.dummy_token), SCOPES)
+        self.assertTrue(self.dummy_token.is_file())
+        self.assertEqual(json.loads(self.dummy_token.read_text(encoding="utf-8")), token_data)
+
 
 if __name__ == "__main__":
     unittest.main()

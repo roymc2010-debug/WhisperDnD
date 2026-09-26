@@ -5,7 +5,7 @@ import json
 import mimetypes
 import os
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
@@ -283,6 +283,41 @@ class GoogleDriveStorage:
         self._service = None
         _active_oauth_flow = None
         return creds
+
+    def restore_from_client_token(self, token_data: Union[Dict[str, Any], str]) -> bool:
+        """
+        Restore OAuth credentials from client-provided token data (localStorage).
+        Saves token to local token_path and /app/token.json if accessible, then refreshes Drive service.
+        """
+        try:
+            if isinstance(token_data, str):
+                token_dict = json.loads(token_data)
+            else:
+                token_dict = dict(token_data)
+
+            # Ensure valid dict
+            if not isinstance(token_dict, dict) or not (
+                "token" in token_dict or "refresh_token" in token_dict
+            ):
+                return False
+
+            token_json_str = json.dumps(token_dict, indent=2)
+            self.token_path.parent.mkdir(parents=True, exist_ok=True)
+            self.token_path.write_text(token_json_str, encoding="utf-8")
+
+            # Also sync to /app/token.json if directory exists in container
+            container_token = Path("/app/token.json")
+            if container_token.parent.exists():
+                try:
+                    container_token.write_text(token_json_str, encoding="utf-8")
+                except Exception:
+                    pass
+
+            self._service = None
+            return self.is_connected()
+        except Exception as exc:
+            print(f"[GoogleDriveStorage] Error restoring client token: {exc}")
+            return False
 
     def get_or_create_folder(self, folder_name: str = DEFAULT_FOLDER_NAME) -> str:
         """
@@ -714,7 +749,9 @@ class GoogleDriveStorage:
         seen_md_names = set()
         for out_d in target_output_dirs:
             if out_d.is_dir():
-                for note_p in out_d.glob("apuntes_*.md"):
+                for note_p in out_d.glob("*.md"):
+                    if note_p.name.endswith("_grimorio.md") or note_p.name == "manifest.md":
+                        continue
                     if note_p.name not in seen_md_names:
                         seen_md_names.add(note_p.name)
                         if note_p.name not in remote_filenames:

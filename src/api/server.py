@@ -437,6 +437,21 @@ class DriveExportResponse(BaseModel):
     file_id: Optional[str] = None
 
 
+class DiscardTranscriptRequest(BaseModel):
+    model_config = ConfigDict(extra="allow")
+
+    filename: Optional[str] = Field(default=None, description="Filename of raw transcript txt to delete")
+    campaign_name: Optional[str] = Field(default=None, description="Campaign name")
+    session_number: Optional[int] = Field(default=None, description="Session number")
+    note_filename: Optional[str] = Field(default=None, description="Note filename")
+
+
+class RestoreDriveTokenRequest(BaseModel):
+    model_config = ConfigDict(extra="allow")
+
+    token_data: Optional[Union[Dict[str, Any], str]] = Field(default=None, description="Token JSON or dict from localStorage")
+
+
 # ---------------------------------------------------------------------------
 # Endpoints: Frontend SPA
 # ---------------------------------------------------------------------------
@@ -1533,7 +1548,9 @@ def update_consolidated_academic_notes_file() -> Path:
 
     notes_by_filename = {}
     for o_dir in candidate_output_dirs:
-        for md_file in o_dir.glob("apuntes_*.md"):
+        for md_file in o_dir.glob("*.md"):
+            if md_file.name.endswith("_grimorio.md") or md_file.name == "manifest.md":
+                continue
             try:
                 stat = md_file.stat()
                 content = md_file.read_text(encoding="utf-8", errors="replace")
@@ -1602,6 +1619,7 @@ def update_consolidated_academic_notes_file() -> Path:
 
 
 @app.get("/api/academic-notes")
+@app.get("/api/notes")
 async def list_academic_notes():
     """List all saved academic notes and study guides in outputs/ or restored from Google Drive."""
     output_dir = get_data_output_dir()
@@ -1630,7 +1648,9 @@ async def list_academic_notes():
 
     notes = []
     if output_dir.exists():
-        for md_file in output_dir.glob("apuntes_*.md"):
+        for md_file in output_dir.glob("*.md"):
+            if md_file.name.endswith("_grimorio.md") or md_file.name == "manifest.md":
+                continue
             try:
                 stat = md_file.stat()
                 content = md_file.read_text(encoding="utf-8", errors="replace")
@@ -3935,7 +3955,40 @@ async def drive_callback(
         except Exception as _sync_err:
             print(f"[drive_callback] Warning scheduling initial drive sync: {_sync_err}")
 
-        return RedirectResponse(url="/?drive_connected=true", status_code=302)
+        token_str = "{}"
+        try:
+            if drive_storage.token_path.is_file():
+                token_str = drive_storage.token_path.read_text(encoding="utf-8")
+            elif Path("/app/token.json").is_file():
+                token_str = Path("/app/token.json").read_text(encoding="utf-8")
+        except Exception as _tok_err:
+            print(f"[drive_callback] Warning reading token.json: {_tok_err}")
+
+        html_content = f"""<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <title>Google Drive Conectado</title>
+</head>
+<body style="font-family: sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; background: #0f172a; color: #f8fafc;">
+  <div style="text-align: center; padding: 24px;">
+    <h2 style="margin-bottom: 8px;">Conectando Google Drive...</h2>
+    <p style="color: #94a3b8; font-size: 14px;">Guardando credenciales para mantener la sesión activa.</p>
+  </div>
+  <script>
+    try {{
+      const token = {token_str};
+      if (token && Object.keys(token).length > 0) {{
+        localStorage.setItem('gdrive_auth_token', JSON.stringify(token));
+      }}
+    }} catch (e) {{
+      console.warn("No se pudo guardar el token en localStorage:", e);
+    }}
+    window.location.href = '/?drive_connected=true';
+  </script>
+</body>
+</html>"""
+        return HTMLResponse(content=html_content, status_code=200)
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"Error al canjear código de OAuth: {exc}") from exc
 
@@ -3984,6 +4037,150 @@ async def sync_drive_endpoint():
         return res
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"Error durante sincronización con Drive: {exc}") from exc
+
+
+@app.post("/api/auth/gdrive/restore")
+@app.post("/api/auth/drive/restore")
+async def restore_drive_session_endpoint(payload: Optional[RestoreDriveTokenRequest] = None, request: Request = None):
+    """
+    Restore Google Drive session from client-provided token JSON stored in localStorage.
+    Re-establishes drive_storage session without needing to re-login.
+    """
+    token_data = None
+    if payload and payload.token_data is not None:
+        token_data = payload.token_data
+    elif request:
+        try:
+            body = await request.json()
+            if isinstance(body, dict):
+                token_data = body.get("token_data") or body.get("token") or body
+        except Exception:
+            token_data = None
+
+    if not token_data:
+        raise HTTPException(status_code=400, detail="Token de Google Drive no proporcionado.")
+
+    drive_storage = GoogleDriveStorage()
+    success = await run_in_threadpool(drive_storage.restore_from_client_token, token_data)
+    if not success or not drive_storage.is_connected():
+        raise HTTPException(status_code=400, detail="No se pudo restaurar la sesión con el token proporcionado.")
+
+    try:
+        asyncio.create_task(
+            run_in_threadpool(
+                drive_storage.sync_from_google_drive,
+                get_data_campaigns_dir(),
+                get_data_output_dir(),
+            )
+        )
+    except Exception as _sync_err:
+        print(f"[restore_drive_session] Warning scheduling background sync: {_sync_err}")
+
+    return {
+        "status": "success",
+        "connected": True,
+        "message": "Sesión de Google Drive restaurada exitosamente.",
+    }
+
+
+@app.get("/api/drive/token")
+@app.get("/api/auth/drive/token")
+async def get_drive_token_endpoint():
+    """
+    Retrieve current Google Drive token JSON so frontend can cache it in localStorage.
+    """
+    drive_storage = GoogleDriveStorage()
+    token_path = drive_storage.token_path
+    if not token_path.is_file():
+        alt_path = Path("/app/token.json")
+        if alt_path.is_file():
+            token_path = alt_path
+
+    if not token_path.is_file():
+        return {
+            "status": "not_connected",
+            "connected": False,
+            "token": None,
+            "message": "No hay token almacenado.",
+        }
+
+    try:
+        token_dict = json.loads(token_path.read_text(encoding="utf-8"))
+        return {
+            "status": "success",
+            "connected": drive_storage.is_connected(),
+            "token": token_dict,
+        }
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Error leyendo token: {exc}")
+
+
+@app.post("/api/transcription/discard")
+async def discard_transcription_endpoint(payload: DiscardTranscriptRequest):
+    """
+    Discard raw speech-to-text transcript file (.txt) while retaining structured notes/chronicles.
+    Applies to YouTube and file uploads when the user elects not to preserve raw audio text.
+    """
+    deleted_files = []
+
+    # 1. Delete standalone txt file if filename provided
+    if payload.filename:
+        safe_name = Path(payload.filename).name
+        for target_dir in [get_data_output_dir(), project_root / "outputs"]:
+            cand = target_dir / safe_name
+            if cand.is_file():
+                try:
+                    cand.unlink()
+                    deleted_files.append(cand.name)
+                except Exception as e:
+                    print(f"[discard_transcription] Error deleting {cand}: {e}")
+
+    # 2. If campaign & session specified, clear raw_transcript from session
+    if payload.campaign_name and payload.session_number is not None:
+        try:
+            manager = CampaignManager()
+            state = manager.load_campaign(payload.campaign_name)
+            if state:
+                modified = False
+                for s in state.get("sessions", []):
+                    if int(s.get("session_number", 0)) == int(payload.session_number):
+                        s["raw_transcript"] = ""
+                        modified = True
+                if modified:
+                    manager.save_campaign(payload.campaign_name, state)
+        except Exception as exc:
+            print(f"[discard_transcription] Error updating campaign: {exc}")
+
+    # 3. If note_filename provided, ensure raw transcript is not kept in consolidated json
+    if payload.note_filename:
+        try:
+            for cand_hist in [
+                project_root / "data" / "apuntes_historial.json",
+                Path("/app/data/apuntes_historial.json"),
+            ]:
+                if cand_hist.is_file():
+                    data = json.loads(cand_hist.read_text(encoding="utf-8"))
+                    notes = data.get("apuntes", [])
+                    modified = False
+                    for n in notes:
+                        if n.get("filename") == payload.note_filename or n.get("title") == payload.note_filename:
+                            if "transcript" in n and n["transcript"]:
+                                n["transcript"] = ""
+                                modified = True
+                    if modified:
+                        cand_hist.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
+            try:
+                update_consolidated_academic_notes_file()
+            except Exception:
+                pass
+        except Exception as exc:
+            print(f"[discard_transcription] Error updating apuntes_historial: {exc}")
+
+    return {
+        "status": "success",
+        "deleted_files": deleted_files,
+        "message": "Transcripción descartada exitosamente.",
+    }
 
 
 
