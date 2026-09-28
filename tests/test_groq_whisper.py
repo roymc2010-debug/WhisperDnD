@@ -152,6 +152,62 @@ class TestGroqWhisperTranscriber(unittest.TestCase):
         self.assertEqual(progress_calls_yt[-2], 77.4)
         self.assertEqual(progress_calls_yt[-1], 80.0)
 
+    @patch("groq.Client")
+    def test_transcribe_chunked_survives_failed_chunk(self, mock_client_cls):
+        """Test that a timeout/failure on a chunk does not crash the loop and continues processing remaining chunks."""
+        transcriber = GroqWhisperTranscriber(api_key="gsk_dummy")
+        fake_chunks = [
+            ("chunk_1.mp3", 0.0, 60.0),
+            ("chunk_2.mp3", 60.0, 60.0),
+            ("chunk_3.mp3", 120.0, 60.0),
+        ]
+
+        def fake_transcribe(path, language="es", time_offset=0.0, timeout=60.0):
+            if "chunk_2" in path:
+                raise TimeoutError("Groq API timeout after 60s")
+            return {
+                "segments": [{"start": time_offset, "end": time_offset + 50.0, "text": f"Texto de {Path(path).stem}"}],
+                "text": f"Texto de {Path(path).stem}",
+                "language_code": "es",
+                "duration": 60.0,
+            }
+
+        progress_history = []
+        with patch.object(transcriber, "_slice_audio", return_value=fake_chunks):
+            with patch.object(transcriber, "_transcribe_single_file", side_effect=fake_transcribe):
+                dummy_file = Path(__file__).resolve()
+                result = transcriber._transcribe_chunked(
+                    str(dummy_file),
+                    on_progress=lambda pct, msg: progress_history.append(pct),
+                    source="local",
+                )
+
+        self.assertIn("Texto de chunk_1", result["text"])
+        self.assertIn("[Fragmento 2: audio no reconocido]", result["text"])
+        self.assertIn("Texto de chunk_3", result["text"])
+        self.assertEqual(len(result["segments"]), 3)
+        self.assertEqual(result["segments"][1]["text"], "[Fragmento 2: audio no reconocido]")
+        # Progress reaches 80.0%
+        self.assertEqual(progress_history[-1], 80.0)
+
+    @patch("groq.Client")
+    def test_transcribe_single_file_passes_timeout(self, mock_client_cls):
+        """Test that _transcribe_single_file passes timeout to create call."""
+        mock_client = MagicMock()
+        mock_client_cls.return_value = mock_client
+        mock_resp = MagicMock()
+        mock_resp.text = "Hola"
+        mock_resp.duration = 1.0
+        mock_resp.segments = []
+        mock_client.audio.transcriptions.create.return_value = mock_resp
+
+        transcriber = GroqWhisperTranscriber(api_key="gsk_dummy")
+        dummy_file = Path(__file__).resolve()
+        transcriber._transcribe_single_file(str(dummy_file), timeout=60.0)
+
+        call_kwargs = mock_client.audio.transcriptions.create.call_args[1]
+        self.assertEqual(call_kwargs.get("timeout"), 60.0)
+
 
 class TestTranscriptionPipeline(unittest.TestCase):
     """Test suite for backend transcribe_audio_pipeline routing."""

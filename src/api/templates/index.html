@@ -5544,14 +5544,29 @@ function refreshAudioDevices() {
     }
 
     async function transcribeFile() {
-      const fileInput = document.getElementById("audioFile");
-      const modelSize = document.getElementById("globalModelSize").value;
-      const engine = document.getElementById("transcriptionEngine").value || "groq";
-      const campaignName = document.getElementById("campaignNameInput").value.trim() || "Campaña Principal";
-      const sessionNumber = parseInt(document.getElementById("sessionNumberInput").value) || null;
-      const roster = getRosterFromTable(true);
+      // Buscar por ID específico o fallback directo al input de tipo file de la pestaña activa
+      const fileInput = document.getElementById('audioFileInput') || 
+                        document.getElementById('localAudioFile') || 
+                        document.getElementById('audioFile') ||
+                        document.querySelector('#tabFileContent input[type="file"]') ||
+                        document.querySelector('#tab-archivo-local input[type="file"]') ||
+                        document.querySelector('input[type="file"]');
 
-      if (!fileInput.files[0]) return showAlert("Selecciona un archivo primero.");
+      if (!fileInput || !fileInput.files || fileInput.files.length === 0) {
+        if (typeof showAlert === "function") {
+          showAlert("Por favor selecciona el archivo WAV de la sesión primero.");
+        } else {
+          alert("Por favor selecciona el archivo WAV de la sesión primero.");
+        }
+        return;
+      }
+
+      const file = fileInput.files[0];
+      const modelSize = (document.getElementById("globalModelSize") ? document.getElementById("globalModelSize").value : "") || "base";
+      const engine = (document.getElementById("transcriptionEngine") ? document.getElementById("transcriptionEngine").value : "") || "groq";
+      const campaignName = (document.getElementById("campaignNameInput") ? document.getElementById("campaignNameInput").value.trim() : "") || "Campaña Principal";
+      const sessionNumber = (document.getElementById("sessionNumberInput") && parseInt(document.getElementById("sessionNumberInput").value)) || null;
+      const roster = typeof getRosterFromTable === "function" ? getRosterFromTable(true) : [];
 
       lastActionCallback = () => transcribeFile();
       const taskId = generateTaskId();
@@ -5576,7 +5591,7 @@ function refreshAudioDevices() {
       try {
         const formData = new FormData();
         formData.append("task_id", taskId);
-        formData.append("file", fileInput.files[0]);
+        formData.append("file", file);
         formData.append("model_size", modelSize);
         formData.append("engine", engine);
         formData.append("workspace", currentWorkspace);

@@ -304,7 +304,7 @@ class GroqWhisperTranscriber:
             max_pct = 80.0
             if on_progress:
                 on_progress(min_pct, "Transcribiendo audio (Fragmento 1 de 1 - 30.0%)...")
-            res = self._transcribe_single_file(str(path), language=language)
+            res = self._transcribe_single_file(str(path), language=language, timeout=60.0)
             if on_progress:
                 on_progress(max_pct, "Transcribiendo audio (Fragmento 1 de 1 - 80.0%)")
         else:
@@ -343,6 +343,7 @@ class GroqWhisperTranscriber:
         file_path: str,
         language: str = "es",
         time_offset: float = 0.0,
+        timeout: float = 60.0,
     ) -> Dict[str, Any]:
         """Send a single audio file to Groq Whisper API and parse verbose_json response."""
         p = Path(file_path)
@@ -352,6 +353,7 @@ class GroqWhisperTranscriber:
                 file=f,
                 language=language,
                 response_format="verbose_json",
+                timeout=timeout,
             )
 
         return self._parse_groq_response(response, time_offset=time_offset)
@@ -465,28 +467,46 @@ class GroqWhisperTranscriber:
             for idx, chunk_item in enumerate(chunks_list):
                 chunk_path = chunk_item[0] if isinstance(chunk_item, (tuple, list)) else chunk_item
 
-                # Transcribe chunk using Groq Whisper
-                chunk_res = self._transcribe_single_file(
-                    chunk_path,
-                    language=language,
-                    time_offset=current_time_offset,
-                )
-
-                all_segments.extend(chunk_res.get("segments", []))
-                if chunk_res.get("text"):
-                    text_parts.append(chunk_res["text"])
-                if chunk_res.get("language_code"):
-                    detected_lang = chunk_res["language_code"]
-
-                # Duration adjustment
-                chunk_dur = chunk_res.get("duration", 0.0)
+                # Default fallback duration if chunk tuple has it
+                estimated_chunk_dur = 0.0
                 if isinstance(chunk_item, (tuple, list)) and len(chunk_item) >= 3:
-                    chunk_dur = chunk_item[2]
+                    try:
+                        estimated_chunk_dur = float(chunk_item[2])
+                    except (ValueError, TypeError):
+                        estimated_chunk_dur = 0.0
+
+                try:
+                    # Enviar chunk a Groq con timeout de 60s
+                    chunk_res = self._transcribe_single_file(
+                        chunk_path,
+                        language=language,
+                        time_offset=current_time_offset,
+                        timeout=60.0,
+                    )
+
+                    all_segments.extend(chunk_res.get("segments", []))
+                    if chunk_res.get("text"):
+                        text_parts.append(chunk_res["text"])
+                    if chunk_res.get("language_code"):
+                        detected_lang = chunk_res["language_code"]
+
+                    chunk_dur = chunk_res.get("duration", 0.0) or estimated_chunk_dur
+                except Exception as e:
+                    print(f"[Error en chunk {idx + 1}/{num_chunks}]: {e}")
+                    # Si un chunk falla por silencio o red, registrar el fallo y continuar con el siguiente
+                    fallback_text = f"[Fragmento {idx + 1}: audio no reconocido]"
+                    text_parts.append(fallback_text)
+                    chunk_dur = estimated_chunk_dur or (self.DEFAULT_CHUNK_MINUTES * 60.0)
+                    all_segments.append({
+                        "start": round(current_time_offset, 2),
+                        "end": round(current_time_offset + chunk_dur, 2),
+                        "text": fallback_text,
+                    })
 
                 current_time_offset += chunk_dur
                 total_duration += chunk_dur
 
-                # Update progress after completed chunk (Fase 3: 30.0% + (i / total) * 50.0%)
+                # Emitir progreso real (Fase 3: 30.0% + ((idx + 1) / len(chunks)) * 50.0)
                 chunk_pct = round(min_pct + (((idx + 1) / max(1, num_chunks)) * (max_pct - min_pct)), 1)
                 if on_progress:
                     on_progress(
