@@ -257,6 +257,8 @@ class YouTubeTranscribeRequest(BaseModel):
 
 
 class TranscribeResponse(BaseModel):
+    model_config = ConfigDict(extra="allow")
+
     text: str
     segments: List[Dict[str, Any]]
     language: str
@@ -266,6 +268,10 @@ class TranscribeResponse(BaseModel):
     file_path: Optional[str] = None
     docx_filename: Optional[str] = None
     md_filename: Optional[str] = None
+    campaign_name: Optional[str] = None
+    session_number: Optional[int] = None
+    session_title: Optional[str] = None
+    telemetry_events_count: Optional[int] = None
     campaign_state: Optional[Dict[str, Any]] = None
     session_chapter: Optional[Dict[str, Any]] = None
     updated_quests: Optional[List[Dict[str, Any]]] = None
@@ -2832,6 +2838,376 @@ async def transcribe_file(
         docx_filename=docx_filename,
         md_filename=md_filename,
         txt_filename=txt_filename,
+        campaign_state=campaign_state,
+        session_chapter=session_chapter,
+        updated_quests=updated_quests,
+        updated_npcs=updated_npcs,
+        detected_npc_names=detected_npc_names,
+        detected_party=detected_party,
+        detected_pcs=detected_pcs,
+        chronicle=chronicle_md,
+        recording_mode="roleplay",
+        target_language=target_language,
+    )
+
+
+@app.post("/api/sessions/upload-with-telemetry", response_model=TranscribeResponse)
+async def upload_session_with_telemetry(
+    audio_file: Optional[UploadFile] = File(default=None),
+    file: Optional[UploadFile] = File(default=None),
+    events_file: Optional[UploadFile] = File(default=None),
+    discord_events: Optional[str] = Form(default=None),
+    campaign_name: Optional[str] = Form(default=None),
+    session_number: Optional[int] = Form(default=None),
+    roster_json: Optional[str] = Form(default=None),
+    task_id: Optional[str] = Form(default=None),
+    recording_mode: str = Form(default="roleplay"),
+    target_language: str = Form(default="es"),
+    engine: str = Form(default="groq"),
+    model_size: str = Form(default="base"),
+    gemini_api_key: Optional[str] = Form(default=None),
+    groq_api_key: Optional[str] = Form(default=None),
+    subject: Optional[str] = Form(default=None),
+    topic: Optional[str] = Form(default=None),
+    request: Request = None,
+):
+    """
+    Accept stereo audio (.wav/.mp3) + Discord Voice Activity telemetry (events_file or discord_events)
+    uploaded from the local client bridge.
+    Transcribes audio with Groq or local faster-whisper, cross-references speaking timestamps with discord_user_id,
+    maps to Campaign Roster characters, and delivers the 100% pre-tagged transcript to Gemini for chronicle
+    and Living Campaign Journal generation.
+    """
+    groq_hdr, gemini_hdr = extract_client_api_keys(request)
+    groq_key = (groq_api_key or "").strip() or groq_hdr
+    gemini_key = (gemini_api_key or "").strip() or gemini_hdr
+    validate_api_keys_or_raise(request, groq_key, gemini_key, require_gemini=True)
+
+    actual_audio = audio_file or file
+    if not actual_audio or not actual_audio.filename:
+        raise HTTPException(status_code=400, detail="No se proporcionó ningún archivo de audio (audio_file).")
+
+    update_task_progress(task_id, 10.0, "Recibiendo audio y telemetría de Discord...", "Guardando archivos temporales...", stage="segmenting")
+    clean_audio_name = Path(actual_audio.filename).name
+    save_dest = get_data_input_dir() / clean_audio_name
+    start_time = time.time()
+
+    try:
+        with open(save_dest, "wb") as buffer:
+            shutil.copyfileobj(actual_audio.file, buffer)
+    except Exception as exc:
+        err_type, human_err, stage = diagnose_exception(exc)
+        set_task_error(task_id, human_err, error_type=err_type, stage=stage)
+        raise HTTPException(status_code=500, detail=human_err) from exc
+    finally:
+        await actual_audio.close()
+
+    # Parse Discord Telemetry
+    telemetry_raw: Any = {}
+    if events_file and events_file.filename:
+        try:
+            content = await events_file.read()
+            telemetry_raw = json.loads(content.decode("utf-8"))
+        except Exception as exc:
+            print(f"[upload-with-telemetry] Warning: could not parse events_file: {exc}")
+        finally:
+            await events_file.close()
+    elif discord_events:
+        try:
+            telemetry_raw = json.loads(discord_events)
+        except Exception as exc:
+            print(f"[upload-with-telemetry] Warning: could not parse discord_events form: {exc}")
+
+    speaking_log: List[Dict[str, Any]] = []
+    participants: List[Dict[str, Any]] = []
+    if isinstance(telemetry_raw, list):
+        speaking_log = telemetry_raw
+    elif isinstance(telemetry_raw, dict):
+        speaking_log = (
+            telemetry_raw.get("events")
+            or telemetry_raw.get("speaking_log")
+            or telemetry_raw.get("telemetry", {}).get("events")
+            or []
+        )
+        parts_val = (
+            telemetry_raw.get("participants")
+            or telemetry_raw.get("telemetry", {}).get("participants")
+            or []
+        )
+        if isinstance(parts_val, dict):
+            participants = list(parts_val.values())
+        elif isinstance(parts_val, list):
+            participants = parts_val
+
+    # Parse roster and link with campaign context
+    roster_dicts: List[Dict[str, Any]] = []
+    user_char_name = None
+    if roster_json:
+        try:
+            parsed = json.loads(roster_json)
+            if isinstance(parsed, list):
+                roster_dicts = parsed
+        except Exception as exc:
+            print(f"[upload-with-telemetry] Warning: could not parse roster_json: {exc}")
+
+    camp_mgr = CampaignManager()
+    active_camp_state = None
+    if campaign_name:
+        try:
+            active_ctx = camp_mgr.get_active_context(campaign_name)
+            active_camp_state = camp_mgr.load_campaign(campaign_name)
+            if not roster_dicts:
+                roster_dicts = active_ctx.get("roster", []) or []
+        except Exception as exc:
+            print(f"[upload-with-telemetry] Warning loading campaign context: {exc}")
+
+    # Auto-match Discord participant user_ids with Roster entries if not mapped yet
+    roster_updated = False
+    if participants and roster_dicts:
+        for part in participants:
+            uid = str(part.get("user_id") or "").strip()
+            if not uid:
+                continue
+            u_name = str(part.get("username") or "").strip().lower()
+            d_name = str(part.get("display_name") or "").strip().lower()
+
+            for r_entry in roster_dicts:
+                curr_uid = str(r_entry.get("discord_user_id") or r_entry.get("discord_id") or "").strip()
+                if not curr_uid:
+                    p_name = str(r_entry.get("player_name") or r_entry.get("jugador") or "").strip().lower()
+                    c_name = str(r_entry.get("character_name") or r_entry.get("personaje") or "").strip().lower()
+                    if (p_name and (p_name == u_name or p_name == d_name or p_name in d_name or d_name in p_name)) or \
+                       (c_name and c_name not in ("-", "(dm)", "dm") and (c_name == u_name or c_name == d_name)):
+                        r_entry["discord_user_id"] = uid
+                        roster_updated = True
+                        print(f"[upload-with-telemetry] Auto-mapped participant '{u_name or d_name}' -> roster '{p_name or c_name}' (ID: {uid})")
+
+    if roster_updated and campaign_name and active_camp_state:
+        try:
+            active_camp_state["roster"] = roster_dicts
+            camp_mgr.save_campaign(active_camp_state)
+        except Exception as exc:
+            print(f"[upload-with-telemetry] Warning persisting auto-mapped roster: {exc}")
+
+    for p in roster_dicts:
+        if isinstance(p, dict) and p.get("is_user_character"):
+            user_char_name = (p.get("character_name") or "").strip()
+            break
+
+    update_task_progress(task_id, 25.0, "Segmentando audio y ejecutando transcripción...", "Iniciando motor de audio...", stage="segmenting")
+
+    def progress_cb(pct: float, msg: str):
+        update_task_progress(task_id, pct, msg, stage="transcribing")
+
+    try:
+        result = await run_in_threadpool(
+            transcribe_audio_pipeline,
+            audio_path=str(save_dest),
+            engine=engine,
+            model_size=model_size,
+            language=target_language,
+            on_progress=progress_cb,
+            source="live" if speaking_log else "local",
+            user_char_name=user_char_name,
+            speaking_log=speaking_log or None,
+            roster=roster_dicts or None,
+            groq_api_key=groq_key,
+        )
+    except Exception as exc:
+        err_type, human_err, stage = diagnose_exception(exc)
+        import traceback
+        set_task_error(task_id, human_err, error_type=err_type, stage=stage, details=traceback.format_exc())
+        raise HTTPException(status_code=500, detail=human_err) from exc
+
+    elapsed_time = round(time.time() - start_time, 2)
+    language_code = result.get("language_code") or (
+        result["language"]["code"] if isinstance(result.get("language"), dict) else str(result.get("language", ""))
+    )
+    transcript_text = result.get("formatted_transcript") or result["text"]
+
+    file_path_str = ""
+    docx_filename = None
+    md_filename = None
+    txt_filename = None
+    campaign_state = None
+    session_chapter = None
+    updated_quests = None
+    updated_npcs = None
+    detected_npc_names = None
+    detected_party = None
+    detected_pcs = None
+    chronicle_md = None
+    session_title = None
+
+    if recording_mode == "class":
+        update_task_progress(task_id, 82.0, "Generando apuntes académicos con IA...", "Sintetizando conceptos teóricos...", stage="analyzing")
+        subj = (subject or "").strip() or "Materia Universitaria"
+        top = (topic or "").strip() or "Tema de Clase"
+        now_str = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+        now_formatted = datetime.datetime.now().strftime("%d/%m/%Y %H:%M")
+
+        try:
+            summarizer = GeminiTTRPGSummarizer(api_key=gemini_key)
+            chronicle_md = await run_in_threadpool(
+                summarizer.generate_academic_notes,
+                transcript_text=transcript_text,
+                subject=subj,
+                topic=top,
+                date_str=now_formatted,
+                target_language=target_language,
+            )
+        except Exception as exc:
+            chronicle_md = f"# ⚠️ Error generando guía académica con Gemini:\n\n> {exc}\n\n**Texto:**\n\n{transcript_text}"
+
+        update_task_progress(task_id, 95.0, "Generando documentos (.docx y .md)...", "Creando archivos de apuntes...", stage="analyzing")
+        clean_subj = re.sub(r'[\\/*?:"<>|]', "", subj.strip()) or "Materia"
+        safe_subj = re.sub(r"\s+", "_", clean_subj)
+        docx_filename = f"apuntes_telemetria_{safe_subj}_{now_str}.docx"
+        md_filename = f"apuntes_telemetria_{safe_subj}_{now_str}.md"
+        txt_filename = f"apuntes_telemetria_{safe_subj}_{now_str}_transcripcion.txt"
+        docx_out_path = get_data_output_dir() / docx_filename
+        md_out_path = get_data_output_dir() / md_filename
+        txt_out_path = get_data_output_dir() / txt_filename
+        try:
+            md_out_path.write_text(chronicle_md, encoding="utf-8")
+            txt_out_path.write_text(transcript_text, encoding="utf-8")
+            (get_data_output_dir() / f"{safe_subj}_transcripcion.txt").write_text(transcript_text, encoding="utf-8")
+            file_path_str = str(docx_out_path.resolve())
+        except Exception as exc:
+            print(f"[upload-with-telemetry] Warning exporting academic notes: {exc}")
+
+        try:
+            files_to_sync = []
+            hist_path = update_consolidated_academic_notes_file()
+            if hist_path and hist_path.is_file():
+                files_to_sync.append(hist_path)
+            if md_out_path and md_out_path.is_file():
+                files_to_sync.append(md_out_path)
+            if files_to_sync:
+                trigger_drive_sync_background(files_to_sync)
+        except Exception as exc:
+            print(f"[upload-with-telemetry] Warning triggering drive sync: {exc}")
+
+        update_task_progress(task_id, 100.0, "¡Completado!", "Guía de estudio generada exitosamente.", stage="done")
+        action_items, key_points = extract_academic_sections(chronicle_md or "")
+        return TranscribeResponse(
+            text=transcript_text,
+            segments=result["segments"],
+            language=language_code,
+            duration=result["duration"],
+            elapsed_time=elapsed_time,
+            engine_used=result.get("engine_used", engine),
+            file_path=file_path_str,
+            docx_filename=docx_filename,
+            md_filename=md_filename,
+            txt_filename=txt_filename,
+            recording_mode="class",
+            subject=subj,
+            topic=top,
+            chronicle=chronicle_md,
+            target_language=target_language,
+            action_items=action_items,
+            key_points=key_points,
+            telemetry_events_count=len(speaking_log),
+        )
+
+    # Roleplay Mode: Living Campaign Journal or single session chronicle
+    update_task_progress(task_id, 82.0, "Generando crónica con IA y atribución exacta...", "Extrayendo hechos e inventario...", stage="analyzing")
+
+    if campaign_name:
+        try:
+            update_task_progress(task_id, 85.0, "Actualizando Quest Tracker y Directorio Universal de NPCs...", stage="analyzing")
+            camp_res = await run_in_threadpool(
+                process_session_for_campaign,
+                campaign_name=campaign_name,
+                transcript_text=transcript_text,
+                roster_dicts=roster_dicts,
+                session_number=session_number,
+                target_language=target_language,
+                gemini_api_key=gemini_key,
+            )
+            campaign_state = camp_res.get("campaign_state")
+            session_chapter = camp_res.get("session_chapter")
+            updated_quests = camp_res.get("updated_quests")
+            updated_npcs = camp_res.get("updated_npcs")
+            detected_npc_names = camp_res.get("detected_npc_names")
+            detected_party = camp_res.get("detected_party")
+            detected_pcs = camp_res.get("detected_pcs")
+            docx_filename = camp_res.get("docx_filename")
+            md_filename = camp_res.get("md_filename")
+            txt_filename = camp_res.get("txt_filename")
+            file_path_str = camp_res.get("file_path", "")
+            chronicle_md = camp_res.get("chronicle")
+            if session_chapter and isinstance(session_chapter, dict):
+                session_title = session_chapter.get("session_title") or session_chapter.get("title")
+        except Exception as exc:
+            print(f"[upload-with-telemetry] Warning: campaign session processing failed: {exc}")
+
+    if not file_path_str:
+        timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+        safe_title = Path(clean_audio_name).stem[:40]
+        out_docx_path = get_data_output_dir() / f"transcripcion_{safe_title}_{timestamp}.docx"
+        formatted_md = f"# Transcripción de Audio: {safe_title}\n\n## Texto Completo (Diarizado)\n{transcript_text}\n"
+        txt_filename = f"transcripcion_{safe_title}_{timestamp}.txt"
+        (get_data_output_dir() / txt_filename).write_text(transcript_text, encoding="utf-8")
+
+        try:
+            exported_docx = await run_in_threadpool(
+                export_chronicle_docx,
+                chronicle_md=formatted_md,
+                roster=roster_dicts or None,
+                session_date=datetime.datetime.now().strftime("%d/%m/%Y"),
+                output_path=str(out_docx_path),
+            )
+            file_path_str = str(Path(exported_docx).resolve())
+            docx_filename = Path(exported_docx).name
+        except Exception as exc:
+            print(f"[upload-with-telemetry] Warning: docx export failed: {exc}")
+            out_md_path = get_data_output_dir() / f"transcripcion_{safe_title}_{timestamp}.md"
+            out_md_path.write_text(formatted_md, encoding="utf-8")
+            file_path_str = str(out_md_path.resolve())
+            docx_filename = None
+            md_filename = Path(out_md_path).name
+
+    update_task_progress(task_id, 100.0, "¡Completado!", "Sesión procesada exitosamente con telemetría de Discord.", stage="done")
+
+    # Background Drive Sync
+    try:
+        files_to_sync = []
+        if campaign_name:
+            c_path = get_campaign_path(campaign_name)
+            if c_path and c_path.is_file():
+                files_to_sync.append(c_path)
+        if md_filename:
+            m_p = get_data_output_dir() / md_filename
+            if m_p.is_file():
+                files_to_sync.append(m_p)
+        if file_path_str and Path(file_path_str).is_file():
+            files_to_sync.append(Path(file_path_str))
+        if files_to_sync:
+            trigger_drive_sync_background(files_to_sync)
+    except Exception as exc:
+        print(f"[upload-with-telemetry] Warning triggering drive sync: {exc}")
+
+    actual_sess_num = session_number
+    if actual_sess_num is None and session_chapter and isinstance(session_chapter, dict):
+        actual_sess_num = session_chapter.get("session_number")
+
+    return TranscribeResponse(
+        text=transcript_text,
+        segments=result["segments"],
+        language=language_code,
+        duration=result["duration"],
+        elapsed_time=elapsed_time,
+        engine_used=result.get("engine_used", engine),
+        file_path=file_path_str,
+        docx_filename=docx_filename,
+        md_filename=md_filename,
+        txt_filename=txt_filename,
+        campaign_name=campaign_name,
+        session_number=actual_sess_num,
+        session_title=session_title or (f"Sesión {actual_sess_num}" if actual_sess_num else "Sesión D&D"),
+        telemetry_events_count=len(speaking_log),
         campaign_state=campaign_state,
         session_chapter=session_chapter,
         updated_quests=updated_quests,

@@ -1,6 +1,7 @@
 """Unit tests for FastAPI backend endpoints."""
 
 import asyncio
+import io
 import json
 import os
 import shutil
@@ -1477,6 +1478,175 @@ El problema del conocimiento.
         # Download .docx endpoint must return 404 for D&D Grimorio
         res_dl = client.get("/api/notes/download/Candlekeep_Grimorio.docx")
         self.assertEqual(res_dl.status_code, 404)
+
+    @patch("src.api.server.trigger_drive_sync_background")
+    @patch("src.api.server.process_session_for_campaign")
+    @patch("src.api.server.transcribe_audio_pipeline")
+    def test_upload_with_telemetry_roleplay_success(self, mock_transcribe, mock_process, mock_sync):
+        from fastapi.testclient import TestClient
+        client = TestClient(app)
+
+        mock_transcribe.return_value = {
+            "text": "Ataquemos por la izquierda. De acuerdo.",
+            "formatted_transcript": "[00:00:01 -> 00:00:03] [Gorg (StreamerA)]: Ataquemos por la izquierda.\n[00:00:04 -> 00:00:06] [Tu / Markus]: De acuerdo.",
+            "segments": [
+                {
+                    "start": 1.0,
+                    "end": 3.0,
+                    "speaker": "[Gorg (StreamerA)]",
+                    "text": "Ataquemos por la izquierda.",
+                    "formatted_line": "[00:00:01 -> 00:00:03] [Gorg (StreamerA)]: Ataquemos por la izquierda.",
+                },
+                {
+                    "start": 4.0,
+                    "end": 6.0,
+                    "speaker": "[Tu / Markus]",
+                    "text": "De acuerdo.",
+                    "formatted_line": "[00:00:04 -> 00:00:06] [Tu / Markus]: De acuerdo.",
+                },
+            ],
+            "duration": 6.0,
+            "language_code": "es",
+            "engine_used": "groq",
+        }
+
+        mock_process.return_value = {
+            "campaign_state": {"campaign_name": "Test Campaign", "sessions": []},
+            "session_chapter": {"session_number": 2, "session_title": "La Cripta Olvidada"},
+            "updated_quests": [{"name": "Buscar la reliquia", "status": "active"}],
+            "updated_npcs": [{"name": "Gorg", "role": "Aliado"}],
+            "detected_npc_names": ["Gorg"],
+            "detected_party": [],
+            "detected_pcs": [],
+            "docx_filename": "sesion_2.docx",
+            "md_filename": "sesion_2.md",
+            "txt_filename": "sesion_2_transcripcion.txt",
+            "file_path": str(Path(self.temp_out_dir) / "sesion_2.docx"),
+            "chronicle": "# Crónica de la Sesión 2\n\nEl grupo asaltó la cripta.",
+        }
+
+        # Create dummy audio file
+        dummy_wav = io.BytesIO(b"RIFF\x24\x00\x00\x00WAVEfmt \x10\x00\x00\x00\x01\x00\x02\x00\x80>\x00\x00\x00}\x00\x00\x04\x00\x10\x00data\x00\x00\x00\x00")
+
+        telemetry_payload = {
+            "version": "1.0",
+            "events": [
+                {"start": 1.0, "end": 3.0, "speaker": "StreamerA", "user_id": "999888"},
+            ],
+            "participants": [
+                {"user_id": "999888", "username": "StreamerA", "display_name": "Gorg The Barbarian"},
+            ],
+        }
+        dummy_events = io.BytesIO(json.dumps(telemetry_payload).encode("utf-8"))
+
+        roster = [
+            {"player_name": "StreamerA", "character_name": "Gorg", "role": "Bárbaro"},
+            {"player_name": "Roy", "character_name": "Markus", "is_user_character": True},
+        ]
+
+        files = {
+            "audio_file": ("test_stereo.wav", dummy_wav, "audio/wav"),
+            "events_file": ("discord_events.json", dummy_events, "application/json"),
+        }
+        data = {
+            "campaign_name": "Test Campaign",
+            "session_number": "2",
+            "roster_json": json.dumps(roster),
+            "recording_mode": "roleplay",
+            "target_language": "es",
+            "engine": "groq",
+        }
+        headers = {
+            "X-Gemini-Key": "dummy-gemini-key",
+            "X-Groq-Key": "dummy-groq-key",
+        }
+
+        res = client.post("/api/sessions/upload-with-telemetry", files=files, data=data, headers=headers)
+        self.assertEqual(res.status_code, 200, res.text)
+        resp_json = res.json()
+
+        self.assertEqual(resp_json["session_title"], "La Cripta Olvidada")
+        self.assertEqual(resp_json["session_number"], 2)
+        self.assertEqual(resp_json["telemetry_events_count"], 1)
+        self.assertIn("Gorg (StreamerA)", resp_json["text"])
+        self.assertEqual(resp_json["docx_filename"], "sesion_2.docx")
+
+        # Verify transcribe_audio_pipeline was called with speaking_log and auto-matched roster
+        self.assertTrue(mock_transcribe.called)
+        call_kwargs = mock_transcribe.call_args.kwargs
+        self.assertEqual(len(call_kwargs["speaking_log"]), 1)
+        self.assertEqual(call_kwargs["speaking_log"][0]["user_id"], "999888")
+
+        # Verify Gorg was auto-matched with discord_user_id 999888
+        matched_roster = call_kwargs["roster"]
+        gorg_item = next(r for r in matched_roster if r["character_name"] == "Gorg")
+        self.assertEqual(gorg_item.get("discord_user_id"), "999888")
+
+        # Verify process_session_for_campaign received the pre-tagged transcript
+        self.assertTrue(mock_process.called)
+        proc_kwargs = mock_process.call_args.kwargs
+        self.assertIn("[Gorg (StreamerA)]", proc_kwargs["transcript_text"])
+
+    @patch("src.api.server.GeminiTTRPGSummarizer")
+    @patch("src.api.server.transcribe_audio_pipeline")
+    def test_upload_with_telemetry_class_mode(self, mock_transcribe, mock_summarizer_cls):
+        from fastapi.testclient import TestClient
+        client = TestClient(app)
+
+        mock_transcribe.return_value = {
+            "text": "Hoy veremos la primera ley de la termodinámica.",
+            "formatted_transcript": "Hoy veremos la primera ley de la termodinámica.",
+            "segments": [
+                {"start": 0.0, "end": 4.0, "text": "Hoy veremos la primera ley de la termodinámica."}
+            ],
+            "duration": 4.0,
+            "language_code": "es",
+            "engine_used": "groq",
+        }
+
+        mock_summarizer = MagicMock()
+        mock_summarizer.generate_academic_notes.return_value = (
+            "# 🎓 GUÍA DE ESTUDIO: Física Termodinámica\n\n"
+            "## 1. Resumen Ejecutivo y Conceptos Fundamentales\n"
+            "La primera ley establece que la energía no se crea ni se destruye, solo se transforma.\n\n"
+            "## 5. Tareas y Próximos Pasos\n"
+            "- Resolver ejercicios del capítulo 4."
+        )
+        mock_summarizer_cls.return_value = mock_summarizer
+
+        dummy_wav = io.BytesIO(b"RIFF\x24\x00\x00\x00WAVEfmt \x10\x00\x00\x00\x01\x00\x01\x00\x80>\x00\x00\x00}\x00\x00\x02\x00\x10\x00data\x00\x00\x00\x00")
+        files = {
+            "audio_file": ("clase_fisica.wav", dummy_wav, "audio/wav"),
+        }
+        data = {
+            "recording_mode": "class",
+            "subject": "Física",
+            "topic": "Termodinámica",
+            "discord_events": json.dumps({"events": []}),
+        }
+        headers = {
+            "X-Gemini-Key": "dummy-gemini-key",
+            "X-Groq-Key": "dummy-groq-key",
+        }
+
+        res = client.post("/api/sessions/upload-with-telemetry", files=files, data=data, headers=headers)
+        self.assertEqual(res.status_code, 200, res.text)
+        resp_json = res.json()
+        self.assertEqual(resp_json["recording_mode"], "class")
+        self.assertEqual(resp_json["subject"], "Física")
+        self.assertIn("Física", resp_json["md_filename"])
+        self.assertTrue(len(resp_json.get("action_items", [])) > 0)
+
+    def test_upload_with_telemetry_missing_audio(self):
+        from fastapi.testclient import TestClient
+        client = TestClient(app)
+
+        headers = {
+            "X-Gemini-Key": "dummy-gemini-key",
+            "X-Groq-Key": "dummy-groq-key",
+        }
+        res = client.post("/api/sessions/upload-with-telemetry", data={"campaign_name": "Test"}, headers=headers)
+        self.assertEqual(res.status_code, 400)
 
 
 if __name__ == "__main__":
