@@ -234,6 +234,20 @@ class CampaignManager:
 
         self.campaigns_dir.mkdir(parents=True, exist_ok=True)
 
+    @property
+    def output_dir(self) -> Path:
+        """Resolve output directory honoring WHISPER_OUTPUT_DIR, outputs, or data/output."""
+        if os.environ.get("WHISPER_OUTPUT_DIR"):
+            p = Path(os.environ["WHISPER_OUTPUT_DIR"]).resolve()
+        else:
+            root = Path(__file__).resolve().parent.parent.parent
+            if (root / "outputs").is_dir():
+                p = (root / "outputs").resolve()
+            else:
+                p = (root / "data" / "output").resolve()
+        p.mkdir(parents=True, exist_ok=True)
+        return p
+
     @staticmethod
     def sanitize_name(name: str) -> str:
         """Convert a campaign name into a safe filename."""
@@ -322,7 +336,7 @@ class CampaignManager:
 
         # Optionally delete exports in output directory
         if delete_exports:
-            output_dir = Path(os.environ["WHISPER_OUTPUT_DIR"]).resolve() if os.environ.get("WHISPER_OUTPUT_DIR") else (self.campaigns_dir.parent / "output")
+            output_dir = self.output_dir
             if output_dir.is_dir():
                 safe_name = re.sub(r'[^\w\s-]', '', name).strip().replace(' ', '_').lower()
                 sanitized_name = self.sanitize_name(name).lower()
@@ -353,6 +367,8 @@ class CampaignManager:
                     data["universal_pcs"] = []
                 if "prior_lore" not in data:
                     data["prior_lore"] = ""
+                if "user_character_backstory" not in data:
+                    data["user_character_backstory"] = ""
                 # Backfill DM fields
                 dm_val = data.get("dm") or data.get("dungeon_master") or data.get("dm_name") or ""
                 if not dm_val and data.get("roster") and len(data["roster"]) > 0:
@@ -402,6 +418,7 @@ class CampaignManager:
             "updated_at": now_iso,
             "last_session": 0,
             "prior_lore": "",
+            "user_character_backstory": "",
             "dm": "",
             "dungeon_master": "",
             "dm_name": "",
@@ -422,6 +439,17 @@ class CampaignManager:
         state["updated_at"] = datetime.datetime.now().isoformat()
         if "campaign_id" not in state:
             state["campaign_id"] = self.sanitize_name(name)
+
+        if "roster" in state and isinstance(state["roster"], list):
+            for m in state["roster"]:
+                if isinstance(m, dict):
+                    m.pop("is_absent", None)
+                    m.pop("absent", None)
+        if "universal_pcs" in state and isinstance(state["universal_pcs"], list):
+            for m in state["universal_pcs"]:
+                if isinstance(m, dict):
+                    m.pop("is_absent", None)
+                    m.pop("absent", None)
 
         file_path = self.get_campaign_path(name)
         file_path.write_text(json.dumps(state, indent=2, ensure_ascii=False), encoding="utf-8")
@@ -458,6 +486,7 @@ class CampaignManager:
             "last_session": last_session,
             "session_number": next_session,
             "prior_lore": state.get("prior_lore", ""),
+            "user_character_backstory": state.get("user_character_backstory", ""),
             "active_quests": active_quests,
             "all_quests": state.get("quests", []),
             "known_npcs": state.get("npcs", []),
@@ -465,6 +494,152 @@ class CampaignManager:
             "universal_pcs": state.get("universal_pcs", []),
             "last_session_recap": last_recap,
         }
+
+    def get_character_backstory(self, name: str, character_name: Optional[str] = None) -> str:
+        """Return the character backstory for a campaign or specific character."""
+        state = self.load_campaign(name)
+        if character_name and character_name.strip():
+            cname = character_name.strip()
+            # 1. From character_backstories dict
+            backstories = state.get("character_backstories", {})
+            if cname in backstories and backstories[cname]:
+                return backstories[cname]
+            for k, v in backstories.items():
+                if k.lower() == cname.lower() and v:
+                    return v
+            # 2. From roster member
+            for m in state.get("roster", []):
+                if isinstance(m, dict) and (m.get("character_name") or "").strip().lower() == cname.lower():
+                    if m.get("backstory"):
+                        return m["backstory"]
+                    if m.get("is_user_character") or m.get("is_user"):
+                        return state.get("user_character_backstory", "")
+            # 3. From universal_pcs
+            for u in state.get("universal_pcs", []):
+                if isinstance(u, dict) and (u.get("personaje") or "").strip().lower() == cname.lower():
+                    if u.get("trasfondo"):
+                        return u["trasfondo"]
+        return state.get("user_character_backstory", "")
+
+    def set_character_backstory(
+        self,
+        name: str,
+        backstory: str,
+        character_name: Optional[str] = None,
+        is_user_character: bool = True
+    ) -> Dict[str, Any]:
+        """Update and persist character backstory for a campaign, supporting multiple characters."""
+        state = self.load_campaign(name)
+        b_clean = (backstory or "").strip()
+        state.setdefault("character_backstories", {})
+
+        if character_name and character_name.strip():
+            cname = character_name.strip()
+            state["character_backstories"][cname] = b_clean
+            roster = state.setdefault("roster", [])
+            found = False
+            for m in roster:
+                if isinstance(m, dict):
+                    if (m.get("character_name") or "").strip().lower() == cname.lower():
+                        m["backstory"] = b_clean
+                        if is_user_character:
+                            m["is_user_character"] = True
+                            m["is_user"] = True
+                        found = True
+                    elif is_user_character and (m.get("is_user_character") or m.get("is_user")):
+                        m["is_user_character"] = False
+                        m["is_user"] = False
+            if not found:
+                roster.append({
+                    "player_name": "Roy",
+                    "character_name": cname,
+                    "species": "",
+                    "role": "",
+                    "subclass": "",
+                    "is_user_character": is_user_character,
+                    "is_user": is_user_character,
+                    "backstory": b_clean,
+                })
+
+            for u in state.get("universal_pcs", []):
+                if isinstance(u, dict) and (u.get("personaje") or "").strip().lower() == cname.lower():
+                    u["trasfondo"] = b_clean
+
+            if is_user_character:
+                state["user_character_backstory"] = b_clean
+        else:
+            state["user_character_backstory"] = b_clean
+
+        self.save_campaign(state)
+        return state
+
+    def get_all_characters(self) -> List[Dict[str, Any]]:
+        """Return a list of all player characters across campaigns with their specific backstories."""
+        campaigns = self.list_campaigns()
+        results: List[Dict[str, Any]] = []
+        seen = set()
+
+        for c in campaigns:
+            camp_name = c.get("campaign_name") or c.get("name")
+            if not camp_name:
+                continue
+            state = self.load_campaign(camp_name)
+            user_backstory = state.get("user_character_backstory", "")
+            char_backstories = state.get("character_backstories", {})
+            roster = state.get("roster", [])
+
+            for m in roster:
+                if not isinstance(m, dict):
+                    continue
+                cname = (m.get("character_name") or "").strip()
+                if not cname or cname.lower() in ("(dm)", "dm", "dungeon master"):
+                    continue
+                is_user = bool(m.get("is_user_character") or m.get("is_user"))
+                key = (camp_name.lower(), cname.lower())
+                if key in seen:
+                    continue
+                seen.add(key)
+                c_backstory = m.get("backstory") or char_backstories.get(cname) or ""
+                if not c_backstory and is_user:
+                    c_backstory = user_backstory
+
+                results.append({
+                    "character_name": cname,
+                    "campaign_name": camp_name,
+                    "player_name": m.get("player_name", ""),
+                    "species": m.get("species", ""),
+                    "role": m.get("role", ""),
+                    "subclass": m.get("subclass", ""),
+                    "is_user_character": is_user,
+                    "has_backstory": bool(c_backstory),
+                    "backstory": c_backstory,
+                })
+
+            for upc in state.get("universal_pcs", []):
+                if not isinstance(upc, dict):
+                    continue
+                cname = (upc.get("personaje") or upc.get("character_name") or "").strip()
+                if not cname or cname.lower() in ("(dm)", "dm", "dungeon master"):
+                    continue
+                key = (camp_name.lower(), cname.lower())
+                if key in seen:
+                    continue
+                seen.add(key)
+                c_backstory = upc.get("trasfondo") or char_backstories.get(cname) or ""
+                results.append({
+                    "character_name": cname,
+                    "campaign_name": camp_name,
+                    "player_name": upc.get("jugador") or upc.get("player_name", ""),
+                    "species": upc.get("raza") or upc.get("species", ""),
+                    "role": upc.get("clase") or upc.get("role", ""),
+                    "subclass": upc.get("subclase") or upc.get("subclass", ""),
+                    "is_user_character": False,
+                    "has_backstory": bool(c_backstory),
+                    "backstory": c_backstory,
+                })
+
+        results.sort(key=lambda x: (not x["is_user_character"], not x["has_backstory"], x["campaign_name"].lower(), x["character_name"].lower()))
+        return results
 
     def purge_session_data(self, campaign_data: dict, session_num: int) -> dict:
         """Purge all existing records, milestones, and quest completion tags for a specific session number."""
@@ -609,13 +784,30 @@ class CampaignManager:
             new_roster.extend(clean_pcs)
             state["roster"] = new_roster
         elif roster and len(roster) > 0:
-            # If external campaign and roster mistakenly has Markus Veyl, replace with detected party
-            if not is_private and fallback_party and any("markus" in str(p.get("character_name", "")).lower() or "markus" in str(p.get("player_name", "")).lower() for p in roster):
+            roster_has_user_char = any(p.get("is_user_character") or p.get("is_user") for p in roster)
+            roster_has_markus = any("markus" in str(p.get("character_name", "")).lower() or "markus" in str(p.get("player_name", "")).lower() for p in roster)
+            detected_has_markus = any("markus" in str(p.get("character_name", "") or p.get("personaje", "")).lower() or "markus" in str(p.get("player_name", "") or p.get("jugador", "")).lower() for p in (fallback_party or []))
+
+            # Only purge/replace if external campaign mistakenly carried over Markus from template without being starred or detected
+            if (not is_private or is_yt_campaign) and fallback_party and roster_has_markus and not detected_has_markus and not roster_has_user_char:
                 state["roster"] = fallback_party
             else:
                 state["roster"] = roster
         elif fallback_party:
             state["roster"] = fallback_party
+
+        # Clean is_absent from state["roster"] so absence is NEVER remembered permanently across sessions
+        if state.get("roster"):
+            clean_roster = []
+            for member in state["roster"]:
+                if isinstance(member, dict):
+                    m = dict(member)
+                    m.pop("is_absent", None)
+                    m.pop("absent", None)
+                    clean_roster.append(m)
+                else:
+                    clean_roster.append(member)
+            state["roster"] = clean_roster
 
         # 1. Merge or append session chapter
         user_char = user_character or session_chapter.get("user_character")
@@ -1145,7 +1337,7 @@ class CampaignManager:
             self.campaigns_dir / "entities" / f"{clean_stem}.json",
             self.campaigns_dir / "entities" / f"{clean_stem}.md",
         ]
-        out_dir = Path(os.environ.get("WHISPER_OUTPUT_DIR", self.campaigns_dir.parent / "output"))
+        out_dir = self.output_dir
         if out_dir.is_dir():
             candidates.extend([
                 out_dir / f"{clean_stem}.json",

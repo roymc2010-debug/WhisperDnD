@@ -20,7 +20,7 @@ try:
         start_recording,
         StartRecordingRequest,
         get_audio_devices_endpoint,
-        test_audio_level,
+        test_audio_level as _test_audio_level,
         get_recording_status,
         stop_and_process,
         StopAndProcessRequest,
@@ -626,7 +626,7 @@ class TestAPIEndpoints(unittest.TestCase):
                 "speaker_rms": 0.018,
                 "is_recording": False,
             }
-            res = asyncio.run(test_audio_level(mic_id="mic1", speaker_id="spk1"))
+            res = asyncio.run(_test_audio_level(mic_id="mic1", speaker_id="spk1"))
             self.assertEqual(res["mic_rms"], 0.042)
             self.assertEqual(res["speaker_rms"], 0.018)
             mock_get_levels.assert_called_once_with(mic_id="mic1", speaker_id="spk1")
@@ -1647,6 +1647,67 @@ El problema del conocimiento.
         }
         res = client.post("/api/sessions/upload-with-telemetry", data={"campaign_name": "Test"}, headers=headers)
         self.assertEqual(res.status_code, 400)
+
+    def test_shutdown_endpoint(self):
+        from fastapi.testclient import TestClient
+        client = TestClient(app)
+        # Test mode should return 200 without exiting process
+        res = client.post("/api/shutdown")
+        self.assertEqual(res.status_code, 200)
+        data = res.json()
+        self.assertIn("status", data)
+        self.assertEqual(data["status"], "shutdown_simulated")
+
+    def test_list_characters_endpoint(self):
+        from fastapi.testclient import TestClient
+        client = TestClient(app)
+        with patch("src.api.server.CampaignManager") as mock_cm_cls:
+            mock_cm = MagicMock()
+            mock_cm_cls.return_value = mock_cm
+            mock_cm.get_all_characters.return_value = [
+                {
+                    "character_name": "Markus Veyl",
+                    "campaign_name": "Candlekeep 2.0",
+                    "player_name": "Roy",
+                    "is_user_character": True,
+                    "has_backstory": True,
+                    "backstory": "CLASE / ROL: Guardia...",
+                }
+            ]
+            res = client.get("/api/characters")
+            self.assertEqual(res.status_code, 200)
+            chars = res.json()
+            self.assertIsInstance(chars, list)
+            self.assertEqual(len(chars), 1)
+            self.assertEqual(chars[0]["character_name"], "Markus Veyl")
+            self.assertTrue(chars[0]["is_user_character"])
+            self.assertTrue(chars[0]["has_backstory"])
+
+    def test_update_character_backstory_with_character_name(self):
+        from fastapi.testclient import TestClient
+        from unittest.mock import patch, MagicMock
+        client = TestClient(app)
+
+        with patch("src.api.server.CampaignManager") as mock_cm_cls, \
+             patch("src.api.server.trigger_drive_sync_background"):
+            mock_cm = MagicMock()
+            mock_cm_cls.return_value = mock_cm
+            mock_cm.set_character_backstory.return_value = {
+                "user_character_backstory": "Test backstory",
+                "roster": [{"character_name": "Valeros", "is_user_character": True}]
+            }
+            mock_cm.get_campaign_path.return_value = "dummy_path.json"
+
+            payload = {
+                "backstory": "Test backstory",
+                "character_name": "Valeros"
+            }
+            res = client.put("/api/campaigns/TestCampaign/character-backstory", json=payload)
+            self.assertEqual(res.status_code, 200)
+            data = res.json()
+            self.assertEqual(data["status"], "success")
+            self.assertEqual(data["backstory"], "Test backstory")
+            mock_cm.set_character_backstory.assert_called_once_with("TestCampaign", "Test backstory", character_name="Valeros", is_user_character=True)
 
 
 if __name__ == "__main__":

@@ -7,8 +7,8 @@
 [![Docker](https://img.shields.io/badge/Docker-Cloud%20Run%20Ready-2496ed.svg)](https://cloud.google.com/run)
 [![PWA Ready](https://img.shields.io/badge/PWA-Installable%20Mobile%20%26%20Desktop-success.svg)](https://web.dev/progressive-web-apps/)
 [![STT Groq](https://img.shields.io/badge/STT-Groq%20Whisper%20Large--v3-f55036.svg)](https://groq.com)
-[![LLM Gemini](https://img.shields.io/badge/LLM-Gemini%202.5%20%2F%201.5-8e75ff.svg)](https://ai.google.dev/)
-[![Tests](https://img.shields.io/badge/Tests-152%20passing-brightgreen.svg)](#-pruebas-automatizadas)
+[![LLM Gemini](https://img.shields.io/badge/LLM-Gemini%203.5%20%2F%203.8-8e75ff.svg)](https://ai.google.dev/)
+[![Tests](https://img.shields.io/badge/Tests-208%20passing-brightgreen.svg)](#-pruebas-automatizadas)
 
 ---
 
@@ -126,6 +126,24 @@ La aplicación incluye soporte nativo para despliegue en contenedores sin estado
 - **Prioridad Backend Estricta (Cabeceras > Entorno)**:
   - El servidor prioriza las llaves enviadas por el cliente sobre las variables de entorno locales.
   - Si un usuario no proporciona claves y el servidor no tiene variables configuradas, se devuelve un error HTTP 401 estructurado (`{"error": "API_KEYS_REQUIRED", "message": "..."}`) que redirige automáticamente a la pantalla de Ajustes.
+
+---
+
+### 9. 🧙‍♂️ Gestión de Personajes y Trasfondos Multi-Personaje
+- **Vista Dedicada "Mi Personaje"**: Selector jerárquico **Campaña ➔ Personaje ➔ Trasfondo** con sincronización en tiempo real.
+- **Soporte Multi-Personaje por Campaña**: Múltiples personajes registrados en la misma campaña con historias y personalidades independientes (`character_backstories` y fichas de roster sin sobreescrituras).
+- **Coaching Narrativo de Gemini**: Marcado de personaje activo (⭐) para que el modelo evalúe la coherencia de decisiones de rol, estilo y código moral contra el trasfondo durante la sesión.
+- **Creación en Caliente**: Botón `[ + Crear Nuevo Personaje ]` para incorporar nuevos personajes a cualquier campaña y persistirlos de inmediato en disco y en Google Drive.
+- **Diseño Ergonómico y Seguro**: Prevención estricta de selección accidental en áreas de texto (`user-select: none`) y guías de redacción separadas visualmente de la caja de edición.
+
+---
+
+### 10. ⚡ Auto-Cierre Limpio y Lanzamiento Silencioso (Windows)
+- **Auto-Cierre por Baliza (Beacon)**: Detección instantánea de cierre de pestaña/ventana mediante `navigator.sendBeacon('/api/shutdown')` para liberar memoria y recursos del sistema sin procesos huérfanos.
+- **Lanzador Invisible (`WhisperDnD.vbs`)**: Ejecución en segundo plano sin ventana de consola CMD/Python intrusiva.
+- **Scripts de Control**: `iniciar_whisper_dnd.bat` para arranque automático del navegador y `detener_app.bat` para detención forzada limpia.
+
+---
 
 ## 🛠️ Requisitos Previos
 
@@ -247,14 +265,14 @@ gcloud run deploy whisperdnd \
 
 ## 🧪 Pruebas Automatizadas
 
-El proyecto incluye una suite completa de **152 pruebas automatizadas** que validan endpoints REST, aislamiento de espacios, deduplicación de entidades, exportadores Word/Markdown, motor Groq y cliente Gemini:
+El proyecto incluye una suite completa de **208 pruebas automatizadas** que validan endpoints REST, aislamiento de espacios, deduplicación de entidades, exportadores Word/Markdown, motor Groq, cliente Gemini y gestión multi-personaje:
 
 ```bash
 # Ejecutar toda la suite de pruebas
-.\.venv\Scripts\python.exe -m unittest discover -s tests -p "test_*.py"
+.\.venv\Scripts\python.exe -m pytest -q
 
 # Resultado esperado:
-# Ran 152 tests in ~16s -> OK
+# 208 passed in ~16s
 ```
 
 ---

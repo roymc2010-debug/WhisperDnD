@@ -32,7 +32,10 @@ class TestGoogleDriveStorage(unittest.TestCase):
 
     def tearDown(self):
         self.env_patcher.stop()
-        self.temp_dir_obj.cleanup()
+        try:
+            self.temp_dir_obj.cleanup()
+        except Exception:
+            pass
 
     def test_init_paths(self):
         storage = GoogleDriveStorage(

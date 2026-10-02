@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Test script for local audio transcription using WhisperEngine."""
+"""Test script for local audio transcription using LocalWhisperTranscriber."""
 
 import argparse
 import json

@@ -42,27 +42,28 @@ def slice_audio_for_groq(input_audio_path: str, chunk_minutes: int = 15) -> List
     ext = input_path.suffix.lower() or ".mp3"
     segment_seconds = chunk_minutes * 60
 
-    # Direct packet copy preserving native extension (.m4a, .webm, .mp3, etc.)
-    output_pattern = str(chunks_dir / f"chunk_%03d{ext}").replace("\\", "/")
-    cmd = [
-        "ffmpeg", "-y", "-i", str(input_path),
-        "-f", "segment", "-segment_time", str(segment_seconds),
-        "-c", "copy",  # Direct packet copy (takes 1.5 seconds)
-        output_pattern
-    ]
-    try:
-        subprocess.run(cmd, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        chunk_files = sorted([str(p) for p in chunks_dir.glob(f"chunk_*{ext}")])
-        if chunk_files:
-            return chunk_files
-    except Exception:
-        # Fallback to re-encoding if stream copy fails
-        pass
+    # For compressed streamable files (not raw uncompressed WAV), try instant packet copy first
+    if ext in (".mp3", ".m4a", ".aac", ".webm", ".ogg"):
+        output_pattern = str(chunks_dir / f"chunk_%03d{ext}").replace("\\", "/")
+        cmd = [
+            "ffmpeg", "-y", "-threads", "0", "-i", str(input_path),
+            "-f", "segment", "-segment_time", str(segment_seconds),
+            "-c", "copy",
+            output_pattern
+        ]
+        try:
+            subprocess.run(cmd, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            chunk_files = sorted([str(p) for p in chunks_dir.glob(f"chunk_*{ext}")])
+            if chunk_files and all(Path(p).stat().st_size <= 24 * 1024 * 1024 for p in chunk_files):
+                return chunk_files
+        except Exception:
+            pass
 
-    # Fallback re-encode for WAV or non-streamable files
+    # For WAV or any audio whose chunks would exceed 24 MB, encode to compact MP3 at 64k
+    # 15 minutes of speech at 64kbps = ~7 MB, well below Groq's 25 MB hard limit
     fallback_pattern = str(chunks_dir / "chunk_%03d.mp3").replace("\\", "/")
     cmd = [
-        "ffmpeg", "-y", "-i", str(input_path),
+        "ffmpeg", "-y", "-threads", "0", "-i", str(input_path),
         "-f", "segment",
         "-segment_time", str(segment_seconds),
         "-c:a", "libmp3lame", "-b:a", "64k",
@@ -279,6 +280,7 @@ class GroqWhisperTranscriber:
         user_char_name: Optional[str] = None,
         speaking_log: Optional[List[Dict[str, Any]]] = None,
         roster: Optional[List[Dict[str, Any]]] = None,
+        prompt: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         Transcribe audio file using Groq Whisper Cloud API.
@@ -292,6 +294,7 @@ class GroqWhisperTranscriber:
         :param user_char_name: Optional user player character name for transcript tagging.
         :param speaking_log: Optional Discord speaking timeline events for cross-referencing.
         :param roster: Optional campaign roster for Discord User ID speaker mapping.
+        :param prompt: Optional vocabulary / glossary prompt to bias Whisper phonetic decoding.
         :return: Dict containing segments, text, language, and duration.
         """
         path = Path(audio_path).resolve()
@@ -302,9 +305,10 @@ class GroqWhisperTranscriber:
         if file_size <= self.MAX_FILE_SIZE_BYTES:
             min_pct = 30.0
             max_pct = 80.0
-            if on_progress:
-                on_progress(min_pct, "Transcribiendo audio (Fragmento 1 de 1 - 30.0%)...")
-            res = self._transcribe_single_file(str(path), language=language, timeout=60.0)
+            single_kwargs = {"language": language, "timeout": 60.0}
+            if prompt is not None:
+                single_kwargs["prompt"] = prompt
+            res = self._transcribe_single_file(str(path), **single_kwargs)
             if on_progress:
                 on_progress(max_pct, "Transcribiendo audio (Fragmento 1 de 1 - 80.0%)")
         else:
@@ -314,6 +318,7 @@ class GroqWhisperTranscriber:
                 language=language,
                 on_progress=on_progress,
                 source=source,
+                prompt=prompt,
             )
 
         # Automatic speaker channel tagging for 2-channel audio (Left=Mic, Right=Discord)
@@ -344,17 +349,21 @@ class GroqWhisperTranscriber:
         language: str = "es",
         time_offset: float = 0.0,
         timeout: float = 60.0,
+        prompt: Optional[str] = None,
     ) -> Dict[str, Any]:
         """Send a single audio file to Groq Whisper API and parse verbose_json response."""
         p = Path(file_path)
         with open(p, "rb") as f:
-            response = self.client.audio.transcriptions.create(
-                model=self.model,
-                file=f,
-                language=language,
-                response_format="verbose_json",
-                timeout=timeout,
-            )
+            kwargs = {
+                "model": self.model,
+                "file": f,
+                "language": language,
+                "response_format": "verbose_json",
+                "timeout": timeout,
+            }
+            if prompt:
+                kwargs["prompt"] = prompt
+            response = self.client.audio.transcriptions.create(**kwargs)
 
         return self._parse_groq_response(response, time_offset=time_offset)
 
@@ -435,6 +444,7 @@ class GroqWhisperTranscriber:
         language: str = "es",
         on_progress: Optional[Callable[[int, str], None]] = None,
         source: str = "local",
+        prompt: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         Slice audio file into 15-minute chunks with FFmpeg and transcribe each sequentially.
@@ -477,11 +487,16 @@ class GroqWhisperTranscriber:
 
                 try:
                     # Enviar chunk a Groq con timeout de 60s
+                    kwargs = {
+                        "language": language,
+                        "time_offset": current_time_offset,
+                        "timeout": 60.0,
+                    }
+                    if prompt is not None:
+                        kwargs["prompt"] = prompt
                     chunk_res = self._transcribe_single_file(
                         chunk_path,
-                        language=language,
-                        time_offset=current_time_offset,
-                        timeout=60.0,
+                        **kwargs,
                     )
 
                     all_segments.extend(chunk_res.get("segments", []))

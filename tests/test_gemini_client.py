@@ -24,6 +24,19 @@ class TestGeminiTTRPGSummarizer(unittest.TestCase):
         formatted = GeminiTTRPGSummarizer.format_roster([])
         self.assertIn("sin personajes especificados", formatted)
 
+    def test_format_roster_with_absent_player(self):
+        roster = [
+            {"player_name": "Roymc89", "role": "Guerrero (Fighter)", "character_name": "Markus Veyl", "species": "Humano", "subclass": "Battle Master", "is_absent": True},
+            {"player_name": "Elena", "role": "Clérigo", "character_name": "Aria", "species": "Elfo", "subclass": "Vida", "is_absent": False},
+        ]
+        formatted = GeminiTTRPGSummarizer.format_roster(roster)
+        self.assertIn("ESTADO EN ESTA SESIÓN: AUSENTE / NO ASISTIÓ HOY", formatted)
+        self.assertIn("Markus Veyl", formatted)
+        self.assertIn("Aria", formatted)
+        # Present player must not have absence warning
+        aria_line = [l for l in formatted.split("\n") if "Aria" in l][0]
+        self.assertNotIn("AUSENTE", aria_line)
+
     @patch("google.genai.Client")
     def test_generate_chronicle_mocked(self, mock_client_class):
         mock_client = MagicMock()
@@ -172,7 +185,7 @@ class TestGeminiTTRPGSummarizer(unittest.TestCase):
         mock_client.models.generate_content.assert_called_once()
         call_kwargs = mock_client.models.generate_content.call_args.kwargs
         self.assertEqual(call_kwargs.get("config"), {
-            "temperature": 0.0,
+            "temperature": 0.2,
             "top_p": 0.95,
             "response_mime_type": "application/json",
         })

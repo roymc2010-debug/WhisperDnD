@@ -14,9 +14,9 @@ import urllib.request
 import uuid
 from typing import Any, Dict, List, Optional
 
-logger = logging.getLogger("discord_rpc")
+import os
 
-STREAMKIT_CLIENT_ID = "207646673902501888"
+STREAMKIT_CLIENT_ID = os.environ.get("DISCORD_CLIENT_ID", "207646673902501888").strip() or "207646673902501888"
 DISCORD_RPC_ORIGIN = "https://streamkit.discord.com"
 RPC_PORTS = range(6463, 6473)
 TOKEN_FILE = Path("data/.discord_token.json")
@@ -45,6 +45,7 @@ class DiscordRpcTracker:
         self._stop_event = threading.Event()
         self._lock = threading.Lock()
         self._connected: bool = False
+        self._auth_state: str = "disconnected"
         self._last_subscribed_channel_id: Optional[str] = None
 
     @property
@@ -56,6 +57,11 @@ class DiscordRpcTracker:
     def connected(self) -> bool:
         """Alias for is_connected."""
         return self._connected
+
+    @property
+    def auth_state(self) -> str:
+        """Current authentication state: 'disconnected', 'authorizing', 'connected', 'denied'."""
+        return self._auth_state
 
     def ensure_running(self) -> None:
         """Ensure background WebSocket worker thread is running."""
@@ -83,6 +89,7 @@ class DiscordRpcTracker:
             return {
                 "connected": bool(self._connected and self.current_channel_id),
                 "rpc_connected": bool(self._connected),
+                "auth_state": self._auth_state,
                 "channel_id": self.current_channel_id,
                 "channel_name": self.channel_name,
                 "participants": list(self.participants.values()),
@@ -142,6 +149,7 @@ class DiscordRpcTracker:
         """
         Authenticate with Discord RPC.
         Tries saved access_token first, then falls back to StreamKit OAuth code exchange.
+        Invalidates cached token immediately upon rejection or error.
         """
         token = None
         if TOKEN_FILE.is_file():
@@ -162,11 +170,24 @@ class DiscordRpcTracker:
                 raw = await asyncio.wait_for(ws.recv(), timeout=3.0)
                 msg = json.loads(raw)
                 if msg.get("cmd") == "AUTHENTICATE" and msg.get("evt") != "ERROR":
+                    with self._lock:
+                        self._auth_state = "authenticated"
                     return True
+                else:
+                    logger.warning(
+                        "[DiscordRpcTracker] Stale Discord access token rejected (%s). Clearing cached token.",
+                        msg.get("evt", "ERROR"),
+                    )
+                    TOKEN_FILE.unlink(missing_ok=True)
             except Exception as e:
-                logger.debug("[DiscordRpcTracker] Cached token rejected: %s", e)
+                logger.debug("[DiscordRpcTracker] Cached token rejected: %s. Clearing cache.", e)
+                TOKEN_FILE.unlink(missing_ok=True)
 
         # Fallback: Request AUTHORIZE code with StreamKit scopes
+        with self._lock:
+            self._auth_state = "authorizing"
+        logger.info("[DiscordRpcTracker] Requesting OAuth authorization from desktop Discord...")
+
         nonce = str(uuid.uuid4())
         await ws.send(json.dumps({
             "cmd": "AUTHORIZE",
@@ -174,10 +195,29 @@ class DiscordRpcTracker:
             "nonce": nonce,
         }))
         try:
-            raw = await asyncio.wait_for(ws.recv(), timeout=5.0)
-            msg = json.loads(raw)
-            code = msg.get("data", {}).get("code")
+            code = None
+            start_auth = time.time()
+            while time.time() - start_auth < 45.0:
+                if self._stop_event.is_set():
+                    return False
+                try:
+                    raw = await asyncio.wait_for(ws.recv(), timeout=5.0)
+                    msg = json.loads(raw)
+                    if msg.get("nonce") == nonce:
+                        if msg.get("evt") == "ERROR":
+                            logger.warning("[DiscordRpcTracker] User or Discord declined authorization.")
+                            with self._lock:
+                                self._auth_state = "denied"
+                            return False
+                        code = msg.get("data", {}).get("code")
+                        break
+                except asyncio.TimeoutError:
+                    continue
+
             if not code:
+                logger.warning("[DiscordRpcTracker] Timed out waiting for Discord authorization.")
+                with self._lock:
+                    self._auth_state = "denied"
                 return False
 
             req = urllib.request.Request(
@@ -188,22 +228,28 @@ class DiscordRpcTracker:
                     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
                 },
             )
-            with urllib.request.urlopen(req, timeout=5) as r:
+            with urllib.request.urlopen(req, timeout=8) as r:
                 tdata = json.loads(r.read().decode("utf-8"))
                 new_token = tdata.get("access_token")
                 if new_token:
                     TOKEN_FILE.parent.mkdir(parents=True, exist_ok=True)
                     TOKEN_FILE.write_text(json.dumps(tdata, indent=2), encoding="utf-8")
+                    auth_nonce = str(uuid.uuid4())
                     await ws.send(json.dumps({
                         "cmd": "AUTHENTICATE",
                         "args": {"access_token": new_token},
-                        "nonce": str(uuid.uuid4()),
+                        "nonce": auth_nonce,
                     }))
-                    raw = await asyncio.wait_for(ws.recv(), timeout=3.0)
+                    raw = await asyncio.wait_for(ws.recv(), timeout=5.0)
                     msg = json.loads(raw)
-                    return bool(msg.get("cmd") == "AUTHENTICATE" and msg.get("evt") != "ERROR")
+                    success = bool(msg.get("cmd") == "AUTHENTICATE" and msg.get("evt") != "ERROR")
+                    with self._lock:
+                        self._auth_state = "authenticated" if success else "denied"
+                    return success
         except Exception as exc:
             logger.debug("[DiscordRpcTracker] OAuth code exchange failed: %s", exc)
+            with self._lock:
+                self._auth_state = "denied"
         return False
 
     async def _connect_and_listen(self) -> None:
@@ -226,9 +272,9 @@ class DiscordRpcTracker:
                         websockets.connect(
                             url,
                             origin=DISCORD_RPC_ORIGIN,
-                            close_timeout=1.0,
+                            close_timeout=0.2,
                         ),
-                        timeout=1.0,
+                        timeout=0.2,
                     )
                     connected_port = port
                     break
@@ -313,6 +359,7 @@ class DiscordRpcTracker:
             finally:
                 with self._lock:
                     self._connected = False
+                    self._auth_state = "disconnected"
                     self.ws = None
                 try:
                     await ws.close()

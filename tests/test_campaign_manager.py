@@ -1086,6 +1086,71 @@ class TestCampaignManager(unittest.TestCase):
         self.assertIn("Octus Taconis", state2["locations"][0]["associated_characters"])
         self.assertIn("Halendiel", state2["locations"][0]["associated_characters"])
 
+    def test_absence_toggle_zero_memory_persistence(self):
+        """Verify that is_absent is strictly temporary and never persisted to campaign roster or disk."""
+        camp_name = "Absence Memory Test"
+        roster_with_absent = [
+            {"player_name": "DM Bob", "character_name": "(DM)", "role": "Dungeon Master (DM)", "is_absent": False},
+            {"player_name": "Player Alice", "character_name": "Valeros", "role": "Fighter", "is_absent": True},
+            {"player_name": "Player Charlie", "character_name": "Ezren", "role": "Wizard", "is_absent": False},
+        ]
+
+        state = self.manager.record_session(
+            name=camp_name,
+            session_chapter={"title": "Session 1", "chronicle_text": "Valeros was absent today."},
+            session_number=1,
+            roster=roster_with_absent,
+        )
+
+        # In-memory returned state roster must have is_absent stripped
+        for member in state.get("roster", []):
+            self.assertNotIn("is_absent", member)
+            self.assertNotIn("absent", member)
+
+        # Reloaded state from disk must also have no is_absent
+        reloaded = self.manager.load_campaign(camp_name)
+        for member in reloaded.get("roster", []):
+            self.assertNotIn("is_absent", member)
+
+        # Character must still be present in the campaign roster and universal_pcs
+        char_names = [m.get("character_name") for m in reloaded.get("roster", [])]
+        self.assertIn("Valeros", char_names)
+        self.assertIn("Ezren", char_names)
+
+    def test_set_character_backstory_with_character_name(self):
+        camp_name = "Backstory Test Campaign"
+        state = self.manager.load_campaign(camp_name)
+        # 1. Setting backstory and linking existing character
+        state["roster"] = [
+            {"player_name": "Beta", "character_name": "(DM)", "is_user_character": False},
+            {"player_name": "Roy", "character_name": "Markus", "is_user_character": False},
+            {"player_name": "Carlos", "character_name": "Selen", "is_user_character": False},
+        ]
+        self.manager.save_campaign(state)
+
+        updated = self.manager.set_character_backstory(camp_name, "Markus es un guerrero noble.", character_name="Markus")
+        self.assertEqual(updated["user_character_backstory"], "Markus es un guerrero noble.")
+        markus = next(m for m in updated["roster"] if m["character_name"] == "Markus")
+        self.assertTrue(markus["is_user_character"])
+        self.assertTrue(markus["is_user"])
+
+        # 2. Setting backstory for a new character adds them to roster
+        updated2 = self.manager.set_character_backstory(camp_name, "Nuevo personaje historia.", character_name="Kyra")
+        kyra = next((m for m in updated2["roster"] if m["character_name"] == "Kyra"), None)
+        self.assertIsNotNone(kyra)
+        self.assertTrue(kyra["is_user_character"])
+        # Markus should no longer be marked as user character
+        markus2 = next(m for m in updated2["roster"] if m["character_name"] == "Markus")
+        self.assertFalse(markus2["is_user_character"])
+
+    def test_get_all_characters(self):
+        chars = self.manager.get_all_characters()
+        self.assertIsInstance(chars, list)
+        # Should not include DM
+        for c in chars:
+            self.assertNotIn("(DM)", c["character_name"])
+            self.assertNotEqual(c["character_name"].lower(), "dm")
+
 
 if __name__ == "__main__":
     unittest.main()

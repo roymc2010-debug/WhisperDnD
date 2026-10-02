@@ -61,7 +61,11 @@ Generate all content (Executive Briefing, Detailed Notes, Action Items, Key Poin
 | Character | Player / Role | Class / Species | Session Role |
 |---|---|---|---|
 (Include Character name, Player, Class and Species, and a 1-sentence summary of their in-world fictional actions or achievements in this episode).
-⚠️ STRICT DIRECTIVE: ONLY Player Characters (PCs) belong in this table. A player who acts as a core protagonist in the narrative (e.g. Liam O'Brien playing Halendiel Fang) is a Player Character (PC); DO NOT omit, discard, or drop them from this table. Distinguish the true Dungeon Master (who sets DCs, describes monster attacks, and runs the world) from the players. Liam O'Brien is a PLAYER playing the Bard Halendiel Fang. The Dungeon Master (DM) is strictly the referee/narrator and NEVER has a character row. Characters can NEVER have the class or role 'Dungeon Master'."""
+⚠️ STRICT DIRECTIVE: ONLY Player Characters (PCs) belong in this table. A player who acts as a core protagonist in the narrative (e.g. Liam O'Brien playing Halendiel Fang) is a Player Character (PC); DO NOT omit, discard, or drop them from this table. Distinguish the true Dungeon Master (who sets DCs, describes monster attacks, and runs the world) from the players. Liam O'Brien is a PLAYER playing the Bard Halendiel Fang. The Dungeon Master (DM) is strictly the referee/narrator and NEVER has a character row. Characters can NEVER have the class or role 'Dungeon Master'.
+⚠️ MANDATORY DIRECTIVE FOR ABSENT PLAYERS:
+If campaign notes, prior lore, or session context state that a regular party character was absent in this session (e.g. "Selen was absent today"):
+- NEVER delete or drop their row from this table.
+- KEEP their row in the table, explicitly noting in 'Session Role': "Absent in this session (character remains with the company in the background)"."""
         sec1_title = "# SECTION 1: DETAILED ADVENTURE CHRONICLE & COMBAT BREAKDOWN"
         sec1_guidelines = """⚠️ MANDATORY DIRECTIVE: DEEP CHRONOLOGICAL SCENE BREAKDOWN (NO OVER-SUMMARIZATION):
 - STRICTLY FORBIDDEN to write a generic 3-paragraph summary. This audio represents hours of roleplay gameplay.
@@ -179,7 +183,11 @@ Generate all content (Executive Briefing, Detailed Notes, Action Items, Key Poin
 | Personaje | Jugador / Rol | Clase / Especie | Rol en la Sesión |
 |---|---|---|---|
 (Incluye Nombre del personaje, Jugador, Clase y Especie, y un resumen de exactamente 1 oración sobre sus acciones ficticias in-character o logros dentro del mundo en este episodio).
-⚠️ DIRECTIVA ESTRICTA: Esta tabla es EXCLUSIVA para Personajes Jugadores (PCs). Un jugador que actúe como protagonista clave en la narrativa (por ejemplo, Liam O'Brien interpretando al bardo Halendiel Fang) es un Personaje Jugador (PC); PROHIBIDO omitirlo, descartarlo o borrarlo de esta tabla. Distingue con precisión al verdadero Dungeon Master (quien establece dificultades de tirada/DC, describe ataques de monstruos, narra el entorno y arbitra el mundo) de los jugadores. Liam O'Brien es un JUGADOR que interpreta al bardo Halendiel Fang, NO el Dungeon Master. El DM es el narrador/árbitro fuera de personaje y NUNCA tiene fila en esta tabla. Ningún personaje puede tener la clase o rol 'Dungeon Master'."""
+⚠️ DIRECTIVA ESTRICTA: Esta tabla es EXCLUSIVA para Personajes Jugadores (PCs). Un jugador que actúe como protagonista clave en la narrativa (por ejemplo, Liam O'Brien interpretando al bardo Halendiel Fang) es un Personaje Jugador (PC); PROHIBIDO omitirlo, descartarlo o borrarlo de esta tabla. Distingue con precisión al verdadero Dungeon Master (quien establece dificultades de tirada/DC, describe ataques de monstruos, narra el entorno y arbitra el mundo) de los jugadores. Liam O'Brien es un JUGADOR que interpreta al bardo Halendiel Fang, NO el Dungeon Master. El DM es el narrador/árbitro fuera de personaje y NUNCA tiene fila en esta tabla. Ningún personaje puede tener la clase o rol 'Dungeon Master'.
+⚠️ DIRECTIVA OBLIGATORIA PARA JUGADORES AUSENTES:
+Si las notas de la campaña, el lore previo o el contexto de la sesión indican que un personaje habitual estuvo ausente en esta sesión (por ejemplo, "Selen no estuvo en la partida de hoy" o "Velith no participó hoy"):
+- PROHIBIDO borrar o eliminar su fila de esta tabla.
+- MANTÉN su fila intacta en la tabla, indicando explícitamente en 'Rol en la Sesión': "Ausente en esta sesión (el personaje se mantiene con el grupo en segundo plano)"."""
     sec1_title = "# SECCIÓN 1: CRÓNICA DETALLADA DE LA AVENTURA Y COMBATES"
     sec1_guidelines = """⚠️ DIRECTIVA OBLIGATORIA: CRÓNICA PROFUNDA POR ACTOS Y ESCENAS CRONOLÓGICAS (PROHIBIDO EL RESUMEN SUPERFICIAL):
 - PROHIBIDO TERMINANTEMENTE escribir un resumen genérico o superficial de 3 o 4 párrafos para toda la sesión. Esta transcripción representa horas de partida real de rol.
@@ -210,7 +218,25 @@ Generate all content (Executive Briefing, Detailed Notes, Action Items, Key Poin
   * Si las conversaciones operativas de la mesa indican que un jugador retira, deja en reserva o sustituye a su personaje e introduce uno nuevo a mitad de la partida:
     - Refleja la salida o retiro del personaje saliente en su resumen/hito de sesión (ej. se separó del grupo, marchó por un camino propio o quedó en reserva).
     - Registra el nuevo personaje en la compañía de aventureros comenzando desde esta sesión con su debut.
-    - PROHIBIDO TERMINANTEMENTE atribuir combates, diálogos o acciones posteriores al personaje retirado una vez que el nuevo entra en juego."""
+    - PROHIBIDO TERMINANTEMENTE atribuir combates, diálogos o acciones posteriores al personaje retirado una vez que el nuevo entra en juego.
+- ⚠️ DIRECTIVA CRÍTICA: PRONUNCIACIÓN EN ESPAÑOL DE NOMBRES EN INGLÉS/FANTASÍA (DESAMBIGUACIÓN FONÉTICA):
+  * La mesa de juego habla en ESPAÑOL, pero los nombres propios de Personajes Jugadores (PCs) y de los módulos de D&D están en INGLÉS o fantasía anglosajona.
+  * Whisper transcribe el audio interpretando los sonidos con fonemas del español, causando distorsiones fonéticas sistemáticas.
+  * PROHIBIDO inventar PNJs o atribuir acciones a figuras inexistentes cuando se trate de distorsiones fonéticas de Personajes Jugadores:
+    - "Viri", "Belly", "Belith", "Belita", "Veli", "Vel" se refieren SIEMPRE a la barda tiefling **Velith**. NUNCA confundas a Velith con un PNJ ni la llames 'Viri'.
+    - "Atou", "Ato", "A-tú", "Toad", "A todos" en combates y diálogos se refieren al monje **Atou Shadowgrace**.
+    - "Markus", "Marco", "Matthew" se refieren al guerrero **Markus Veyl**.
+    - "Minipeko", "Peko", "Mipe", "Mi pez", "Mi pepe", "Nipe" se refieren al mago kenku **Minipeko**.
+    - "Selen", "Selle", "Seren" se refieren a la pícaro **Selen**.
+  * Al narrar PNJs y elementos de módulos oficiales (como Candlekeep Mysteries - Book of the Raven / Chalet Brantifax), utiliza OBLIGATORIAMENTE los nombres canónicos oficiales en lugar de las interpretaciones fonéticas de Whisper:
+    - "Marina" / "Madrina Nateras" -> **Madrina Natterask**
+    - "Ego" / "Taspar" / "Tasspart" -> **Taspar Hatchhill**
+    - "Vinic" / "Viníque" -> **Vinique** (wereraven tiefling)
+    - "Benji" / "Rénik" / "Grokka" -> **Rennick Groka**
+    - "Sifén" / "Silfén" -> **Sylphene**
+    - "El lute" / "Ute" / "Lute" -> **Heluthe**
+    - "Braun" / "B-R-O-R-N" -> **Brorn** (el mastín cazador)
+    - "Antipax" / "Brandy bags" / "Pratt" -> **Barón Brantifax**"""
     sec1_sub1 = "## 1.1 Resumen Narrativo y Diálogos Memorables (Estructurado por Actos y Escenas)"
     sec1_sub2 = "## 1.2 Desglose Pormenorizado de Combates y Táctica (Maniobras, Conjuros y Críticos/Pifias)"
     sec1_sub3 = "## 1.3 Personajes No Jugadores (PNJs) e Interacciones Clave (Taxonomía de 3 niveles: Importantes, Interacción/Contexto incluyendo regla de personajes sin nombre, y Mencionados en la historia)"
@@ -305,6 +331,7 @@ def build_continuity_session_prompt(
     user_character: Optional[Dict[str, Any]] = None,
     is_youtube: bool = False,
     prior_lore: Optional[str] = None,
+    character_backstory: Optional[str] = None,
 ) -> str:
     """
     Build a multi-session continuity prompt for Gemini.
@@ -336,9 +363,6 @@ def build_continuity_session_prompt(
                 if char_subclass and char_subclass not in ("-", "N/A", "(N/A)"):
                     parts.append(f"subclase {char_subclass}")
                 char_desc = ", ".join(parts)
-        elif has_markus is True and user_character is None:
-            char_name = "Markus Veyl"
-            char_desc = "Roymc89 - Battle Master Lvl 4"
 
     # Format existing quests
     if existing_quests:
@@ -384,13 +408,41 @@ LORE PREVIO Y RESUMEN DE SESIONES ANTERIORES (CONTEXTO DE LA CAMPAÑA):
 (Utiliza este lore previo para dar continuidad al mundo, misiones en curso y personajes clave preexistentes).
 """
 
+    backstory_block = ""
+    if char_name and character_backstory and str(character_backstory).strip():
+        if is_english:
+            backstory_block = f"""
+=== OFFICIAL CHARACTER BACKSTORY: {char_name} ===
+{str(character_backstory).strip()}
+=== END OF BACKSTORY ===
+(Use this backstory as the authoritative reference for the Roleplay & Fellowship Reflection coaching section. Cross-reference character decisions, dialogue, and actions against this backstory to identify out-of-character moments and missed roleplay opportunities.)
+"""
+        else:
+            backstory_block = f"""
+=== TRASFONDO OFICIAL DEL PERSONAJE: {char_name} ===
+{str(character_backstory).strip()}
+=== FIN DEL TRASFONDO ===
+(Usa este trasfondo como referencia autoritativa para la sección de Reflexión de Rol y Compañerismo. Cruza las decisiones, diálogos y acciones del personaje con este trasfondo para identificar momentos fuera de personaje y oportunidades de rol perdidas.)
+"""
+
+
     if char_name:
         if is_english:
-            coaching_instructions = f"""2. Accurately attribute every action, spell, roll, and decision to the characters and players in the Roster. Pay special attention to {char_name} ({char_desc}) for their "Roleplay & Fellowship Reflection: {char_name}". IMPORTANT: MIN/MAXING OR ROBOTIC COACHING IS STRICTLY FORBIDDEN (zero lessons on maximizing damage per turn or mathematical action economy; focus is narrative, character depth, teamwork, and in-character dilemmas)."""
-            coaching_json_desc = f"Roleplay & Fellowship Reflection for {char_name} ({char_desc}) WITHOUT min/maxing or combat optimization, divided into 4 areas: 1) Character Consistency & Development, 2) Creativity & Rules vs. Environment, 3) Group Dynamics & Teamwork, 4) Next Session Dilemmas."
+            coaching_instructions = f"""2. Accurately attribute every action, spell, roll, and decision to the characters and players in the Roster. Pay special attention to {char_name} ({char_desc}) for their "Roleplay & Fellowship Reflection: {char_name}". STRICT ATTRIBUTION RULE: If an action, spell, combat, or decision has no explicit named author in the audio, attribute it to 'the party' or 'the group'. NEVER assume it was {char_name} without direct verbal evidence. IMPORTANT: MIN/MAXING OR ROBOTIC COACHING IS STRICTLY FORBIDDEN (zero lessons on maximizing damage per turn or mathematical action economy; focus is narrative, character depth, teamwork, and in-character dilemmas)."""
+            coaching_json_desc = f"""Roleplay & Fellowship Reflection for {char_name} ({char_desc}) WITHOUT min/maxing or combat optimization, divided into 4 areas:
+1) Character Consistency & Development: Analyze fidelity to the character's known personality, backstory, and values. MANDATORY — detect and flag any moments where the player appeared to speak or act out-of-character (breaking immersion, making meta decisions, speaking as themselves rather than as {char_name}). Cite the exact scene. Then cross-reference with the character's known backstory and class identity to suggest 1-2 specific roleplay moments the player could have seized but didn't (e.g. 'In Scene 2 when the NPC mentioned X, {char_name}'s backstory with Y was a perfect opening that wasn't used').
+2) Creativity & Rules vs. Environment: Constructive analysis of rule flexibility vs. cinematic narrative, and gentle warnings about overlooked dangers.
+3) Group Dynamics & Teamwork: Support for party members, enabling others to shine, protecting vulnerabilities.
+4) Next Session Dilemmas: 1-2 reflective in-character questions about worldview, loyalties, or relationships.
+⚠️ HONESTY DIRECTIVE: Report things exactly as they happened — if the session was excellent, say so specifically and cite the exact scene. If there were real mistakes or missed opportunities, name them with the exact scene. STRICTLY FORBIDDEN: generic empty praise ('they did great', 'it was incredible') with no specific evidence, AND forced criticism invented just to 'balance' a genuinely good session. Every observation — positive or negative — MUST be grounded in a specific moment from the transcript."""
         else:
-            coaching_instructions = f"""2. Atribuye con precisión cada acción, hechizo, tirada y decisión a los personajes y jugadores del Roster. Presta atención especial a {char_name} ({char_desc}) para su "Reflexión de Rol y Compañerismo: {char_name}". IMPORTANTE: PROHIBIDO EL MIN/MAXING O COACHING ROBÓTICO (cero lecciones sobre maximizar daño por turno o economía matemática de acciones; el foco es narrativa, carácter de personaje, apoyo a compañeros y dilemas in-character)."""
-            coaching_json_desc = f"Reflexión de Rol y Compañerismo para {char_name} ({char_desc}) SIN min/maxing ni optimización robótica de combate, dividida en 4 áreas: 1) Coherencia y Desarrollo de Personaje (fidelidad a personalidad/trasfondo, decisiones narrativas potentes y oportunidades de voz desaprovechadas), 2) Creatividad y Uso del Entorno vs. Reglas (análisis constructivo si flexionó RAW en favor de la narrativa cinematográfica vs regla formal estricta, y advertencias amables sobre peligros pasados por alto), 3) Dinámica de Grupo y Trabajo en Equipo (apoyo a sus compañeros de party, permitiéndoles brillar y protegiendo vulnerabilidades), 4) Dilemas para la Siguiente Sesión (1 o 2 preguntas reflexivas in-character sobre su visión del mundo, lealtades o relaciones)."
+            coaching_instructions = f"""2. Atribuye con precisión cada acción, hechizo, tirada y decisión a los personajes y jugadores del Roster. Presta atención especial a {char_name} ({char_desc}) para su "Reflexión de Rol y Compañerismo: {char_name}". DIRECTIVA ESTRICTA DE ATRIBUCIÓN: Si una acción, hechizo, combate o decisión no tiene un autor explícitamente nombrado en el audio, atribúyelo a 'la compañía' o 'el grupo'. NUNCA asumir que fue {char_name} sin evidencia verbal directa en la transcripción. IMPORTANTE: PROHIBIDO EL MIN/MAXING O COACHING ROBÓTICO (cero lecciones sobre maximizar daño por turno o economía matemática de acciones; el foco es narrativa, carácter de personaje, apoyo a compañeros y dilemas in-character)."""
+            coaching_json_desc = f"""Reflexión de Rol y Compañerismo para {char_name} ({char_desc}) SIN min/maxing ni optimización robótica de combate, dividida en 4 áreas:
+1) Coherencia y Desarrollo de Personaje: Analiza la fidelidad a la personalidad conocida, trasfondo y valores del personaje. OBLIGATORIO — detecta y señala cualquier momento donde el jugador pareció hablar o actuar fuera de personaje (rompiendo la inmersión, tomando decisiones meta, hablando como él mismo en lugar de como {char_name}). Cita la escena exacta. Luego cruza con el trasfondo conocido del personaje y su identidad de clase para sugerir 1-2 momentos de rol específicos que el jugador pudo aprovechar pero no aprovechó (ej. 'En la Escena 2 cuando el PNJ mencionó X, el trasfondo de {char_name} con Y era una apertura perfecta que no se utilizó').
+2) Creatividad y Uso del Entorno vs. Reglas: Análisis constructivo si flexionó RAW en favor de la narrativa cinematográfica vs regla formal estricta, y advertencias amables sobre peligros pasados por alto.
+3) Dinámica de Grupo y Trabajo en Equipo: Apoyo a sus compañeros de party, permitiéndoles brillar y protegiendo vulnerabilidades.
+4) Dilemas para la Siguiente Sesión: 1 o 2 preguntas reflexivas in-character sobre su visión del mundo, lealtades o relaciones.
+⚠️ DIRECTIVA DE HONESTIDAD: Di las cosas como fueron. Si la sesión fue excelente, dilo con evidencia concreta citando la escena exacta. Si hubo errores reales u oportunidades perdidas, nómbralos con la escena exacta. PROHIBIDO TERMINANTEMENTE: el elogio vacío sin evidencia ('lo hizo muy bien', 'fue increíble') Y la crítica inventada para 'equilibrar' artificialmente una sesión genuinamente buena o mala. Cada observación — positiva o negativa — DEBE estar anclada en un momento específico de la transcripción."""
     else:
         if is_english:
             coaching_instructions = """2. Accurately attribute every action, spell, roll, and decision to the characters and players in the Roster. STRICT DIRECTIVE: There is no designated user character for personal reflection in this session (or this is an external YouTube video). Leave 'user_coaching' (and 'markus_coaching') strictly as an empty string ""."""
@@ -429,7 +481,8 @@ Generate all content (Executive Briefing, Detailed Notes, Action Items, Key Poin
 - ⚠️ MANDATORY FULL COVERAGE OF ALL COMBATS & ENCOUNTERS:
   * If multiple major combats occurred (e.g. a Troll fight AND a Dragon fight), EACH MUST be chronicled in distinct chronological scenes. DO NOT merge, omit, or skip major battles.
 - ⚠️ REGISTER COMPANIONS & CHARACTER SWAPS:
-  * Capture party animal companions, familiars, or mascots (e.g. Minipeko) and character switches/retirements."""
+  * Capture party animal companions, familiars, or mascots (e.g. Minipeko) and character switches/retirements.
+- ⚠️ MINIMUM SCENE LENGTH: Each scene MUST contain at least 3 full paragraphs. A scene with fewer than 150 words is an INCOMPLETE scene — you MUST expand it with additional detail from the transcript before moving to the next scene."""
         chronicle_json_desc = "Deep chronicle strictly organized into chronological Acts and Scenes (e.g. '### Act I: Scene 1: ...', '### Scene 2: ...'). Dedicate 2-3 detailed paragraphs per scene with verbatim dialogue quotes, player strategic discussions, explicit dice rolls (Athletics, Perception, nat 20s, nat 1s), and step-by-step tactical combat maneuvers (spells, maneuvers, damage taken). STRICTLY FORBIDDEN to compress into a generic 3-paragraph summary."
     else:
         lang_banner = """⚠️ DIRECTIVA CRÍTICA DE IDIOMA Y JERGA NATURAL DE D&D:
@@ -468,7 +521,8 @@ Generate all content (Executive Briefing, Detailed Notes, Action Items, Key Poin
   * PROHIBIDO usar arcaísmos o sinónimos medievales rebuscados (ej. NUNCA uses 'sierpe' para dragón, 'pertrechos' para suministros o equipo, 'yacija', 'mengua').
   * Usa vocabulario directo de la mesa de D&D y spanglish natural: 'dragón', 'trol', 'suministros', 'equipo', 'pociones', 'trampa'.
 - ⚠️ REGISTRO DE COMPAÑEROS, MASCOTAS Y RELEVOS DE PERSONAJE:
-  * Registra adecuadamente acompañantes, familiares o mascotas de la party (ej. Minipeko) y cambios o relevos de personajes."""
+  * Registra adecuadamente acompañantes, familiares o mascotas de la party (ej. Minipeko) y cambios o relevos de personajes.
+- ⚠️ PISO MÍNIMO DE EXTENSIÓN POR ESCENA: Cada escena DEBE contener al menos 3 párrafos completos. Una escena con menos de 150 palabras es una ESCENA INCOMPLETA — DEBES ampliarla con detalles adicionales de la transcripción antes de pasar a la siguiente escena."""
         chronicle_json_desc = "Crónica profunda estructurada OBLIGATORIAMENTE en Actos y Escenas cronológicas (ej. '### Acto I: Escena 1: El Camino del Bosque', '### Escena 2: Negociación en la Posada', '### Acto II: Escena 3: Emboscada'). PROHIBIDO resumir en 3 párrafos. Dedica 2 a 3 párrafos por escena describiendo diálogos textuales entre personajes, debates estratégicos de la mesa, tiradas de dados notables (Percepción, Atletismo, 20s y 1s naturales) y el desarrollo táctico turno a turno de los combates (conjuros, maniobras, daño)."
 
     lang_rule = "GENERA TODOS LOS CAMPOS DE TEXTO DEL JSON EN INGLÉS (English)." if is_english else "GENERA EN ESPAÑOL NATURAL CON JERGA OFICIAL DE D&D (SPANGILSH DE MESA PERMITIDO)."
@@ -631,16 +685,37 @@ When players speak generically on the audio channel without saying character nam
     )
 
     npc_instruction = (
-        """4. CRITERIOS ESTRICTOS DE EXTRACCIÓN DE PNJs (TAXONOMÍA DE 3 NIVELES Y PERSONAJES SIN NOMBRE):
+        """4. CRITERIOS ESTRICTOS DE EXTRACCIÓN DE PNJs (TAXONOMÍA DE 3 NIVELES Y EXHAUSTIVIDAD TOTAL):
+   - ⚠️ ALTA SENSIBILIDAD Y COBERTURA EXHAUSTIVA DE PNJs INTRODUCIDOS:
+     * El DM o los jugadores pueden introducir, nombrar o interactuar con múltiples personajes no jugadores (PNJs) a lo largo de la sesión: eruditos, bibliotecarios, monjes, sabios, guardias, posaderos, comerciantes, heraldos, prisioneros, enviados de facciones o figuras misteriosas.
+     * PROHIBIDO TERMINANTEMENTE ignorar o filtrar PNJs que hablen poco o solo sean introducidos/mencionados por el DM. Si se nombra o introduce a un PNJ, REGÍSTRALO OBLIGATORIAMENTE tanto en 'updated_npcs' como en 'detected_npc_names' para su posterior revisión ortográfica.
+     * PRECISIÓN FONÉTICA Y DE ORTOGRAFÍA: En el audio en español, los nombres de fantasía de D&D a menudo son transcritos fonéticamente por Whisper (ej. nombres de Forgotten Realms / Candlekeep Mysteries como Miirym, Sylvira Savikas, Matreous, Bookwyrm, Fistandia, etc.). Utiliza el contexto del mundo de D&D para deducir y corregir la ortografía canónica más verosímil del nombre de fantasía, evitando sustituirlo por palabras comunes del español.
+      * DESAMBIGUACIÓN FONÉTICA ESTRICTA (JUGADORES vs PNJs):
+        - PROHIBIDO confundir a un Personaje Jugador con un PNJ debido a distorsiones fonéticas de Whisper:
+          * "Viri", "Belly", "Belith", "Belita", "Veli", "Vel" se refieren a la barda tiefling Velith. NUNCA crees un PNJ llamado 'Viri'.
+          * "Atou", "Ato", "A-tú", "Toad" se refieren al monje elfo Atou Shadowgrace.
+          * "Markus", "Marco", "Matthew" se refieren al guerrero humano Markus Veyl.
+          * "Minipeko", "Peko", "Mipe", "Mi pez", "Mi pepe", "Nipe" se refieren al mago kenku Minipeko.
+          * "Selen", "Selle", "Seren" se refieren a la pícaro Selen.
+        - Para PNJs de aventuras oficiales (ej. Candlekeep Mysteries - Book of the Raven / Chalet Brantifax):
+          * Usa siempre los nombres canónicos: Madrina Natterask, Taspar Hatchhill, Vinique, Rennick Groka, Barón Brantifax, Baronesa Ariadne, Sylphene, Heluthe, Brorn.
+         - Para PNJs de aventuras oficiales de Phandalin (Lost Mine of Phandelver / Dragon of Icespire Peak):
+          * Usa siempre los nombres canónicos: Sildar Hallwinter, Gundren Rockseeker, Sister Garaele, Linene Graywind, Halia Thornton, Harbin Wester, Toblen Stonehill, Elmar Barthen, Daran Edermath, Qelline Alderleaf, Carp Alderleaf.
+          * Los PCs de Phandalin: \"Aquilus\", \"Aquilo\", \"Aquila\" → Aquilus Bunker (Dragonborn Ranger). \"Johngalli\", \"Juan Gali\", \"John\" → Johngalli A. III (Human Pugilist). \"Raul\", \"Raúl Hell\" → Raul-Hell (Gnome Monk). \"Sir Yato\", \"Yato\" → Sir Yato (Human Paladin). \"Zafkiel\", \"Safkiel\", \"Zafquiel\" → Zafkiel (Tiefling Wizard).
    - Clasifica CADA personaje no jugador (PNJ) en su campo 'tipo':
      * 'importantes': Villanos principales, patrones, líderes de facción, figuras clave recurrentes de la historia.
      * 'interaccion_contexto': Diálogo directo o interacción directa (interaccion_directa), comercio, combate o testigos presenciales cara a cara con la party.
      * 'mencionados': Personajes referenciados en cartas, rumores, trasfondo o menciones indirectas.
-   - ⚠️ REGLA DE PERSONAJES SIN NOMBRE: Si un PNJ no tiene nombre propio pero aportó información útil, pistas o interactuó, regístralo por su rol/descriptor (ej. '[Sin nombre] Guardia de la puerta norte', '[Sin nombre] Posadero enano') registrando su pista o contribución específica en 'notes'.
+     * ⚠️ NPCS DE FONDO (ESPECTROS, DIARIOS Y MENCIONES INDIRECTAS): Si un nombre aparece solo en documentos leídos, cartas, diarios, inscripciones, visiones o voces espectrales, clasifícalo como 'mencionados' y añade en 'notes': '[Mencionado en Diario]', '[Entidad Espectral]' o '[Mencionado en Inscripción]' según corresponda. NUNCA lo clasifiques como 'interaccion_contexto' si la party no lo vio físicamente.
+   - ⚠️ REGLA DE PERSONAJES SIN NOMBRE: Si un PNJ no tiene nombre propio pero aportó información útil, pistas o interactuó, regístralo por su rol/descriptor (ej. '[Sin nombre] Guardia de la puerta norte', '[Sin nombre] Monje de Candlekeep') registrando su pista o contribución específica en 'notes'.
    - REGLA TAXATIVA: PROHIBIDO omitir PNJs con nombre propio. Identifícalos a todos exhaustivamente.
    - Documenta pistas clave, secretos o revelaciones en el array de 'notes'."""
         if not is_english
-        else """4. STRICT NPC EXTRACTION CRITERIA (3-TIER TAXONOMY & UNNAMED CHARACTERS):
+        else """4. STRICT NPC EXTRACTION CRITERIA (3-TIER TAXONOMY & HIGH RECALL):
+   - ⚠️ HIGH SENSITIVITY AND EXHAUSTIVE COVERAGE OF INTRODUCED NPCS:
+     * The DM or players may introduce, name, or interact with multiple non-player characters (NPCs) throughout the session: scholars, monks, librarians, guards, innkeepers, merchants, faction emissaries, prisoners, or mysterious figures.
+     * STRICTLY FORBIDDEN to ignore or drop NPCs who speak briefly or are only introduced/described by the DM. If an NPC is named or introduced, MANDATORILY register them in both 'updated_npcs' and 'detected_npc_names' for spelling review.
+     * PHONETIC & FANTASY ACCURACY: In audio transcripts, D&D fantasy names may be phonetically transcribed. Deduce the most accurate fantasy name from D&D context (e.g. Candlekeep Mysteries / Forgotten Realms lore) rather than Spanish common words.
    - Classify EVERY non-player character (NPC) under 'tipo':
      * 'importantes': Main villains, patrons, faction leaders, key recurring figures.
      * 'interaccion_contexto': Direct dialogue, direct interaction (interaccion_directa), trade, combat, or eyewitnesses face-to-face with the party.
@@ -737,7 +812,7 @@ MISIONES EXISTENTES DE LA CAMPAÑA:
 
 DIRECTORIO DE PNJS CONOCIDOS DE LA CAMPAÑA:
 {npcs_formatted}
-{recap_guidance}{prior_lore_block}
+{recap_guidance}{prior_lore_block}{backstory_block}
 {auto_detect_instruction}
 {group_dynamics_instruction}
 

@@ -1,6 +1,7 @@
 """Gemini TTRPG Summarizer client for D&D session chronicles."""
 
 import os
+import time
 from typing import Any, Dict, List, Optional
 from dotenv import load_dotenv
 
@@ -25,7 +26,7 @@ class GeminiTTRPGSummarizer:
         model_name: Optional[str] = None,
     ):
         self.api_key = api_key or os.getenv("GEMINI_API_KEY", "").strip()
-        self.model_name = model_name or os.getenv("GEMINI_MODEL", "gemini-3.6-flash")
+        self.model_name = model_name or os.getenv("GEMINI_MODEL", "gemini-3.5-flash")
         self._client = None
 
     @property
@@ -60,20 +61,72 @@ class GeminiTTRPGSummarizer:
             subclass = p.get("subclass", "").strip()
             species_str = f" | Especie: {species}" if species and species not in ("(N/A - DM)", "N/A", "N/A - DM") else ""
             subclass_str = f" ({subclass})" if subclass and subclass not in ("N/A", "(N/A)", "-") else ""
-            lines.append(f"- Jugador: {player} | Personaje: {character}{species_str} | Clase/Rol: {role}{subclass_str}")
+            is_absent = bool(p.get("is_absent"))
+            absent_str = " | [ESTADO EN ESTA SESIÓN: AUSENTE / NO ASISTIÓ HOY - El jugador faltó a esta sesión. El personaje permanece con la compañía en segundo plano; NO lo elimines de la tabla de aventureros ni inventes que murió o abandonó la campaña, simplemente no participó activamente en los combates ni diálogos de este episodio]" if is_absent else ""
+            lines.append(f"- Jugador: {player} | Personaje: {character}{species_str} | Clase/Rol: {role}{subclass_str}{absent_str}")
         return "\n".join(lines)
 
     @staticmethod
-    def check_has_markus(roster: Optional[List[Dict[str, Any]]]) -> bool:
-        """Check if Markus Veyl is present in the party roster."""
+    def check_has_user_character(roster: Optional[List[Dict[str, Any]]]) -> bool:
+        """Check if the roster has a character marked as the user's character (is_user_character: true)."""
         if not roster:
             return False
         for p in roster:
-            p_name = str(p.get("player_name", "")).lower()
-            c_name = str(p.get("character_name", "")).lower()
-            if "markus" in p_name or "markus" in c_name:
+            if p.get("is_user_character"):
                 return True
         return False
+
+    @staticmethod
+    def check_has_markus(roster: Optional[List[Dict[str, Any]]]) -> bool:
+        """Check if roster has Markus Veyl or any character marked as user character."""
+        if not roster:
+            return False
+        if GeminiTTRPGSummarizer.check_has_user_character(roster):
+            return True
+        return any(
+            "markus" in str(p.get("character_name", "")).lower()
+            or "markus" in str(p.get("player_name", "")).lower()
+            for p in roster
+        )
+
+    def _generate_with_retry(self, contents: Any, config: Any = None) -> str:
+        """
+        Executes generate_content with automatic retries on 503 UNAVAILABLE / 429 RESOURCE_EXHAUSTED
+        and seamless fallback to next available active models:
+        [self.model_name, "gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash"]
+        """
+        candidate_models = [
+            self.model_name,
+            "gemini-3.5-flash",
+            "gemini-3.5-flash-lite",
+            "gemini-3.8-flash",
+        ]
+        models_to_try = []
+        for m in candidate_models:
+            if m and m not in models_to_try:
+                models_to_try.append(m)
+
+        last_error = None
+        for model in models_to_try:
+            for attempt in range(3):
+                try:
+                    kwargs = {"model": model, "contents": contents}
+                    if config is not None:
+                        kwargs["config"] = config
+                    response = self.client.models.generate_content(**kwargs)
+                    if response and response.text:
+                        return response.text
+                except Exception as exc:
+                    last_error = exc
+                    err_msg = str(exc)
+                    if "API_KEY_INVALID" in err_msg or "PERMISSION_DENIED" in err_msg:
+                        raise ValueError(f"Error de autenticación con Gemini API: {err_msg}") from exc
+                    if "503" in err_msg or "UNAVAILABLE" in err_msg or "429" in err_msg or "RESOURCE_EXHAUSTED" in err_msg:
+                        time.sleep(1.5 * (attempt + 1))
+                        continue
+                    break
+
+        raise RuntimeError(f"Error al generar con Gemini tras reintentos y modelos alternativos: {last_error}") from last_error
 
     def generate_chronicle(
         self,
@@ -99,7 +152,7 @@ class GeminiTTRPGSummarizer:
             return "No hay transcripción de audio disponible para generar la crónica."
 
         roster_formatted = self.format_roster(roster)
-        has_markus = self.check_has_markus(roster)
+        has_markus = self.check_has_markus(roster) or bool(user_character)
         prompt = build_dnd_session_prompt(
             roster_formatted=roster_formatted,
             transcript_text=transcript_text,
@@ -110,31 +163,7 @@ class GeminiTTRPGSummarizer:
             is_youtube=is_youtube,
         )
 
-        try:
-            response = self.client.models.generate_content(
-                model=self.model_name,
-                contents=prompt,
-            )
-            return response.text or "No se pudo generar texto de la crónica."
-        except Exception as exc:
-            # Check for invalid API key or model error
-            err_str = str(exc)
-            if "API_KEY_INVALID" in err_str or "PERMISSION_DENIED" in err_str:
-                raise ValueError(f"Error de autenticación con Gemini API: {err_str}") from exc
-            # If primary model is unavailable (503/high demand) or not found (404), try reliable fallbacks
-            for fb_model in ["gemini-3.6-flash", "gemini-flash-latest", "gemini-3.5-flash"]:
-                if fb_model == self.model_name:
-                    continue
-                try:
-                    fallback_response = self.client.models.generate_content(
-                        model=fb_model,
-                        contents=prompt,
-                    )
-                    if fallback_response.text:
-                        return fallback_response.text
-                except Exception:
-                    pass
-            raise RuntimeError(f"Error al generar la crónica con Gemini: {exc}") from exc
+        return self._generate_with_retry(prompt)
 
     def generate_academic_notes(
         self,
@@ -171,29 +200,7 @@ class GeminiTTRPGSummarizer:
             target_language=target_language,
         )
 
-        try:
-            response = self.client.models.generate_content(
-                model=self.model_name,
-                contents=prompt,
-            )
-            return response.text or "No se pudo generar el texto de la guía académica."
-        except Exception as exc:
-            err_str = str(exc)
-            if "API_KEY_INVALID" in err_str or "PERMISSION_DENIED" in err_str:
-                raise ValueError(f"Error de autenticación con Gemini API: {err_str}") from exc
-            for fb_model in ["gemini-3.6-flash", "gemini-flash-latest", "gemini-3.5-flash"]:
-                if fb_model == self.model_name:
-                    continue
-                try:
-                    fallback_response = self.client.models.generate_content(
-                        model=fb_model,
-                        contents=prompt,
-                    )
-                    if fallback_response.text:
-                        return fallback_response.text
-                except Exception:
-                    pass
-            raise RuntimeError(f"Error al generar la guía académica con Gemini: {exc}") from exc
+        return self._generate_with_retry(prompt)
 
     def generate_campaign_session(
         self,
@@ -206,6 +213,7 @@ class GeminiTTRPGSummarizer:
         user_character: Optional[Dict[str, Any]] = None,
         is_youtube: bool = False,
         prior_lore: Optional[str] = None,
+        character_backstory: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         Generate structured session chapter and cumulative updates for Living Campaign Journal.
@@ -231,7 +239,7 @@ class GeminiTTRPGSummarizer:
             }
 
         roster_formatted = self.format_roster(roster)
-        has_markus = self.check_has_markus(roster)
+        has_markus = self.check_has_user_character(roster)
         prompt = build_continuity_session_prompt(
             roster_formatted=roster_formatted,
             existing_quests=existing_quests or [],
@@ -243,43 +251,16 @@ class GeminiTTRPGSummarizer:
             user_character=user_character,
             is_youtube=is_youtube,
             prior_lore=prior_lore,
+            character_backstory=character_backstory,
         )
 
         generation_config = {
-            "temperature": 0.0,
+            "temperature": 0.2,
             "top_p": 0.95,
             "response_mime_type": "application/json",
         }
 
-        raw_text = ""
-        try:
-            response = self.client.models.generate_content(
-                model=self.model_name,
-                contents=prompt,
-                config=generation_config,
-            )
-            raw_text = response.text or ""
-        except Exception as exc:
-            err_str = str(exc)
-            if "API_KEY_INVALID" in err_str or "PERMISSION_DENIED" in err_str:
-                raise ValueError(f"Error de autenticación con Gemini API: {err_str}") from exc
-            for fb_model in ["gemini-3.6-flash", "gemini-flash-latest", "gemini-3.5-flash"]:
-                if fb_model == self.model_name:
-                    continue
-                try:
-                    fallback_response = self.client.models.generate_content(
-                        model=fb_model,
-                        contents=prompt,
-                        config=generation_config,
-                    )
-                    raw_text = fallback_response.text or ""
-                    if raw_text:
-                        break
-                except Exception:
-                    pass
-            if not raw_text:
-                raise RuntimeError(f"Error al generar la sesión de campaña con Gemini: {exc}") from exc
-
+        raw_text = self._generate_with_retry(prompt, config=generation_config)
         return self.parse_json_response(raw_text, session_number)
 
     @staticmethod
@@ -598,3 +579,4 @@ class GeminiTTRPGSummarizer:
 
 
 check_has_markus = GeminiTTRPGSummarizer.check_has_markus
+check_has_user_character = GeminiTTRPGSummarizer.check_has_user_character

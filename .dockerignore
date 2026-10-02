@@ -13,5 +13,11 @@ tests/
 data/input/*
 data/output/*
 outputs/*
+models/
+hf_cache/
+scratch/
+.bin/
+client_bridge/
 credentials.json
 token.json
+.env*

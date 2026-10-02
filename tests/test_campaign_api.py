@@ -357,6 +357,43 @@ class TestCampaignApi(unittest.TestCase):
         self.assertEqual(state["roster"][0]["player_name"], "Dungeon Master Roy")
         self.assertEqual(state["roster"][0]["discord_user_id"], "9876543210")
 
+    def test_roster_row_deletion_persists_without_resurrection(self):
+        camp_name = "Deletion Test Campaign"
+        # 1. Initialize with DM and 2 players
+        init_payload = {
+            "campaign_name": camp_name,
+            "roster": [
+                {"player_name": "DM Bob", "character_name": "(DM)", "role": "Dungeon Master (DM)"},
+                {"player_name": "Alice", "character_name": "Valeros", "role": "Guerrero", "discord_user_id": "111"},
+                {"player_name": "Charlie", "character_name": "Merlin", "role": "Mago", "discord_user_id": "222"},
+            ]
+        }
+        res = self.client.post("/api/campaigns", json=init_payload)
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(len(res.json()["roster"]), 3)
+
+        # 2. User deletes Charlie and submits only DM and Alice + an empty row
+        updated_payload = {
+            "campaign_name": camp_name,
+            "roster": [
+                {"player_name": "DM Bob", "character_name": "(DM)", "role": "Dungeon Master (DM)"},
+                {"player_name": "Alice", "character_name": "Valeros", "role": "Guerrero"},  # note: discord_user_id omitted, should merge from existing
+                {"player_name": "", "character_name": "", "role": ""},  # empty row to be ignored
+            ]
+        }
+        res2 = self.client.post("/api/campaigns", json=updated_payload)
+        self.assertEqual(res2.status_code, 200)
+        roster2 = res2.json()["roster"]
+        # Charlie must NOT be resurrected; empty row must be skipped
+        self.assertEqual(len(roster2), 2)
+        names = [r["player_name"] for r in roster2]
+        self.assertIn("DM Bob", names)
+        self.assertIn("Alice", names)
+        self.assertNotIn("Charlie", names)
+        # Alice should have retained discord_user_id from merge
+        alice_entry = next(r for r in roster2 if r["player_name"] == "Alice")
+        self.assertEqual(alice_entry["discord_user_id"], "111")
+
 
 if __name__ == "__main__":
     unittest.main()

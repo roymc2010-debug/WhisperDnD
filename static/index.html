@@ -133,6 +133,11 @@
                   transform 150ms var(--ease-out),
                   opacity 150ms var(--ease-out);
     }
+    /* Prevent placeholder text from being selectable / confusing as actual content */
+    input::placeholder, textarea::placeholder {
+      user-select: none !important;
+      -webkit-user-select: none !important;
+    }
     body.theme-dnd input:focus, body.theme-dnd select:focus, body.theme-dnd textarea:focus {
       outline: none;
       box-shadow: 0 0 0 2px var(--ring-focus) !important;
@@ -222,6 +227,13 @@
         <span id="navBtnWikiText">Wiki & Crónicas</span>
       </button>
 
+      <!-- 3. Mi Personaje (D&D only) -->
+      <button id="navBtnCharacter" onclick="setActiveView('character')" type="button"
+        class="w-full min-h-[44px] px-3 py-2.5 rounded-xl text-xs font-medium flex items-center gap-3 transition-all duration-150 cursor-pointer active:scale-[0.98] text-slate-400 hover:text-slate-200 hover:bg-white/5 border border-transparent">
+        <svg class="w-4 h-4 shrink-0 text-amber-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M20 21a8 8 0 1 0-16 0"/></svg>
+        <span>Mi Personaje</span>
+      </button>
+
       <!-- 3. Historial de Apuntes (Work & Study only) -->
       <button id="navBtnHistory" onclick="setActiveView('history')" type="button"
         class="hidden w-full min-h-[44px] px-3 py-2.5 rounded-xl text-xs font-medium flex items-center gap-3 transition-all duration-150 cursor-pointer active:scale-[0.98] text-slate-400 hover:text-slate-200 hover:bg-white/5 border border-transparent">
@@ -301,6 +313,11 @@
       class="flex-1 min-h-[48px] py-1 flex flex-col items-center justify-center gap-1 text-[11px] font-medium text-slate-400 active:scale-95 transition cursor-pointer">
       <svg class="w-5 h-5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1-2.5-2.5Z"/><path d="M6 6h10"/><path d="M6 10h10"/></svg>
       <span id="mobileNavBtnWikiText">Wiki</span>
+    </button>
+    <button id="mobileNavBtnCharacter" onclick="setActiveView('character')" type="button"
+      class="flex-1 min-h-[48px] py-1 flex flex-col items-center justify-center gap-1 text-[11px] font-medium text-slate-400 active:scale-95 transition cursor-pointer">
+      <svg class="w-5 h-5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M20 21a8 8 0 1 0-16 0"/></svg>
+      <span>Personaje</span>
     </button>
     <button id="mobileNavBtnHistory" onclick="setActiveView('history')" type="button"
       class="hidden flex-1 min-h-[48px] py-1 flex flex-col items-center justify-center gap-1 text-[11px] font-medium text-slate-400 active:scale-95 transition cursor-pointer">
@@ -434,10 +451,6 @@
                 <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 18v-6a9 9 0 0 1 18 0v6"/><path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"/></svg>
                 <span>Refrescar Discord</span>
               </button>
-              <button type="button" onclick="openDiscordBridgeModal()" id="btn-discord-bridge-modal" title="Puente Local de Discord para Cloud Render" class="min-h-[36px] px-3 py-1.5 rounded-xl bg-purple-500/15 hover:bg-purple-500/25 active:scale-[0.98] text-purple-300 text-xs font-semibold border border-purple-500/30 transition duration-150 flex items-center gap-1.5 cursor-pointer shadow-sm">
-                <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
-                <span>Puente Discord (Render)</span>
-              </button>
               <button type="button" onclick="addRosterRow()" class="min-h-[36px] px-3 py-1.5 rounded-xl bg-indigo-500/15 hover:bg-indigo-500/25 active:scale-[0.98] text-indigo-300 text-xs font-semibold border border-indigo-500/30 transition duration-150 flex items-center gap-1.5 cursor-pointer shadow-sm">
                 <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" x2="12" y1="5" y2="19"/><line x1="5" x2="19" y1="12" y2="12"/></svg>
                 <span>[ + Agregar Jugador ]</span>
@@ -456,10 +469,10 @@
                 <thead>
                   <tr class="bg-slate-900/90 text-slate-400 border-b border-slate-800 font-semibold font-mono text-[11px] uppercase tracking-wider">
                     <th class="py-3 px-2 w-[6%] text-center" title="⭐ Mi Personaje: Selecciona cuál es tu personaje en esta campaña para recibir reflexión personal">⭐ Mi PJ</th>
-                    <th class="py-3 px-3 w-[16%]">Jugador</th>
-                    <th class="py-3 px-3 w-[16%]">Personaje</th>
-                    <th class="py-3 px-2.5 w-[14%]">Especie</th>
-                    <th class="py-3 px-2.5 w-[15%]">Clase</th>
+                    <th class="py-3 px-3 w-[15%]">Jugador</th>
+                    <th class="py-3 px-3 w-[15%]">Personaje</th>
+                    <th class="py-3 px-2.5 w-[13%]">Especie</th>
+                    <th class="py-3 px-2.5 w-[14%]">Clase</th>
                     <th class="py-3 px-2.5 w-[13%]">Subclase</th>
                     <th id="rosterDiscordTh" class="roster-discord-col py-3 px-2.5 w-[16%]">
                       <div class="flex items-center justify-between">
@@ -469,7 +482,7 @@
                         </span>
                       </div>
                     </th>
-                    <th class="py-3 px-2 w-[4%] text-center">Acción</th>
+                    <th class="py-3 px-2 w-[8%] text-center" title="Ausencia temporal en esta sesión o eliminar">Acción</th>
                   </tr>
                 </thead>
                 <tbody id="rosterTableBody" class="divide-y divide-slate-900/80 text-slate-200">
@@ -606,10 +619,25 @@
           </button>
         </nav>
 
-        <!-- Hidden inputs para compatibilidad con JS y backend -->
-        <input type="hidden" id="targetLanguage" value="es">
-        <input type="hidden" id="transcriptionEngine" value="groq">
-        <input type="hidden" id="globalModelSize" value="base">
+        <!-- Selector de Idioma (Español / Inglés) -->
+        <div class="flex items-center gap-1.5 ml-auto">
+          <span class="text-xs text-slate-400 font-medium whitespace-nowrap hidden sm:inline">Idioma:</span>
+          <div class="inline-flex p-0.5 rounded-xl bg-slate-950 border border-slate-800 shadow-inner">
+            <button id="langEsBtn" type="button" onclick="setTargetLanguage('es')" 
+              title="Generar crónicas y resúmenes en Español"
+              class="px-2.5 py-1.5 rounded-lg text-xs font-semibold transition flex items-center gap-1 bg-amber-500/15 text-amber-300 border border-amber-500/30 shadow-sm cursor-pointer">
+              <span>🇪🇸</span> <span class="font-medium">Español</span>
+            </button>
+            <button id="langEnBtn" type="button" onclick="setTargetLanguage('en')" 
+              title="Generate chronicles and summaries in English"
+              class="px-2.5 py-1.5 rounded-lg text-xs font-medium transition flex items-center gap-1 text-slate-400 hover:text-slate-200 border border-transparent cursor-pointer">
+              <span>🇺🇸</span> <span class="font-medium">English</span>
+            </button>
+          </div>
+          <input type="hidden" id="targetLanguage" value="es">
+          <input type="hidden" id="transcriptionEngine" value="groq">
+          <input type="hidden" id="globalModelSize" value="base">
+        </div>
       </div>
 
       <div id="tabLiveContent" class="space-y-6">
@@ -698,6 +726,9 @@
                   class="w-full bg-slate-900 border border-white/10 rounded-lg px-3 py-2 text-xs text-slate-200 outline-none transition cursor-pointer min-h-[40px]">
                   <option value="">Cargando audífonos / altavoces...</option>
                 </select>
+                <p id="speakerWarningHint" class="hidden text-[10px] text-amber-400 mt-1 flex items-center gap-1 font-medium bg-amber-500/10 px-2 py-1 rounded-md border border-amber-500/20">
+                  <span>⚠️ Has seleccionado altavoces. Si juegas con audífonos, selecciona tus audífonos aquí para capturar a Discord.</span>
+                </p>
                 <p class="text-[10px] text-slate-500 mt-1">Canal derecho (loopback del sistema).</p>
               </div>
             </div>
@@ -715,6 +746,15 @@
               </label>
             </div>
 
+            <!-- Discord Live Status Pill -->
+            <div id="discordLiveStatusBadge" class="text-[11px] px-3 py-1.5 rounded-lg bg-slate-900/90 border border-sky-500/20 flex items-center justify-between mt-2">
+              <span id="discordLiveStatusText" class="text-sky-300 flex items-center gap-1.5">
+                <span class="w-2 h-2 rounded-full bg-slate-500"></span>
+                <span>🎧 Discord: Consultando estado...</span>
+              </span>
+              <button type="button" onclick="resetDiscordAuth()" title="Forzar reapertura del popup de autorización en Discord" class="text-[10px] text-sky-400 hover:text-sky-200 underline cursor-pointer ml-2">Reautorizar Discord</button>
+            </div>
+
             <!-- Toned-down informative notes -->
             <div id="dualChannelBanner" class="text-[11px] text-slate-500 flex items-center justify-between pt-1 border-t border-white/5">
               <span>🎧 Captura dual estéreo: Izquierda = Micrófono &bull; Derecha = Discord/Sistema</span>
@@ -728,34 +768,59 @@
         </details>
 
         <!-- Live Audio Monitor (Ableton / Logic Aesthetic) -->
-        <div id="vuMeterContainer" class="bg-surface-card border border-white/10 rounded-xl p-3.5 space-y-2.5">
+        <div id="vuMeterContainer" class="bg-surface-card border border-white/10 rounded-xl p-3.5 space-y-3">
           <div class="flex items-center justify-between text-xs">
             <span class="font-medium text-slate-300 flex items-center gap-2">
               <span id="meterActivityDot" class="w-1.5 h-1.5 rounded-full bg-slate-600 transition-colors"></span>
-              <span>Monitor de Señal</span>
+              <span>Monitor de Señal & Calibración</span>
             </span>
-            <span id="meterStatusHint" class="text-[11px] text-slate-500 font-mono">En espera</span>
+            <div class="flex items-center gap-2">
+              <span id="meterStatusHint" class="text-[11px] text-slate-500 font-mono">En espera</span>
+              <button type="button" onclick="resetAudioGains()" title="Restablecer ganancias a valores por defecto (Mic: 1.0x, Discord: 2.0x)" class="text-[10px] text-slate-500 hover:text-slate-300 underline cursor-pointer transition">
+                Restablecer
+              </button>
+            </div>
           </div>
 
-          <!-- Canal 1: Barra Micrófono -->
-          <div class="space-y-1">
+          <!-- Canal 1: Barra Micrófono & Ganancia -->
+          <div class="space-y-1.5 bg-slate-950/40 p-2.5 rounded-lg border border-white/5">
             <div class="flex justify-between items-center text-[11px] font-mono">
-              <span class="text-slate-300 font-medium" id="meterCh1Label">Micrófono</span>
+              <span class="text-slate-300 font-medium" id="meterCh1Label">Micrófono (Tu Voz)</span>
               <span id="meterMicValue" class="text-slate-500">—</span>
             </div>
             <div class="w-full bg-slate-950 rounded h-2 overflow-hidden border border-white/5 flex">
               <div id="meterMicBar" class="h-full rounded transition-all duration-100 ease-out bg-emerald-400/90" style="width: 0%;"></div>
             </div>
+            <div class="flex items-center justify-between gap-3 pt-0.5 text-[11px]">
+              <div class="flex items-center gap-1.5 text-slate-400">
+                <span>Nivel Mic:</span>
+                <span id="gainMicDisplay" class="font-mono text-indigo-300 font-medium">1.00x</span>
+              </div>
+              <input type="range" id="sliderGainMic" min="0.2" max="2.0" step="0.05" value="1.0"
+                oninput="onGainSliderChange('mic', this.value)"
+                class="w-32 sm:w-44 accent-indigo-500 bg-slate-800 h-1.5 rounded-lg cursor-pointer"
+                title="Atenúa o amplifica tu voz antes de grabar">
+            </div>
           </div>
 
-          <!-- Canal 2: Barra Discord / Audífonos -->
-          <div id="meterSpeakerRow" class="space-y-1">
+          <!-- Canal 2: Barra Discord / Audífonos & Ganancia -->
+          <div id="meterSpeakerRow" class="space-y-1.5 bg-slate-950/40 p-2.5 rounded-lg border border-white/5">
             <div class="flex justify-between items-center text-[11px] font-mono">
-              <span class="text-slate-300 font-medium">Discord / Sistema</span>
+              <span class="text-slate-300 font-medium">Discord / Sistema (Llamada)</span>
               <span id="meterSpkValue" class="text-slate-500">—</span>
             </div>
             <div class="w-full bg-slate-950 rounded h-2 overflow-hidden border border-white/5 flex">
               <div id="meterSpkBar" class="h-full rounded transition-all duration-100 ease-out bg-emerald-400/90" style="width: 0%;"></div>
+            </div>
+            <div class="flex items-center justify-between gap-3 pt-0.5 text-[11px]">
+              <div class="flex items-center gap-1.5 text-slate-400">
+                <span>Nivel Discord:</span>
+                <span id="gainSpkDisplay" class="font-mono text-amber-300 font-medium">2.0x (+6 dB)</span>
+              </div>
+              <input type="range" id="sliderGainSpk" min="0.5" max="5.0" step="0.1" value="2.0"
+                oninput="onGainSliderChange('speaker', this.value)"
+                class="w-32 sm:w-44 accent-amber-500 bg-slate-800 h-1.5 rounded-lg cursor-pointer"
+                title="Amplifica la llamada de Discord para nivelarla con tu micrófono">
             </div>
           </div>
         </div>
@@ -768,6 +833,15 @@
               00:00:00
             </div>
             <p id="liveRecordingStatus" class="text-xs text-slate-400 font-normal">Listo para iniciar la sesión</p>
+            <div id="recordingWatchdogAlert" class="hidden max-w-md mx-auto my-2 px-3 py-2.5 rounded-xl bg-amber-500/15 border border-amber-500/30 text-amber-300 text-xs text-left">
+              <div class="font-semibold flex items-center gap-1.5 mb-1">
+                <svg class="w-4 h-4 text-amber-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+                <span>Aviso de Grabación</span>
+              </div>
+              <p id="recordingWatchdogMsg" class="text-[11px] text-amber-200/90 leading-relaxed">
+                La captura de audio en el servidor se detuvo. El audio grabado está seguro en el disco. Presiona "Detener y Procesar" para transcribirlo o inicia una nueva grabación.
+              </p>
+            </div>
           </div>
 
           <!-- Botones de Control de Sesión -->
@@ -812,11 +886,28 @@
       <!-- ================================================================= -->
 
       <div id="tabFileContent" class="space-y-4 hidden">
+        <!-- Grabaciones Locales en tu PC -->
+        <div id="localRecordingsContainer" class="p-4 rounded-2xl bg-slate-950/70 border border-slate-800 space-y-3">
+          <div class="flex items-center justify-between">
+            <h4 class="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
+              <span>🎙️</span> <span>Grabaciones Locales Detectadas en tu PC</span>
+            </h4>
+            <button type="button" onclick="loadLocalRecordingsList()" class="text-[11px] text-indigo-400 hover:text-indigo-300 font-medium cursor-pointer flex items-center gap-1">
+              <span>↻</span> <span>Actualizar</span>
+            </button>
+          </div>
+          <div id="localRecordingsList" class="text-xs text-slate-400 space-y-2">
+            <p class="text-slate-500 italic text-[11px]">Buscando grabaciones en data/input...</p>
+          </div>
+        </div>
+
         <div id="dropZone" onclick="document.getElementById('audioFileInput').click()" 
+          ondragover="handleDragOver(event)"
+          ondragleave="handleDragLeave(event)"
+          ondrop="handleDrop(event)"
           class="border-2 border-dashed border-slate-700 hover:border-indigo-500 rounded-2xl p-8 text-center cursor-pointer transition bg-slate-950/50 hover:bg-slate-950">
-          <p class="text-sm text-slate-300 font-medium">Haz clic o arrastra un archivo de audio (.mp3, .wav, .m4a)</p>
+          <p class="text-sm text-slate-300 font-medium">O haz clic / arrastra cualquier archivo de audio (.mp3, .wav, .m4a)</p>
           <p id="selectedFileName" class="text-xs font-mono text-emerald-400 mt-2 hidden"></p>
-          <!-- ✅ CORRECTO para Android: Permite abrir el explorador de archivos -->
           <input 
             type="file" 
             id="audioFileInput" 
@@ -826,8 +917,8 @@
           />
         </div>
         <div class="flex justify-end">
-          <button id="btnFile" onclick="transcribeFile()" disabled class="bg-indigo-600 hover:bg-indigo-500 text-white font-medium text-sm px-6 py-2.5 rounded-xl shadow-lg transition disabled:opacity-40 disabled:cursor-not-allowed">
-            Subir y Procesar
+          <button id="btnFile" onclick="transcribeFile()" disabled class="bg-indigo-600 hover:bg-indigo-500 text-white font-medium text-sm px-6 py-2.5 rounded-xl shadow-lg transition disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer flex items-center gap-2">
+            <span>✨</span> <span>Procesar Grabación</span>
           </button>
         </div>
       </div>
@@ -905,6 +996,31 @@
     </div>
 
     <!-- Card de Revisión Ortográfica de PNJs Detectados (Spell-Check Modal/Card) -->
+    <div id="npcSpellcheckCard" class="hidden bg-slate-900 border border-amber-500/40 rounded-2xl p-5 shadow-2xl space-y-4 transform scale-95 opacity-0 transition-all duration-150 ease-out origin-center">
+      <div class="flex items-center justify-between">
+        <div class="flex items-center gap-2.5">
+          <span class="text-xl">✨</span>
+          <div>
+            <h3 class="text-sm font-bold text-amber-300 font-fantasy">Revisión Ortográfica de PNJs Detectados</h3>
+            <p class="text-xs text-slate-400">Verifica o ajusta la ortografía de los personajes no jugadores detectados antes de guardarlos en el Directorio.</p>
+          </div>
+        </div>
+        <button type="button" onclick="hideNpcSpellcheck()" class="text-slate-400 hover:text-slate-200 active:scale-90 transition duration-150 text-lg leading-none cursor-pointer">&times;</button>
+      </div>
+
+      <div id="npcSpellcheckList" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+        <!-- Generado dinámicamente -->
+      </div>
+
+      <div class="flex items-center justify-end gap-3 pt-2 border-t border-slate-800">
+        <button type="button" onclick="hideNpcSpellcheck()" class="px-3.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 active:scale-[0.98] text-slate-300 text-xs font-medium transition duration-150 cursor-pointer">
+          Omitir Corrección
+        </button>
+        <button type="button" onclick="confirmNpcSpellcheck()" class="px-4 py-1.5 rounded-lg bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-500 hover:to-amber-400 active:scale-[0.98] text-white text-xs font-bold shadow-md shadow-amber-900/30 transition duration-150 flex items-center gap-1.5 cursor-pointer">
+          <span>✓</span> Confirmar y Actualizar Grimorio
+        </button>
+      </div>
+    </div>
 
     <div id="errorCard" class="hidden bg-rose-950/90 border-2 border-rose-500 rounded-2xl p-6 shadow-2xl space-y-4 text-left transition-all">
       <div class="flex items-start gap-4">
@@ -1091,8 +1207,13 @@
           <h3 class="text-sm font-bold text-amber-300 font-fantasy flex items-center gap-2">
             <span>🎭</span> Directorio Universal de Personajes (NPCs)
           </h3>
-          <input type="text" id="npcSearchInput" oninput="filterNpcs()" placeholder="Filtrar PNJ por nombre o rol..." 
-            class="w-full sm:w-64 bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-slate-200 outline-none placeholder-slate-500">
+          <div class="flex flex-wrap items-center gap-2">
+            <button type="button" onclick="triggerManualNpcSpellcheck()" title="Revisar o ajustar ortografía de los PNJs registrados" class="px-2.5 py-1.5 rounded-lg bg-amber-500/15 hover:bg-amber-500/25 active:scale-95 text-amber-300 text-xs font-semibold border border-amber-500/30 transition flex items-center gap-1.5 cursor-pointer shadow-sm">
+              <span>✨</span> <span>Revisar Ortografía</span>
+            </button>
+            <input type="text" id="npcSearchInput" oninput="filterNpcs()" placeholder="Filtrar PNJ por nombre o rol..." 
+              class="w-full sm:w-64 bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-slate-200 outline-none placeholder-slate-500">
+          </div>
         </div>
         <div id="npcsContainer" class="grid grid-cols-1 md:grid-cols-2 gap-3">
           <!-- Renderizado dinámico de tarjetas de PNJs -->
@@ -1130,6 +1251,138 @@
       </div>
 
     </div>
+
+    </section>
+
+    <!-- ================================================================= -->
+    <!-- VISTA C: MI PERSONAJE (#viewCharacter - D&D only) -->
+    <!-- ================================================================= -->
+    <section id="viewCharacter" class="hidden w-full max-w-3xl mx-auto space-y-5">
+
+      <!-- Header -->
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400 shrink-0">
+          <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M20 21a8 8 0 1 0-16 0"/></svg>
+        </div>
+        <div>
+          <h2 class="text-sm font-bold text-amber-300 font-fantasy tracking-wide">Mi Personaje</h2>
+          <p class="text-xs text-slate-400">Crea un perfil con el trasfondo de tu personaje y vincúlalo a la campaña que quieras</p>
+        </div>
+      </div>
+
+      <!-- Formulario de personaje -->
+      <div class="themed-surface border border-slate-800 rounded-2xl p-5 space-y-5">
+
+        <!-- 1. Campaña -->
+        <div class="space-y-1.5">
+          <label class="text-xs font-semibold text-slate-300 uppercase tracking-wider">Campaña</label>
+          <select
+            id="characterProfileCampaign"
+            onchange="onCampaignDropdownChanged(this.value)"
+            class="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-slate-200 focus:outline-none focus:ring-2 focus:ring-amber-500/50 focus:border-amber-500/50 transition cursor-pointer"
+          >
+            <option value="">— Selecciona una campaña —</option>
+          </select>
+        </div>
+
+        <!-- 2. Selector de Personaje / Crear Nuevo -->
+        <div class="space-y-1.5">
+          <div class="flex items-center justify-between">
+            <label class="text-xs font-semibold text-slate-300 uppercase tracking-wider">Personaje</label>
+            <button
+              type="button"
+              id="btnToggleNewCharacter"
+              onclick="toggleNewCharacterMode()"
+              class="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-medium text-amber-400 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/25 transition cursor-pointer"
+            >
+              <svg id="iconNewCharPlus" class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+              <span id="labelToggleNewChar">Crear Nuevo Personaje</span>
+            </button>
+          </div>
+
+          <!-- Modo 1: Lista desplegable de personajes de la campaña -->
+          <div id="characterSelectContainer">
+            <select
+              id="userCharacterSelect"
+              onchange="onUserCharacterSelected(this.value)"
+              class="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-slate-200 focus:outline-none focus:ring-2 focus:ring-amber-500/50 focus:border-amber-500/50 transition cursor-pointer"
+            >
+              <option value="">— Selecciona un personaje de la campaña —</option>
+            </select>
+          </div>
+
+          <!-- Modo 2: Input para crear un nuevo personaje -->
+          <div id="newCharacterInputContainer" class="hidden flex gap-2">
+            <input
+              id="characterProfileName"
+              type="text"
+              placeholder="Nombre del nuevo personaje (Ej: Markus Veyl)"
+              class="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-amber-500/50 focus:border-amber-500/50 transition"
+            />
+          </div>
+
+          <!-- Opciones de personaje -->
+          <div class="flex items-center justify-between pt-1 text-xs">
+            <label class="inline-flex items-center gap-2 text-slate-300 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                id="chkIsUserCharacter"
+                checked
+                class="w-4 h-4 rounded border-slate-700 bg-slate-900 text-amber-500 focus:ring-amber-500/50 accent-amber-500"
+              />
+              <span>Marcar como mi personaje activo principal (⭐) en esta campaña</span>
+            </label>
+          </div>
+          <p class="text-[11px] text-slate-500">Puedes tener múltiples personajes en una campaña; cada uno conserva su propia historia individual.</p>
+        </div>
+
+        <!-- Trasfondo -->
+        <div class="space-y-2">
+          <div class="flex items-center justify-between">
+            <label class="text-xs font-semibold text-slate-300 uppercase tracking-wider">Historia y Trasfondo</label>
+            <span id="characterBackstorySavedBadge" class="hidden px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">✓ Guardado</span>
+          </div>
+
+          <!-- Guía visual y de ayuda separada (no seleccionable en el fondo del textarea) -->
+          <div class="rounded-xl border border-slate-800 bg-slate-950/60 p-3.5 text-xs text-slate-400 space-y-1.5 select-none">
+            <div class="flex items-center gap-1.5 text-amber-400 font-semibold">
+              <svg class="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
+              <span>¿Qué información incluir aquí?</span>
+            </div>
+            <p class="text-slate-400 leading-relaxed">
+              Pega aquí el trasfondo de tu ficha o PDF: motivaciones, miedos, origen humilde o noble, debilidades, código moral y lazos afectivos.
+              <span class="text-slate-300">Ejemplo: Markus es guardia de Hornhollow, protector implacable que arriesga su vida por los suyos y oculta sus heridas.</span>
+            </p>
+          </div>
+
+          <textarea
+            id="characterBackstoryInput"
+            rows="12"
+            placeholder="Escribe o pega aquí el trasfondo de tu personaje..."
+            class="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-3 text-sm text-slate-200 placeholder-slate-600 resize-y focus:outline-none focus:ring-2 focus:ring-amber-500/50 focus:border-amber-500/50 transition min-h-[220px]"
+          ></textarea>
+        </div>
+
+        <!-- Botón guardar -->
+        <div class="flex justify-end">
+          <button
+            id="btnSaveCharacterBackstory"
+            onclick="saveCharacterBackstory()"
+            class="min-h-[40px] inline-flex items-center gap-2 px-6 py-2 rounded-xl text-xs font-semibold bg-amber-500/15 text-amber-300 border border-amber-500/30 hover:bg-amber-500/25 transition-colors duration-150 cursor-pointer active:scale-[0.97]"
+          >
+            <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+            Guardar
+          </button>
+        </div>
+      </div>
+
+      <!-- Nota -->
+      <div class="rounded-xl border border-amber-500/20 bg-amber-500/5 p-4 text-xs text-amber-300/80 flex gap-3">
+        <span class="text-base shrink-0">💡</span>
+        <div>
+          <strong class="font-semibold text-amber-300">¿Cómo funciona?</strong> Cuando proceses una sesión de la campaña vinculada, Gemini usará este trasfondo para el coaching: te dirá si te saliste de personaje en alguna escena específica, y te sugerirá momentos del trasfondo que podías haber usado y no usaste.
+        </div>
+      </div>
 
     </section>
 
@@ -1515,16 +1768,35 @@
               </span>
             </div>
             <div class="p-3 rounded-xl bg-slate-950 border border-slate-800 space-y-2">
-              <span class="text-[11px] text-slate-400 block">Google Drive</span>
-              <div class="flex items-center gap-2 flex-wrap">
-                <button type="button" onclick="connectGoogleDriveUpfront()"
-                  class="min-h-[36px] px-3 py-1 rounded-lg text-xs font-semibold bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 border border-emerald-500/30 transition flex items-center gap-1.5 cursor-pointer">
-                  <span>Conectar / Verificar</span>
+              <div class="flex items-center justify-between">
+                <span class="text-[11px] text-slate-400 block">Google Drive</span>
+                <span id="settingsDriveBadge" class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-slate-800 text-slate-400 border border-slate-700">
+                  <span class="w-1.5 h-1.5 rounded-full bg-slate-500"></span>
+                  <span id="settingsDriveBadgeText">No conectado</span>
+                </span>
+              </div>
+              <div id="settingsDriveAccountInfo" class="hidden text-xs text-slate-300 py-0.5">
+                <div class="flex items-center gap-1.5 text-slate-300">
+                  <svg class="w-3.5 h-3.5 text-emerald-400 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                  <span id="settingsDriveEmail" class="font-mono text-[11px] text-emerald-400 font-semibold truncate"></span>
+                </div>
+              </div>
+              <div class="flex items-center gap-2 flex-wrap pt-0.5">
+                <button id="btnConnectDriveSettings" type="button" onclick="connectGoogleDriveUpfront()"
+                  class="min-h-[36px] px-3 py-1 rounded-lg text-xs font-semibold bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 border border-emerald-500/30 transition flex items-center gap-1.5 cursor-pointer active:scale-95">
+                  <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+                  <span id="btnConnectDriveSettingsText">Conectar Google Drive</span>
                 </button>
                 <button id="btnSyncDriveSettings" type="button" onclick="syncWithGoogleDrive()"
-                  class="hidden min-h-[36px] px-3 py-1 rounded-lg text-xs font-semibold bg-indigo-500/15 hover:bg-indigo-500/25 text-indigo-300 border border-indigo-500/30 transition flex items-center gap-1.5 cursor-pointer">
+                  class="hidden min-h-[36px] px-3 py-1 rounded-lg text-xs font-semibold bg-indigo-500/15 hover:bg-indigo-500/25 text-indigo-300 border border-indigo-500/30 transition flex items-center gap-1.5 cursor-pointer active:scale-95">
                   <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
-                  <span>🔄 Sincronizar Campañas con Drive</span>
+                  <span>🔄 Sincronizar Campañas</span>
+                </button>
+                <button id="btnDisconnectDriveSettings" type="button" onclick="disconnectGoogleDrive()"
+                  class="hidden min-h-[36px] px-3 py-1 rounded-lg text-xs font-semibold bg-rose-500/15 hover:bg-rose-500/25 text-rose-300 border border-rose-500/30 transition flex items-center gap-1.5 cursor-pointer active:scale-95"
+                  title="Cerrar sesión de Google Drive en este dispositivo">
+                  <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+                  <span>Cerrar Sesión</span>
                 </button>
               </div>
             </div>
@@ -1752,69 +2024,7 @@
     </div>
 
 
-    <!-- Modal: Puente Local de Discord para Cloud Render -->
-    <div id="discordBridgeModal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4 opacity-0 transition-opacity duration-150 ease-out" onclick="if(event.target === this) closeDiscordBridgeModal()">
-      <div id="discordBridgeModalBox" class="bg-slate-900 border border-purple-500/40 rounded-2xl w-full max-w-xl overflow-hidden shadow-2xl space-y-4 p-6 flex flex-col max-h-[90vh] transform scale-95 transition-transform duration-150 ease-out origin-center">
-        <!-- Header -->
-        <div class="flex items-center justify-between border-b border-slate-800 pb-3">
-          <div class="flex items-center gap-3">
-            <div class="w-10 h-10 rounded-xl bg-purple-500/10 border border-purple-500/30 flex items-center justify-center text-purple-400 shrink-0">
-              <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
-            </div>
-            <div>
-              <h3 class="text-base font-bold text-white tracking-tight flex items-center gap-2">
-                <span>Puente Local de Discord para Cloud Render</span>
-                <span class="px-2 py-0.5 rounded-full text-[10px] font-mono bg-purple-500/10 text-purple-300 border border-purple-500/30">100% Atribución</span>
-              </h3>
-              <p class="text-xs text-slate-400">Captura audio estéreo y bitácora milimétrica de voz desde tu PC hacia el servidor en la nube</p>
-            </div>
-          </div>
-          <button type="button" onclick="closeDiscordBridgeModal()" class="min-h-[44px] min-w-[44px] flex items-center justify-center text-slate-400 hover:text-white rounded-xl hover:bg-slate-800 active:scale-90 transition duration-150 cursor-pointer">
-            <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
-          </button>
-        </div>
 
-        <!-- Scrollable Content -->
-        <div class="flex-1 overflow-y-auto space-y-4 pr-1 text-xs text-slate-300">
-          <div class="p-3.5 rounded-xl bg-purple-950/40 border border-purple-500/30 flex items-start gap-3">
-            <svg class="w-5 h-5 text-purple-400 shrink-0 mt-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
-            <div class="space-y-1 text-xs">
-              <strong class="text-purple-300 font-semibold">¿Cómo funciona el puente sin bots en la llamada?</strong>
-              <p class="text-purple-200/80 leading-relaxed">
-                Cuando WhisperDnD corre en Render y juegas en Discord desde tu PC, el puente local escucha los eventos de voz en tu Discord mediante IPC local (<code class="font-mono bg-purple-900/50 px-1 py-0.5 rounded text-purple-200">discord-ipc</code>), graba en estéreo (Canal 1: Tu Micrófono, Canal 2: Discord) y al finalizar envía la sesión con telemetría directamente a la nube.
-              </p>
-            </div>
-          </div>
-
-          <div class="space-y-2">
-            <label class="text-[11px] font-bold text-slate-300 uppercase tracking-wider">Comando de Ejecución Local:</label>
-            <div class="relative bg-slate-950 p-3 rounded-xl border border-slate-800 font-mono text-xs text-purple-300 flex items-center justify-between gap-2">
-              <code id="bridgeCmdCode">python -m client_bridge.discord_bridge --campaign "Campaña Principal"</code>
-              <button type="button" onclick="copyBridgeCmd()" class="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold transition shrink-0 flex items-center gap-1">
-                <span id="bridgeCopyBtnText">Copiar</span>
-              </button>
-            </div>
-          </div>
-
-          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
-            <div class="bg-slate-950/70 p-3 rounded-xl border border-slate-800 space-y-1">
-              <span class="text-amber-300 font-bold text-[11px]">🎧 WASAPI Loopback</span>
-              <p class="text-[11px] text-slate-400">Canal Izquierdo graba tu micrófono físico. Canal Derecho graba el audio de Discord de tus auriculares.</p>
-            </div>
-            <div class="bg-slate-950/70 p-3 rounded-xl border border-slate-800 space-y-1">
-              <span class="text-sky-300 font-bold text-[11px]">⏱️ Telemetría Milimétrica</span>
-              <p class="text-[11px] text-slate-400">Registra cuándo habla cada participante por ID de Discord y lo mapea automáticamente al Roster de la Campaña.</p>
-            </div>
-          </div>
-        </div>
-
-        <div class="flex justify-end pt-2 border-t border-slate-800">
-          <button type="button" onclick="closeDiscordBridgeModal()" class="px-4 py-2 rounded-xl bg-purple-600/30 hover:bg-purple-600/50 border border-purple-500/50 text-purple-200 text-xs font-semibold transition cursor-pointer">
-            Entendido
-          </button>
-        </div>
-      </div>
-    </div>
 
 
     <div id="backupFallbackModal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4 opacity-0 transition-opacity duration-150 ease-out" role="dialog" aria-modal="true" aria-labelledby="backupModalTitle">
@@ -1935,6 +2145,7 @@ function refreshAudioDevices() {
       const views = {
         ingest: document.getElementById("viewIngest"),
         wiki: document.getElementById("viewWiki"),
+        character: document.getElementById("viewCharacter"),
         roster: document.getElementById("viewRoster"),
         history: document.getElementById("viewHistory"),
         settings: document.getElementById("viewSettings"),
@@ -1953,6 +2164,7 @@ function refreshAudioDevices() {
       const navBtns = {
         ingest: document.getElementById("navBtnIngest"),
         wiki: document.getElementById("navBtnWiki"),
+        character: document.getElementById("navBtnCharacter"),
         roster: document.getElementById("navBtnRoster"),
         history: document.getElementById("navBtnHistory"),
         settings: document.getElementById("navBtnSettings"),
@@ -1972,6 +2184,7 @@ function refreshAudioDevices() {
       const mobileNavBtns = {
         ingest: document.getElementById("mobileNavBtnIngest"),
         wiki: document.getElementById("mobileNavBtnWiki"),
+        character: document.getElementById("mobileNavBtnCharacter"),
         roster: document.getElementById("mobileNavBtnRoster"),
         history: document.getElementById("mobileNavBtnHistory"),
         settings: document.getElementById("mobileNavBtnSettings"),
@@ -1986,16 +2199,20 @@ function refreshAudioDevices() {
         btn.className = `flex-1 min-h-[48px] py-1 flex flex-col items-center justify-center gap-1 text-[11px] active:scale-95 transition cursor-pointer ${isAct ? mobileActiveText : mobileInactiveText}`;
       });
 
-      // Strict 2-button visibility enforcement
+      // Strict visibility enforcement: DnD shows wiki + character; Work shows history
       if (isDnd) {
         if (navBtns.wiki) navBtns.wiki.classList.remove("hidden");
+        if (navBtns.character) navBtns.character.classList.remove("hidden");
         if (navBtns.history) navBtns.history.classList.add("hidden");
         if (mobileNavBtns.wiki) mobileNavBtns.wiki.classList.remove("hidden");
+        if (mobileNavBtns.character) mobileNavBtns.character.classList.remove("hidden");
         if (mobileNavBtns.history) mobileNavBtns.history.classList.add("hidden");
       } else {
         if (navBtns.wiki) navBtns.wiki.classList.add("hidden");
+        if (navBtns.character) navBtns.character.classList.add("hidden");
         if (navBtns.history) navBtns.history.classList.remove("hidden");
         if (mobileNavBtns.wiki) mobileNavBtns.wiki.classList.add("hidden");
+        if (mobileNavBtns.character) mobileNavBtns.character.classList.add("hidden");
         if (mobileNavBtns.history) mobileNavBtns.history.classList.remove("hidden");
       }
       if (navBtns.roster) navBtns.roster.classList.add("hidden");
@@ -2005,21 +2222,18 @@ function refreshAudioDevices() {
 
       // View-specific initialization triggers
       if (viewId === 'wiki') {
-        const sel = document.getElementById("campaignNameInput") || document.getElementById("campaignSelect");
-        const wikiSel = document.getElementById("wikiCampaignSelect");
-        if (sel && wikiSel && sel.value && (!wikiSel.value || wikiSel.value !== sel.value)) {
-          wikiSel.value = sel.value;
-          if (typeof onWikiCampaignSelected === "function") {
-            onWikiCampaignSelected(sel.value);
-          }
+        if (typeof refreshWikiView === "function") {
+          refreshWikiView();
         } else if (typeof refreshWikiCampaigns === "function") {
           refreshWikiCampaigns();
         }
+      } else if (viewId === 'character') {
+        loadCharacterView();
       } else if (viewId === 'roster') {
         const sel = document.getElementById("campaignNameInput") || document.getElementById("campaignSelect");
         const badge = document.getElementById("rosterViewCampaignBadge");
         if (badge) {
-          badge.textContent = (sel && sel.value) ? sel.value : "Campaña Principal";
+          badge.textContent = (sel && sel.value && sel.value.trim()) ? sel.value.trim() : "Sin Campaña";
         }
         if (typeof renderRosterTable === "function") {
           renderRosterTable();
@@ -2674,6 +2888,9 @@ function refreshAudioDevices() {
       checkDriveStatus();
       loadCampaignList();
       refreshWikiCampaigns();
+      if (typeof initGainSliders === "function") {
+        initGainSliders();
+      }
       if (typeof loadAcademicNotesHistory === "function") {
         loadAcademicNotesHistory(false);
       }
@@ -2756,6 +2973,61 @@ function refreshAudioDevices() {
             .then(reg => console.log('ServiceWorker PWA registrado con éxito en scope:', reg.scope))
             .catch(err => console.warn('Aviso: Registro de ServiceWorker:', err));
         });
+      }
+    });
+
+    // =========================================================================
+    // CIERRE Y AUTO-APAGADO DEL SERVIDOR MEDIANTE BEACON
+    // =========================================================================
+    let _isPageNavigatingOrReloading = false;
+
+    // Detectar recargas manuales (F5, Ctrl+R) para no apagar el servidor si el usuario recarga
+    window.addEventListener("keydown", (e) => {
+      if (e.key === "F5" || (e.ctrlKey && (e.key === "r" || e.key === "R"))) {
+        _isPageNavigatingOrReloading = true;
+        setTimeout(() => { _isPageNavigatingOrReloading = false; }, 4000);
+      }
+    });
+
+    // Detectar clics en descargas o enlaces para no enviar beacon de apagado al descargar archivos
+    window.addEventListener("click", (e) => {
+      const target = e.target.closest("a, button");
+      if (target) {
+        const text = (target.innerText || target.textContent || "").toLowerCase();
+        if (text.includes("descargar") || text.includes("export") || text.includes("conectar") || target.tagName === "A") {
+          _isPageNavigatingOrReloading = true;
+          setTimeout(() => { _isPageNavigatingOrReloading = false; }, 5000);
+        }
+      }
+    }, true);
+
+    function triggerServerShutdownBeacon() {
+      if (_isPageNavigatingOrReloading) return;
+      try {
+        if (navigator.sendBeacon) {
+          navigator.sendBeacon("/api/shutdown");
+        } else {
+          fetch("/api/shutdown", { method: "POST", keepalive: true }).catch(() => {});
+        }
+      } catch (err) {
+        console.warn("Shutdown beacon failed:", err);
+      }
+    }
+
+    window.addEventListener("beforeunload", (e) => {
+      const isRecordingActive = !document.getElementById("btnStopRecording")?.disabled;
+      if (isRecordingActive) {
+        e.preventDefault();
+        e.returnValue = "Hay una sesión grabándose actualmente. ¿Seguro que deseas salir?";
+        return e.returnValue;
+      }
+      triggerServerShutdownBeacon();
+    });
+
+    window.addEventListener("pagehide", () => {
+      const isRecordingActive = !document.getElementById("btnStopRecording")?.disabled;
+      if (!isRecordingActive) {
+        triggerServerShutdownBeacon();
       }
     });
 
@@ -2937,7 +3209,7 @@ function refreshAudioDevices() {
 
     function openDiscordBridgeModal() {
       const campInput = document.getElementById("campaignSelect") || document.getElementById("campaignNameInput");
-      const cName = campInput ? (campInput.value || "Campaña Principal") : "Campaña Principal";
+      const cName = (campInput && campInput.value && campInput.value.trim()) ? campInput.value.trim() : "NombreDeTuCampaña";
       const codeEl = document.getElementById("bridgeCmdCode");
       if (codeEl) {
         codeEl.textContent = `python -m client_bridge.discord_bridge --campaign "${cName}"`;
@@ -3147,7 +3419,7 @@ function refreshAudioDevices() {
           updateKeyBadge("badgeGroqStatus", data.groq, "Groq", data.groq_message);
           updateKeyBadge("badgeGeminiStatus", data.gemini, "Gemini", data.gemini_message);
 
-          updateDriveUIState(Boolean(data.drive));
+          updateDriveUIState(Boolean(data.drive), data.drive_email || null);
         }
       } catch (err) {
         console.warn("Could not check API keys status:", err);
@@ -3225,12 +3497,23 @@ function refreshAudioDevices() {
       }, 1600);
     }
 
-    function updateDriveUIState(isConnected) {
+    let _driveConnectedEmail = null;
+
+    function updateDriveUIState(isConnected, userEmail = null, userName = null) {
+      if (userEmail) _driveConnectedEmail = userEmail;
+      else if (!isConnected) _driveConnectedEmail = null;
+
       const btn = document.getElementById("btnConnectDriveHeader");
       const badge = document.getElementById("badgeConnectedDriveHeader");
       const btnSyncHeader = document.getElementById("btnSyncDriveHeader");
       const btnSyncSettings = document.getElementById("btnSyncDriveSettings");
       const btnSyncModal = document.getElementById("btnSyncDriveModal");
+      const btnConnectSettings = document.getElementById("btnConnectDriveSettings");
+      const btnDisconnectSettings = document.getElementById("btnDisconnectDriveSettings");
+      const settingsBadge = document.getElementById("settingsDriveBadge");
+      const settingsBadgeText = document.getElementById("settingsDriveBadgeText");
+      const settingsAccountInfo = document.getElementById("settingsDriveAccountInfo");
+      const settingsEmailEl = document.getElementById("settingsDriveEmail");
 
       _driveConnected = Boolean(isConnected);
       isGoogleDriveConnected = Boolean(isConnected);
@@ -3246,6 +3529,20 @@ function refreshAudioDevices() {
         if (btnSyncHeader) btnSyncHeader.classList.remove("hidden");
         if (btnSyncSettings) btnSyncSettings.classList.remove("hidden");
         if (btnSyncModal) btnSyncModal.classList.remove("hidden");
+
+        // Settings view controls
+        if (btnConnectSettings) btnConnectSettings.classList.add("hidden");
+        if (btnDisconnectSettings) btnDisconnectSettings.classList.remove("hidden");
+        if (settingsBadge) {
+          settingsBadge.className = "inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-500/15 text-emerald-300 border border-emerald-500/30";
+        }
+        if (settingsBadgeText) settingsBadgeText.textContent = "Conectado";
+        if (settingsAccountInfo) settingsAccountInfo.classList.remove("hidden");
+        if (settingsEmailEl) {
+          const displayLabel = _driveConnectedEmail || userEmail || "Cuenta vinculada";
+          settingsEmailEl.textContent = displayLabel;
+          settingsEmailEl.title = userName ? `${userName} (${displayLabel})` : displayLabel;
+        }
       } else {
         if (btn) {
           btn.classList.remove("hidden");
@@ -3256,6 +3553,21 @@ function refreshAudioDevices() {
         if (btnSyncHeader) btnSyncHeader.classList.add("hidden");
         if (btnSyncSettings) btnSyncSettings.classList.add("hidden");
         if (btnSyncModal) btnSyncModal.classList.add("hidden");
+
+        // Settings view controls
+        if (btnConnectSettings) {
+          btnConnectSettings.classList.remove("hidden");
+          btnConnectSettings.disabled = false;
+          const textSpan = document.getElementById("btnConnectDriveSettingsText");
+          if (textSpan) textSpan.textContent = "Conectar Google Drive";
+        }
+        if (btnDisconnectSettings) btnDisconnectSettings.classList.add("hidden");
+        if (settingsBadge) {
+          settingsBadge.className = "inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-slate-800 text-slate-400 border border-slate-700";
+        }
+        if (settingsBadgeText) settingsBadgeText.textContent = "No conectado";
+        if (settingsAccountInfo) settingsAccountInfo.classList.add("hidden");
+        if (settingsEmailEl) settingsEmailEl.textContent = "";
       }
     }
 
@@ -3306,10 +3618,14 @@ function refreshAudioDevices() {
       }
       try {
         let isConnected = false;
+        let userEmail = null;
+        let userName = null;
         const res = await fetch("/api/drive/status");
         if (res.ok) {
           const data = await res.json();
           isConnected = Boolean(data.connected);
+          userEmail = data.email || null;
+          userName = data.name || null;
         }
 
         // If backend session not active, restore using client's localStorage token
@@ -3317,10 +3633,18 @@ function refreshAudioDevices() {
           const restored = await restoreDriveSessionFromClient();
           if (restored) {
             isConnected = true;
+            try {
+              const rRes = await fetch("/api/drive/status");
+              if (rRes.ok) {
+                const rData = await rRes.json();
+                userEmail = rData.email || null;
+                userName = rData.name || null;
+              }
+            } catch (_) {}
           }
         }
 
-        updateDriveUIState(isConnected);
+        updateDriveUIState(isConnected, userEmail, userName);
 
         if (isConnected) {
           // Cache token locally if missing in localStorage
@@ -3351,14 +3675,21 @@ function refreshAudioDevices() {
 
     async function connectGoogleDriveUpfront() {
       const btn = document.getElementById("btnConnectDriveHeader");
+      const btnSettings = document.getElementById("btnConnectDriveSettings");
       if (btn) {
         btn.disabled = true;
         btn.innerHTML = `<span class="inline-block animate-spin">⏳</span> Abriendo...`;
+      }
+      if (btnSettings) {
+        btnSettings.disabled = true;
+        const textSpan = document.getElementById("btnConnectDriveSettingsText");
+        if (textSpan) textSpan.textContent = "Conectando...";
       }
       try {
         const res = await fetch("/api/auth/drive/login");
         const data = await res.json();
         if (res.ok && data.auth_url) {
+          _isPageNavigatingOrReloading = true;
           window.location.href = data.auth_url;
         } else {
           throw new Error(data.detail || "No se pudo generar la URL de autenticación.");
@@ -3368,6 +3699,44 @@ function refreshAudioDevices() {
         if (btn) {
           btn.disabled = false;
           btn.innerHTML = `<span>🔗</span> Conectar Google Drive`;
+        }
+        if (btnSettings) {
+          btnSettings.disabled = false;
+          const textSpan = document.getElementById("btnConnectDriveSettingsText");
+          if (textSpan) textSpan.textContent = "Conectar Google Drive";
+        }
+      }
+    }
+
+    async function disconnectGoogleDrive() {
+      const confirmed = confirm("¿Deseas cerrar la sesión de Google Drive en este dispositivo?\\n\\nTus archivos y campañas guardadas localmente se mantendrán intactos.");
+      if (!confirmed) return;
+
+      const btn = document.getElementById("btnDisconnectDriveSettings");
+      if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = `<span class="inline-block animate-spin">⏳</span> Cerrando...`;
+      }
+
+      try {
+        const res = await fetch("/api/drive/disconnect", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" }
+        });
+        localStorage.removeItem("gdrive_auth_token");
+        _driveConnectedEmail = null;
+        updateDriveUIState(false);
+        showSuccessAlert("Google Drive desconectado exitosamente.");
+      } catch (err) {
+        console.error("Error desconectando Google Drive:", err);
+        localStorage.removeItem("gdrive_auth_token");
+        _driveConnectedEmail = null;
+        updateDriveUIState(false);
+        showAlert("Error en el servidor al desconectar, pero la sesión local fue cerrada.");
+      } finally {
+        if (btn) {
+          btn.disabled = false;
+          btn.innerHTML = `<svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg><span>Cerrar Sesión</span>`;
         }
       }
     }
@@ -3885,7 +4254,18 @@ function refreshAudioDevices() {
         if (priorLoreInput) priorLoreInput.value = "";
         if (priorBadge) priorBadge.classList.add("hidden");
         updateCampaignViewTabs({ quests: [], npcs: [], universal_pcs: [], sessions: [] });
+        const statusText = document.getElementById("liveRecordingStatus");
+        const stopBtn = document.getElementById("btnStopRecording");
+        if (statusText && (!stopBtn || stopBtn.disabled) && currentLiveMode !== "class") {
+          statusText.textContent = "Selecciona o crea una campaña arriba para poder grabar";
+        }
         return;
+      }
+
+      const statusText = document.getElementById("liveRecordingStatus");
+      const stopBtn = document.getElementById("btnStopRecording");
+      if (statusText && (!stopBtn || stopBtn.disabled) && currentLiveMode !== "class") {
+        statusText.textContent = "Listo para iniciar la sesión";
       }
 
       if (overrideCheck) overrideCheck.disabled = false;
@@ -3997,7 +4377,11 @@ function refreshAudioDevices() {
 
     async function onSelectHistoricalSession(sessionNum) {
       if (!sessionNum) return;
-      const campName = (document.getElementById("campaignNameInput").value || "").trim() || (currentCampaignState && currentCampaignState.campaign_name) || "Campaña Principal";
+      const campName = (document.getElementById("campaignNameInput")?.value || "").trim() || (currentCampaignState && currentCampaignState.campaign_name) || "";
+      if (!campName) {
+        showAlert("⚠️ Selecciona o abre una campaña primero.");
+        return;
+      }
       const num = parseInt(sessionNum, 10);
       try {
         const res = await fetch(`/api/campaigns/${encodeURIComponent(campName)}/session/${num}`);
@@ -4195,11 +4579,27 @@ function refreshAudioDevices() {
         const currentVal = (select.value || select.getAttribute("data-saved-value") || "").trim();
         select.innerHTML = buildDiscordSelectOptions(currentVal, playerName);
         select.value = currentVal;
+        select.setAttribute("data-saved-value", currentVal);
       });
+    }
+
+    async function resetDiscordAuth() {
+      try {
+        const res = await fetch("/api/discord/reset-auth", { method: "POST" });
+        if (res.ok) {
+          showAlert("🔔 Token de Discord reiniciado. Por favor abre la ventana de tu aplicación de Discord para hacer clic en 'Autorizar' cuando aparezca el diálogo emergente.");
+          await refreshDiscordParticipants(true);
+        } else {
+          showAlert("No se pudo reiniciar la autorización de Discord.");
+        }
+      } catch (err) {
+        showAlert("Error al reiniciar autorización de Discord: " + err.message);
+      }
     }
 
     async function refreshDiscordParticipants(manual = false) {
       const refreshBtn = document.getElementById("btn-refresh-discord");
+      const statusText = document.getElementById("discordLiveStatusText");
       if (refreshBtn) refreshBtn.classList.add("opacity-50", "pointer-events-none");
       try {
         const res = await fetch("/api/discord/participants");
@@ -4210,6 +4610,23 @@ function refreshAudioDevices() {
           if (typeof renderPartyChips === "function") {
             renderPartyChips();
           }
+
+          if (statusText) {
+            if (data.connected && cachedDiscordParticipants.length > 0) {
+              statusText.innerHTML = `<span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse inline-block"></span> <span class="text-emerald-300 font-semibold">Discord: Conectado a #${data.channel_name || 'Voz'} (${cachedDiscordParticipants.length} jugadores)</span>`;
+            } else if (data.connected) {
+              statusText.innerHTML = `<span class="w-2 h-2 rounded-full bg-emerald-400 inline-block"></span> <span class="text-emerald-300 font-medium">Discord: Conectado a #${data.channel_name || 'Voz'} (solo tú en la sala)</span>`;
+            } else if (data.auth_state === "authorizing") {
+              statusText.innerHTML = `<span class="w-2 h-2 rounded-full bg-amber-400 animate-ping inline-block"></span> <span class="text-amber-300 font-medium">Discord: Esperando que hagas clic en 'Autorizar' en tu app de Discord...</span>`;
+            } else if (data.auth_state === "denied") {
+              statusText.innerHTML = `<span class="w-2 h-2 rounded-full bg-rose-400 inline-block"></span> <span class="text-rose-300 font-medium">Discord: Autorización requerida (haz clic en Reautorizar)</span>`;
+            } else if (data.rpc_connected) {
+              statusText.innerHTML = `<span class="w-2 h-2 rounded-full bg-amber-400 inline-block"></span> <span class="text-amber-300">Discord: Conectado (no estás en un canal de voz)</span>`;
+            } else {
+              statusText.innerHTML = `<span class="w-2 h-2 rounded-full bg-slate-500 inline-block"></span> <span class="text-slate-400">Discord: Desconectado (inicia sesión en la app para diarización)</span>`;
+            }
+          }
+
           if (manual) {
             const count = cachedDiscordParticipants.length;
             const ch = data.channel_name ? ` en "${data.channel_name}"` : "";
@@ -4225,6 +4642,8 @@ function refreshAudioDevices() {
                   badge.textContent = "✓ Guardado";
                 }, 3500);
               }
+            } else if (data.auth_state === "authorizing") {
+              showAlert("🔔 Abre la app de Discord en tu PC. Aparecerá una ventana emergente pidiéndote autorización; haz clic en 'Autorizar' para vincular las voces al Roster.");
             } else if (data.connected) {
               showAlert(`🎧 Discord conectado al canal de voz${ch}, pero no hay otros participantes en la llamada.`);
             } else {
@@ -4269,14 +4688,19 @@ function refreshAudioDevices() {
           <input type="text" data-field="subclass" disabled readonly value="N/A" class="subclass-input w-full bg-slate-950 border border-amber-900/30 rounded-lg px-2.5 py-1.5 text-xs text-amber-300/70 font-mono outline-none cursor-not-allowed">
         </td>
         <td class="py-2.5 px-2.5">
-          <select data-field="discord_user_id" onchange="saveCurrentRoster()" class="discord-user-select w-full bg-slate-900/90 border border-amber-900/50 hover:border-amber-700/60 focus:border-amber-400 focus:ring-1 focus:ring-amber-400/30 rounded-lg px-2 py-1.5 text-xs text-amber-200 outline-none transition duration-150" title="Vincular cuenta de Discord del DM">
+          <select data-field="discord_user_id" data-saved-value="${escapeHtml(dmDiscordId || '')}" onchange="this.setAttribute('data-saved-value', this.value); saveCurrentRoster()" class="discord-user-select w-full bg-slate-900/90 border border-amber-900/50 hover:border-amber-700/60 focus:border-amber-400 focus:ring-1 focus:ring-amber-400/30 rounded-lg px-2 py-1.5 text-xs text-amber-200 outline-none transition duration-150" title="Vincular cuenta de Discord del DM">
             ${discordOptionsHtml}
           </select>
         </td>
         <td class="py-2.5 px-2 text-center">
-          <button disabled class="delete-row-btn text-slate-700 p-1.5 rounded cursor-not-allowed inline-flex items-center justify-center" title="La fila del Dungeon Master es fija y no se puede eliminar">
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
-          </button>
+          <div class="flex items-center justify-center gap-1">
+            <button disabled class="text-slate-800 p-1.5 rounded cursor-not-allowed inline-flex items-center justify-center opacity-30 select-none" title="El DM siempre está presente">
+              <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
+            </button>
+            <button disabled class="delete-row-btn text-slate-700 p-1.5 rounded cursor-not-allowed inline-flex items-center justify-center" title="La fila del Dungeon Master es fija y no se puede eliminar">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
+            </button>
+          </div>
         </td>
       `;
       tbody.appendChild(tr);
@@ -4288,7 +4712,10 @@ function refreshAudioDevices() {
       }
       const discordSelect = tr.querySelector('.discord-user-select');
       if (discordSelect) {
-        discordSelect.value = dmDiscordId || "";
+        discordSelect.setAttribute("data-saved-value", dmDiscordId || "");
+        if (dmDiscordId) {
+          discordSelect.value = dmDiscordId;
+        }
       }
 
       return tr;
@@ -4300,14 +4727,20 @@ function refreshAudioDevices() {
         renderDMRow("", "");
       }
 
-      const p = playerData || { player_name: "", character_name: "", species: "", role: "", subclass: "", is_user: false, is_user_character: false, discord_user_id: "" };
+      const p = playerData || { player_name: "", character_name: "", species: "", role: "", subclass: "", is_user: false, is_user_character: false, discord_user_id: "", is_absent: false };
       const isUserChar = Boolean(p.is_user || p.is_user_character);
-      const discordUserId = (p.discord_user_id || "").toString().trim();
+      const isAbsent = Boolean(p.is_absent);
+      const discordUserId = (p.discord_user_id || p.discord_id || p.discord || "").toString().trim();
       const tr = document.createElement("tr");
-      tr.className = isUserChar 
+      let rowClasses = isUserChar 
         ? "bg-amber-500/10 border-l-4 border-l-amber-400 border-y border-amber-500/30 shadow-[inset_0_0_24px_rgba(245,158,11,0.12)] transition-all duration-150" 
         : "hover:bg-slate-900/70 transition-colors duration-150 border-b border-slate-900/80";
+      if (isAbsent) {
+        rowClasses += " opacity-50 bg-amber-950/20";
+      }
+      tr.className = rowClasses;
       tr.dataset.isUser = isUserChar ? "true" : "false";
+      tr.dataset.isAbsent = isAbsent ? "true" : "false";
 
       const classOptionsHtml = CLASS_OPTIONS.filter(c => c !== "Dungeon Master (DM)").map(opt => `
         <option value="${escapeHtml(opt)}">${escapeHtml(opt)}</option>
@@ -4345,14 +4778,24 @@ function refreshAudioDevices() {
           <input type="text" data-field="subclass" value="${escapeHtml(p.subclass || '')}" oninput="saveCurrentRoster()" placeholder="Ej. Battle Master" class="subclass-input w-full bg-slate-950/70 border border-slate-800/80 hover:border-slate-700 focus:border-sky-500 focus:ring-1 focus:ring-sky-500/30 rounded-lg px-2.5 py-1.5 text-xs text-slate-200 outline-none placeholder-slate-500 transition duration-150">
         </td>
         <td class="py-2.5 px-2.5">
-          <select data-field="discord_user_id" onchange="saveCurrentRoster()" class="discord-user-select w-full bg-slate-950/70 border border-slate-800/80 hover:border-slate-700 focus:border-sky-500 focus:ring-1 focus:ring-sky-500/30 rounded-lg px-2 py-1.5 text-xs text-slate-200 outline-none transition duration-150 cursor-pointer" title="Vincular a participante de Discord">
+          <select data-field="discord_user_id" data-saved-value="${escapeHtml(discordUserId)}" onchange="this.setAttribute('data-saved-value', this.value); saveCurrentRoster()" class="discord-user-select w-full bg-slate-950/70 border border-slate-800/80 hover:border-slate-700 focus:border-sky-500 focus:ring-1 focus:ring-sky-500/30 rounded-lg px-2 py-1.5 text-xs text-slate-200 outline-none transition duration-150 cursor-pointer" title="Vincular a participante de Discord">
             ${discordOptionsHtml}
           </select>
         </td>
         <td class="py-2.5 px-2 text-center">
-          <button onclick="removeRosterRowEl(this)" title="Eliminar jugador" class="delete-row-btn text-slate-500 hover:text-rose-400 hover:bg-rose-500/10 p-1.5 rounded-lg active:scale-90 transition duration-150 cursor-pointer">
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
-          </button>
+          <div class="flex items-center justify-center gap-1">
+            <button type="button" onclick="togglePlayerAbsenceRow(this)" 
+              title="${isAbsent ? '🚫 Jugador AUSENTE en esta sesión (Clic para marcar como presente)' : 'Marcar como ausente en esta sesión (temporal, sin memoria)'}" 
+              class="absence-btn p-1.5 rounded-lg transition duration-150 active:scale-90 cursor-pointer ${isAbsent ? 'text-amber-400 bg-amber-500/20 border border-amber-500/40 shadow-sm' : 'text-slate-500 hover:text-amber-300 hover:bg-amber-500/10'}">
+              <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="17" y1="8" x2="23" y2="14"/><line x1="23" y1="8" x2="17" y2="14"/>
+              </svg>
+            </button>
+            <button onclick="removeRosterRowEl(this)" title="Eliminar jugador" class="delete-row-btn text-slate-500 hover:text-rose-400 hover:bg-rose-500/10 p-1.5 rounded-lg active:scale-90 transition duration-150 cursor-pointer">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+            </button>
+          </div>
+          <input type="hidden" data-field="is_absent" value="${isAbsent ? 'true' : 'false'}">
         </td>
       `;
 
@@ -4361,6 +4804,14 @@ function refreshAudioDevices() {
       if (p.role) {
         const selectEl = tr.querySelector(".class-select");
         setSelectValueFlexible(selectEl, p.role);
+      }
+
+      const discordSelect = tr.querySelector('.discord-user-select');
+      if (discordSelect) {
+        discordSelect.setAttribute("data-saved-value", discordUserId);
+        if (discordUserId) {
+          discordSelect.value = discordUserId;
+        }
       }
 
       return tr;
@@ -4713,6 +5164,29 @@ function refreshAudioDevices() {
       await saveCurrentRoster(true, true);
     }
 
+    function togglePlayerAbsenceRow(btn) {
+      const tr = btn.closest("tr");
+      if (!tr) return;
+      const wasAbsent = tr.dataset.isAbsent === "true";
+      const isAbsent = !wasAbsent;
+      tr.dataset.isAbsent = isAbsent ? "true" : "false";
+
+      const absentInput = tr.querySelector('[data-field="is_absent"]');
+      if (absentInput) {
+        absentInput.value = isAbsent ? "true" : "false";
+      }
+
+      if (isAbsent) {
+        tr.classList.add("opacity-50", "bg-amber-950/20");
+        btn.className = "absence-btn p-1.5 rounded-lg transition duration-150 active:scale-90 cursor-pointer text-amber-400 bg-amber-500/20 border border-amber-500/40 shadow-sm";
+        btn.title = "🚫 Jugador AUSENTE en esta sesión (Clic para marcar como presente)";
+      } else {
+        tr.classList.remove("opacity-50", "bg-amber-950/20");
+        btn.className = "absence-btn p-1.5 rounded-lg transition duration-150 active:scale-90 cursor-pointer text-slate-500 hover:text-amber-300 hover:bg-amber-500/10";
+        btn.title = "Marcar como ausente en esta sesión (temporal, sin memoria)";
+      }
+    }
+
     function addRosterRow() {
       const tr = addPlayerRow();
       saveCurrentRoster();
@@ -4766,6 +5240,8 @@ function refreshAudioDevices() {
         const isDM = (index === 0);
         const isUserCharInput = tr.querySelector('[data-field="is_user_character"]');
         const isUser = isDM ? false : (tr.dataset.isUser === "true" || (isUserCharInput && isUserCharInput.value === "true"));
+        const isAbsentInput = tr.querySelector('[data-field="is_absent"]');
+        const isAbsent = !isDM && (tr.dataset.isAbsent === "true" || (isAbsentInput && isAbsentInput.value === "true"));
 
         const playerInput = tr.querySelector('.player-name') || tr.querySelector('[data-field="player_name"]');
         const charInput = tr.querySelector('.char-name') || tr.querySelector('[data-field="character_name"]');
@@ -4797,7 +5273,8 @@ function refreshAudioDevices() {
           subclass: subclassVal,
           discord_user_id: discordVal,
           is_user: isUser,
-          is_user_character: isUser
+          is_user_character: isUser,
+          is_absent: isAbsent
         });
       });
 
@@ -4858,7 +5335,8 @@ function refreshAudioDevices() {
         if (statusText && !document.getElementById("btnStopRecording").disabled) {
           statusText.textContent = "🔴 Grabación en curso (Canal Izq: Mic | Canal Der: Discord)";
         } else if (statusText) {
-          statusText.textContent = "Listo para iniciar la sesión de juego";
+          const campVal = (document.getElementById("campaignNameInput")?.value || "").trim();
+          statusText.textContent = campVal ? "Listo para iniciar la sesión de juego" : "Selecciona o crea una campaña arriba para poder grabar";
         }
       }
     }
@@ -4869,6 +5347,117 @@ function refreshAudioDevices() {
     let liveMeterInterval = null;
     let isMeterPolling = false;
     let isLiveMeterEnabled = true;
+    let gainMic = parseFloat(localStorage.getItem("dnd_gain_mic") || "1.0");
+    let gainSpeaker = parseFloat(localStorage.getItem("dnd_gain_speaker") || "2.0");
+    if (isNaN(gainMic) || gainMic < 0.1 || gainMic > 5.0) gainMic = 1.0;
+    if (isNaN(gainSpeaker) || gainSpeaker < 0.1 || gainSpeaker > 10.0) gainSpeaker = 2.0;
+
+    function initGainSliders() {
+      const sMic = document.getElementById("sliderGainMic");
+      const sSpk = document.getElementById("sliderGainSpk");
+      const dMic = document.getElementById("gainMicDisplay");
+      const dSpk = document.getElementById("gainSpkDisplay");
+
+      if (sMic) sMic.value = gainMic;
+      if (sSpk) sSpk.value = gainSpeaker;
+      if (dMic) dMic.textContent = `${gainMic.toFixed(2)}x`;
+      if (dSpk) {
+        const db = Math.round(20 * Math.log10(gainSpeaker));
+        const dbStr = db >= 0 ? `+${db} dB` : `${db} dB`;
+        dSpk.textContent = `${gainSpeaker.toFixed(1)}x (${dbStr})`;
+      }
+    }
+
+    function onGainSliderChange(channel, val) {
+      const num = parseFloat(val);
+      if (isNaN(num)) return;
+      if (channel === "mic") {
+        gainMic = Math.max(0.1, Math.min(5.0, num));
+        localStorage.setItem("dnd_gain_mic", gainMic.toFixed(2));
+        const dMic = document.getElementById("gainMicDisplay");
+        if (dMic) dMic.textContent = `${gainMic.toFixed(2)}x`;
+      } else if (channel === "speaker") {
+        gainSpeaker = Math.max(0.1, Math.min(10.0, num));
+        localStorage.setItem("dnd_gain_speaker", gainSpeaker.toFixed(2));
+        const dSpk = document.getElementById("gainSpkDisplay");
+        if (dSpk) {
+          const db = Math.round(20 * Math.log10(gainSpeaker));
+          const dbStr = db >= 0 ? `+${db} dB` : `${db} dB`;
+          dSpk.textContent = `${gainSpeaker.toFixed(1)}x (${dbStr})`;
+        }
+      }
+      pollAudioLevel();
+    }
+
+    function resetAudioGains() {
+      gainMic = 1.0;
+      gainSpeaker = 2.0;
+      localStorage.setItem("dnd_gain_mic", "1.00");
+      localStorage.setItem("dnd_gain_speaker", "2.00");
+      initGainSliders();
+      pollAudioLevel();
+    }
+
+    function checkSpeakerSelection() {
+      const spkSelect = document.getElementById("selectAudioSpeaker");
+      const warningHint = document.getElementById("speakerWarningHint");
+      if (!spkSelect || !warningHint) return;
+
+      const selectedOpt = spkSelect.options[spkSelect.selectedIndex];
+      const text = (selectedOpt ? selectedOpt.textContent : "").toLowerCase();
+      const isAltavoz = text.includes("altavoz") || text.includes("speaker");
+      const hasHeadphonesInOptions = Array.from(spkSelect.options).some(o =>
+        o.textContent.includes("🎧") || o.textContent.toLowerCase().includes("auricular") || o.textContent.toLowerCase().includes("headphone")
+      );
+
+      if (isAltavoz && hasHeadphonesInOptions && currentLiveMode === "roleplay") {
+        warningHint.classList.remove("hidden");
+      } else {
+        warningHint.classList.add("hidden");
+      }
+    }
+
+    function formatTime(totalSecs) {
+      const s = Math.max(0, Math.floor(totalSecs || 0));
+      const hrs = Math.floor(s / 3600).toString().padStart(2, "0");
+      const mins = Math.floor((s % 3600) / 60).toString().padStart(2, "0");
+      const secs = (s % 60).toString().padStart(2, "0");
+      return `${hrs}:${mins}:${secs}`;
+    }
+
+    function onRecordingInterrupted(durationSec) {
+      stopTimer();
+      stopHeartbeat();
+      if (durationSec) {
+        secondsElapsed = Math.floor(durationSec);
+        updateTimerDisplay();
+      }
+
+      const btnStart = document.getElementById("btnStartRecording");
+      const btnStop = document.getElementById("btnStopRecording");
+      const statusText = document.getElementById("liveRecordingStatus");
+      const watchdogAlert = document.getElementById("recordingWatchdogAlert");
+      const watchdogMsg = document.getElementById("recordingWatchdogMsg");
+
+      if (btnStart) {
+        btnStart.disabled = false;
+        btnStart.classList.remove("opacity-40", "cursor-not-allowed");
+      }
+      if (btnStop) {
+        // Keep enabled so user can process the captured audio
+        btnStop.disabled = false;
+      }
+
+      if (statusText) {
+        statusText.textContent = `⚠️ Grabación detenida en el servidor (${formatTime(secondsElapsed)} grabados)`;
+        statusText.className = "text-xs text-amber-400 font-semibold";
+      }
+
+      if (watchdogAlert && watchdogMsg) {
+        watchdogMsg.textContent = `La captura de audio en el servidor se detuvo tras ${formatTime(secondsElapsed)}. El audio grabado está seguro en el servidor. Presiona "Detener y Procesar" para transcribirlo con Gemini y Groq, o pulsa "Iniciar Grabación" para comenzar una nueva.`;
+        watchdogAlert.classList.remove("hidden");
+      }
+    }
 
     async function loadAudioDevices(forceRefresh = false) {
       const micSelect = document.getElementById("selectAudioMic");
@@ -4900,7 +5489,7 @@ function refreshAudioDevices() {
             const opt = document.createElement("option");
             opt.value = m.id;
             const isDefault = (data.default_mic_id && m.id === data.default_mic_id);
-            opt.textContent = `${m.name}${isDefault ? " (Predeterminado)" : ""}`;
+            opt.textContent = `🎤 ${m.name}${isDefault ? " (Predeterminado)" : ""}`;
             micSelect.appendChild(opt);
           });
         }
@@ -4924,14 +5513,18 @@ function refreshAudioDevices() {
             const opt = document.createElement("option");
             opt.value = s.id;
             const isDefault = (data.default_speaker_id && s.id === data.default_speaker_id);
-            opt.textContent = `${s.name}${isDefault ? " (Predeterminado)" : ""}`;
+            const isHeadphone = s.is_headphone;
+            const icon = isHeadphone ? "🎧 " : "🔊 ";
+            opt.textContent = `${icon}${s.name}${isDefault ? " (Predeterminado)" : ""}`;
             spkSelect.appendChild(opt);
           });
         }
 
-        // Restaurar selección previa o predeterminado
+        // Restaurar selección previa, o preferir sugerido (auriculares), o predeterminado
         if (savedSpk && Array.from(spkSelect.options).some(o => o.value === savedSpk)) {
           spkSelect.value = savedSpk;
+        } else if (data.suggested_speaker_id) {
+          spkSelect.value = data.suggested_speaker_id;
         } else if (data.default_speaker_id) {
           spkSelect.value = data.default_speaker_id;
         }
@@ -4940,6 +5533,7 @@ function refreshAudioDevices() {
         if (micSelect.value) localStorage.setItem("dnd_selected_mic", micSelect.value);
         if (spkSelect.value) localStorage.setItem("dnd_selected_speaker", spkSelect.value);
 
+        checkSpeakerSelection();
         pollAudioLevel();
       } catch (err) {
         console.warn("[Audio Devices] Error cargando dispositivos:", err);
@@ -4955,6 +5549,7 @@ function refreshAudioDevices() {
       if (spkSelect && spkSelect.value) {
         localStorage.setItem("dnd_selected_speaker", spkSelect.value);
       }
+      checkSpeakerSelection();
       pollAudioLevel();
     }
 
@@ -5000,11 +5595,25 @@ function refreshAudioDevices() {
         const params = new URLSearchParams();
         if (micId) params.append("mic_id", micId);
         if (spkId) params.append("speaker_id", spkId);
+        params.append("gain_mic", gainMic);
+        params.append("gain_spk", gainSpeaker);
 
         const res = await fetch(`/api/audio/test-level?${params.toString()}`);
         if (res.ok) {
           const data = await res.json();
           updateVuMeter(data.mic_rms || 0, data.speaker_rms || 0);
+
+          // Watchdog: monitor recording active status from backend
+          if (isRecordingActive) {
+            if (data.is_recording === false) {
+              onRecordingInterrupted(data.duration_seconds || secondsElapsed);
+            } else if (data.is_recording === true) {
+              if (data.duration_seconds && Math.abs(secondsElapsed - Math.floor(data.duration_seconds)) > 2) {
+                secondsElapsed = Math.floor(data.duration_seconds);
+                updateTimerDisplay();
+              }
+            }
+          }
         }
       } catch (err) {
         // Ignorar fallos transitorios de red en sondeo de niveles
@@ -5066,9 +5675,11 @@ function refreshAudioDevices() {
             if (data.mode) {
               setLiveMode(data.mode);
             }
-            secondsElapsed = Math.floor(data.duration_seconds);
+            secondsElapsed = Math.floor(data.duration_seconds || 0);
             startTimer();
             setRecordingUI(true);
+            const watchdogAlert = document.getElementById("recordingWatchdogAlert");
+            if (watchdogAlert) watchdogAlert.classList.add("hidden");
           }
         }
       } catch (err) {
@@ -5078,6 +5689,25 @@ function refreshAudioDevices() {
 
     async function startSessionRecording() {
       hideAlert();
+      const watchdogAlert = document.getElementById("recordingWatchdogAlert");
+      if (watchdogAlert) watchdogAlert.classList.add("hidden");
+
+      // Validación estricta: en modo D&D / rol no se puede grabar sin seleccionar o crear una campaña
+      if (currentLiveMode === "roleplay" || currentWorkspace === "dnd") {
+        const campName = (document.getElementById("campaignNameInput")?.value || "").trim();
+        if (!campName) {
+          showAlert("⚠️ Debes seleccionar o crear una campaña antes de iniciar la grabación.");
+          const campInput = document.getElementById("campaignNameInput");
+          if (campInput) {
+            campInput.focus();
+            campInput.classList.add("ring-2", "ring-rose-500", "border-rose-500");
+            setTimeout(() => {
+              campInput.classList.remove("ring-2", "ring-rose-500", "border-rose-500");
+            }, 3500);
+          }
+          return;
+        }
+      }
 
       // MODO 1: GRABACIÓN DIRECTA EN NAVEGADOR / MÓVIL (MediaRecorder API)
       if (audioSourceMode === "browser_mic") {
@@ -5149,13 +5779,20 @@ function refreshAudioDevices() {
         const micId = micSelect ? micSelect.value || null : null;
         const spkId = (currentLiveMode === "roleplay" && spkSelect) ? spkSelect.value || null : null;
 
+        const campName = (currentLiveMode === "roleplay" || currentWorkspace === "dnd")
+          ? (document.getElementById("campaignNameInput")?.value || "").trim()
+          : null;
+
         const res = await fetch("/api/record/start", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             mode: currentLiveMode,
             mic_id: micId,
-            speaker_id: spkId
+            speaker_id: spkId,
+            gain_mic: gainMic,
+            gain_spk: gainSpeaker,
+            campaign_name: campName
           })
         });
         const data = await res.json();
@@ -5218,8 +5855,21 @@ function refreshAudioDevices() {
               formData.append("subject", subject);
               formData.append("topic", topic);
             } else {
+              const campaignName = (document.getElementById("campaignNameInput")?.value || "").trim();
+              if (!campaignName) {
+                showAlert("⚠️ Debes seleccionar o crear una campaña para procesar la sesión.");
+                const campInput = document.getElementById("campaignNameInput");
+                if (campInput) {
+                  campInput.focus();
+                  campInput.classList.add("ring-2", "ring-rose-500", "border-rose-500");
+                  setTimeout(() => {
+                    campInput.classList.remove("ring-2", "ring-rose-500", "border-rose-500");
+                  }, 3500);
+                }
+                setRecordingUI(true);
+                return;
+              }
               const roster = getRosterFromTable(true);
-              const campaignName = document.getElementById("campaignNameInput").value.trim() || "Campaña Principal";
               const sessionNumber = parseInt(document.getElementById("sessionNumberInput").value) || "";
               formData.append("recording_mode", "roleplay");
               formData.append("campaign_name", campaignName);
@@ -5281,8 +5931,21 @@ function refreshAudioDevices() {
           `Transcribiendo con ${engineName} y generando Síntesis Ejecutiva con Gemini para "${topic}".`
         );
       } else {
+        const campaignName = (document.getElementById("campaignNameInput")?.value || "").trim();
+        if (!campaignName) {
+          showAlert("⚠️ Debes seleccionar o crear una campaña para procesar la sesión.");
+          const campInput = document.getElementById("campaignNameInput");
+          if (campInput) {
+            campInput.focus();
+            campInput.classList.add("ring-2", "ring-rose-500", "border-rose-500");
+            setTimeout(() => {
+              campInput.classList.remove("ring-2", "ring-rose-500", "border-rose-500");
+            }, 3500);
+          }
+          setRecordingUI(true);
+          return;
+        }
         const roster = getRosterFromTable(true);
-        const campaignName = document.getElementById("campaignNameInput").value.trim() || "Campaña Principal";
         const sessionNumber = parseInt(document.getElementById("sessionNumberInput").value) || null;
         bodyPayload = {
           task_id: taskId,
@@ -5443,6 +6106,9 @@ function refreshAudioDevices() {
       if (tab === "wiki" && typeof refreshWikiView === "function") {
         refreshWikiView();
       }
+      if (tab === "file" && typeof loadLocalRecordingsList === "function") {
+        loadLocalRecordingsList();
+      }
       if (tab === "live") {
         startLiveMeterPolling();
       } else {
@@ -5462,7 +6128,20 @@ function refreshAudioDevices() {
       const url = document.getElementById("youtubeUrl").value.trim();
       const modelSize = document.getElementById("globalModelSize").value;
       const engine = document.getElementById("transcriptionEngine").value || "groq";
-      const campaignName = document.getElementById("campaignNameInput").value.trim() || "Campaña Principal";
+      const isClass = (currentWorkspace === "work_and_study" || currentLiveMode === "class");
+      const campaignName = (document.getElementById("campaignNameInput")?.value || "").trim();
+      if (!isClass && !campaignName) {
+        showAlert("⚠️ Debes seleccionar o crear una campaña antes de transcribir.");
+        const campInput = document.getElementById("campaignNameInput");
+        if (campInput) {
+          campInput.focus();
+          campInput.classList.add("ring-2", "ring-rose-500", "border-rose-500");
+          setTimeout(() => {
+            campInput.classList.remove("ring-2", "ring-rose-500", "border-rose-500");
+          }, 3500);
+        }
+        return;
+      }
       const sessionNumber = parseInt(document.getElementById("sessionNumberInput").value) || null;
       const roster = getRosterFromTable(true);
 
@@ -5471,7 +6150,6 @@ function refreshAudioDevices() {
       lastActionCallback = () => transcribeYoutube();
       const taskId = generateTaskId();
       const engineName = (engine === "groq") ? "Groq Whisper Large-v3" : "faster-whisper local";
-      const isClass = (currentWorkspace === "work_and_study" || currentLiveMode === "class");
 
       let bodyPayload = {
         task_id: taskId,
@@ -5533,13 +6211,100 @@ function refreshAudioDevices() {
       }
     }
 
+    let selectedLocalRecordingFilename = null;
+
+    function handleDragOver(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      const zone = document.getElementById("dropZone");
+      if (zone) zone.classList.add("border-indigo-500", "bg-indigo-950/20");
+    }
+
+    function handleDragLeave(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      const zone = document.getElementById("dropZone");
+      if (zone) zone.classList.remove("border-indigo-500", "bg-indigo-950/20");
+    }
+
+    function handleDrop(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      const zone = document.getElementById("dropZone");
+      if (zone) zone.classList.remove("border-indigo-500", "bg-indigo-950/20");
+      if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+        const fileInput = document.getElementById("audioFileInput");
+        if (fileInput) {
+          fileInput.files = e.dataTransfer.files;
+          handleFileSelect(fileInput);
+        }
+      }
+    }
+
     function handleFileSelect(input) {
+      selectedLocalRecordingFilename = null;
       const btn = document.getElementById("btnFile");
       const label = document.getElementById("selectedFileName");
       if (input.files && input.files[0]) {
-        btn.disabled = false;
-        label.textContent = "Archivo: " + input.files[0].name;
+        if (btn) btn.disabled = false;
+        if (label) {
+          label.textContent = "Archivo Subido: " + input.files[0].name;
+          label.classList.remove("hidden");
+        }
+      }
+    }
+
+    function selectExistingRecording(filename) {
+      selectedLocalRecordingFilename = filename;
+      const btn = document.getElementById("btnFile");
+      const label = document.getElementById("selectedFileName");
+      if (btn) btn.disabled = false;
+      if (label) {
+        label.textContent = "Grabación Local Seleccionada: " + filename;
         label.classList.remove("hidden");
+      }
+      const zone = document.getElementById("dropZone");
+      if (zone) zone.classList.add("border-emerald-500/50", "bg-emerald-950/10");
+    }
+
+    async function loadLocalRecordingsList() {
+      const container = document.getElementById("localRecordingsList");
+      if (!container) return;
+      try {
+        const res = await fetch("/api/audio/local-recordings");
+        if (!res.ok) throw new Error("No se pudieron cargar las grabaciones.");
+        const data = await res.json();
+        const files = data.files || [];
+        if (files.length === 0) {
+          container.innerHTML = `<p class="text-slate-500 italic text-[11px]">No hay grabaciones en data/input aún.</p>`;
+          return;
+        }
+        let html = '<div class="space-y-1.5 max-h-48 overflow-y-auto pr-1">';
+        files.forEach((f, idx) => {
+          const isLatest = idx === 0;
+          html += `
+            <div class="flex items-center justify-between p-2 rounded-xl bg-slate-900/80 hover:bg-slate-800/80 border border-slate-800 transition text-left cursor-pointer group"
+                 onclick="selectExistingRecording('${f.filename}')">
+              <div class="min-w-0 pr-2">
+                <div class="flex items-center gap-1.5">
+                  <span class="font-mono text-xs text-slate-200 group-hover:text-amber-400 font-medium truncate">${f.filename}</span>
+                  ${isLatest ? '<span class="text-[9px] px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-400 font-semibold border border-emerald-500/30">MÁS RECIENTE</span>' : ''}
+                </div>
+                <div class="text-[10px] text-slate-500 flex items-center gap-2 mt-0.5">
+                  <span>📅 ${f.created_at}</span>
+                  <span>💾 ${f.size_mb} MB</span>
+                </div>
+              </div>
+              <button type="button" class="shrink-0 text-xs px-2.5 py-1 rounded-lg bg-indigo-600/30 hover:bg-indigo-600 text-indigo-300 hover:text-white font-medium border border-indigo-500/30 transition">
+                Usar
+              </button>
+            </div>
+          `;
+        });
+        html += '</div>';
+        container.innerHTML = html;
+      } catch (e) {
+        container.innerHTML = `<p class="text-rose-400 text-[11px]">Error cargando grabaciones: ${e.message}</p>`;
       }
     }
 
@@ -5552,26 +6317,34 @@ function refreshAudioDevices() {
                         document.querySelector('#tab-archivo-local input[type="file"]') ||
                         document.querySelector('input[type="file"]');
 
-      if (!fileInput || !fileInput.files || fileInput.files.length === 0) {
+      const hasUploadedFile = Boolean(fileInput && fileInput.files && fileInput.files.length > 0);
+      if (!selectedLocalRecordingFilename && !hasUploadedFile) {
         if (typeof showAlert === "function") {
-          showAlert("Por favor selecciona el archivo WAV de la sesión primero.");
+          showAlert("Por favor selecciona o arrastra un archivo de audio, o elige una grabación local de la lista.");
         } else {
-          alert("Por favor selecciona el archivo WAV de la sesión primero.");
+          alert("Por favor selecciona o arrastra un archivo de audio, o elige una grabación local de la lista.");
         }
         return;
       }
 
-      const file = fileInput.files[0];
       const modelSize = (document.getElementById("globalModelSize") ? document.getElementById("globalModelSize").value : "") || "base";
       const engine = (document.getElementById("transcriptionEngine") ? document.getElementById("transcriptionEngine").value : "") || "groq";
-      const campaignName = (document.getElementById("campaignNameInput") ? document.getElementById("campaignNameInput").value.trim() : "") || "Campaña Principal";
+      const isClass = (currentWorkspace === "work_and_study" || currentLiveMode === "class");
+      const campaignName = (document.getElementById("campaignNameInput") ? document.getElementById("campaignNameInput").value.trim() : "");
+      if (!isClass && !campaignName) {
+        showAlert("⚠️ Debes seleccionar o crear una campaña antes de transcribir un archivo.");
+        const campInput = document.getElementById("campaignNameInput");
+        if (campInput) {
+          campInput.focus();
+          campInput.classList.add("ring-2", "ring-rose-500", "border-rose-500");
+          setTimeout(() => {
+            campInput.classList.remove("ring-2", "ring-rose-500", "border-rose-500");
+          }, 3500);
+        }
+        return;
+      }
       const sessionNumber = (document.getElementById("sessionNumberInput") && parseInt(document.getElementById("sessionNumberInput").value)) || null;
       const roster = typeof getRosterFromTable === "function" ? getRosterFromTable(true) : [];
-
-      lastActionCallback = () => transcribeFile();
-      const taskId = generateTaskId();
-      const engineName = (engine === "groq") ? "Groq Whisper Large-v3" : "faster-whisper local";
-      const isClass = (currentWorkspace === "work_and_study" || currentLiveMode === "class");
 
       updateStepperMode(false);
       if (isClass) {
@@ -5584,14 +6357,18 @@ function refreshAudioDevices() {
         startProgressTracking(
           taskId,
           "Transcribiendo archivo local y procesando campaña...",
-          `Cargando audio, ejecutando inferencia con ${engineName} y actualizando el Diario de Campaña.`
+          `Cargando audio, ejecutando inferencia con ${engineName} y actualizando el Diario de Campaña con Gemini.`
         );
       }
 
       try {
         const formData = new FormData();
         formData.append("task_id", taskId);
-        formData.append("file", file);
+        if (selectedLocalRecordingFilename) {
+          formData.append("existing_filename", selectedLocalRecordingFilename);
+        } else if (hasUploadedFile) {
+          formData.append("file", fileInput.files[0]);
+        }
         formData.append("model_size", modelSize);
         formData.append("engine", engine);
         formData.append("workspace", currentWorkspace);
@@ -5657,10 +6434,8 @@ function refreshAudioDevices() {
                          "Reunión / Clase";
         document.getElementById("resCampaignName").textContent = topicVal;
       } else {
-        const campLabel = document.getElementById("resCampaignLabel");
-        if (campLabel) campLabel.textContent = "Campaña";
-        const campName = data.campaign_name || document.getElementById("campaignNameInput").value.trim() || "Campaña Principal";
-        document.getElementById("resCampaignName").textContent = campName;
+        const campName = data.campaign_name || (document.getElementById("campaignNameInput")?.value || "").trim();
+        document.getElementById("resCampaignName").textContent = campName || "Sin Campaña";
       }
 
       const engineUsed = data.engine_used || document.getElementById("transcriptionEngine").value || "groq";
@@ -5713,7 +6488,7 @@ function refreshAudioDevices() {
       if (!isClassMode) {
         // Build or update campaign state
         let stateToUse = data.campaign_state || currentCampaignState || {};
-        stateToUse.campaign_name = stateToUse.campaign_name || data.campaign_name || document.getElementById("campaignNameInput").value.trim() || "Campaña Principal";
+        stateToUse.campaign_name = stateToUse.campaign_name || data.campaign_name || (document.getElementById("campaignNameInput")?.value || "").trim();
         stateToUse.last_session = stateToUse.last_session || data.session_number || 1;
 
         // Ensure quests are populated from data.quests or updated_quests if not already in state
@@ -5783,8 +6558,12 @@ function refreshAudioDevices() {
       }
 
       // Check if newly detected NPC names need spell-check review (only for roleplay)
-      if (!isClassMode && data.detected_npc_names && data.detected_npc_names.length > 0) {
-        showNpcSpellcheck(data.detected_npc_names);
+      let npcNamesToCheck = data.detected_npc_names || [];
+      if ((!npcNamesToCheck || npcNamesToCheck.length === 0) && Array.isArray(data.updated_npcs)) {
+        npcNamesToCheck = data.updated_npcs.map(n => n.name).filter(Boolean);
+      }
+      if (!isClassMode && npcNamesToCheck.length > 0) {
+        showNpcSpellcheck(npcNamesToCheck);
       }
 
       // Render Chronicle / Academic Study Notes (Markdown)
@@ -6501,13 +7280,14 @@ function refreshAudioDevices() {
     function syncWikiCampaignSelector(campName) {
       const select = document.getElementById("wikiCampaignSelect");
       if (!select) return;
-      if (!campName) {
+      if (!campName || !campName.trim()) {
         select.value = "";
         return;
       }
+      const target = campName.trim().toLowerCase();
       let found = false;
       for (let i = 0; i < select.options.length; i++) {
-        if (select.options[i].value.toLowerCase() === campName.toLowerCase()) {
+        if (select.options[i].value.toLowerCase() === target) {
           select.selectedIndex = i;
           found = true;
           break;
@@ -6515,29 +7295,334 @@ function refreshAudioDevices() {
       }
       if (!found) {
         const opt = document.createElement("option");
-        opt.value = campName;
-        opt.textContent = campName;
+        opt.value = campName.trim();
+        opt.textContent = campName.trim();
         select.appendChild(opt);
-        select.value = campName;
+        select.value = campName.trim();
+      }
+    }
+
+    // =========================================================================
+    // MI PERSONAJE — Character Backstory View
+    // =========================================================================
+    let currentCampaignRosterCache = [];
+    let isNewCharacterMode = false;
+
+    async function loadCharacterView() {
+      const badge = document.getElementById("characterBackstorySavedBadge");
+      if (badge) badge.classList.add("hidden");
+
+      const campaignSelect = document.getElementById("characterProfileCampaign");
+      if (!campaignSelect) return;
+
+      const prevCampaign = campaignSelect.value;
+      campaignSelect.innerHTML = '<option value="">— Selecciona una campaña —</option>';
+
+      try {
+        const res = await fetch("/api/campaigns");
+        if (res.ok) {
+          const data = await res.json();
+          const campaigns = data.campaigns || data || [];
+          let targetCampaign = prevCampaign;
+          campaigns.forEach(c => {
+            const name = typeof c === "string" ? c : (c.campaign_name || c.name || "");
+            if (!name) return;
+            const opt = document.createElement("option");
+            opt.value = name;
+            opt.textContent = name;
+            campaignSelect.appendChild(opt);
+            // Default to Candlekeep 2.0 or first available
+            if (!targetCampaign && (name.toLowerCase() === "candlekeep 2.0" || name.toLowerCase().includes("candlekeep"))) {
+              targetCampaign = name;
+            }
+          });
+
+          if (!targetCampaign && campaigns.length > 0) {
+            const first = campaigns[0];
+            targetCampaign = typeof first === "string" ? first : (first.campaign_name || first.name || "");
+          }
+
+          if (targetCampaign) {
+            campaignSelect.value = targetCampaign;
+            await loadCharactersForCampaign(targetCampaign);
+          }
+        }
+      } catch (e) {
+        console.warn("[Mi Personaje] Error cargando campañas:", e);
+      }
+    }
+
+    async function loadCharactersForCampaign(campaignName, selectCharName = null) {
+      if (!campaignName) {
+        currentCampaignRosterCache = [];
+        renderCharacterSelectDropdown([], null);
+        const textarea = document.getElementById("characterBackstoryInput");
+        if (textarea) textarea.value = "";
+        return;
+      }
+
+      const textarea = document.getElementById("characterBackstoryInput");
+
+      try {
+        const res = await fetch(`/api/campaigns/${encodeURIComponent(campaignName)}`);
+        if (res.ok) {
+          const data = await res.json();
+          const state = data.campaign_state || data || {};
+          const roster = state.roster || [];
+          const universalPcs = state.universal_pcs || [];
+          const charBackstories = state.character_backstories || {};
+          const userBackstory = state.user_character_backstory || "";
+
+          // Extract distinct PCs (excluding DM)
+          const charsMap = new Map();
+          roster.forEach(m => {
+            if (!m || typeof m !== "object") return;
+            const cname = (m.character_name || "").trim();
+            if (!cname || cname.toLowerCase() === "(dm)" || cname.toLowerCase() === "dm" || cname.toLowerCase() === "dungeon master") return;
+            const isUser = Boolean(m.is_user_character || m.is_user);
+            const specificBackstory = m.backstory || charBackstories[cname] || (isUser ? userBackstory : "");
+            charsMap.set(cname.toLowerCase(), {
+              name: cname,
+              player: m.player_name || "",
+              role: m.role || "",
+              species: m.species || "",
+              is_user: isUser,
+              backstory: specificBackstory,
+            });
+          });
+
+          universalPcs.forEach(u => {
+            if (!u || typeof u !== "object") return;
+            const cname = (u.personaje || u.character_name || "").trim();
+            if (!cname || cname.toLowerCase() === "(dm)" || cname.toLowerCase() === "dm" || cname.toLowerCase() === "dungeon master") return;
+            const key = cname.toLowerCase();
+            if (!charsMap.has(key)) {
+              charsMap.set(key, {
+                name: cname,
+                player: u.jugador || u.player_name || "",
+                role: u.clase || u.role || "",
+                species: u.raza || u.species || "",
+                is_user: false,
+                backstory: u.trasfondo || charBackstories[cname] || "",
+              });
+            }
+          });
+
+          // Also check character_backstories keys
+          Object.keys(charBackstories).forEach(cname => {
+            const key = cname.trim().toLowerCase();
+            if (key && !charsMap.has(key)) {
+              charsMap.set(key, {
+                name: cname.trim(),
+                player: "",
+                role: "",
+                species: "",
+                is_user: false,
+                backstory: charBackstories[cname] || "",
+              });
+            }
+          });
+
+          currentCampaignRosterCache = Array.from(charsMap.values());
+          // Sort user characters first, then alphabetically
+          currentCampaignRosterCache.sort((a, b) => {
+            if (a.is_user !== b.is_user) return a.is_user ? -1 : 1;
+            return a.name.localeCompare(b.name);
+          });
+
+          // Determine which character to select
+          let chosenChar = null;
+          if (selectCharName) {
+            chosenChar = currentCampaignRosterCache.find(c => c.name.toLowerCase() === selectCharName.toLowerCase());
+          }
+          if (!chosenChar) {
+            chosenChar = currentCampaignRosterCache.find(c => c.is_user) || (currentCampaignRosterCache.length > 0 ? currentCampaignRosterCache[0] : null);
+          }
+
+          renderCharacterSelectDropdown(currentCampaignRosterCache, chosenChar ? chosenChar.name : null);
+
+          if (chosenChar) {
+            onUserCharacterSelected(chosenChar.name);
+          } else {
+            if (textarea) textarea.value = "";
+          }
+        }
+      } catch (e) {
+        console.warn("[Mi Personaje] Error cargando personajes de campaña:", e);
+      }
+    }
+
+    function renderCharacterSelectDropdown(charList, selectedName) {
+      const charSelect = document.getElementById("userCharacterSelect");
+      if (!charSelect) return;
+
+      charSelect.innerHTML = "";
+      if (!charList || charList.length === 0) {
+        charSelect.innerHTML = '<option value="">— Ningún personaje registrado en esta campaña —</option>';
+        return;
+      }
+
+      const defaultOpt = document.createElement("option");
+      defaultOpt.value = "";
+      defaultOpt.textContent = "— Selecciona un personaje de la campaña —";
+      charSelect.appendChild(defaultOpt);
+
+      charList.forEach(c => {
+        const opt = document.createElement("option");
+        opt.value = c.name;
+        const star = c.is_user ? "⭐ " : "";
+        const roleInfo = [c.role, c.species].filter(Boolean).join(", ");
+        const playerInfo = c.player ? ` [${c.player}]` : "";
+        const details = roleInfo ? ` (${roleInfo}${playerInfo})` : (playerInfo ? ` (${playerInfo.trim()})` : "");
+        opt.textContent = `${star}${c.name}${details}`;
+        charSelect.appendChild(opt);
+      });
+
+      if (selectedName) {
+        charSelect.value = selectedName;
+      }
+    }
+
+    function onCampaignDropdownChanged(campName) {
+      if (isNewCharacterMode) {
+        const textarea = document.getElementById("characterBackstoryInput");
+        if (textarea) textarea.value = "";
+      } else {
+        loadCharactersForCampaign(campName);
+      }
+    }
+
+    function onUserCharacterSelected(charName) {
+      const textarea = document.getElementById("characterBackstoryInput");
+      const chkIsUser = document.getElementById("chkIsUserCharacter");
+      const nameInput = document.getElementById("characterProfileName");
+
+      if (nameInput) nameInput.value = charName || "";
+
+      if (!charName) {
+        if (textarea) textarea.value = "";
+        return;
+      }
+
+      const found = currentCampaignRosterCache.find(c => c.name.toLowerCase() === charName.toLowerCase());
+      if (found) {
+        if (textarea) textarea.value = found.backstory || "";
+        if (chkIsUser) chkIsUser.checked = Boolean(found.is_user);
+      } else {
+        if (textarea) textarea.value = "";
+      }
+    }
+
+    function toggleNewCharacterMode(forceMode) {
+      const selectContainer = document.getElementById("characterSelectContainer");
+      const inputContainer = document.getElementById("newCharacterInputContainer");
+      const labelToggle = document.getElementById("labelToggleNewChar");
+      const nameInput = document.getElementById("characterProfileName");
+      const textarea = document.getElementById("characterBackstoryInput");
+      const chkIsUser = document.getElementById("chkIsUserCharacter");
+
+      if (typeof forceMode === "boolean") {
+        isNewCharacterMode = forceMode;
+      } else {
+        isNewCharacterMode = !isNewCharacterMode;
+      }
+
+      if (isNewCharacterMode) {
+        if (selectContainer) selectContainer.classList.add("hidden");
+        if (inputContainer) inputContainer.classList.remove("hidden");
+        if (labelToggle) labelToggle.textContent = "Seleccionar Existente";
+        if (nameInput) {
+          nameInput.value = "";
+          nameInput.focus();
+        }
+        if (textarea) textarea.value = "";
+        if (chkIsUser) chkIsUser.checked = true;
+      } else {
+        if (selectContainer) selectContainer.classList.remove("hidden");
+        if (inputContainer) inputContainer.classList.add("hidden");
+        if (labelToggle) labelToggle.textContent = "Crear Nuevo Personaje";
+        const charSelect = document.getElementById("userCharacterSelect");
+        if (charSelect && charSelect.value) {
+          onUserCharacterSelected(charSelect.value);
+        }
+      }
+    }
+
+    async function saveCharacterBackstory() {
+      const campaignSelect = document.getElementById("characterProfileCampaign");
+      const nameInput  = document.getElementById("characterProfileName");
+      const charSelect = document.getElementById("userCharacterSelect");
+      const textarea   = document.getElementById("characterBackstoryInput");
+      const chkIsUser  = document.getElementById("chkIsUserCharacter");
+      const badge      = document.getElementById("characterBackstorySavedBadge");
+      const btn        = document.getElementById("btnSaveCharacterBackstory");
+
+      const campaignName = campaignSelect?.value?.trim();
+      let charName = "";
+
+      if (isNewCharacterMode) {
+        charName = nameInput?.value?.trim();
+      } else {
+        charName = charSelect?.value?.trim();
+        if (!charName && nameInput?.value?.trim()) {
+          charName = nameInput.value.trim();
+        }
+      }
+
+      if (!campaignName) { alert("Selecciona una campaña primero."); return; }
+      if (!charName)     { alert("Escribe o selecciona el nombre de un personaje."); return; }
+      if (!textarea)     return;
+
+      if (btn) btn.disabled = true;
+      try {
+        const res = await fetch(`/api/campaigns/${encodeURIComponent(campaignName)}/character-backstory`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ 
+            backstory: textarea.value,
+            character_name: charName,
+            is_user_character: chkIsUser ? chkIsUser.checked : true
+          }),
+        });
+        if (res.ok) {
+          if (badge) {
+            badge.classList.remove("hidden");
+            setTimeout(() => badge.classList.add("hidden"), 3000);
+          }
+          if (isNewCharacterMode) {
+            toggleNewCharacterMode(false);
+          }
+          await loadCharactersForCampaign(campaignName, charName);
+        } else {
+          alert("Error guardando el trasfondo. Intenta de nuevo.");
+        }
+      } catch (e) {
+        alert("Error de red al guardar. Revisa que el servidor esté corriendo.");
+      } finally {
+        if (btn) btn.disabled = false;
       }
     }
 
     async function refreshWikiCampaigns() {
       const select = document.getElementById("wikiCampaignSelect");
       if (!select) return;
-      const currentVal = select.value;
+      const currentVal = (select.value || "").trim();
       try {
         const res = await fetch("/api/campaigns");
         if (res.ok) {
           const list = await res.json();
           select.innerHTML = '<option value="">-- Seleccionar Campaña --</option>';
+          let valFound = false;
           list.forEach(c => {
             const opt = document.createElement("option");
             opt.value = c.name;
             opt.textContent = `${c.name} (${c.sessions_count || c.total_sessions || 0} sesiones)`;
             select.appendChild(opt);
+            if (currentVal && c.name.toLowerCase() === currentVal.toLowerCase()) {
+              valFound = true;
+            }
           });
-          if (currentVal) {
+          if (currentVal && valFound) {
             select.value = currentVal;
           }
         }
@@ -6549,19 +7634,30 @@ function refreshAudioDevices() {
     async function onWikiCampaignSelected(campName) {
       const emptyState = document.getElementById("wikiEmptyCampaignState");
       const explorerLayout = document.getElementById("wikiExplorerLayout");
+      const select = document.getElementById("wikiCampaignSelect");
+
       if (!campName || !campName.trim()) {
         currentWikiCampaignState = null;
         selectedWikiEntity = null;
+        if (select) select.value = "";
         if (emptyState) emptyState.classList.remove("hidden");
         if (explorerLayout) explorerLayout.classList.add("hidden");
         return;
       }
 
+      const cleanName = campName.trim();
+      if (select && select.value !== cleanName) {
+        syncWikiCampaignSelector(cleanName);
+      }
+
       try {
-        const res = await fetch(`/api/campaigns/${encodeURIComponent(campName.trim())}`);
+        const res = await fetch(`/api/campaigns/${encodeURIComponent(cleanName)}`);
         if (res.ok) {
           const data = await res.json();
           currentWikiCampaignState = data.campaign_state || { quests: [], npcs: [], universal_pcs: [] };
+          if (!currentWikiCampaignState.campaign_name) {
+            currentWikiCampaignState.campaign_name = cleanName;
+          }
           selectedWikiEntity = null;
           if (emptyState) emptyState.classList.add("hidden");
           if (explorerLayout) explorerLayout.classList.remove("hidden");
@@ -6575,26 +7671,30 @@ function refreshAudioDevices() {
         }
       } catch (err) {
         console.error("Error loading wiki campaign data:", err);
+        currentWikiCampaignState = null;
+        if (emptyState) emptyState.classList.remove("hidden");
+        if (explorerLayout) explorerLayout.classList.add("hidden");
       }
     }
 
     async function refreshWikiView() {
       await refreshWikiCampaigns();
       const select = document.getElementById("wikiCampaignSelect");
-      const mainCampInput = document.getElementById("campaignNameInput");
+      const mainCampInput = document.getElementById("campaignNameInput") || document.getElementById("campaignSelect");
       const currentMain = (mainCampInput && mainCampInput.value) ? mainCampInput.value.trim() : "";
+      const currentSelect = (select && select.value) ? select.value.trim() : "";
 
-      if (select && (!select.value || select.value === "")) {
-        if (currentMain) {
-          syncWikiCampaignSelector(currentMain);
-          await onWikiCampaignSelected(currentMain);
-          return;
-        }
-      } else if (select && select.value) {
-        await onWikiCampaignSelected(select.value);
+      const targetCamp = currentSelect || currentMain;
+
+      if (targetCamp) {
+        syncWikiCampaignSelector(targetCamp);
+        await onWikiCampaignSelected(targetCamp);
         return;
       }
 
+      if (select) select.value = "";
+      currentWikiCampaignState = null;
+      selectedWikiEntity = null;
       const emptyState = document.getElementById("wikiEmptyCampaignState");
       const explorerLayout = document.getElementById("wikiExplorerLayout");
       if (emptyState) emptyState.classList.remove("hidden");
@@ -7964,7 +9064,11 @@ async function selectWikiEntity(type, key, data) {
     }
 
     async function confirmNpcSpellcheck() {
-      const campName = document.getElementById("campaignNameInput").value.trim() || "Campaña Principal";
+      const campName = (document.getElementById("campaignNameInput")?.value || "").trim();
+      if (!campName) {
+        showAlert("⚠️ Debes seleccionar o crear una campaña antes de confirmar nombres de PNJs.");
+        return;
+      }
       const inputs = document.querySelectorAll(".npc-spell-input");
       const corrections = {};
 
@@ -7995,6 +9099,20 @@ async function selectWikiEntity(type, key, data) {
         }
       }
     }
+
+    function triggerManualNpcSpellcheck() {
+      const currentNpcs = (currentCampaignState && currentCampaignState.npcs) || (currentResult && currentResult.npcs) || [];
+      let names = currentNpcs.map(n => n.name).filter(Boolean);
+      if (names.length === 0 && currentResult && Array.isArray(currentResult.updated_npcs)) {
+        names = currentResult.updated_npcs.map(n => n.name).filter(Boolean);
+      }
+      if (names.length === 0) {
+        showAlert("No hay PNJs registrados en esta campaña para revisar ortografía.");
+        return;
+      }
+      showNpcSpellcheck(names);
+    }
+    window.triggerManualNpcSpellcheck = triggerManualNpcSpellcheck;
 
     // -----------------------------------------------------------------
     // Toggle de Pestañas de Resultados
@@ -8078,12 +9196,24 @@ async function selectWikiEntity(type, key, data) {
         window.location.href = `/api/academic-notes/download/${encodeURIComponent(docxName)}`;
         return;
       }
-      const campName = document.getElementById("campaignNameInput").value.trim() || "Campaña Principal";
+      const wikiSel = document.getElementById("wikiCampaignSelect");
+      const campInput = document.getElementById("campaignNameInput");
+      const campName = (wikiSel && wikiSel.value && wikiSel.value.trim()) || (campInput && campInput.value && campInput.value.trim());
+      if (!campName) {
+        showAlert("⚠️ Selecciona o abre una campaña para descargar el documento.");
+        return;
+      }
       window.location.href = `/api/campaigns/${encodeURIComponent(campName)}/download-docx`;
     }
 
     function downloadCampaignMd() {
-      const campName = document.getElementById("campaignNameInput").value.trim() || "Campaña Principal";
+      const wikiSel = document.getElementById("wikiCampaignSelect");
+      const campInput = document.getElementById("campaignNameInput");
+      const campName = (wikiSel && wikiSel.value && wikiSel.value.trim()) || (campInput && campInput.value && campInput.value.trim());
+      if (!campName) {
+        showAlert("⚠️ Selecciona o abre una campaña para descargar el documento.");
+        return;
+      }
       window.location.href = `/api/campaigns/${encodeURIComponent(campName)}/download-md`;
     }
 
@@ -8214,7 +9344,11 @@ async function selectWikiEntity(type, key, data) {
         window.location.href = `/api/download/transcript/${encodeURIComponent(currentResult.txt_filename)}`;
         return;
       }
-      const campName = (currentResult && currentResult.campaign_name) || document.getElementById("campaignNameInput").value.trim() || "Campaña Principal";
+      const campName = (currentResult && currentResult.campaign_name) || (document.getElementById("campaignNameInput")?.value || "").trim();
+      if (!campName) {
+        showAlert("⚠️ No hay campaña seleccionada para descargar la transcripción.");
+        return;
+      }
       const sessNum = (currentResult && currentResult.session_number) ? currentResult.session_number : (parseInt(document.getElementById("sessionNumberInput").value) || 1);
       const safeCamp = campName.toLowerCase().replace(/[^a-z0-9_]/g, "_");
       const defaultName = `${safeCamp}_sesion_${sessNum}_transcripcion.txt`;
@@ -8230,8 +9364,14 @@ async function selectWikiEntity(type, key, data) {
     }
 
     async function uploadCampaignToDrive() {
-      const campName = document.getElementById("campaignNameInput").value.trim() || "Campaña Principal";
+      const wikiSel = document.getElementById("wikiCampaignSelect");
+      const campInput = document.getElementById("campaignNameInput");
+      const campName = (wikiSel && wikiSel.value && wikiSel.value.trim()) || (campInput && campInput.value && campInput.value.trim());
       const isWorkStudy = (currentWorkspace === "work_and_study" || (currentResult && currentResult.recording_mode === "class"));
+      if (!isWorkStudy && !campName) {
+        showAlert("⚠️ Selecciona o abre una campaña antes de subir a Google Drive.");
+        return;
+      }
       const btn = document.getElementById("btnExportDrive");
       const btnText = document.getElementById("btnDriveText");
       const banner = document.getElementById("driveResultBanner");
@@ -8251,7 +9391,6 @@ async function selectWikiEntity(type, key, data) {
             body: JSON.stringify({ file_path: currentResult.docx_filename })
           });
         } else {
-          const campName = document.getElementById("campaignNameInput").value.trim() || "Campaña Principal";
           res = await fetch(`/api/campaigns/${encodeURIComponent(campName)}/export-drive`, {
             method: "POST"
           });
@@ -8358,11 +9497,16 @@ async function selectWikiEntity(type, key, data) {
 
       try {
         const isClass = (currentResult.recording_mode === "class" || currentLiveMode === "class");
+        const campName = isClass ? null : ((currentResult.campaign_name || document.getElementById("campaignNameInput")?.value || "").trim());
+        if (!isClass && !campName) {
+          showAlert("⚠️ Debes seleccionar o crear una campaña antes de cambiar el idioma.");
+          return;
+        }
         const payload = {
           transcript_text: transcriptText,
           target_language: newLang,
           recording_mode: isClass ? "class" : "roleplay",
-          campaign_name: isClass ? null : (currentResult.campaign_name || document.getElementById("campaignNameInput").value.trim() || "Campaña Principal"),
+          campaign_name: campName,
           session_number: isClass ? null : (currentResult.session_number || parseInt(document.getElementById("sessionNumberInput").value) || null),
           roster: isClass ? [] : (currentResult.roster || getRosterFromTable(true)),
           subject: isClass ? (currentResult.subject || document.getElementById("lectureSubjectInput")?.value.trim() || "") : "",
@@ -8427,13 +9571,18 @@ async function selectWikiEntity(type, key, data) {
 
       try {
         const activeLang = currentResult.target_language || currentTargetLanguage || "es";
+        const campName = isClass ? null : ((currentResult.campaign_name || document.getElementById("campaignNameInput")?.value || "").trim());
+        if (!isClass && !campName) {
+          showAlert("⚠️ Debes seleccionar o crear una campaña antes de regenerar la crónica.");
+          return;
+        }
         const payload = {
           transcript_text: transcriptText,
           target_language: activeLang,
           recording_mode: isClass ? "class" : "roleplay",
           workspace: isClass ? "work_and_study" : "dnd",
           is_youtube: currentActiveMainTab === "youtube" || !!currentResult.is_youtube,
-          campaign_name: isClass ? null : (currentResult.campaign_name || document.getElementById("campaignNameInput").value.trim() || "Campaña Principal"),
+          campaign_name: campName,
           session_number: isClass ? null : (currentResult.session_number || parseInt(document.getElementById("sessionNumberInput").value) || null),
           roster: isClass ? [] : (currentResult.roster || getRosterFromTable(true)),
           subject: isClass ? (currentResult.subject || document.getElementById("lectureSubjectInput")?.value.trim() || "") : "",
@@ -8484,6 +9633,7 @@ async function selectWikiEntity(type, key, data) {
       if (confirm("¿Estás seguro de que deseas limpiar todo el almacenamiento local de campañas y empezar de cero?\n\nEsta acción borrará la caché del navegador y recargará la aplicación limpiamente.")) {
         localStorage.clear();
         sessionStorage.clear();
+        _isPageNavigatingOrReloading = true;
         window.location.reload();
       }
     }
@@ -8903,7 +10053,13 @@ async function selectWikiEntity(type, key, data) {
     window.renderRoster = renderRosterTable;
     window.toggleUserCharacterRow = toggleUserCharacterRow;
     window.toggleUserCharacter = toggleUserCharacter;
+    window.togglePlayerAbsenceRow = togglePlayerAbsenceRow;
     window.refreshDiscordParticipants = refreshDiscordParticipants;
+    window.resetDiscordAuth = resetDiscordAuth;
+    window.checkSpeakerSelection = checkSpeakerSelection;
+    window.onGainSliderChange = onGainSliderChange;
+    window.resetAudioGains = resetAudioGains;
+    window.initGainSliders = initGainSliders;
     window.selectAcademicNote = selectAcademicNote;
     window.loadAcademicNotesHistory = loadAcademicNotesHistory;
     window.handleAcademicNoteImport = handleAcademicNoteImport;
@@ -8922,6 +10078,8 @@ async function selectWikiEntity(type, key, data) {
     window.exportCurrentCampaignFromWiki = exportCurrentCampaignFromWiki;
     window.triggerImportCampaign = triggerImportCampaign;
     window.handleCampaignImportFile = handleCampaignImportFile;
+    window.connectGoogleDriveUpfront = connectGoogleDriveUpfront;
+    window.disconnectGoogleDrive = disconnectGoogleDrive;
 
   </script>
 </body>

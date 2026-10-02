@@ -342,17 +342,36 @@ def export_living_journal_docx(
 
     # 1. Universal PC Directory (Directorio Universal de Aventureros)
     is_private = (campaign_name or "").strip().lower() in ("campaña principal", "campana principal")
+    is_yt = ("youtube" in (campaign_name or "").lower()) or any(
+        "youtube" in str(s.get("source", "")).lower() for s in campaign_state.get("sessions", [])
+    )
     universal_pcs = campaign_state.get("universal_pcs", [])
     roster = campaign_state.get("roster", [])
     detected_pcs = campaign_state.get("detected_pcs", [])
     detected_party = campaign_state.get("detected_party", [])
     chosen_detected = detected_pcs or detected_party
 
-    if not is_private and chosen_detected:
-        if any("markus" in str(p.get("character_name", "")).lower() or "markus" in str(p.get("player_name", "")).lower() for p in roster):
-            roster = chosen_detected
+    roster_has_user_char = any(p.get("is_user_character") or p.get("is_user") for p in roster)
+    roster_has_markus = any("markus" in str(p.get("character_name", "")).lower() or "markus" in str(p.get("player_name", "")).lower() for p in roster)
+    detected_has_markus = any("markus" in str(p.get("character_name", "") or p.get("personaje", "")).lower() or "markus" in str(p.get("player_name", "") or p.get("jugador", "")).lower() for p in (chosen_detected or []))
 
-    display_party = chosen_detected if (not is_private and chosen_detected) else roster
+    if not is_private and chosen_detected:
+        if roster_has_markus and not detected_has_markus and not roster_has_user_char:
+            roster = chosen_detected
+            display_party = chosen_detected
+            is_detected_video = True
+        elif not roster:
+            display_party = chosen_detected
+            is_detected_video = True
+        elif is_yt:
+            display_party = chosen_detected
+            is_detected_video = True
+        else:
+            display_party = roster
+            is_detected_video = False
+    else:
+        display_party = chosen_detected if (not roster and chosen_detected) else roster
+        is_detected_video = bool(not is_private and chosen_detected and not roster)
 
     if universal_pcs:
         pc_heading = doc.add_heading("🛡️ ZONA UNIVERSAL: Directorio Universal de Aventureros (PCs)", level=1)
@@ -395,7 +414,7 @@ def export_living_journal_docx(
 
         doc.add_paragraph().paragraph_format.space_after = Pt(12)
     elif display_party:
-        header_title = "👥 Compañía de Aventureros (Personajes Detectados en el Video)" if (not is_private and chosen_detected) else "👥 Compañía de Aventureros (Roster de la Mesa)"
+        header_title = "👥 Compañía de Aventureros (Personajes Detectados en el Video)" if is_detected_video else "👥 Compañía de Aventureros (Roster de la Mesa)"
         roster_h = doc.add_heading(header_title, level=2)
         roster_h.paragraph_format.space_before = Pt(10)
         roster_h.paragraph_format.space_after = Pt(6)

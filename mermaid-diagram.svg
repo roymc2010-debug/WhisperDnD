@@ -1,0 +1,106 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1016.1879999999999 864.3999999999999" width="1016.1879999999999" height="864.3999999999999" style="--bg:#1F1F1F;--fg:#CCCCCC;--line:#CCCCCC;--accent:#0078D4;--muted:#CCCCCCCC;--surface:#181818;--border:#CCCCCC;background:var(--bg)">
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap');
+  text { font-family: 'Inter', system-ui, sans-serif; }
+  svg {
+    /* Derived from --bg and --fg (overridable via --line, --accent, etc.) */
+    --_text:          var(--fg);
+    --_text-sec:      var(--muted, color-mix(in srgb, var(--fg) 60%, var(--bg)));
+    --_text-muted:    var(--muted, color-mix(in srgb, var(--fg) 40%, var(--bg)));
+    --_text-faint:    color-mix(in srgb, var(--fg) 25%, var(--bg));
+    --_line:          var(--line, color-mix(in srgb, var(--fg) 50%, var(--bg)));
+    --_arrow:         var(--accent, color-mix(in srgb, var(--fg) 85%, var(--bg)));
+    --_node-fill:     var(--surface, color-mix(in srgb, var(--fg) 3%, var(--bg)));
+    --_node-stroke:   var(--border, color-mix(in srgb, var(--fg) 20%, var(--bg)));
+    --_group-fill:    var(--bg);
+    --_group-hdr:     color-mix(in srgb, var(--fg) 5%, var(--bg));
+    --_inner-stroke:  color-mix(in srgb, var(--fg) 12%, var(--bg));
+    --_key-badge:     color-mix(in srgb, var(--fg) 10%, var(--bg));
+  }
+</style>
+<defs>
+  <marker id="arrowhead" markerWidth="8" markerHeight="5" refX="7" refY="2.5" orient="auto">
+    <polygon points="0 0, 8 2.5, 0 5" fill="var(--_arrow)" stroke="var(--_arrow)" stroke-width="0.75" stroke-linejoin="round" />
+  </marker>
+  <marker id="arrowhead-start" markerWidth="8" markerHeight="5" refX="1" refY="2.5" orient="auto-start-reverse">
+    <polygon points="8 0, 0 2.5, 8 5" fill="var(--_arrow)" stroke="var(--_arrow)" stroke-width="0.75" stroke-linejoin="round" />
+  </marker>
+</defs>
+<polyline class="edge" data-from="A" data-to="B" data-style="solid" data-arrow-start="false" data-arrow-end="true" data-label="Canal Izquierdo (L)" points="478.50183333333314,76.9 478.50183333333314,112.9 392.3499999999999,112.9 392.3499999999998,193.2" fill="none" stroke="var(--_line)" stroke-width="1" marker-end="url(#arrowhead)" />
+<polyline class="edge" data-from="A" data-to="C" data-style="solid" data-arrow-start="false" data-arrow-end="true" data-label="Canal Derecho (R)" points="545.0961666666665,76.9 545.0961666666665,112.9 631.2479999999998,112.9 631.2479999999998,193.2" fill="none" stroke="var(--_line)" stroke-width="1" marker-end="url(#arrowhead)" />
+<polyline class="edge" data-from="D" data-to="E" data-style="solid" data-arrow-start="false" data-arrow-end="true" data-label="Eventos círculo verde en vivo" points="182.12850000000003,355.5999999999999 182.12849999999997,459.9" fill="none" stroke="var(--_line)" stroke-width="1" marker-end="url(#arrowhead)" />
+<polyline class="edge" data-from="B" data-to="F" data-style="solid" data-arrow-start="false" data-arrow-end="true" points="392.3499999999998,230.1 392.3499999999998,254.10000000000002 511.79899999999986,254.10000000000002 511.79899999999986,278.1" fill="none" stroke="var(--_line)" stroke-width="1" marker-end="url(#arrowhead)" />
+<polyline class="edge" data-from="C" data-to="F" data-style="solid" data-arrow-start="false" data-arrow-end="true" points="631.2479999999998,230.1 631.2479999999998,254.10000000000002 511.79899999999986,254.10000000000002 511.79899999999986,278.1" fill="none" stroke="var(--_line)" stroke-width="1" marker-end="url(#arrowhead)" />
+<polyline class="edge" data-from="F" data-to="G" data-style="solid" data-arrow-start="false" data-arrow-end="true" points="511.79899999999986,315 511.79899999999986,363" fill="none" stroke="var(--_line)" stroke-width="1" marker-end="url(#arrowhead)" />
+<polyline class="edge" data-from="G" data-to="H" data-style="solid" data-arrow-start="false" data-arrow-end="true" points="511.79899999999986,399.9 511.79899999999986,459.9" fill="none" stroke="var(--_line)" stroke-width="1" marker-end="url(#arrowhead)" />
+<polyline class="edge" data-from="H" data-to="I" data-style="solid" data-arrow-start="false" data-arrow-end="true" points="511.79899999999986,496.79999999999995 511.79899999999986,514.8 511.79899999999986,514.8 511.79899999999986,532.8" fill="none" stroke="var(--_line)" stroke-width="1" marker-end="url(#arrowhead)" />
+<polyline class="edge" data-from="E" data-to="I" data-style="solid" data-arrow-start="false" data-arrow-end="true" points="182.12849999999997,496.79999999999995 182.12849999999997,514.8 511.79899999999986,514.8 511.79899999999986,532.8" fill="none" stroke="var(--_line)" stroke-width="1" marker-end="url(#arrowhead)" />
+<polyline class="edge" data-from="J" data-to="I" data-style="solid" data-arrow-start="false" data-arrow-end="true" points="837.7644999999999,496.79999999999995 837.7644999999999,514.8 511.79899999999986,514.8 511.79899999999986,532.8" fill="none" stroke="var(--_line)" stroke-width="1" marker-end="url(#arrowhead)" />
+<polyline class="edge" data-from="I" data-to="K" data-style="solid" data-arrow-start="false" data-arrow-end="true" points="511.79899999999986,569.6999999999999 511.79899999999986,617.6999999999999" fill="none" stroke="var(--_line)" stroke-width="1" marker-end="url(#arrowhead)" />
+<polyline class="edge" data-from="K" data-to="L" data-style="solid" data-arrow-start="false" data-arrow-end="true" points="511.79899999999986,654.5999999999999 511.79899999999986,702.5999999999999" fill="none" stroke="var(--_line)" stroke-width="1" marker-end="url(#arrowhead)" />
+<polyline class="edge" data-from="L" data-to="M" data-style="solid" data-arrow-start="false" data-arrow-end="true" points="511.79899999999986,739.4999999999999 511.79899999999986,787.4999999999999" fill="none" stroke="var(--_line)" stroke-width="1" marker-end="url(#arrowhead)" />
+<g class="edge-label" data-from="A" data-to="B" data-label="Canal Izquierdo (L)">
+  <rect x="338.8499999999999" y="119.9" width="106.75000000000003" height="30.3" rx="2" ry="2" fill="var(--bg)" stroke="var(--_inner-stroke)" stroke-width="1" />
+  <text x="392.2249999999999" y="135.05" text-anchor="middle" font-size="11" font-weight="400" fill="var(--_text-sec)" dy="3.8499999999999996">Canal Izquierdo (L)</text>
+</g>
+<g class="edge-label" data-from="A" data-to="C" data-label="Canal Derecho (R)">
+  <rect x="579.2479999999998" y="119.9" width="103.18600000000002" height="30.3" rx="2" ry="2" fill="var(--bg)" stroke="var(--_inner-stroke)" stroke-width="1" />
+  <text x="630.8409999999998" y="135.05" text-anchor="middle" font-size="11" font-weight="400" fill="var(--_text-sec)" dy="3.8499999999999996">Canal Derecho (R)</text>
+</g>
+<g class="edge-label" data-from="D" data-to="E" data-label="Eventos círculo verde en vivo">
+  <rect x="101.12849999999996" y="398.59999999999997" width="161.39800000000005" height="30.3" rx="2" ry="2" fill="var(--bg)" stroke="var(--_inner-stroke)" stroke-width="1" />
+  <text x="181.8275" y="413.74999999999994" text-anchor="middle" font-size="11" font-weight="400" fill="var(--_text-sec)" dy="3.8499999999999996">Eventos círculo verde en vivo</text>
+</g>
+<g class="node" data-id="A" data-label="Grabación Estéreo en Vivo" data-shape="rectangle">
+  <rect x="411.9074999999998" y="40" width="199.783" height="36.900000000000006" rx="0" ry="0" fill="var(--_node-fill)" stroke="var(--_node-stroke)" stroke-width="0.75" />
+  <text x="511.7989999999998" y="58.45" text-anchor="middle" font-size="13" font-weight="500" fill="var(--_text)" dy="4.55">Grabación Estéreo en Vivo</text>
+</g>
+<g class="node" data-id="B" data-label="Tu Micrófono Físico" data-shape="rectangle">
+  <rect x="310.24249999999984" y="193.2" width="164.21499999999997" height="36.900000000000006" rx="0" ry="0" fill="var(--_node-fill)" stroke="var(--_node-stroke)" stroke-width="0.75" />
+  <text x="392.3499999999998" y="211.64999999999998" text-anchor="middle" font-size="13" font-weight="500" fill="var(--_text)" dy="4.55">Tu Micrófono Físico</text>
+</g>
+<g class="node" data-id="C" data-label="Loopback Discord (Tus amigos / DM)" data-shape="rectangle">
+  <rect x="502.4574999999998" y="193.2" width="257.581" height="36.900000000000006" rx="0" ry="0" fill="var(--_node-fill)" stroke="var(--_node-stroke)" stroke-width="0.75" />
+  <text x="631.2479999999998" y="211.64999999999998" text-anchor="middle" font-size="13" font-weight="500" fill="var(--_text)" dy="4.55">Loopback Discord (Tus amigos / DM)</text>
+</g>
+<g class="node" data-id="D" data-label="Discord Desktop RPC" data-shape="rectangle">
+  <rect x="97.42750000000001" y="318.69999999999993" width="169.402" height="36.900000000000006" rx="0" ry="0" fill="var(--_node-fill)" stroke="var(--_node-stroke)" stroke-width="0.75" />
+  <text x="182.1285" y="337.1499999999999" text-anchor="middle" font-size="13" font-weight="500" fill="var(--_text)" dy="4.55">Discord Desktop RPC</text>
+</g>
+<g class="node" data-id="E" data-label="speaking_log (Marcas de tiempo exactas)" data-shape="rectangle">
+  <rect x="40" y="459.9" width="284.25699999999995" height="36.900000000000006" rx="0" ry="0" fill="var(--_node-fill)" stroke="var(--_node-stroke)" stroke-width="0.75" />
+  <text x="182.12849999999997" y="478.34999999999997" text-anchor="middle" font-size="13" font-weight="500" fill="var(--_text)" dy="4.55">speaking_log (Marcas de tiempo exactas)</text>
+</g>
+<g class="node" data-id="F" data-label="Archivo WAV Estéreo 16 kHz" data-shape="rectangle">
+  <rect x="407.4614999999999" y="278.1" width="208.67499999999995" height="36.900000000000006" rx="0" ry="0" fill="var(--_node-fill)" stroke="var(--_node-stroke)" stroke-width="0.75" />
+  <text x="511.79899999999986" y="296.55" text-anchor="middle" font-size="13" font-weight="500" fill="var(--_text)" dy="4.55">Archivo WAV Estéreo 16 kHz</text>
+</g>
+<g class="node" data-id="G" data-label="Whisper (Groq o Local)" data-shape="rectangle">
+  <rect x="423.3929999999999" y="363" width="176.81199999999998" height="36.900000000000006" rx="0" ry="0" fill="var(--_node-fill)" stroke="var(--_node-stroke)" stroke-width="0.75" />
+  <text x="511.7989999999999" y="381.45" text-anchor="middle" font-size="13" font-weight="500" fill="var(--_text)" dy="4.55">Whisper (Groq o Local)</text>
+</g>
+<g class="node" data-id="H" data-label="&quot;Segmentos de texto con timestamps [start -&gt; end" data-shape="rectangle">
+  <rect x="352.25699999999995" y="459.9" width="319.0839999999999" height="36.900000000000006" rx="0" ry="0" fill="var(--_node-fill)" stroke="var(--_node-stroke)" stroke-width="0.75" />
+  <text x="511.79899999999986" y="478.34999999999997" text-anchor="middle" font-size="13" font-weight="500" fill="var(--_text)" dy="4.55">&quot;Segmentos de texto con timestamps [start -&gt; end</text>
+</g>
+<g class="node" data-id="I" data-label="Algoritmo tag_dual_channel_speakers" data-shape="rectangle">
+  <rect x="377.0804999999999" y="532.8" width="269.43699999999995" height="36.900000000000006" rx="0" ry="0" fill="var(--_node-fill)" stroke="var(--_node-stroke)" stroke-width="0.75" />
+  <text x="511.79899999999986" y="551.25" text-anchor="middle" font-size="13" font-weight="500" fill="var(--_text)" dy="4.55">Algoritmo tag_dual_channel_speakers</text>
+</g>
+<g class="node" data-id="J" data-label="Roster de la Mesa (Tabla de Jugadores)" data-shape="rectangle">
+  <rect x="699.3409999999999" y="459.9" width="276.847" height="36.900000000000006" rx="0" ry="0" fill="var(--_node-fill)" stroke="var(--_node-stroke)" stroke-width="0.75" />
+  <text x="837.7644999999999" y="478.34999999999997" text-anchor="middle" font-size="13" font-weight="500" fill="var(--_text)" dy="4.55">Roster de la Mesa (Tabla de Jugadores)</text>
+</g>
+<g class="node" data-id="K" data-label="Transcripción etiquetada línea por línea" data-shape="rectangle">
+  <rect x="370.0409999999999" y="617.6999999999999" width="283.51599999999996" height="36.900000000000006" rx="0" ry="0" fill="var(--_node-fill)" stroke="var(--_node-stroke)" stroke-width="0.75" />
+  <text x="511.79899999999986" y="636.15" text-anchor="middle" font-size="13" font-weight="500" fill="var(--_text)" dy="4.55">Transcripción etiquetada línea por línea</text>
+</g>
+<g class="node" data-id="L" data-label="Gemini Pro / Flash" data-shape="rectangle">
+  <rect x="438.21299999999985" y="702.5999999999999" width="147.17200000000003" height="36.900000000000006" rx="0" ry="0" fill="var(--_node-fill)" stroke="var(--_node-stroke)" stroke-width="0.75" />
+  <text x="511.79899999999986" y="721.05" text-anchor="middle" font-size="13" font-weight="500" fill="var(--_text)" dy="4.55">Gemini Pro / Flash</text>
+</g>
+<g class="node" data-id="M" data-label="Grimorio / Crónica / Actualización de Campaña" data-shape="rectangle">
+  <rect x="356.70299999999986" y="787.4999999999999" width="310.19199999999995" height="36.900000000000006" rx="0" ry="0" fill="var(--_node-fill)" stroke="var(--_node-stroke)" stroke-width="0.75" />
+  <text x="511.79899999999986" y="805.9499999999999" text-anchor="middle" font-size="13" font-weight="500" fill="var(--_text)" dy="4.55">Grimorio / Crónica / Actualización de Campaña</text>
+</g>
+</svg>

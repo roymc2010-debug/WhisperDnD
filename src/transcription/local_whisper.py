@@ -75,6 +75,7 @@ class LocalWhisperTranscriber:
         user_char_name: Optional[str] = None,
         speaking_log: Optional[List[Dict[str, Any]]] = None,
         roster: Optional[List[Dict[str, Any]]] = None,
+        initial_prompt: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         Transcribe an audio file using faster-whisper with Voice Activity Detection (VAD).
@@ -86,6 +87,7 @@ class LocalWhisperTranscriber:
         :param user_char_name: Optional user player character name for transcript tagging.
         :param speaking_log: Optional Discord speaking timeline events for cross-referencing.
         :param roster: Optional campaign roster for Discord User ID speaker mapping.
+        :param initial_prompt: Optional vocabulary / glossary prompt to bias Whisper phonetic decoding.
         :return: Dictionary containing:
             - segments: list of objects containing start, end, and text.
             - text: full concatenated text string.
@@ -101,6 +103,8 @@ class LocalWhisperTranscriber:
         transcribe_kwargs = {"vad_filter": True}
         if language:
             transcribe_kwargs["language"] = language
+        if initial_prompt:
+            transcribe_kwargs["initial_prompt"] = initial_prompt
 
         segments_generator, info = self.model.transcribe(
             str(path),

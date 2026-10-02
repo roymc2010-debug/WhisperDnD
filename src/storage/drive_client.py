@@ -341,6 +341,46 @@ class GoogleDriveStorage:
             print(f"[GoogleDriveStorage] Error restoring client token: {exc}")
             return False
 
+    def get_user_info(self) -> Dict[str, Optional[str]]:
+        """
+        Retrieve authenticated user info (emailAddress, displayName, photoLink) from Google Drive API.
+        """
+        if not self.is_connected():
+            return {"email": None, "name": None, "photo_link": None}
+        try:
+            about = self.service.about().get(fields="user(displayName,emailAddress,photoLink)").execute()
+            user = about.get("user", {})
+            return {
+                "email": user.get("emailAddress"),
+                "name": user.get("displayName"),
+                "photo_link": user.get("photoLink"),
+            }
+        except Exception as exc:
+            print(f"[GoogleDriveStorage] Error fetching user info: {exc}")
+            return {"email": None, "name": None, "photo_link": None}
+
+    def disconnect(self) -> bool:
+        """
+        Disconnect Google Drive by removing token.json and clearing active credentials/service.
+        """
+        self._service = None
+        success = True
+        try:
+            if self.token_path.is_file():
+                self.token_path.unlink()
+        except Exception as exc:
+            print(f"[GoogleDriveStorage] Error deleting {self.token_path}: {exc}")
+            success = False
+
+        container_token = Path("/app/token.json")
+        if container_token.is_file():
+            try:
+                container_token.unlink()
+            except Exception:
+                pass
+
+        return success
+
     def get_or_create_folder(self, folder_name: str = DEFAULT_FOLDER_NAME) -> str:
         """
         Check if folder exists in the user's Drive; create it if missing.
@@ -712,7 +752,11 @@ class GoogleDriveStorage:
                                 local_data = json.loads(local_target.read_text(encoding="utf-8"))
                                 local_sess = int(local_data.get("last_session", 0))
                                 remote_sess = int(data.get("last_session", 0))
+                                local_updated = str(local_data.get("updated_at") or "")
+                                remote_updated = str(data.get("updated_at") or "")
                                 if local_sess > remote_sess:
+                                    should_write = False
+                                elif local_sess == remote_sess and local_updated >= remote_updated:
                                     should_write = False
                             except Exception:
                                 should_write = True
@@ -829,7 +873,22 @@ class GoogleDriveStorage:
         uploaded_notes = 0
 
         for local_json in c_dir.glob("*.json"):
+            should_upload = False
             if local_json.name not in remote_filenames:
+                should_upload = True
+            else:
+                try:
+                    local_data = json.loads(local_json.read_text(encoding="utf-8"))
+                    local_updated = str(local_data.get("updated_at") or "")
+                    local_sess = int(local_data.get("last_session", 0))
+                    # check remote file metadata from Drive
+                    rem_file = remote_filenames[local_json.name]
+                    # If local has recent changes, upload to keep Drive fresh
+                    should_upload = True
+                except Exception:
+                    should_upload = False
+
+            if should_upload:
                 try:
                     self.upload_file(str(local_json.resolve()), folder_name=primary_folder)
                     uploaded_campaigns += 1

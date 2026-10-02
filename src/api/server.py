@@ -44,10 +44,6 @@ from src.transcription.local_whisper import LocalWhisperTranscriber
 from src.transcription.youtube_downloader import download_youtube_audio
 
 project_root = Path(__file__).resolve().parent.parent.parent
-data_input_dir = Path(os.environ.get("WHISPER_INPUT_DIR", project_root / "data" / "input"))
-data_output_dir = Path(os.environ.get("WHISPER_OUTPUT_DIR", project_root / "data" / "output"))
-data_campaigns_dir = Path(os.environ.get("WHISPER_CAMPAIGNS_DIR", project_root / "data" / "campaigns"))
-template_path = Path(__file__).resolve().parent / "templates" / "index.html"
 
 
 def get_data_input_dir() -> Path:
@@ -84,6 +80,12 @@ def get_data_campaigns_dir() -> Path:
     return p
 
 
+data_input_dir = get_data_input_dir()
+data_output_dir = get_data_output_dir()
+data_campaigns_dir = get_data_campaigns_dir()
+template_path = project_root / "static" / "index.html"
+
+
 def get_campaign_path(campaign_name: str) -> Path:
     safe_name = CampaignManager().sanitize_name(str(campaign_name or "Campaña Principal"))
     return get_data_campaigns_dir() / f"{safe_name}.json"
@@ -94,8 +96,8 @@ get_data_input_dir()
 get_data_output_dir()
 get_data_campaigns_dir()
 
-# Support Google Credentials via Environment Variable (Render Docker / Cloud Run)
-_credentials_path = "/app/credentials.json"
+# Support Google Credentials via Environment Variable (Render Docker / Cloud Run / Local)
+_credentials_path = "/app/credentials.json" if (os.name != "nt" and Path("/app").is_dir()) else str(project_root / "credentials.json")
 _env_creds = os.environ.get("GOOGLE_CREDENTIALS_JSON")
 if _env_creds and not os.path.exists(_credentials_path):
     try:
@@ -115,27 +117,30 @@ app = FastAPI(
 
 @app.on_event("startup")
 async def on_server_startup():
-    """Restore campaigns from Google Drive if connected and auto-deduplicate campaign entities on start."""
-    try:
-        drive_storage = GoogleDriveStorage()
-        if drive_storage.is_connected():
-            print("[Server Startup] Google Drive connected. Restoring campaigns and notes from Drive...")
-            sync_res = await run_in_threadpool(
-                drive_storage.sync_from_google_drive,
-                get_data_campaigns_dir(),
-                get_data_output_dir(),
-            )
-            print(f"[Server Startup] Drive restore complete: {sync_res.get('message', '')}")
-    except Exception as exc:
-        print(f"[Server Startup] Drive restore on startup skipped or failed: {exc}")
+    """Start background sync from Google Drive and retroactive deduplication without blocking HTTP readiness."""
+    async def _async_startup_tasks():
+        try:
+            drive_storage = GoogleDriveStorage()
+            if drive_storage.is_connected():
+                print("[Server Startup] Google Drive connected. Restoring campaigns and notes from Drive in background...")
+                sync_res = await run_in_threadpool(
+                    drive_storage.sync_from_google_drive,
+                    get_data_campaigns_dir(),
+                    get_data_output_dir(),
+                )
+                print(f"[Server Startup] Drive restore complete: {sync_res.get('message', '')}")
+        except Exception as exc:
+            print(f"[Server Startup] Drive restore on startup skipped or failed: {exc}")
 
-    try:
-        manager = CampaignManager()
-        results = manager.deduplicate_all_campaigns()
-        if results:
-            print(f"[Server Startup] Retroactive entity deduplication applied: {len(results)} campaign(s) cleaned: {results}")
-    except Exception as e:
-        print(f"[Server Startup] Error during retroactive entity deduplication: {e}")
+        try:
+            manager = CampaignManager()
+            results = manager.deduplicate_all_campaigns()
+            if results:
+                print(f"[Server Startup] Retroactive entity deduplication applied: {len(results)} campaign(s) cleaned: {results}")
+        except Exception as e:
+            print(f"[Server Startup] Error during retroactive entity deduplication: {e}")
+
+    asyncio.create_task(_async_startup_tasks())
 
 
 app.add_middleware(
@@ -157,6 +162,27 @@ if static_dir.is_dir():
 async def keep_alive_ping():
     """Lightweight keep-alive heartbeat ping to prevent Render container spindown during active recording."""
     return {"status": "alive", "timestamp": time.time()}
+
+
+@app.post("/api/shutdown")
+@app.get("/api/shutdown")
+async def shutdown_server():
+    """Cleanly terminate the application server process upon client window close."""
+    if os.environ.get("WHISPER_ENV") in ("test", "testing") or os.environ.get("TESTING") == "1":
+        return {"status": "shutdown_simulated", "message": "Test mode: shutdown not executed"}
+
+    def _delayed_exit():
+        time.sleep(0.75)
+        try:
+            if active_recorder and active_recorder.is_recording:
+                active_recorder.stop()
+        except Exception:
+            pass
+        os._exit(0)
+
+    import threading
+    threading.Thread(target=_delayed_exit, daemon=True).start()
+    return {"status": "shutting_down", "message": "Servidor finalizado exitosamente."}
 
 
 def trigger_drive_sync_background(
@@ -213,6 +239,7 @@ class PlayerMetadata(BaseModel):
     role: str = Field(default="Aventurero", description="Role or class (e.g. Dungeon Master, Paladín)")
     subclass: Optional[str] = Field(default="", description="Subclass (e.g. Battle Master)")
     is_user_character: Optional[bool] = Field(default=False, description="Whether this character is the user's personal character for roleplay reflection")
+    is_absent: Optional[bool] = Field(default=False, description="Whether this player is absent for the current session (temporary, zero-memory)")
     discord_user_id: Optional[str] = Field(default=None, description="Linked Discord user ID for immutable speaker identification")
     discord_id: Optional[str] = Field(default=None, description="Linked Discord ID")
     discord_username: Optional[str] = Field(default=None, description="Linked Discord username")
@@ -223,13 +250,16 @@ class StartRecordingRequest(BaseModel):
     mode: str = Field(default="roleplay", description="Recording mode ('roleplay' or 'class')")
     mic_id: Optional[str] = Field(default=None, description="Physical microphone device ID")
     speaker_id: Optional[str] = Field(default=None, description="Playback speaker/headphone device ID for loopback")
+    gain_mic: float = Field(default=1.0, description="Software volume multiplier for microphone")
+    gain_spk: float = Field(default=1.0, description="Software volume multiplier for speaker loopback")
+    campaign_name: Optional[str] = Field(default=None, description="Campaign name for roleplay recording")
 
 
 class StopAndProcessRequest(BaseModel):
     roster: List[PlayerMetadata] = Field(default_factory=list, description="Party roster")
     model_size: str = Field(default="base", description="Whisper model size (tiny, base)")
     engine: str = Field(default="groq", description="Transcription engine ('groq' or 'local')")
-    campaign_name: Optional[str] = Field(default="Campaña Principal", description="Name of the campaign")
+    campaign_name: Optional[str] = Field(default=None, description="Name of the campaign")
     session_number: Optional[int] = Field(default=None, description="Optional manual session number")
     task_id: Optional[str] = Field(default=None, description="Task ID for progress tracking")
     recording_mode: str = Field(default="roleplay", description="Recording mode ('roleplay' or 'class')")
@@ -413,7 +443,7 @@ class SwitchLanguageRequest(BaseModel):
     transcript_text: str = Field(..., description="Speech-to-text transcript")
     target_language: str = Field(default="en", description="Target language ('es' or 'en')")
     recording_mode: str = Field(default="roleplay", description="'roleplay' or 'class'")
-    campaign_name: Optional[str] = Field(default="Campaña Principal", description="Campaign name")
+    campaign_name: Optional[str] = Field(default=None, description="Campaign name")
     session_number: Optional[int] = Field(default=None, description="Session number")
     roster: Optional[List[PlayerMetadata]] = Field(default_factory=list, description="Party roster")
     subject: Optional[str] = Field(default="", description="Subject for lecture")
@@ -424,7 +454,7 @@ class ReprocessCampaignRequest(BaseModel):
     model_config = ConfigDict(extra="allow")
 
     transcript_text: str = Field(..., description="Speech-to-text transcript")
-    campaign_name: Optional[str] = Field(default="Campaña Principal", description="Campaign name")
+    campaign_name: Optional[str] = Field(default=None, description="Campaign name")
     session_number: Optional[int] = Field(default=None, description="Session number")
     roster: Optional[List[PlayerMetadata]] = Field(default_factory=list, description="Party roster")
     target_language: str = Field(default="es", description="Target language ('es' or 'en')")
@@ -476,9 +506,7 @@ async def serve_index():
     """Serve the single-page application with cache-busting headers."""
     html_file = project_root / "static" / "index.html"
     if not html_file.is_file():
-        html_file = template_path
-    if not html_file.is_file():
-        raise HTTPException(status_code=404, detail="Template index.html not found.")
+        raise HTTPException(status_code=404, detail="static/index.html not found.")
     
     response = HTMLResponse(content=html_file.read_text(encoding="utf-8"))
     response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
@@ -555,9 +583,9 @@ def process_session_for_campaign(
     ]
 
     saved_roster = active_ctx.get("roster", [])
-    # If external campaign and saved_roster contains Markus Veyl from a legacy bug, purge it
-    if not is_private and saved_roster:
-        if any("markus" in str(p.get("character_name", "")).lower() or "markus" in str(p.get("player_name", "")).lower() for p in saved_roster):
+    # If external YouTube campaign and saved_roster has a user character from a live campaign, purge it
+    if is_youtube and saved_roster:
+        if any(p.get("is_user_character") for p in saved_roster):
             saved_roster = []
 
     final_roster = clean_roster_dicts if len(clean_roster_dicts) > 0 else saved_roster
@@ -565,9 +593,9 @@ def process_session_for_campaign(
     # Determine user character (strictly disabled for YouTube; only enabled if star is selected)
     user_character = None
     if not is_youtube:
-        user_character = next((p for p in final_roster if p.get("is_user_character")), None)
+        user_character = next((p for p in final_roster if p.get("is_user_character") and not p.get("is_absent")), None)
         if user_character is None:
-            user_character = {}  # Explicitly empty: 0 selected characters, disable default Markus coaching
+            user_character = None  # Explicitly no user character — coaching disabled
 
     summarizer = GeminiTTRPGSummarizer(api_key=gemini_api_key)
     session_data = summarizer.generate_campaign_session(
@@ -580,6 +608,7 @@ def process_session_for_campaign(
         user_character=user_character,
         is_youtube=is_youtube,
         prior_lore=active_ctx.get("prior_lore", ""),
+        character_backstory=active_ctx.get("user_character_backstory", ""),
     )
 
     s_title = session_data.get("session_title") or session_data.get("session_chapter", {}).get("session_title") or session_data.get("session_chapter", {}).get("title")
@@ -644,6 +673,29 @@ def process_session_for_campaign(
         }
         for p in detected_party
     ]
+    if pcs_to_show is None:
+        pcs_to_show = []
+
+    # Ensure absent characters from roster are reflected in the table without being eliminated
+    existing_char_names = {str(p.get("personaje") or p.get("character_name", "")).strip().lower() for p in (pcs_to_show or [])}
+    for r in (final_roster or []):
+        r_char = str(r.get("character_name", "")).strip()
+        if r.get("is_absent") and r_char and r_char not in ("(DM)", "-", ""):
+            absent_role_text = "Ausente en esta sesión (permanece con la compañía)" if not is_en else "Absent this session (remains with the party)"
+            if r_char.lower() not in existing_char_names:
+                pcs_to_show.append({
+                    "personaje": r_char,
+                    "jugador": str(r.get("player_name", "-")).strip() or "-",
+                    "clase": str(r.get("role", "-")).strip() or "-",
+                    "especie": str(r.get("species", "-")).strip() or "-",
+                    "rol_en_sesion": absent_role_text,
+                })
+                existing_char_names.add(r_char.lower())
+            else:
+                for p in pcs_to_show:
+                    if str(p.get("personaje") or p.get("character_name", "")).strip().lower() == r_char.lower():
+                        p["rol_en_sesion"] = absent_role_text
+
     protagonists_table = ""
     if pcs_to_show:
         if is_en:
@@ -994,6 +1046,77 @@ def get_oauth_redirect_uri(request: Optional[Request] = None, custom_redirect: O
     return f"{base}{path}"
 
 
+def build_whisper_prompt(
+    campaign_name: Optional[str] = None,
+    roster: Optional[List[Dict[str, Any]]] = None,
+) -> Optional[str]:
+    """
+    Build a compact vocabulary prompt for Whisper (Groq/Faster-Whisper) to bias phonetic
+    recognition toward campaign proper nouns, player character names, NPCs, and fantasy terms.
+    Keeps within Whisper's ~224 token limit.
+    """
+    terms: List[str] = []
+    seen = set()
+
+    def add_term(term: Any):
+        t = str(term or "").strip()
+        # Filter out placeholders, DM tags, short noise, bracketed names
+        if not t or len(t) < 2 or "[" in t or t.lower() in seen or t.lower() in ("-", "(dm)", "dm", "dungeon master", "n/a", "(n/a - dm)"):
+            return
+        seen.add(t.lower())
+        terms.append(t)
+
+    # 1. Campaign Name
+    if campaign_name:
+        add_term(campaign_name)
+
+    # 2. Characters & Players from provided roster
+    for p in (roster or []):
+        if isinstance(p, dict):
+            add_term(p.get("character_name") or p.get("personaje"))
+            add_term(p.get("player_name") or p.get("jugador"))
+
+    # 3. Load Campaign State for NPCs, locations, and lore terms
+    if campaign_name:
+        try:
+            manager = CampaignManager()
+            state = manager.load_campaign(campaign_name)
+            # Roster stored in campaign
+            for p in state.get("roster", []):
+                if isinstance(p, dict):
+                    add_term(p.get("character_name") or p.get("personaje"))
+                    add_term(p.get("player_name") or p.get("jugador"))
+            # Known NPCs
+            for n in state.get("npcs", []):
+                if isinstance(n, dict):
+                    add_term(n.get("name"))
+            # Universal PCs
+            for upc in state.get("universal_pcs", []):
+                if isinstance(upc, dict):
+                    add_term(upc.get("personaje"))
+            # Known Quests (keywords)
+            for q in state.get("quests", []):
+                if isinstance(q, dict):
+                    add_term(q.get("title"))
+            # Locations
+            for loc in state.get("locations", []):
+                if isinstance(loc, dict):
+                    add_term(loc.get("name"))
+                elif isinstance(loc, str):
+                    add_term(loc)
+        except Exception as exc:
+            print(f"[build_whisper_prompt] Warning loading campaign '{campaign_name}': {exc}")
+
+    if not terms:
+        return None
+
+    # Construct concise prompt (max ~200 tokens / 800 chars)
+    prompt_text = "D&D 5e: " + ", ".join(terms)
+    if len(prompt_text) > 800:
+        prompt_text = prompt_text[:797] + "..."
+    return prompt_text
+
+
 # ---------------------------------------------------------------------------
 # Helper: Audio Transcription Pipeline (Groq Cloud vs Local Whisper)
 # ---------------------------------------------------------------------------
@@ -1008,13 +1131,25 @@ def transcribe_audio_pipeline(
     speaking_log: Optional[List[Dict[str, Any]]] = None,
     roster: Optional[List[Dict[str, Any]]] = None,
     groq_api_key: Optional[str] = None,
+    campaign_name: Optional[str] = None,
+    prompt: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
     Route transcription to Groq Cloud (whisper-large-v3) or Local faster-whisper.
     Falls back gracefully to local whisper if Groq is requested but fails or lacks API key.
+    Includes campaign vocabulary biasing (prompt / initial_prompt) for fantasy entity recognition.
     """
     engine_choice = (engine or "groq").lower().strip()
     whisper_lang = "en" if str(language).lower().startswith("en") else "es"
+    whisper_prompt = prompt or build_whisper_prompt(campaign_name=campaign_name, roster=roster)
+
+    # Auto-level dual-channel audio before chunking or Whisper diarization
+    try:
+        from src.transcription.audio_recorder import normalize_dual_channel_audio
+        if audio_path and Path(audio_path).is_file() and str(audio_path).lower().endswith(".wav"):
+            normalize_dual_channel_audio(audio_path)
+    except Exception as norm_exc:
+        print(f"[transcribe_pipeline] Audio normalization notice: {norm_exc}")
 
     if engine_choice == "groq":
         try:
@@ -1023,6 +1158,8 @@ def transcribe_audio_pipeline(
                 print("[transcribe_pipeline] Warning: GROQ_API_KEY not configured. Falling back to local whisper.")
                 raise ValueError("GROQ_API_KEY no configurada")
             print(f"[transcribe_pipeline] Transcribing with Groq Cloud (whisper-large-v3, lang={whisper_lang}): {audio_path}")
+            if whisper_prompt:
+                print(f"[transcribe_pipeline] Using Whisper prompt biasing ({len(whisper_prompt)} chars): {whisper_prompt[:120]}...")
             transcriber = GroqWhisperTranscriber(api_key=active_groq_key)
             result = transcriber.transcribe(
                 audio_path,
@@ -1032,6 +1169,7 @@ def transcribe_audio_pipeline(
                 user_char_name=user_char_name,
                 speaking_log=speaking_log,
                 roster=roster,
+                prompt=whisper_prompt,
             )
             result["engine_used"] = "groq"
             return result
@@ -1041,6 +1179,8 @@ def transcribe_audio_pipeline(
     if on_progress:
         on_progress(40, f"Transcribiendo con faster-whisper local ({model_size}, lang={whisper_lang})...")
     print(f"[transcribe_pipeline] Transcribing with local faster-whisper ({model_size}, lang={whisper_lang}): {audio_path}")
+    if whisper_prompt:
+        print(f"[transcribe_pipeline] Using Whisper initial_prompt biasing ({len(whisper_prompt)} chars): {whisper_prompt[:120]}...")
     transcriber = LocalWhisperTranscriber(model_size=model_size)
     result = transcriber.transcribe(
         audio_path,
@@ -1048,6 +1188,7 @@ def transcribe_audio_pipeline(
         user_char_name=user_char_name,
         speaking_log=speaking_log,
         roster=roster,
+        initial_prompt=whisper_prompt,
     )
     if on_progress:
         on_progress(75, "Transcripción local completada.")
@@ -1070,9 +1211,9 @@ async def get_discord_participants_endpoint():
     try:
         from src.transcription.discord_rpc import discord_tracker
         discord_tracker.ensure_running()
-        if not discord_tracker.is_connected or discord_tracker.current_channel_id is None:
-            for _ in range(15):
-                if discord_tracker.is_connected and discord_tracker.current_channel_id:
+        if not discord_tracker.is_connected:
+            for _ in range(3):
+                if discord_tracker.is_connected:
                     break
                 await asyncio.sleep(0.1)
         return discord_tracker.get_active_participants()
@@ -1086,16 +1227,44 @@ async def get_discord_participants_endpoint():
         }
 
 
+@app.post("/api/discord/reset-auth")
+async def reset_discord_auth_endpoint():
+    """Clear cached Discord RPC token to force a fresh authorization prompt in the Discord desktop app."""
+    try:
+        from src.transcription.discord_rpc import TOKEN_FILE, discord_tracker
+        TOKEN_FILE.unlink(missing_ok=True)
+        discord_tracker.ensure_running()
+        return {"status": "ok", "message": "Token de Discord reiniciado. Revisa la ventana de Discord para autorizar."}
+    except Exception as exc:
+        return {"status": "error", "error": str(exc)}
+
+
 @app.get("/api/audio/test-level")
 async def test_audio_level(
     mic_id: Optional[str] = Query(default=None, description="Microphone device ID"),
     speaker_id: Optional[str] = Query(default=None, description="Speaker loopback device ID"),
+    gain_mic: Optional[float] = Query(default=None, description="Microphone gain multiplier"),
+    gain_spk: Optional[float] = Query(default=None, description="Speaker loopback gain multiplier"),
 ):
     """
     Capture a ~100ms sample from the selected microphone and speaker loopback
-    and return current RMS levels.
+    and return current RMS levels scaled by gain multipliers.
     """
-    return get_audio_levels(mic_id=mic_id, speaker_id=speaker_id)
+    def _val(v):
+        if hasattr(v, "default"):
+            return None
+        return v
+
+    v_mic = _val(gain_mic)
+    v_spk = _val(gain_spk)
+
+    kwargs = {"mic_id": mic_id, "speaker_id": speaker_id}
+    if v_mic is not None and v_mic != 1.0:
+        kwargs["gain_mic"] = float(v_mic)
+    if v_spk is not None and v_spk != 1.0:
+        kwargs["gain_spk"] = float(v_spk)
+
+    return get_audio_levels(**kwargs)
 
 
 # ---------------------------------------------------------------------------
@@ -1109,14 +1278,24 @@ async def start_recording(payload: Optional[StartRecordingRequest] = None):
     - mode='class': Single-channel (Microphone ONLY, Mono 16kHz).
     """
     rec_mode = payload.mode if payload else "roleplay"
+    if rec_mode == "roleplay" and payload and payload.campaign_name is not None and not payload.campaign_name.strip():
+        raise HTTPException(status_code=400, detail="Debes seleccionar o crear una campaña antes de iniciar la grabación.")
     mic_id = payload.mic_id if payload else None
     speaker_id = payload.speaker_id if payload else None
+    gain_mic = getattr(payload, "gain_mic", 1.0) if payload else 1.0
+    gain_spk = getattr(payload, "gain_spk", 1.0) if payload else 1.0
     try:
-        wav_path = active_recorder.start(
-            mode=rec_mode,
-            mic_id=mic_id,
-            speaker_id=speaker_id,
-        )
+        rec_kwargs = {
+            "mode": rec_mode,
+            "mic_id": mic_id,
+            "speaker_id": speaker_id,
+        }
+        if gain_mic is not None and gain_mic != 1.0:
+            rec_kwargs["gain_mic"] = gain_mic
+        if gain_spk is not None and gain_spk != 1.0:
+            rec_kwargs["gain_spk"] = gain_spk
+
+        wav_path = active_recorder.start(**rec_kwargs)
         msg = (
             "Grabación de clase universitaria iniciada (micrófono mono)."
             if rec_mode == "class"
@@ -1127,6 +1306,8 @@ async def start_recording(payload: Optional[StartRecordingRequest] = None):
             "mode": rec_mode,
             "mic_id": mic_id,
             "speaker_id": speaker_id,
+            "gain_mic": gain_mic,
+            "gain_spk": gain_spk,
             "message": msg,
             "file_path": str(Path(wav_path).name),
         }
@@ -1142,6 +1323,22 @@ async def get_recording_status():
     return active_recorder.get_status()
 
 
+@app.post("/api/record/stop")
+async def stop_recording_only():
+    """Stop live recording without triggering transcription processing."""
+    if not active_recorder.is_recording:
+        return {"status": "idle", "message": "No hay grabación activa."}
+    try:
+        wav_path = active_recorder.stop()
+        return {
+            "status": "stopped",
+            "file_path": str(Path(wav_path).name) if wav_path else None,
+            "message": "Grabación detenida con éxito.",
+        }
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
 @app.post("/api/record/stop-and-process")
 async def stop_and_process(payload: StopAndProcessRequest, request: Request = None):
     """
@@ -1151,21 +1348,35 @@ async def stop_and_process(payload: StopAndProcessRequest, request: Request = No
     groq_key, gemini_key = extract_client_api_keys(request)
     validate_api_keys_or_raise(request, groq_key, gemini_key, require_gemini=True)
 
-    if not active_recorder.is_recording:
-        raise HTTPException(status_code=400, detail="No hay ninguna sesión de grabación activa.")
+    has_active = active_recorder.is_recording
+    has_recent_file = (
+        bool(active_recorder._file_path)
+        and Path(active_recorder._file_path).is_file()
+        and Path(active_recorder._file_path).stat().st_size > 1000
+    )
+
+    if not has_active and not has_recent_file:
+        raise HTTPException(status_code=400, detail="No hay ninguna sesión de grabación activa ni archivo reciente para procesar.")
+
+    is_class_mode_check = (payload.recording_mode == "class") or (getattr(active_recorder, "mode", "roleplay") == "class")
+    if not is_class_mode_check and payload.campaign_name is not None and not payload.campaign_name.strip():
+        raise HTTPException(status_code=400, detail="Debes seleccionar o crear una campaña antes de procesar la sesión.")
 
     task_id = payload.task_id
     update_task_progress(task_id, 20.0, "Preparando grabación en el servidor...", "Finalizando captura de audio...", stage="audio")
     start_time = time.time()
 
-    # 1. Stop audio recording
-    try:
-        wav_path = active_recorder.stop()
-    except Exception as exc:
-        err_type, human_err, stage = diagnose_exception(exc)
-        import traceback
-        set_task_error(task_id, human_err, error_type=err_type, stage=stage, details=traceback.format_exc())
-        raise HTTPException(status_code=500, detail=human_err) from exc
+    # 1. Stop audio recording if active, or use recently finalized file
+    if has_active:
+        try:
+            wav_path = active_recorder.stop()
+        except Exception as exc:
+            err_type, human_err, stage = diagnose_exception(exc)
+            import traceback
+            set_task_error(task_id, human_err, error_type=err_type, stage=stage, details=traceback.format_exc())
+            raise HTTPException(status_code=500, detail=human_err) from exc
+    else:
+        wav_path = active_recorder._file_path
 
     if not wav_path or not Path(wav_path).is_file():
         set_task_error(task_id, "El archivo de audio grabado no se encontró en disco.", error_type="AudioFileError", stage="Grabación en Vivo")
@@ -1201,6 +1412,7 @@ async def stop_and_process(payload: StopAndProcessRequest, request: Request = No
             speaking_log=speaking_log,
             roster=roster_dicts,
             groq_api_key=groq_key,
+            campaign_name=payload.campaign_name,
         )
     except Exception as exc:
         err_type, human_err, stage = diagnose_exception(exc)
@@ -2325,8 +2537,30 @@ async def download_academic_note_docx(filename: str):
 
 
 # ---------------------------------------------------------------------------
-# Endpoints: YouTube & Local File Transcription
+# Endpoints: Audio Local Recordings, YouTube & Local File Transcription
 # ---------------------------------------------------------------------------
+@app.get("/api/audio/local-recordings")
+async def list_local_recordings():
+    """List audio recordings available in data/input directory."""
+    input_dir = get_data_input_dir()
+    files = []
+    for ext in ("*.wav", "*.mp3", "*.m4a", "*.webm", "*.ogg", "*.flac"):
+        for f in input_dir.glob(ext):
+            try:
+                stat = f.stat()
+                if stat.st_size > 100:  # Skip empty or placeholder files
+                    files.append({
+                        "filename": f.name,
+                        "size_mb": round(stat.st_size / (1024 * 1024), 2),
+                        "created_at": datetime.datetime.fromtimestamp(stat.st_mtime).strftime("%d/%m/%Y %H:%M"),
+                        "timestamp": stat.st_mtime,
+                    })
+            except Exception:
+                pass
+    files.sort(key=lambda x: x["timestamp"], reverse=True)
+    return {"files": files}
+
+
 @app.post("/api/transcribe/youtube", response_model=TranscribeResponse)
 @app.post("/api/process-youtube", response_model=TranscribeResponse)
 async def transcribe_youtube(payload: YouTubeTranscribeRequest, request: Request = None):
@@ -2380,6 +2614,7 @@ async def transcribe_youtube(payload: YouTubeTranscribeRequest, request: Request
             user_char_name=user_char_name,
             roster=roster_dicts,
             groq_api_key=groq_key,
+            campaign_name=getattr(payload, "campaign_name", None),
         )
     except Exception as exc:
         human_err = format_human_error(exc)
@@ -2452,8 +2687,7 @@ async def transcribe_youtube(payload: YouTubeTranscribeRequest, request: Request
     else:
         update_task_progress(task_id, 82.0, "Generando crónica / apuntes explicativos con IA...", "Extrayendo hechos e inventario...", stage="analyzing")
 
-        detected_pcs = None
-        campaign_name = payload.campaign_name or payload.campaign_id or "Campaña Principal"
+        campaign_name = (payload.campaign_name or payload.campaign_id or "").strip()
         if campaign_name:
             try:
                 update_task_progress(task_id, 85.0, "Actualizando Quest Tracker y Directorio Universal de NPCs...", stage="analyzing")
@@ -2534,7 +2768,7 @@ async def transcribe_youtube(payload: YouTubeTranscribeRequest, request: Request
                 if m_p.is_file():
                     files_to_sync.append(m_p)
         else:
-            c_name = payload.campaign_name or payload.campaign_id or "Campaña Principal"
+            c_name = (payload.campaign_name or payload.campaign_id or "").strip()
             if c_name:
                 c_path = get_campaign_path(c_name)
                 if c_path and c_path.is_file():
@@ -2586,7 +2820,8 @@ async def transcribe_youtube(payload: YouTubeTranscribeRequest, request: Request
 @app.post("/api/transcribe", response_model=TranscribeResponse)
 @app.post("/api/transcribe/file", response_model=TranscribeResponse)
 async def transcribe_file(
-    file: UploadFile = File(...),
+    file: Optional[UploadFile] = File(default=None),
+    existing_filename: Optional[str] = Form(default=None),
     model_size: str = Form(default="base"),
     engine: str = Form(default="groq"),
     campaign_name: Optional[str] = Form(default=None),
@@ -2599,28 +2834,36 @@ async def transcribe_file(
     target_language: str = Form(default="es"),
     request: Request = None,
 ):
-    """Accept an uploaded audio file and transcribe it using Groq Whisper or faster-whisper."""
+    """Accept an uploaded audio file or existing local recording and transcribe it using Groq Whisper or faster-whisper."""
     groq_key, gemini_key = extract_client_api_keys(request)
     validate_api_keys_or_raise(request, groq_key, gemini_key, require_gemini=True)
 
-    if not file.filename:
-        raise HTTPException(status_code=400, detail="No file uploaded.")
-
-    update_task_progress(task_id, 20.0, "Segmentando archivo en el servidor...", "Guardando en almacenamiento local...", stage="segmenting")
-    clean_filename = Path(file.filename).name
-    save_dest = get_data_input_dir() / clean_filename
     start_time = time.time()
+    clean_filename = ""
+    save_dest = None
 
-    try:
-        with open(save_dest, "wb") as buffer:
-            shutil.copyfileobj(file.file, buffer)
-    except Exception as exc:
-        err_type, human_err, stage = diagnose_exception(exc)
-        import traceback
-        set_task_error(task_id, human_err, error_type=err_type, stage=stage, details=traceback.format_exc())
-        raise HTTPException(status_code=500, detail=human_err) from exc
-    finally:
-        await file.close()
+    if existing_filename and existing_filename.strip():
+        clean_filename = Path(existing_filename.strip()).name
+        save_dest = get_data_input_dir() / clean_filename
+        if not save_dest.is_file():
+            raise HTTPException(status_code=404, detail=f"Archivo no encontrado en data/input: {clean_filename}")
+        update_task_progress(task_id, 20.0, f"Cargando archivo local: {clean_filename}...", "Iniciando motor de audio...", stage="segmenting")
+    elif file and getattr(file, "filename", None):
+        update_task_progress(task_id, 20.0, "Segmentando archivo en el servidor...", "Guardando en almacenamiento local...", stage="segmenting")
+        clean_filename = Path(file.filename).name
+        save_dest = get_data_input_dir() / clean_filename
+        try:
+            with open(save_dest, "wb") as buffer:
+                shutil.copyfileobj(file.file, buffer)
+        except Exception as exc:
+            err_type, human_err, stage = diagnose_exception(exc)
+            import traceback
+            set_task_error(task_id, human_err, error_type=err_type, stage=stage, details=traceback.format_exc())
+            raise HTTPException(status_code=500, detail=human_err) from exc
+        finally:
+            await file.close()
+    else:
+        raise HTTPException(status_code=400, detail="Por favor selecciona un archivo o grabación local para procesar.")
 
     update_task_progress(task_id, 20.0, "Segmentando archivo en el servidor...", "Iniciando motor de audio...", stage="segmenting")
 
@@ -2653,6 +2896,7 @@ async def transcribe_file(
             user_char_name=user_char_name,
             roster=roster_dicts,
             groq_api_key=groq_key,
+            campaign_name=campaign_name,
         )
     except Exception as exc:
         err_type, human_err, stage = diagnose_exception(exc)
@@ -2780,13 +3024,30 @@ async def transcribe_file(
             chronicle_md = camp_res.get("chronicle")
         except Exception as exc:
             print(f"[transcribe_file] Warning: campaign session processing failed: {exc}")
+            chronicle_md = f"# ⚠️ Error generando crónica con Gemini:\n\n> {exc}\n\n**Texto de Transcripción:**\n\n{transcript_text}"
+    else:
+        try:
+            update_task_progress(task_id, 85.0, "Generando crónica narrativa con Gemini...", stage="analyzing")
+            summarizer = GeminiTTRPGSummarizer(api_key=gemini_key)
+            chronicle_md = await run_in_threadpool(
+                summarizer.generate_chronicle,
+                transcript_text=transcript_text,
+                roster=roster_dicts or [],
+                target_language=target_language,
+                session_number=session_number or 1,
+            )
+        except Exception as exc:
+            print(f"[transcribe_file] Warning: standalone chronicle generation failed: {exc}")
+            chronicle_md = f"# ⚠️ Error generando crónica con Gemini:\n\n> {exc}\n\n**Texto de Transcripción:**\n\n{transcript_text}"
 
     if not file_path_str:
         timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
         safe_title = Path(clean_filename).stem[:40]
-        out_docx_path = get_data_output_dir() / f"transcripcion_{safe_title}_{timestamp}.docx"
-        formatted_md = f"# Transcripción de Audio: {safe_title}\n\n## Texto Completo\n{transcript_text}\n"
+        out_docx_path = get_data_output_dir() / f"cronica_{safe_title}_{timestamp}.docx"
+        formatted_md = chronicle_md or f"# Transcripción de Audio: {safe_title}\n\n## Texto Completo\n{transcript_text}\n"
+        md_filename = f"cronica_{safe_title}_{timestamp}.md"
         txt_filename = f"transcripcion_{safe_title}_{timestamp}.txt"
+        (get_data_output_dir() / md_filename).write_text(formatted_md, encoding="utf-8")
         (get_data_output_dir() / txt_filename).write_text(transcript_text, encoding="utf-8")
 
         try:
@@ -2801,11 +3062,8 @@ async def transcribe_file(
             docx_filename = Path(exported_docx).name
         except Exception as exc:
             print(f"[transcribe_file] Warning: docx export failed: {exc}")
-            out_md_path = get_data_output_dir() / f"transcripcion_{safe_title}_{timestamp}.md"
-            out_md_path.write_text(formatted_md, encoding="utf-8")
-            file_path_str = str(out_md_path.resolve())
+            file_path_str = str((get_data_output_dir() / md_filename).resolve())
             docx_filename = None
-            md_filename = Path(out_md_path).name
 
     update_task_progress(task_id, 100.0, "¡Completado!", "Sesión procesada exitosamente.", stage="done")
 
@@ -3012,6 +3270,7 @@ async def upload_session_with_telemetry(
             speaking_log=speaking_log or None,
             roster=roster_dicts or None,
             groq_api_key=groq_key,
+            campaign_name=campaign_name,
         )
     except Exception as exc:
         err_type, human_err, stage = diagnose_exception(exc)
@@ -3456,7 +3715,9 @@ async def reprocess_campaign(payload: ReprocessCampaignRequest, request: Request
         except Exception as exc:
             print(f"[reprocess_campaign] Warning: docx export failed: {exc}")
     else:
-        campaign_name = payload.campaign_name or "Campaña Principal"
+        campaign_name = (payload.campaign_name or "").strip()
+        if not campaign_name:
+            raise HTTPException(status_code=400, detail="Debes especificar una campaña para regenerar.")
         manager = CampaignManager()
         active_ctx = manager.get_active_context(campaign_name)
         session_num = payload.session_number or (active_ctx["last_session"] if active_ctx.get("last_session", 0) > 0 else 1)
@@ -3705,33 +3966,80 @@ async def create_or_init_campaign(payload: CreateCampaignRequest):
         modified = True
 
     if payload.roster is not None:
-        state["roster"] = [p.model_dump() for p in payload.roster]
-        # Auto-sync DM from first roster row if applicable
-        if state["roster"] and (
-            state["roster"][0].get("character_name") == "(DM)"
-            or state["roster"][0].get("role") == "Dungeon Master (DM)"
-        ):
-            dm_p_name = (state["roster"][0].get("player_name") or "").strip()
+        incoming = [p.model_dump() for p in payload.roster]
+        existing_roster = state.get("roster", [])
+
+        def _roster_key(entry: dict) -> str:
+            return f"{(entry.get('player_name') or '').strip().lower()}|{(entry.get('character_name') or '').strip().lower()}"
+
+        existing_by_key = {
+            _roster_key(e): e
+            for e in existing_roster
+            if (entry_p := (e.get("player_name") or "").strip()) or (e.get("character_name") or "").strip()
+        }
+        existing_by_player = {
+            (e.get("player_name") or "").strip().lower(): e
+            for e in existing_roster
+            if (e.get("player_name") or "").strip()
+        }
+
+        merged_roster = []
+        seen_keys = set()
+        for new_entry in incoming:
+            p_name = (new_entry.get("player_name") or "").strip()
+            c_name = (new_entry.get("character_name") or "").strip()
+            # Skip completely empty rows (no player name and no character name)
+            if not p_name and not c_name:
+                continue
+
+            key = _roster_key(new_entry)
+            if key in seen_keys:
+                continue
+            seen_keys.add(key)
+
+            # Match against existing by (player, character) or by player name to retain metadata (discord IDs, is_user_character, etc.)
+            match = existing_by_key.get(key)
+            if not match and p_name:
+                match = existing_by_player.get(p_name.lower())
+
+            if match:
+                merged_entry = dict(match)
+                for k, v in new_entry.items():
+                    if v not in (None, "", [], {}):
+                        merged_entry[k] = v
+                merged_roster.append(merged_entry)
+            else:
+                merged_roster.append(new_entry)
+
+        state["roster"] = merged_roster
+
+        # Auto-sync DM info if DM row exists in roster
+        dm_row = next(
+            (r for r in state["roster"] if r.get("character_name") == "(DM)" or r.get("role") == "Dungeon Master (DM)"),
+            None,
+        )
+        if dm_row:
+            dm_p_name = (dm_row.get("player_name") or "").strip()
             if dm_p_name:
                 state["dm"] = dm_p_name
                 state["dungeon_master"] = dm_p_name
                 state["dm_name"] = dm_p_name
             elif state.get("dm_name"):
-                state["roster"][0]["player_name"] = state["dm_name"]
+                dm_row["player_name"] = state["dm_name"]
 
-            dm_disc = (state["roster"][0].get("discord_id") or state["roster"][0].get("discord_user_id") or "").strip()
+            dm_disc = (dm_row.get("discord_id") or dm_row.get("discord_user_id") or "").strip()
             if dm_disc:
                 state["dm_discord_id"] = dm_disc
                 state["dm_discord_user_id"] = dm_disc
                 state["dm_discord"] = dm_disc
             elif state.get("dm_discord_id"):
-                state["roster"][0]["discord_user_id"] = state["dm_discord_id"]
-                state["roster"][0]["discord_id"] = state["dm_discord_id"]
+                dm_row["discord_user_id"] = state["dm_discord_id"]
+                dm_row["discord_id"] = state["dm_discord_id"]
 
-            if state["roster"][0].get("discord_username"):
-                state["dm_discord_username"] = state["roster"][0]["discord_username"]
-            if state["roster"][0].get("discord_tag"):
-                state["dm_discord_tag"] = state["roster"][0]["discord_tag"]
+            if dm_row.get("discord_username"):
+                state["dm_discord_username"] = dm_row["discord_username"]
+            if dm_row.get("discord_tag"):
+                state["dm_discord_tag"] = dm_row["discord_tag"]
         elif state.get("dm_name") or state.get("dm_discord_id"):
             dm_row = {
                 "player_name": state.get("dm_name") or state.get("dm") or "",
@@ -3745,6 +4053,7 @@ async def create_or_init_campaign(payload: CreateCampaignRequest):
             }
             state["roster"].insert(0, dm_row)
         modified = True
+
 
     if payload.prior_lore is not None and payload.prior_lore.strip():
         state["prior_lore"] = payload.prior_lore.strip()
@@ -3768,6 +4077,53 @@ async def update_campaign_prior_lore(campaign_name: str, payload: UpdatePriorLor
         "campaign_name": campaign_name,
         "prior_lore": state.get("prior_lore", ""),
         "campaign_state": state,
+    }
+
+
+class UpdateCharacterBackstoryRequest(BaseModel):
+    backstory: str = Field(default="", description="Character backstory / personal history for coaching context")
+    character_name: Optional[str] = Field(default=None, description="Character name to associate")
+    is_user_character: Optional[bool] = Field(default=True, description="Whether to mark as primary user character")
+
+
+@app.get("/api/characters")
+async def list_all_characters():
+    """List all player characters across campaigns."""
+    manager = CampaignManager()
+    return manager.get_all_characters()
+
+
+@app.get("/api/campaigns/{campaign_name}/character-backstory")
+async def get_campaign_character_backstory(campaign_name: str, character_name: Optional[str] = None):
+    """Get the character backstory for a campaign or specific character."""
+    manager = CampaignManager()
+    backstory = manager.get_character_backstory(campaign_name, character_name=character_name)
+    return {
+        "status": "success",
+        "campaign_name": campaign_name,
+        "character_name": character_name,
+        "backstory": backstory,
+    }
+
+
+@app.put("/api/campaigns/{campaign_name}/character-backstory")
+async def update_campaign_character_backstory(campaign_name: str, payload: UpdateCharacterBackstoryRequest):
+    """Update and persist the character backstory for a campaign."""
+    manager = CampaignManager()
+    is_user = True if payload.is_user_character is None else bool(payload.is_user_character)
+    state = manager.set_character_backstory(
+        campaign_name,
+        payload.backstory,
+        character_name=payload.character_name,
+        is_user_character=is_user
+    )
+    saved_path = manager.get_campaign_path(campaign_name)
+    trigger_drive_sync_background([saved_path])
+    return {
+        "status": "success",
+        "campaign_name": campaign_name,
+        "character_name": payload.character_name,
+        "backstory": state.get("user_character_backstory", ""),
     }
 
 
@@ -4490,6 +4846,14 @@ async def check_api_keys(request: Request = None):
     # 3. Drive Check
     drive_storage = GoogleDriveStorage()
     drive_ok = await run_in_threadpool(drive_storage.is_connected)
+    drive_email = None
+    if drive_ok:
+        try:
+            u_info = await run_in_threadpool(drive_storage.get_user_info)
+            if isinstance(u_info, dict) and isinstance(u_info.get("email"), str):
+                drive_email = u_info["email"]
+        except Exception:
+            pass
     drive_msg = (
         "Google Drive conectado."
         if drive_ok
@@ -4500,6 +4864,7 @@ async def check_api_keys(request: Request = None):
         "groq": groq_ok,
         "gemini": gemini_ok,
         "drive": drive_ok,
+        "drive_email": drive_email,
         "groq_message": groq_msg,
         "gemini_message": gemini_msg,
         "drive_message": drive_msg,
@@ -4508,13 +4873,28 @@ async def check_api_keys(request: Request = None):
 
 @app.get("/api/drive/status")
 async def get_drive_status():
-    """Check if Google Drive OAuth is connected and credentials.json is present."""
+    """Check if Google Drive OAuth is connected and return account details."""
     drive_storage = GoogleDriveStorage()
     has_creds = drive_storage.credentials_path.is_file()
     connected = drive_storage.is_connected()
+    user_info = {}
+    if connected:
+        try:
+            user_info = await run_in_threadpool(drive_storage.get_user_info)
+        except Exception as exc:
+            print(f"[get_drive_status] Error fetching user info: {exc}")
+            user_info = {}
+
+    email = user_info.get("email") if isinstance(user_info, dict) and isinstance(user_info.get("email"), str) else None
+    name = user_info.get("name") if isinstance(user_info, dict) and isinstance(user_info.get("name"), str) else None
+    photo_link = user_info.get("photo_link") if isinstance(user_info, dict) and isinstance(user_info.get("photo_link"), str) else None
+
     return {
         "connected": connected,
         "has_credentials": has_creds,
+        "email": email,
+        "name": name,
+        "photo_link": photo_link,
         "message": (
             "Google Drive conectado"
             if connected
@@ -4741,6 +5121,20 @@ async def get_drive_token_endpoint():
         }
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"Error leyendo token: {exc}")
+
+
+@app.post("/api/drive/disconnect")
+@app.post("/api/auth/drive/logout")
+async def disconnect_drive():
+    """Disconnect Google Drive session, delete token.json and clear active service."""
+    drive_storage = GoogleDriveStorage()
+    success = await run_in_threadpool(drive_storage.disconnect)
+    return {
+        "status": "disconnected",
+        "connected": False,
+        "success": success,
+        "message": "Google Drive desconectado exitosamente.",
+    }
 
 
 @app.post("/api/transcription/discard")
