@@ -1306,6 +1306,8 @@ function toggleMergeEntityModal(show) {
   if (show) {
     modal.classList.remove("hidden");
     modal.classList.add("flex");
+    modal.style.pointerEvents = "auto";
+    box.style.pointerEvents = "auto";
     requestAnimationFrame(() => {
       modal.classList.remove("opacity-0", "pointer-events-none");
       modal.classList.add("opacity-100", "pointer-events-auto");
@@ -1313,6 +1315,7 @@ function toggleMergeEntityModal(show) {
       box.classList.add("scale-100");
     });
   } else {
+    modal.style.pointerEvents = "none";
     modal.classList.remove("opacity-100", "pointer-events-auto");
     modal.classList.add("opacity-0", "pointer-events-none");
     box.classList.remove("scale-100");

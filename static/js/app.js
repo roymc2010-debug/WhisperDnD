@@ -552,6 +552,8 @@ async function toggleCampaignManagerModal(show) {
   if (show) {
     modal.classList.remove("hidden");
     modal.classList.add("flex");
+    modal.style.pointerEvents = "auto";
+    if (box) box.style.pointerEvents = "auto";
     void modal.offsetWidth;
     modal.classList.remove("opacity-0", "pointer-events-none");
     modal.classList.add("opacity-100", "pointer-events-auto");
@@ -564,6 +566,7 @@ async function toggleCampaignManagerModal(show) {
     const campaigns = await loadCampaignList();
     renderCampaignManagerList(campaigns);
   } else {
+    modal.style.pointerEvents = "none";
     modal.classList.remove("opacity-100", "pointer-events-auto");
     modal.classList.add("opacity-0", "pointer-events-none");
     if (box) {
@@ -2391,6 +2394,8 @@ function openTunnelModal(section = 'tunnel') {
   if (!modal || !box) return;
   modal.classList.remove("hidden");
   modal.classList.add("flex");
+  modal.style.pointerEvents = "auto";
+  box.style.pointerEvents = "auto";
   requestAnimationFrame(() => {
     modal.classList.remove("opacity-0", "pointer-events-none");
     modal.classList.add("opacity-100", "pointer-events-auto");
@@ -2409,6 +2414,7 @@ function closeTunnelModal() {
   const modal = document.getElementById("tunnelModal");
   const box = document.getElementById("tunnelModalBox");
   if (!modal || !box) return;
+  modal.style.pointerEvents = "none";
   modal.classList.remove("opacity-100", "pointer-events-auto");
   modal.classList.add("opacity-0", "pointer-events-none");
   box.classList.remove("scale-100");

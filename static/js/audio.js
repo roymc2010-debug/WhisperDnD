@@ -953,6 +953,8 @@ function openBackupFallbackModal() {
   if (!modal) return;
   modal.classList.remove("hidden");
   modal.classList.add("flex");
+  modal.style.pointerEvents = "auto";
+  if (box) box.style.pointerEvents = "auto";
   requestAnimationFrame(() => {
     modal.classList.remove("opacity-0", "pointer-events-none");
     modal.classList.add("opacity-100", "pointer-events-auto");
@@ -967,6 +969,7 @@ function closeBackupFallbackModal() {
   const modal = document.getElementById("backupFallbackModal");
   const box = document.getElementById("backupFallbackModalBox");
   if (!modal) return;
+  modal.style.pointerEvents = "none";
   modal.classList.remove("opacity-100", "pointer-events-auto");
   modal.classList.add("opacity-0", "pointer-events-none");
   if (box) {

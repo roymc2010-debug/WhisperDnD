@@ -578,6 +578,8 @@ function openAddGlossaryModal(prefillWord = "") {
   if (inputDef) inputDef.value = "";
   modal.classList.remove("hidden");
   modal.classList.add("flex");
+  modal.style.pointerEvents = "auto";
+  if (box) box.style.pointerEvents = "auto";
   requestAnimationFrame(() => {
     modal.classList.remove("opacity-0", "pointer-events-none");
     modal.classList.add("opacity-100", "pointer-events-auto");
@@ -599,6 +601,7 @@ function closeAddGlossaryModal() {
   const modal = document.getElementById("modalAddGlossaryTerm");
   const box = document.getElementById("modalAddGlossaryTermBox");
   if (!modal) return;
+  modal.style.pointerEvents = "none";
   modal.classList.remove("opacity-100", "pointer-events-auto");
   modal.classList.add("opacity-0", "pointer-events-none");
   if (box) {
