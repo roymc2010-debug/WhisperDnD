@@ -9,6 +9,8 @@ import json
 import logging
 from pathlib import Path
 import threading
+
+logger = logging.getLogger("DiscordRpcTracker")
 import time
 import urllib.request
 import uuid

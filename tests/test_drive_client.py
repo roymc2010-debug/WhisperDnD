@@ -64,26 +64,14 @@ class TestGoogleDriveStorage(unittest.TestCase):
         mock_creds_class.from_authorized_user_file.assert_called_once_with(str(self.dummy_token), SCOPES)
         mock_build.assert_called_once_with("drive", "v3", credentials=mock_creds)
 
-    @patch("src.storage.drive_client.build")
-    @patch("src.storage.drive_client.InstalledAppFlow")
-    def test_authenticate_new_token_flow(self, mock_flow_class, mock_build):
-        mock_flow = MagicMock()
-        mock_creds = MagicMock()
-        mock_creds.valid = True
-        mock_creds.to_json.return_value = json.dumps({"token": "new_saved_token"})
-        mock_flow.run_local_server.return_value = mock_creds
-        mock_flow_class.from_client_secrets_file.return_value = mock_flow
-
+    def test_authenticate_without_token_raises_runtime_error(self):
         storage = GoogleDriveStorage(
             credentials_path=str(self.dummy_creds),
             token_path=str(self.dummy_token),
         )
-        storage.authenticate()
+        with self.assertRaises(RuntimeError):
+            storage.authenticate()
 
-        mock_flow_class.from_client_secrets_file.assert_called_once_with(str(self.dummy_creds), SCOPES)
-        mock_flow.run_local_server.assert_called_once_with(port=0)
-        self.assertTrue(self.dummy_token.is_file())
-        self.assertIn("new_saved_token", self.dummy_token.read_text())
 
     def test_get_or_create_folder_existing(self):
         storage = GoogleDriveStorage(

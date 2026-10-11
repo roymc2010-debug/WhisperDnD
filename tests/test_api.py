@@ -832,7 +832,7 @@ Cálculo de onda cuadrada...
         self.assertIn("Revisar el teorema de Parseval en el libro guía.", action_items)
         self.assertIn("Examen final programado para el 20 de Noviembre.", action_items)
         self.assertIn("Serie de Fourier", key_points)
-        self.assertIn("Conclusiones Clave", key_points)
+        self.assertNotIn("Conclusiones Clave", key_points)
 
     def test_extract_academic_sections_fallback_section_6(self):
         from src.api.server import extract_academic_sections
@@ -879,6 +879,99 @@ El problema del conocimiento.
         action_items, key_points = extract_academic_sections(sample_md)
         self.assertEqual(action_items, [])
         self.assertIn("Empirismo", key_points)
+
+    def test_extract_academic_sections_new_structure_with_tasks(self):
+        from src.api.server import extract_academic_sections
+        sample_md = """
+# 🎓 BRIEFING EJECUTIVO Y GUÍA DE ESTUDIO PROFUNDA: Biología Celular
+## 📌 Tema: Mitocondrias y Respiración Celular
+
+# 1. Introducción y Contexto
+Metabolismo aerobio y generación de ATP.
+
+# 2. Conceptos Teóricos Fundamentales y Glosario
+### 📖 Glosario Conceptual
+- **Fosforilación Oxidativa**: Síntesis de ATP acoplada al gradiente de protones.
+
+### 🛠️ Técnicas, Métodos y Cuándo se Usan
+- **Centrifugación Fraccionada**: Separación de orgánulos celulares.
+
+# 3. Recorrido Temático Detallado
+Cadena de transporte de electrones...
+
+# 4. Ejemplos Resueltos y Casos Prácticos
+Balance energético glucosa a CO2...
+
+# 5. Conclusiones Clave, Métricas y Acciones
+* Rendimiento de ~30 a 32 moles de ATP por mol de glucosa.
+* Potencial de membrana interno de ~180 mV.
+
+# 6. Avisos Relevantes, Tareas y Entregables
+- Resolver problema 4 del seminario antes del lunes.
+- Traer bata y microscopio para la práctica 3.
+"""
+        action_items, key_points = extract_academic_sections(sample_md)
+        self.assertEqual(len(action_items), 2)
+        self.assertIn("Resolver problema 4 del seminario antes del lunes.", action_items)
+        self.assertIn("Traer bata y microscopio para la práctica 3.", action_items)
+        self.assertIn("Fosforilación Oxidativa", key_points)
+        self.assertIn("Centrifugación Fraccionada", key_points)
+        self.assertNotIn("Conclusiones Clave", key_points)
+
+    def test_extract_academic_sections_new_structure_without_section_6(self):
+        from src.api.server import extract_academic_sections
+        sample_md = """
+# 🎓 BRIEFING EJECUTIVO Y GUÍA DE ESTUDIO PROFUNDA: Literatura Clásica
+## 📌 Tema: La Ilíada
+
+# 1. Introducción y Contexto
+La cólera de Aquiles en la épica homérica.
+
+# 2. Conceptos Teóricos Fundamentales y Glosario
+### 📖 Glosario Conceptual
+- **Aristeia**: Momento culminante de gloria militar de un guerrero.
+
+# 3. Recorrido Temático Detallado
+Estructura de cantos...
+
+# 4. Ejemplos Resueltos y Casos Prácticos
+Análisis del escudo de Aquiles...
+
+# 5. Conclusiones Clave, Métricas y Acciones
+* Metro hexámetro dactílico con fórmulas orales.
+"""
+        action_items, key_points = extract_academic_sections(sample_md)
+        self.assertEqual(action_items, [])
+        self.assertIn("Aristeia", key_points)
+        self.assertNotIn("Conclusiones Clave", key_points)
+
+    def test_normalize_academic_sections(self):
+        from src.api.server import normalize_academic_sections
+        # Case 1: Inverted sections (5 was tasks, 6 was conclusions) -> Swaps them
+        inverted_md = """# 1. Intro\n# 4. Ejemplos\n# 5. Avisos Relevantes y Tareas\n- Entregar tarea 1\n# 6. Conclusiones Clave y Métricas\n- Resumen clave\n"""
+        norm1 = normalize_academic_sections(inverted_md)
+        self.assertIn("# 5. Conclusiones Clave y Métricas", norm1)
+        self.assertIn("# 6. Avisos Relevantes y Tareas", norm1)
+
+        # Case 2: Skipped section 5 (jumped from 4 to 6 conclusions) -> Renumbers 6 to 5
+        skipped_md = """# 1. Intro\n# 4. Ejemplos\n# 6. Conclusiones Clave\n- Resumen clave\n"""
+        norm2 = normalize_academic_sections(skipped_md)
+        self.assertIn("# 5. Conclusiones Clave", norm2)
+        self.assertNotIn("# 6.", norm2)
+
+        # Case 3: Empty avisos -> Dropped completely
+        empty_tasks_md = """# 1. Intro\n# 5. Conclusiones Clave\n- Resumen\n# 6. Avisos Relevantes\nNo se anunciaron tareas para esta clase.\n"""
+        norm3 = normalize_academic_sections(empty_tasks_md)
+        self.assertIn("# 5. Conclusiones Clave", norm3)
+        self.assertNotIn("# 6.", norm3)
+
+        # Case 4: Strips non-formula dollar signs like $40x$ and $10x$
+        formula_md = "Aumentos ópticos a $40x$ y zoom a $10x$ con 50% de error."
+        norm4 = normalize_academic_sections(formula_md)
+        self.assertIn("40x", norm4)
+        self.assertNotIn("$40x$", norm4)
+        self.assertIn("10x", norm4)
+        self.assertNotIn("$10x$", norm4)
 
     def test_extract_client_api_keys_prioritizes_headers(self):
         from src.api.server import extract_client_api_keys

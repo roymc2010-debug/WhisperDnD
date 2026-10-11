@@ -37,73 +37,6 @@ class TestGeminiTTRPGSummarizer(unittest.TestCase):
         aria_line = [l for l in formatted.split("\n") if "Aria" in l][0]
         self.assertNotIn("AUSENTE", aria_line)
 
-    @patch("google.genai.Client")
-    def test_generate_chronicle_mocked(self, mock_client_class):
-        mock_client = MagicMock()
-        mock_client_class.return_value = mock_client
-        mock_response = MagicMock()
-        mock_response.text = "# 📜 Crónica de Sesión\n\n## 1. Resumen Narrativo\nLos héroes vencieron."
-        mock_client.models.generate_content.return_value = mock_response
-
-        summarizer = GeminiTTRPGSummarizer(api_key="dummy_api_key")
-        roster = [{"player_name": "Sofía", "role": "Pícaro", "character_name": "Kaelen"}]
-        chronicle = summarizer.generate_chronicle(
-            transcript_text="Kaelen desactivó la trampa en la cripta.",
-            roster=roster,
-        )
-
-        self.assertIn("Crónica de Sesión", chronicle)
-        self.assertIn("Los héroes vencieron", chronicle)
-        mock_client.models.generate_content.assert_called_once()
-        call_args = mock_client.models.generate_content.call_args
-        prompt_passed = call_args.kwargs.get("contents", "")
-        self.assertIn("SECCIÓN 1: CRÓNICA DETALLADA DE LA AVENTURA", prompt_passed)
-        self.assertIn("SECCIÓN 2: CIERRE DE MESA, DECISIONES Y PLANES INMEDIATOS", prompt_passed)
-        # Without Markus Veyl in the roster and no user character, section 3 should be read-aloud script for next session
-        self.assertIn("SECCIÓN 3: 🎙️ GUION PARA ABRIR LA SESIÓN #2", prompt_passed)
-
-        # When Markus Veyl is present in the roster
-        mock_client.models.generate_content.reset_mock()
-        roster_markus = [{"player_name": "Roymc89", "role": "Guerrero", "character_name": "Markus Veyl"}]
-        summarizer.generate_chronicle(
-            transcript_text="Markus ataca con su espada.",
-            roster=roster_markus,
-        )
-        prompt_markus = mock_client.models.generate_content.call_args.kwargs.get("contents", "")
-        self.assertIn("SECCIÓN 3: REFLEXIÓN DE ROL Y COMPAÑERISMO: Markus Veyl", prompt_markus)
-        self.assertIn("SECCIÓN 4: 🎙️ GUION PARA ABRIR LA SESIÓN #2", prompt_markus)
-
-    def test_build_dnd_session_prompt(self):
-        from src.summarizer.prompts import build_dnd_session_prompt
-
-        sample_roster = "- Jugador: Roymc89 | Personaje: Markus Veyl | Especie: Humano | Clase/Rol: Guerrero (Fighter) (Battle Master)"
-        sample_transcript = "Rodrigo: Ataco al orco con mi espada larga."
-        prompt = build_dnd_session_prompt(sample_roster, sample_transcript, has_markus=True)
-
-        # Verify 4 sections in forward order
-        self.assertIn("SECCIÓN 1: CRÓNICA DETALLADA DE LA AVENTURA", prompt)
-        self.assertIn("SECCIÓN 2: CIERRE DE MESA, DECISIONES Y PLANES INMEDIATOS", prompt)
-        self.assertIn("SECCIÓN 3: REFLEXIÓN DE ROL Y COMPAÑERISMO: Markus Veyl", prompt)
-        self.assertIn("SECCIÓN 4: 🎙️ GUION PARA ABRIR LA SESIÓN #2 (PARA LEER EN VOZ ALTA)", prompt)
-
-        # Verify Section 1 breakdown items
-        self.assertIn("Resumen Narrativo y Diálogos Memorables", prompt)
-        self.assertIn("Desglose Pormenorizado de Combates y Táctica", prompt)
-        self.assertIn("Personajes No Jugadores (PNJs) e Interacciones Clave", prompt)
-        self.assertIn("Lugares Explorados, Trampas y Tesoros", prompt)
-
-        # Verify Section 4 conversational Discord requirements
-        self.assertIn("3 a 4 párrafos", prompt)
-        self.assertIn("PRIMERA PERSONA DEL PLURAL", prompt)
-        self.assertIn("PROHIBIDO USAR NARRADOR ÉPICO", prompt)
-
-        # Verify Section 3 requirements for Markus Veyl (Roleplay & Party Reflection, NO min/maxing)
-        self.assertIn("Markus Veyl", prompt)
-        self.assertIn("Coherencia y Desarrollo de Personaje", prompt)
-        self.assertIn("Creatividad y Uso del Entorno vs. Reglas", prompt)
-        self.assertIn("Dinámica de Grupo y Trabajo en Equipo", prompt)
-        self.assertIn("Dilemas para la Próxima Sesión", prompt)
-        self.assertIn("PROHIBIDO EL MIN/MAXING", prompt)
 
     def test_build_academic_lecture_prompt(self):
         from src.summarizer.prompts import build_academic_lecture_prompt
@@ -119,9 +52,8 @@ class TestGeminiTTRPGSummarizer(unittest.TestCase):
         self.assertIn("1. Introducción y Contexto", prompt)
         self.assertIn("2. Conceptos Teóricos Fundamentales", prompt)
         self.assertIn("3. Recorrido Temático Detallado y Explicaciones Profundas", prompt)
-        self.assertIn("4. Ejemplos Resueltos y Casos Prácticos", prompt)
-        self.assertIn("5. Avisos Relevantes, Tareas y Próximos Pasos", prompt)
-        self.assertIn("6. Conclusiones Clave, Métricas y Acciones", prompt)
+        self.assertIn("5. Conclusiones Clave, Métricas y Acciones", prompt)
+        self.assertIn("6. Avisos Relevantes, Tareas y Entregables", prompt)
 
     @patch("google.genai.Client")
     def test_generate_academic_notes_mocked(self, mock_client_class):
@@ -147,16 +79,15 @@ class TestGeminiTTRPGSummarizer(unittest.TestCase):
         self.assertIn("Sistemas de Control", prompt_passed)
         self.assertIn("Funciones de Transferencia", prompt_passed)
 
-    def test_build_dnd_session_prompt_bilingual(self):
-        from src.summarizer.prompts import build_dnd_session_prompt
+    def test_build_continuity_session_prompt_bilingual(self):
+        from src.summarizer.prompts import build_continuity_session_prompt
 
         sample_roster = "- Player: John | Character: Thorin | Class: Fighter"
         sample_transcript = "John: I attack the goblin."
-        prompt_en = build_dnd_session_prompt(sample_roster, sample_transcript, has_markus=False, target_language="en")
-        self.assertIn("D&D SESSION COMPREHENSIVE REPORT", prompt_en)
-        self.assertIn("SECTION 1: DETAILED ADVENTURE CHRONICLE", prompt_en)
-        self.assertIn("SECTION 2: TABLE CLOSING, DECISIONS & IMMEDIATE PLANS", prompt_en)
-        self.assertIn("SECTION 3: 🎙️ SCRIPT TO OPEN SESSION #2 (READ ALOUD)", prompt_en)
+        prompt_en = build_continuity_session_prompt(sample_roster, [], [], sample_transcript, session_number=2, target_language="en")
+        self.assertIn("CRITICAL LANGUAGE DIRECTIVE", prompt_en)
+        self.assertIn("DEEP CHRONOLOGICAL SCENE BREAKDOWN", prompt_en)
+        self.assertIn("STRICT QUEST EXTRACTION CRITERIA", prompt_en)
 
     def test_check_has_markus(self):
         from src.summarizer.gemini_client import check_has_markus
@@ -455,7 +386,7 @@ class TestGeminiTTRPGSummarizer(unittest.TestCase):
         self.assertIn("NUNCA 'Dungeon Master'", prompt)
 
     def test_prompt_table_talk_and_grounding_rules(self):
-        from src.summarizer.prompts import build_continuity_session_prompt, build_dnd_session_prompt
+        from src.summarizer.prompts import build_continuity_session_prompt
 
         # 1. Spanish Continuity Prompt
         prompt_es = build_continuity_session_prompt(
@@ -491,20 +422,9 @@ class TestGeminiTTRPGSummarizer(unittest.TestCase):
         self.assertIn("There is no designated user character for personal reflection", prompt_en)
         self.assertNotIn("STRATEGIC COACHING & REFLECTION FOR MARKUS", prompt_en)
 
-        # 3. Base DnD Session Prompt Grounding
-        prompt_dnd = build_dnd_session_prompt(
-            roster_formatted="Roster",
-            transcript_text="Audio text",
-            target_language="es",
-            user_character={},
-        )
-        self.assertIn("GROUNDING ESTRICTO Y CERO ALUCINACIONES TÁCTICAS", prompt_dnd)
-        self.assertIn("COBERTURA OBLIGATORIA DE TODOS LOS COMBATES Y ENCUENTROS", prompt_dnd)
-        self.assertNotIn("REFLEXIÓN Y COACHING ESTRATÉGICO PARA MARKUS", prompt_dnd)
-
     def test_universal_causality_and_mystery_extraction(self):
         """Test that prompts enforce physical causality and automatic mystery extraction for unseen entities."""
-        from src.summarizer.prompts import build_continuity_session_prompt, build_dnd_session_prompt
+        from src.summarizer.prompts import build_continuity_session_prompt
 
         # Spanish Continuity Prompt
         p_es = build_continuity_session_prompt(
@@ -530,15 +450,6 @@ class TestGeminiTTRPGSummarizer(unittest.TestCase):
         )
         self.assertIn("STRICT PHYSICAL CAUSALITY & BAN ON PASSIVE/LAZY TRANSITION SUMMARIES", p_en)
         self.assertIn("AUTOMATIC MYSTERY EXTRACTION", p_en)
-
-        # Base DnD Session Prompt
-        p_dnd_es = build_dnd_session_prompt(roster_formatted="Roster", transcript_text="Audio", target_language="es")
-        self.assertIn("CAUSALIDAD FÍSICA ESTRICTA Y PROHIBICIÓN DE RESÚMENES PASIVOS/PEREZOSOS", p_dnd_es)
-        self.assertIn("EXTRACCIÓN AUTOMÁTICA DE MISTERIOS", p_dnd_es)
-
-        p_dnd_en = build_dnd_session_prompt(roster_formatted="Roster", transcript_text="Audio", target_language="en")
-        self.assertIn("STRICT PHYSICAL CAUSALITY & BAN ON PASSIVE/LAZY TRANSITION SUMMARIES", p_dnd_en)
-        self.assertIn("AUTOMATIC MYSTERY EXTRACTION", p_dnd_en)
 
     def test_non_monolithic_quest_decomposition(self):
         """Test that prompts enforce non-monolithic quest decomposition into side quests and emergent arcs."""
@@ -572,7 +483,7 @@ class TestGeminiTTRPGSummarizer(unittest.TestCase):
 
     def test_universal_character_mid_session_transitions(self):
         """Test that prompts enforce mid-session character transition rules without phantom attribution."""
-        from src.summarizer.prompts import build_continuity_session_prompt, build_dnd_session_prompt
+        from src.summarizer.prompts import build_continuity_session_prompt
 
         # Spanish continuity
         p_es = build_continuity_session_prompt(
@@ -595,13 +506,6 @@ class TestGeminiTTRPGSummarizer(unittest.TestCase):
             target_language="en",
         )
         self.assertIn("UNIVERSAL MID-SESSION PLAYER CHARACTER TRANSITIONS", p_en)
-
-        # Base DnD Prompts
-        p_dnd_es = build_dnd_session_prompt(roster_formatted="Roster", transcript_text="Audio", target_language="es")
-        self.assertIn("REGLA UNIVERSAL DE TRANSICIÓN Y RELEVO DE PERSONAJES A MITAD DE SESIÓN", p_dnd_es)
-
-        p_dnd_en = build_dnd_session_prompt(roster_formatted="Roster", transcript_text="Audio", target_language="en")
-        self.assertIn("UNIVERSAL MID-SESSION PLAYER CHARACTER TRANSITIONS", p_dnd_en)
 
     def test_parse_locations_and_items(self):
         """Test that parse_json_response extracts and normalizes locations, items, and entity aliases."""

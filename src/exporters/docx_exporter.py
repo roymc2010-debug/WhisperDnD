@@ -10,6 +10,116 @@ from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.enum.table import WD_TABLE_ALIGNMENT
 
 
+def parse_markdown_runs(text: str) -> List[Any]:
+    """
+    Parse inline markdown text into a list of tuples:
+    (chunk_text, is_bold, is_italic, is_code)
+    Handles:
+    - `inline code`
+    - ***bold and italic***
+    - **bold** and __bold__
+    - *italic* and _italic_
+    - nested formatting like **bold (*italic*)**
+    """
+    if not text:
+        return []
+
+    # 1. Handle inline code blocks: `code`
+    code_pattern = re.compile(r'(`[^`]+`)')
+    parts = code_pattern.split(text)
+
+    runs = []
+    for part in parts:
+        if not part:
+            continue
+        if part.startswith('`') and part.endswith('`') and len(part) >= 2:
+            runs.append((part[1:-1], False, False, True))
+            continue
+
+        # 2. Handle bold-italic: ***...*** or ___...___
+        bold_italic_pattern = re.compile(r'(\*\*\*[^\n]+?\*\*\*|___[^\n]+?___)')
+        bi_parts = bold_italic_pattern.split(part)
+
+        for bi_part in bi_parts:
+            if not bi_part:
+                continue
+            is_bi = (
+                (bi_part.startswith('***') and bi_part.endswith('***') and len(bi_part) >= 6) or
+                (bi_part.startswith('___') and bi_part.endswith('___') and len(bi_part) >= 6)
+            )
+            if is_bi:
+                runs.append((bi_part[3:-3], True, True, False))
+                continue
+
+            # 3. Parse bold: **...** or __...__
+            bold_pattern = re.compile(r'(\*\*[^\n]+?\*\*|(?<!\w)__[^\n]+?__(?!\w))')
+            bold_parts = bold_pattern.split(bi_part)
+
+            for b_part in bold_parts:
+                if not b_part:
+                    continue
+                is_bold = (
+                    (b_part.startswith('**') and b_part.endswith('**') and len(b_part) >= 4) or
+                    (b_part.startswith('__') and b_part.endswith('__') and len(b_part) >= 4)
+                )
+                inner_text = b_part[2:-2] if is_bold else b_part
+
+                # 4. Inside (whether bold or not), parse italic: *...* or _..._
+                italic_pattern = re.compile(r'(\*[^*\n]+?\*|(?<!\w)_[^_\n]+?_(?!\w))')
+                italic_parts = italic_pattern.split(inner_text)
+
+                for i_part in italic_parts:
+                    if not i_part:
+                        continue
+                    is_italic = (
+                        (i_part.startswith('*') and i_part.endswith('*') and len(i_part) >= 2) or
+                        (i_part.startswith('_') and i_part.endswith('_') and len(i_part) >= 2)
+                    )
+                    final_text = i_part[1:-1] if is_italic else i_part
+                    if final_text:
+                        runs.append((final_text, is_bold, is_italic, False))
+
+    return runs
+
+
+def add_formatted_runs_to_paragraph(
+    paragraph: Any,
+    text: str,
+    font_name: Optional[str] = None,
+    font_size: Optional[Pt] = None,
+    color: Optional[RGBColor] = None,
+    default_bold: bool = False,
+    default_italic: bool = False,
+) -> None:
+    """
+    Append formatted runs to a python-docx paragraph based on inline markdown.
+    """
+    styled_spans = parse_markdown_runs(text)
+    if not styled_spans:
+        return
+
+    for span_text, is_bold, is_italic, is_code in styled_spans:
+        run = paragraph.add_run(span_text)
+        if default_bold or is_bold:
+            run.bold = True
+            run.font.bold = True
+        if default_italic or is_italic:
+            run.italic = True
+            run.font.italic = True
+
+        if is_code:
+            run.font.name = "Consolas"
+            run.font.size = Pt(8.5) if font_size is None else Pt(max(7.5, font_size.pt - 1))
+            run.font.color.rgb = RGBColor(0x1F, 0x29, 0x37)
+        else:
+            if font_name:
+                run.font.name = font_name
+            if font_size:
+                run.font.size = font_size
+            if color:
+                run.font.color.rgb = color
+
+
 def render_markdown_to_docx(
     doc: docx.Document,
     md_text: str,
@@ -61,25 +171,22 @@ def render_markdown_to_docx(
 
         # Headers (Row 0)
         for col_idx, cell in enumerate(tbl.rows[0].cells):
-            cell.text = padded_rows[0][col_idx]
-            for p in cell.paragraphs:
-                p.paragraph_format.space_before = Pt(2)
-                p.paragraph_format.space_after = Pt(2)
-                for r in p.runs:
-                    r.font.bold = True
-                    r.font.size = Pt(9.5)
-                    r.font.color.rgb = RGBColor(0x1F, 0x29, 0x37)
+            p = cell.paragraphs[0]
+            p.paragraph_format.space_before = Pt(2)
+            p.paragraph_format.space_after = Pt(2)
+            add_formatted_runs_to_paragraph(
+                p, padded_rows[0][col_idx], font_size=Pt(9.5), color=RGBColor(0x1F, 0x29, 0x37), default_bold=True
+            )
 
         # Data rows (Row 1+)
         for row_idx, r_data in enumerate(padded_rows[1:], start=1):
             for col_idx, cell in enumerate(tbl.rows[row_idx].cells):
-                cell.text = r_data[col_idx]
-                for p in cell.paragraphs:
-                    p.paragraph_format.space_before = Pt(1)
-                    p.paragraph_format.space_after = Pt(1)
-                    for r in p.runs:
-                        r.font.size = Pt(9)
-                        r.font.color.rgb = RGBColor(0x37, 0x41, 0x51)
+                p = cell.paragraphs[0]
+                p.paragraph_format.space_before = Pt(1)
+                p.paragraph_format.space_after = Pt(1)
+                add_formatted_runs_to_paragraph(
+                    p, r_data[col_idx], font_size=Pt(9), color=RGBColor(0x37, 0x41, 0x51)
+                )
 
         p_spacer = doc.add_paragraph()
         p_spacer.paragraph_format.space_before = Pt(0)
@@ -138,45 +245,65 @@ def render_markdown_to_docx(
             h_text = stripped[2:].strip()
             if skip_h1_predicate and skip_h1_predicate(h_text):
                 continue
-            h = doc.add_heading(h_text, level=1)
+            h = doc.add_heading(level=1)
             h.paragraph_format.space_before = Pt(14)
             h.paragraph_format.space_after = Pt(4)
-            if h1_font or h1_color:
-                for r in h.runs:
-                    if h1_font:
-                        r.font.name = h1_font
-                    if h1_color:
-                        r.font.color.rgb = h1_color
+            add_formatted_runs_to_paragraph(h, h_text, font_name=h1_font, color=h1_color)
         elif stripped.startswith("## "):
-            h = doc.add_heading(stripped[3:].strip(), level=2)
+            h_text = stripped[3:].strip()
+            h = doc.add_heading(level=2)
             h.paragraph_format.space_before = Pt(12)
             h.paragraph_format.space_after = Pt(3)
-            if h2_font or h2_color:
-                for r in h.runs:
-                    if h2_font:
-                        r.font.name = h2_font
-                    if h2_color:
-                        r.font.color.rgb = h2_color
+            add_formatted_runs_to_paragraph(h, h_text, font_name=h2_font, color=h2_color)
         elif stripped.startswith("### "):
-            h = doc.add_heading(stripped[4:].strip(), level=3)
+            h_text = stripped[4:].strip()
+            h = doc.add_heading(level=3)
             h.paragraph_format.space_before = Pt(8)
             h.paragraph_format.space_after = Pt(2)
+            add_formatted_runs_to_paragraph(h, h_text)
         elif stripped.startswith("#### "):
-            h = doc.add_heading(stripped[5:].strip(), level=4)
+            h_text = stripped[5:].strip()
+            h = doc.add_heading(level=4)
             h.paragraph_format.space_before = Pt(6)
             h.paragraph_format.space_after = Pt(2)
-        elif stripped.startswith("- ") or stripped.startswith("* "):
-            p = doc.add_paragraph(stripped[2:].strip(), style="List Bullet")
+            add_formatted_runs_to_paragraph(h, h_text)
+        elif stripped.startswith(">"):
+            quote_text = re.sub(r"^>+\s*", "", stripped)
+            p = doc.add_paragraph()
+            p.paragraph_format.left_indent = Inches(0.25)
+            p.paragraph_format.space_before = Pt(2)
+            p.paragraph_format.space_after = Pt(4)
+            try:
+                pPr = p._p.get_or_add_pPr()
+                pBdr = docx.oxml.parse_xml(
+                    '<w:pBdr ' + docx.oxml.ns.nsdecls('w') + '><w:left w:val="single" w:sz="18" w:space="8" w:color="3B82F6"/></w:pBdr>'
+                )
+                pPr.append(pBdr)
+                shd = docx.oxml.parse_xml('<w:shd ' + docx.oxml.ns.nsdecls('w') + ' w:fill="F8FAFC"/>')
+                pPr.append(shd)
+            except Exception:
+                pass
+            add_formatted_runs_to_paragraph(p, quote_text, color=RGBColor(0x37, 0x41, 0x51))
+        elif re.match(r"^[-*+]\s+", stripped):
+            content = re.sub(r"^[-*+]\s+", "", stripped).strip()
+            if content.startswith("[ ] "):
+                content = "☐ " + content[4:].strip()
+            elif content.startswith("[x] ") or content.startswith("[X] "):
+                content = "☑ " + content[4:].strip()
+            p = doc.add_paragraph(style="List Bullet")
             p.paragraph_format.space_after = Pt(3)
-        elif stripped.startswith("1. ") or (len(stripped) > 2 and stripped[:2].isdigit() and stripped[2:4] == ". "):
-            idx = stripped.find(". ")
-            p = doc.add_paragraph(stripped[idx + 2:].strip(), style="List Number")
+            add_formatted_runs_to_paragraph(p, content)
+        elif re.match(r"^\d+\.\s+", stripped):
+            content = re.sub(r"^\d+\.\s+", "", stripped).strip()
+            p = doc.add_paragraph(style="List Number")
             p.paragraph_format.space_after = Pt(3)
-        elif stripped == "---":
+            add_formatted_runs_to_paragraph(p, content)
+        elif re.match(r"^[-*_]{3,}\s*$", stripped):
             continue
         else:
-            p = doc.add_paragraph(stripped)
+            p = doc.add_paragraph()
             p.paragraph_format.space_after = Pt(6)
+            add_formatted_runs_to_paragraph(p, stripped)
 
     flush_table()
 
@@ -698,8 +825,9 @@ def export_living_journal_docx(
                 cl_h = doc.add_heading(f"{sec_num}. Cierre de Sesión, Decisiones y Expectativas", level=3)
                 cl_h.paragraph_format.space_before = Pt(10)
                 cl_h.paragraph_format.space_after = Pt(3)
-                cp = doc.add_paragraph(s["closing_expectations"])
+                cp = doc.add_paragraph()
                 cp.paragraph_format.space_after = Pt(6)
+                add_formatted_runs_to_paragraph(cp, clean_math_delimiters_for_docx(s["closing_expectations"]))
                 sec_num += 1
 
             # 3. Roleplay Reflection (Conditional: strictly requires selected user character)
@@ -719,10 +847,14 @@ def export_living_journal_docx(
                     stripped = line.strip()
                     if not stripped:
                         continue
-                    if stripped.startswith("- ") or stripped.startswith("* "):
-                        doc.add_paragraph(stripped[2:], style="List Bullet")
+                    if re.match(r"^[-*+]\s+", stripped):
+                        bp = doc.add_paragraph(style="List Bullet")
+                        bp.paragraph_format.space_after = Pt(3)
+                        add_formatted_runs_to_paragraph(bp, re.sub(r"^[-*+]\s+", "", stripped))
                     else:
-                        doc.add_paragraph(stripped)
+                        p_coach = doc.add_paragraph()
+                        p_coach.paragraph_format.space_after = Pt(4)
+                        add_formatted_runs_to_paragraph(p_coach, stripped)
                 sec_num += 1
 
             # 4. Episode Synopsis (for YouTube) or Read-Aloud Script (for Live sessions)
@@ -735,8 +867,9 @@ def export_living_journal_docx(
                     stripped = line.strip()
                     if not stripped:
                         continue
-                    sp = doc.add_paragraph(stripped)
+                    sp = doc.add_paragraph()
                     sp.paragraph_format.space_after = Pt(4)
+                    add_formatted_runs_to_paragraph(sp, stripped)
                 sec_num += 1
             else:
                 script_text = s.get("next_session_script") or s.get("recap_text")
@@ -745,8 +878,9 @@ def export_living_journal_docx(
                     rh = doc.add_heading(f"{sec_num}. 🎙️ Guion para abrir la Sesión #{next_num} (Para leer en voz alta)", level=3)
                     rh.paragraph_format.space_before = Pt(10)
                     rh.paragraph_format.space_after = Pt(3)
-                    rp = doc.add_paragraph(script_text.strip())
+                    rp = doc.add_paragraph()
                     rp.paragraph_format.space_after = Pt(6)
+                    add_formatted_runs_to_paragraph(rp, script_text.strip())
 
             doc.add_paragraph().paragraph_format.space_after = Pt(12)
 
@@ -763,20 +897,27 @@ def clean_math_delimiters_for_docx(text: str) -> str:
     """
     if not text:
         return text
-    import re
+    # Strip single dollar multipliers and units first ($40x$ -> 40x)
+    cleaned = re.sub(r'\$([0-9]+(?:\.[0-9]+)?\s*[xX])\$', r'\1', text)
+    cleaned = re.sub(r'\$([0-9]+(?:\.[0-9]+)?\s*(?:%|mm|cm|m|km|g|kg|mg|ml|mL|L|fps|rpm|Hz|kHz|MHz|GHz))\$', r'\1', cleaned)
     # Strip block $$...$$ equations
-    cleaned = re.sub(r'\$\$\s*([\s\S]*?)\s*\$\$', r'\1', text)
+    cleaned = re.sub(r'\$\$\s*([\s\S]*?)\s*\$\$', r'\1', cleaned)
     # Remove any stray $$
     cleaned = cleaned.replace("$$", "")
     # Remove inline math delimiters \(...\) and \[...\]
     cleaned = re.sub(r'\\\[\s*([\s\S]*?)\s*\\\]', r'\1', cleaned)
     cleaned = re.sub(r'\\\(\s*([\s\S]*?)\s*\\\)', r'\1', cleaned)
+    # Strip single $ inline math delimiters ($E = mc^2$ -> E = mc^2)
+    cleaned = re.sub(r'(?<!\\)\$([^$\n]+?)(?<!\\)\$', r'\1', cleaned)
     # Unescape escaped currency dollar signs (\$1,000 -> $1,000)
     cleaned = cleaned.replace(r"\$", "$")
     # Simplify common LaTeX text formatting inside math
     cleaned = re.sub(r'\\text\{([^}]+)\}', r'\1', cleaned)
     cleaned = re.sub(r'\\mathbf\{([^}]+)\}', r'\1', cleaned)
     cleaned = re.sub(r'\\mathrm\{([^}]+)\}', r'\1', cleaned)
+    # Simplify common arrows and chemical reactions
+    cleaned = re.sub(r'\\xrightarrow\{([^}]+)\}', r'──( \1 )──►', cleaned)
+    cleaned = cleaned.replace(r"\rightarrow", "→").replace(r"\to", "→").replace(r"\leftarrow", "←")
     # Replace common LaTeX operators with readable unicode
     cleaned = cleaned.replace(r"\cdot", "·").replace(r"\times", "×")
     cleaned = cleaned.replace(r"\neq", "≠").replace(r"\neg", "¬")

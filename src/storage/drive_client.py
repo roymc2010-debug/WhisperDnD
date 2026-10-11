@@ -108,23 +108,48 @@ def ensure_google_token_file(
 
     if project_root is not None:
         local_path = project_root / "token.json"
+        backup_path = project_root / "token_backup.json"
         if local_path.is_file():
+            # Keep backup synchronized
+            try:
+                if not backup_path.is_file():
+                    backup_path.write_text(local_path.read_text(encoding="utf-8"), encoding="utf-8")
+            except Exception:
+                pass
             return local_path
+        if backup_path.is_file():
+            try:
+                local_path.write_text(backup_path.read_text(encoding="utf-8"), encoding="utf-8")
+                print(f"[ensure_google_token_file] token.json restaurado exitosamente desde {backup_path}")
+                return local_path
+            except Exception:
+                pass
         env_token = os.environ.get("GOOGLE_TOKEN_JSON")
         if env_token and env_token.strip():
             local_path.parent.mkdir(parents=True, exist_ok=True)
             local_path.write_text(env_token.strip(), encoding="utf-8")
+            try:
+                backup_path.write_text(env_token.strip(), encoding="utf-8")
+            except Exception:
+                pass
             print(f"Archivo {local_path} generado con éxito desde variable de entorno.")
         return local_path
 
     root = Path(__file__).resolve().parent.parent.parent
     local_path = root / "token.json"
+    backup_path = root / "token_backup.json"
     app_path = Path("/app/token.json")
 
     if app_path.is_file():
         return app_path
     if local_path.is_file():
         return local_path
+    if backup_path.is_file():
+        try:
+            local_path.write_text(backup_path.read_text(encoding="utf-8"), encoding="utf-8")
+            return local_path
+        except Exception:
+            pass
 
     render_token = Path("/etc/secrets/token.json")
     if render_token.is_file():
@@ -167,23 +192,40 @@ class GoogleDriveStorage:
     def is_connected(self) -> bool:
         """
         Check if valid Google Drive OAuth token exists without prompting browser login.
-        Refreshes expired token if refresh_token is available.
+        Proactively refreshes expired or stale token if refresh_token is available.
         """
         if not self.token_path.is_file():
-            return False
+            # Try restoring from token_backup.json
+            backup_file = self.token_path.parent / "token_backup.json"
+            if backup_file.is_file():
+                try:
+                    self.token_path.write_text(backup_file.read_text(encoding="utf-8"), encoding="utf-8")
+                except Exception:
+                    pass
+            if not self.token_path.is_file():
+                return False
 
         try:
             creds = Credentials.from_authorized_user_file(str(self.token_path), SCOPES)
             if creds and creds.valid:
                 return True
-            if creds and creds.expired and creds.refresh_token:
+            if creds and creds.refresh_token:
                 try:
                     creds.refresh(Request())
-                    self.token_path.write_text(creds.to_json(), encoding="utf-8")
+                    creds_json = creds.to_json()
+                    self.token_path.write_text(creds_json, encoding="utf-8")
+                    backup_file = self.token_path.parent / "token_backup.json"
+                    try:
+                        backup_file.write_text(creds_json, encoding="utf-8")
+                    except Exception:
+                        pass
+                    self._service = None
                     return True
-                except Exception:
+                except Exception as exc:
+                    print(f"[GoogleDriveStorage] Error refreshing token: {exc}")
                     return False
-        except Exception:
+        except Exception as exc:
+            print(f"[GoogleDriveStorage] Error inspecting credentials: {exc}")
             return False
 
         return False
@@ -198,41 +240,50 @@ class GoogleDriveStorage:
     def authenticate(self) -> Any:
         """
         Authenticate with Google Drive API using credentials.json and token.json.
-        Runs local webserver OAuth flow if token.json is missing or expired.
+        Proactively refreshes credentials using refresh_token without blocking the web process.
         """
         creds: Optional[Credentials] = None
+
+        if not self.token_path.is_file():
+            backup_file = self.token_path.parent / "token_backup.json"
+            if backup_file.is_file():
+                try:
+                    self.token_path.write_text(backup_file.read_text(encoding="utf-8"), encoding="utf-8")
+                except Exception:
+                    pass
 
         if self.token_path.is_file():
             try:
                 creds = Credentials.from_authorized_user_file(str(self.token_path), SCOPES)
             except Exception as exc:
-                print(f"[GoogleDriveStorage] Error loading token.json: {exc}. Starting fresh OAuth flow.")
+                print(f"[GoogleDriveStorage] Error loading token.json: {exc}")
+                creds = None
+
+        if creds and not creds.valid and creds.refresh_token:
+            try:
+                creds.refresh(Request())
+                creds_json = creds.to_json()
+                self.token_path.parent.mkdir(parents=True, exist_ok=True)
+                self.token_path.write_text(creds_json, encoding="utf-8")
+                backup_file = self.token_path.parent / "token_backup.json"
+                try:
+                    backup_file.write_text(creds_json, encoding="utf-8")
+                except Exception:
+                    pass
+            except Exception as exc:
+                print(f"[GoogleDriveStorage] Error refreshing token: {exc}")
                 creds = None
 
         if not creds or not creds.valid:
-            if creds and creds.expired and creds.refresh_token:
-                try:
-                    creds.refresh(Request())
-                except Exception as exc:
-                    print(f"[GoogleDriveStorage] Error refreshing token: {exc}. Re-running OAuth flow.")
-                    creds = None
-
-            if not creds:
-                if not self.credentials_path.is_file():
-                    raise FileNotFoundError(
-                        f"No se encontró el archivo de credenciales de Google OAuth en: {self.credentials_path}. "
-                        "Descarga credentials.json desde Google Cloud Console y colócalo en la raíz del proyecto."
-                    )
-
-                flow = InstalledAppFlow.from_client_secrets_file(
-                    str(self.credentials_path),
-                    SCOPES,
+            if not self.credentials_path.is_file():
+                raise FileNotFoundError(
+                    f"No se encontró el archivo de credenciales de Google OAuth en: {self.credentials_path}. "
+                    "Descarga credentials.json desde Google Cloud Console y colócalo en la raíz del proyecto."
                 )
-                creds = flow.run_local_server(port=0)
-
-            # Save the credentials for the next run
-            self.token_path.parent.mkdir(parents=True, exist_ok=True)
-            self.token_path.write_text(creds.to_json(), encoding="utf-8")
+            raise RuntimeError(
+                "La sesión de Google Drive no está conectada o ha expirado. "
+                "Conéctala desde la interfaz web con el botón 'Conectar Google Drive'."
+            )
 
         self._service = build("drive", "v3", credentials=creds)
         return self._service
@@ -300,8 +351,14 @@ class GoogleDriveStorage:
 
         flow.fetch_token(code=code)
         creds = flow.credentials
+        creds_json = creds.to_json()
         self.token_path.parent.mkdir(parents=True, exist_ok=True)
-        self.token_path.write_text(creds.to_json(), encoding="utf-8")
+        self.token_path.write_text(creds_json, encoding="utf-8")
+        backup_file = self.token_path.parent / "token_backup.json"
+        try:
+            backup_file.write_text(creds_json, encoding="utf-8")
+        except Exception:
+            pass
         self._service = None
         _active_oauth_flow = None
         return creds
@@ -309,7 +366,7 @@ class GoogleDriveStorage:
     def restore_from_client_token(self, token_data: Union[Dict[str, Any], str]) -> bool:
         """
         Restore OAuth credentials from client-provided token data (localStorage).
-        Saves token to local token_path and /app/token.json if accessible, then refreshes Drive service.
+        Saves token to local token_path, token_backup.json, and /app/token.json, then verifies connection.
         """
         try:
             if isinstance(token_data, str):
@@ -326,6 +383,12 @@ class GoogleDriveStorage:
             token_json_str = json.dumps(token_dict, indent=2)
             self.token_path.parent.mkdir(parents=True, exist_ok=True)
             self.token_path.write_text(token_json_str, encoding="utf-8")
+
+            backup_file = self.token_path.parent / "token_backup.json"
+            try:
+                backup_file.write_text(token_json_str, encoding="utf-8")
+            except Exception:
+                pass
 
             # Also sync to /app/token.json if directory exists in container
             container_token = Path("/app/token.json")
@@ -371,6 +434,13 @@ class GoogleDriveStorage:
         except Exception as exc:
             print(f"[GoogleDriveStorage] Error deleting {self.token_path}: {exc}")
             success = False
+
+        backup_file = self.token_path.parent / "token_backup.json"
+        if backup_file.is_file():
+            try:
+                backup_file.unlink()
+            except Exception:
+                pass
 
         container_token = Path("/app/token.json")
         if container_token.is_file():

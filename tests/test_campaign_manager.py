@@ -1151,6 +1151,75 @@ class TestCampaignManager(unittest.TestCase):
             self.assertNotIn("(DM)", c["character_name"])
             self.assertNotEqual(c["character_name"].lower(), "dm")
 
+    def test_west_marches_rotating_roster_preservation(self):
+        """In West Marches campaigns (e.g. 13 players), absent players must NOT be wiped out when a sub-group plays."""
+        camp_name = "West Marches Test Campaign"
+        state = self.manager.load_campaign(camp_name)
+        # Session 1: Party A (4 players + DM)
+        s1_pcs = [
+            {"jugador": "Player A", "personaje": "Char A", "especie": "Elf", "clase": "Wizard"},
+            {"jugador": "Player B", "personaje": "Char B", "especie": "Dwarf", "clase": "Fighter"},
+            {"jugador": "Player C", "personaje": "Char C", "especie": "Human", "clase": "Rogue"},
+            {"jugador": "Player D", "personaje": "Char D", "especie": "Orc", "clase": "Barbarian"},
+        ]
+        state = self.manager.record_session(
+            camp_name,
+            session_chapter={"title": "Session 1"},
+            detected_pcs=s1_pcs,
+            session_number=1,
+            is_youtube=True,
+        )
+        self.assertEqual(len([p for p in state["roster"] if p["character_name"] != "(DM)"]), 4)
+
+        # Session 2: Rotating Party B (3 different players)
+        s2_pcs = [
+            {"jugador": "Player E", "personaje": "Char E", "especie": "Tiefling", "clase": "Warlock"},
+            {"jugador": "Player F", "personaje": "Char F", "especie": "Aasimar", "clase": "Cleric"},
+            {"jugador": "Player G", "personaje": "Char G", "especie": "Halfling", "clase": "Bard"},
+        ]
+        state = self.manager.record_session(
+            camp_name,
+            session_chapter={"title": "Session 2"},
+            detected_pcs=s2_pcs,
+            session_number=2,
+            is_youtube=True,
+        )
+        # Roster must retain all 7 players (Party A was NOT deleted)
+        player_names = [p["player_name"] for p in state["roster"] if p["character_name"] != "(DM)"]
+        self.assertEqual(len(player_names), 7)
+        for expected in ["Player A", "Player B", "Player C", "Player D", "Player E", "Player F", "Player G"]:
+            self.assertIn(expected, player_names)
+
+    def test_same_player_character_spelling_deduplication(self):
+        """Spelling variations for the same player (e.g. Cadogan Vale vs Kattigan Vale, Wiki vs Wick) must merge."""
+        from src.storage.campaign_manager import is_entity_substring_duplicate
+        e1 = {
+            "personaje": "Cadogan Vale",
+            "jugador": "Robbie Daymond",
+            "hitos_acumulados": ["Sesión #1: Exploró el bosque.", "Sesión #2: Siguió el rastro.", "Sesión #3: Luchó."],
+        }
+        e2 = {
+            "personaje": "Kattigan Vale",
+            "jugador": "Robbie Daymond",
+            "hitos_acumulados": ["Sesión #6: Rastreo con sabueso."],
+        }
+        self.assertTrue(is_entity_substring_duplicate("Cadogan Vale", "Kattigan Vale", e1, e2))
+        self.assertFalse(is_entity_substring_duplicate("Kattigan Vale", "Cadogan Vale", e2, e1))
+
+        # Same length tie-breaker using session recency
+        w1 = {
+            "personaje": "Wicander 'Wiki' Halovar",
+            "jugador": "Sam Riegel",
+            "hitos_acumulados": ["Sesión #1: Lanzó luz.", "Sesión #2: Curó.", "Sesión #3: Apoyó."],
+        }
+        w2 = {
+            "personaje": "Wicander 'Wick' Halovar",
+            "jugador": "Sam Riegel",
+            "hitos_acumulados": ["Sesión #6: Magia de control."],
+        }
+        self.assertTrue(is_entity_substring_duplicate("Wicander 'Wiki' Halovar", "Wicander 'Wick' Halovar", w1, w2))
+        self.assertFalse(is_entity_substring_duplicate("Wicander 'Wick' Halovar", "Wicander 'Wiki' Halovar", w2, w1))
+
 
 if __name__ == "__main__":
     unittest.main()

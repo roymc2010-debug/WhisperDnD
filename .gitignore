@@ -243,6 +243,7 @@ cloudflared.exe
 # OAuth & Local User Credentials
 credentials.json
 token.json
+token_backup.json
 data/.discord_token.json
 *.token.json
 
@@ -252,5 +253,6 @@ data/campaigns/*.json
 data/*.json
 
 scratch/
+clean_html.py
 
 

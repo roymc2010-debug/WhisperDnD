@@ -476,6 +476,54 @@ class TestTranscriptionPipeline(unittest.TestCase):
             if os.path.exists(wav_path):
                 os.remove(wav_path)
 
+    def test_clean_whisper_hallucinations(self):
+        """Verify that clean_whisper_hallucinations removes repetitive edition markers (5e, 6e, 7e, 5e., 6e-, 7e-)."""
+        from src.transcription.groq_whisper import clean_whisper_hallucinations
+
+        sample1 = "6e- Ajonián 7e- Entonces esperamos un rato"
+        cleaned1 = clean_whisper_hallucinations(sample1)
+        self.assertNotIn("6e-", cleaned1)
+        self.assertNotIn("7e-", cleaned1)
+        self.assertIn("Ajonián", cleaned1)
+        self.assertIn("Entonces esperamos un rato", cleaned1)
+
+        sample2 = "No mira tienes a Wyan 5e. ¿Esto es tu compu, amiga? 5e. Sí, amiga. 5e."
+        cleaned2 = clean_whisper_hallucinations(sample2)
+        self.assertNotIn("5e", cleaned2)
+        self.assertIn("Wyan", cleaned2)
+        self.assertIn("¿Esto es tu compu, amiga?", cleaned2)
+
+        sample3 = "Hay que llorar 5e y Wyan 6e Ahorita se meti Wyan le doy refrescar 6e"
+        cleaned3 = clean_whisper_hallucinations(sample3)
+        self.assertNotIn("5e", cleaned3)
+        self.assertNotIn("6e", cleaned3)
+        self.assertIn("Hay que llorar y Wyan", cleaned3)
+        self.assertIn("Ahorita se meti Wyan", cleaned3)
+
+    def test_build_whisper_prompt(self):
+        """Verify build_whisper_prompt avoids prompt injection prose and returns pure vocabulary."""
+        from src.api.server import build_whisper_prompt
+
+        # Empty terms default returns None
+        prompt_es_empty = build_whisper_prompt(language="es")
+        self.assertIsNone(prompt_es_empty)
+
+        prompt_en_empty = build_whisper_prompt(language="en")
+        self.assertIsNone(prompt_en_empty)
+
+        # With roster
+        roster = [
+            {"character_name": "Valeros", "player_name": "Roy"},
+            {"character_name": "Seoni", "player_name": "Wyan"},
+        ]
+        prompt_with_roster = build_whisper_prompt(roster=roster, language="es")
+        self.assertNotIn("D&D 5e:", prompt_with_roster)
+        self.assertIn("Valeros", prompt_with_roster)
+        self.assertIn("Roy", prompt_with_roster)
+        self.assertIn("Seoni", prompt_with_roster)
+        self.assertIn("Wyan", prompt_with_roster)
+        self.assertNotIn("Conversación casual", prompt_with_roster)
+
 
 if __name__ == "__main__":
     unittest.main()

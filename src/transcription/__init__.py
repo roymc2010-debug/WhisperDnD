@@ -1,7 +1,7 @@
 """Transcription module using faster-whisper, YouTube downloader, and dual audio recorder."""
 
 from .local_whisper import LocalWhisperTranscriber
-from .groq_whisper import GroqWhisperTranscriber, tag_dual_channel_speakers
+from .groq_whisper import GroqWhisperTranscriber, tag_dual_channel_speakers, clean_whisper_hallucinations
 from .youtube_downloader import download_youtube_audio, is_valid_youtube_url
 from .audio_recorder import (
     DualChannelAudioRecorder,
@@ -14,6 +14,7 @@ __all__ = [
     "LocalWhisperTranscriber",
     "GroqWhisperTranscriber",
     "tag_dual_channel_speakers",
+    "clean_whisper_hallucinations",
     "download_youtube_audio",
     "is_valid_youtube_url",
     "DualChannelAudioRecorder",

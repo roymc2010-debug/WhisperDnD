@@ -138,6 +138,27 @@ class TestYouTubeDownloader(unittest.TestCase):
             self.assertIn("%(id)s.%(ext)s", captured_opts.get("outtmpl", ""))
             self.assertNotIn("postprocessors", captured_opts)
 
+    def test_extract_youtube_video_id(self):
+        from src.transcription.youtube_downloader import extract_youtube_video_id
+        self.assertEqual(extract_youtube_video_id("https://www.youtube.com/watch?v=dQw4w9WgXcQ"), "dQw4w9WgXcQ")
+        self.assertEqual(extract_youtube_video_id("https://youtu.be/dQw4w9WgXcQ?t=42"), "dQw4w9WgXcQ")
+        self.assertEqual(extract_youtube_video_id("https://www.youtube.com/shorts/dQw4w9WgXcQ"), "dQw4w9WgXcQ")
+        self.assertEqual(extract_youtube_video_id("dQw4w9WgXcQ"), "dQw4w9WgXcQ")
+        self.assertIsNone(extract_youtube_video_id("https://invalid.com/not_youtube"))
+
+    def test_download_youtube_audio_reuses_cache(self):
+        url = "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
+        cached_file = Path(self.temp_dir) / "dQw4w9WgXcQ.m4a"
+        # Create a dummy audio file > 10000 bytes
+        cached_file.write_bytes(b"0" * 15000)
+
+        # Calling download_youtube_audio should return the cached file without calling yt-dlp
+        with patch("yt_dlp.YoutubeDL") as mock_ydl:
+            result = download_youtube_audio(url, output_dir=self.temp_dir)
+            self.assertEqual(result, str(cached_file.resolve()))
+            mock_ydl.assert_not_called()
+
 
 if __name__ == "__main__":
     unittest.main()
+

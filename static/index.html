@@ -9,8 +9,11 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="WhisperApp">
   <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/x-icon" href="/static/favicon.ico">
+  <link rel="icon" type="image/png" sizes="32x32" href="/static/favicon-32x32.png">
+  <link rel="icon" type="image/png" sizes="64x64" href="/static/favicon.png">
   <link rel="icon" type="image/png" sizes="192x192" href="/static/icon-192.png">
-  <link rel="apple-touch-icon" sizes="192x192" href="/static/icon-192.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="/static/apple-touch-icon.png">
   <link rel="apple-touch-icon" sizes="512x512" href="/static/icon-512.png">
   <title>WhisperDnD & Study - Diario de Campañas y Asistente Académico</title>
   <!-- Tailwind CSS via CDN -->
@@ -41,8 +44,12 @@
   <!-- KaTeX for math and formula rendering -->
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.css">
   <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.js"></script>
-  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/contrib/auto-render.min.js"
-          onload="if (typeof renderMathInElement === 'function') renderMathInElement(document.body);"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/contrib/auto-render.min.js"></script>
+  <script>
+    window.addEventListener('error', function(e) {
+      console.warn('[WhisperDnD Global Error Listener]:', e.message, 'at', e.filename, 'line', e.lineno);
+    });
+  </script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700;800&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -154,6 +161,117 @@
       transition: width 300ms var(--ease-glide) !important;
     }
 
+    /* Modal & Overlay Guard: Prevent closed modals and fixed backdrops from intercepting clicks */
+    .fixed.hidden,
+    [role="dialog"].hidden,
+    #campaignManagerModal.hidden,
+    #mergeEntityModal.hidden,
+    #tunnelModal.hidden,
+    #backupFallbackModal.hidden,
+    #modalAddGlossaryTerm.hidden {
+      display: none !important;
+      pointer-events: none !important;
+    }
+
+    #campaignManagerModal.opacity-0,
+    #mergeEntityModal.opacity-0,
+    #tunnelModal.opacity-0,
+    #backupFallbackModal.opacity-0,
+    #modalAddGlossaryTerm.opacity-0 {
+      pointer-events: none !important;
+    }
+
+    /* Desktop Sidebar Guaranteed Display */
+    @media (min-width: 768px) {
+      #appSidebar {
+        display: flex !important;
+      }
+    }
+
+    /* =========================================================================
+       SISTEMA DE BOTONES MODERNOS & TÁCTILES (Estilo Apple / Linear / D&D Beyond)
+       ========================================================================= */
+
+    /* Botón de Grabación (Hardware Audio Aesthetic) */
+    .btn-record-main {
+      background: #141722 !important;
+      border: 1px solid rgba(245, 158, 11, 0.45) !important;
+      color: #fbbf24 !important;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.08) !important;
+      border-radius: 14px !important;
+      font-weight: 600 !important;
+      letter-spacing: -0.01em !important;
+      transition: all 140ms var(--ease-out) !important;
+    }
+    .btn-record-main:hover {
+      background: #1a1e2d !important;
+      border-color: rgba(245, 158, 11, 0.7) !important;
+      color: #fef3c7 !important;
+      box-shadow: 0 4px 14px rgba(245, 158, 11, 0.15), inset 0 1px 0 rgba(255, 255, 255, 0.12) !important;
+    }
+    .btn-record-main:active {
+      transform: scale(0.97) !important;
+    }
+
+    /* Botón de Detener y Procesar (Resolutivo y de alto contraste) */
+    .btn-stop-main {
+      border-radius: 14px !important;
+      font-weight: 600 !important;
+      letter-spacing: -0.01em !important;
+      transition: all 140ms var(--ease-out) !important;
+    }
+    .btn-stop-main:not(:disabled) {
+      background: #991b1b !important;
+      border: 1px solid #ef4444 !important;
+      color: #ffffff !important;
+      box-shadow: 0 2px 10px rgba(239, 68, 68, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.15) !important;
+    }
+    .btn-stop-main:not(:disabled):hover {
+      background: #b91c1c !important;
+      border-color: #f87171 !important;
+      box-shadow: 0 4px 16px rgba(239, 68, 68, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.2) !important;
+    }
+    .btn-stop-main:disabled {
+      background: rgba(255, 255, 255, 0.03) !important;
+      border: 1px solid rgba(255, 255, 255, 0.08) !important;
+      color: #475569 !important;
+      box-shadow: none !important;
+      cursor: not-allowed !important;
+    }
+
+    /* Botón Secundario Refinado (Estilo Linear / Apple) */
+    .btn-subtle {
+      background: rgba(255, 255, 255, 0.04) !important;
+      border: 1px solid rgba(255, 255, 255, 0.09) !important;
+      color: #cbd5e1 !important;
+      border-radius: 11px !important;
+      font-weight: 500 !important;
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04) !important;
+      transition: all 120ms var(--ease-out) !important;
+    }
+    .btn-subtle:hover {
+      background: rgba(255, 255, 255, 0.08) !important;
+      border-color: rgba(255, 255, 255, 0.18) !important;
+      color: #f8fafc !important;
+    }
+    .btn-subtle:active {
+      transform: scale(0.97) !important;
+    }
+
+    /* Segmented Switcher (iOS / macOS capsule) */
+    .segmented-capsule {
+      background: #090a10 !important;
+      border: 1px solid rgba(255, 255, 255, 0.08) !important;
+      border-radius: 12px !important;
+      padding: 3px !important;
+    }
+    .segmented-item-active {
+      background: #181c28 !important;
+      border: 1px solid rgba(255, 255, 255, 0.12) !important;
+      color: #f8fafc !important;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3) !important;
+    }
+
     /* Markdown styling inside chronicle container */
     .prose-dnd h1 { font-family: 'Cinzel', serif; font-size: 1.5rem; font-weight: 700; color: #f8fafc; margin-top: 1.25rem; margin-bottom: 0.75rem; border-bottom: 1px solid #334155; padding-bottom: 0.5rem; }
     .prose-dnd h2 { font-family: 'Cinzel', serif; font-size: 1.2rem; font-weight: 600; color: #cbd5e1; margin-top: 1.5rem; margin-bottom: 0.5rem; display: flex; align-items: center; gap: 0.5rem; }
@@ -178,9 +296,9 @@
   <aside id="appSidebar" class="w-64 border-r border-slate-800 themed-surface shrink-0 hidden md:flex flex-col h-screen select-none z-30">
     <!-- Brand Header -->
     <div class="p-4 border-b border-slate-800 flex items-center gap-3">
-      <div id="brandIconWrapper" class="w-10 h-10 rounded-xl bg-slate-900 border border-white/10 flex items-center justify-center text-accent-text transition-all duration-200">
+      <div id="brandIconWrapper" class="w-10 h-10 rounded-xl bg-slate-900 border border-white/10 flex items-center justify-center text-accent-text transition-all duration-200 overflow-hidden shadow-inner">
         <span id="brandIcon" class="flex items-center justify-center">
-          <svg class="w-6 h-6 text-amber-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3L12 3z"/></svg>
+          <img src="/static/icon-192.png" alt="WhisperDnD" class="w-8 h-8 rounded-lg object-contain">
         </span>
       </div>
       <div class="min-w-0 flex-1">
@@ -195,16 +313,16 @@
 
     <!-- Segmented Workspace Switcher: [ D&D ] | [ Work & Study ] -->
     <div class="px-3 pt-3">
-      <div class="flex p-1 rounded-xl bg-slate-950/80 border border-slate-800 shadow-inner">
+      <div class="segmented-capsule flex p-1">
         <button id="switchWorkspaceDnd" onclick="setWorkspace('dnd')" type="button"
           title="Modo Fantasía Oscura & Diario Vivo de Campaña"
-          class="flex-1 min-h-[44px] px-2 py-1.5 rounded-lg text-xs font-medium transition-all duration-150 flex items-center justify-center gap-2 bg-amber-500/15 text-amber-300 border border-amber-500/30 cursor-pointer active:scale-[0.98]">
+          class="flex-1 min-h-[40px] px-2 py-1.5 rounded-lg text-xs font-semibold transition-all duration-150 flex items-center justify-center gap-2 segmented-item-active text-amber-300 cursor-pointer active:scale-[0.98]">
           <svg class="w-4 h-4 shrink-0 text-amber-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
           <span class="font-fantasy tracking-wider font-semibold">D&D</span>
         </button>
         <button id="switchWorkspaceWork" onclick="setWorkspace('work_and_study')" type="button"
           title="Modo Productividad: Conferencias, Clases y Reuniones de Trabajo"
-          class="flex-1 min-h-[44px] px-2 py-1.5 rounded-lg text-xs font-medium transition-all duration-150 flex items-center justify-center gap-2 text-slate-400 hover:text-slate-200 border border-transparent cursor-pointer active:scale-[0.98]">
+          class="flex-1 min-h-[40px] px-2 py-1.5 rounded-lg text-xs font-medium transition-all duration-150 flex items-center justify-center gap-2 text-slate-400 hover:text-slate-200 border border-transparent cursor-pointer active:scale-[0.98]">
           <svg class="w-4 h-4 shrink-0 text-sky-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="14" x="2" y="7" rx="2" ry="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>
           <span class="font-sans font-medium text-[11px] leading-tight text-center">Work & Study</span>
         </button>
@@ -252,31 +370,25 @@
         <button onclick="setActiveView('settings')" class="w-full text-left px-3 py-2 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-400 text-xs font-medium hover:bg-amber-500/20">⚠️ Configuración Requerida</button>
       </div>
 
-      <!-- Quick Buttons for Mobile & Settings -->
-      <div class="grid grid-cols-2 gap-2">
-        <button id="btnTunnelModal" onclick="openTunnelModal()" type="button"
-          title="Configuración de acceso remoto móvil y túneles (Cloudflare / localtunnel)"
-          class="min-h-[44px] inline-flex items-center justify-center gap-1.5 px-2.5 py-2 rounded-xl text-xs font-medium text-slate-400 hover:text-slate-200 hover:bg-white/5 border border-white/10 transition-colors duration-150 cursor-pointer active:scale-[0.98]">
-          <svg class="w-4 h-4 text-slate-400 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="20" x="5" y="2" rx="2" ry="2"/><path d="M12 18h.01"/></svg>
-          <span>Móvil</span>
-        </button>
-
+      <!-- Botón de Ajustes -->
+      <div>
         <button id="btnSettingsSidebar" onclick="setActiveView('settings')" type="button"
           title="Ajustes, credenciales de API y audio"
-          class="min-h-[44px] inline-flex items-center justify-center gap-1.5 px-2.5 py-2 rounded-xl text-xs font-medium text-slate-400 hover:text-amber-300 hover:bg-white/5 border border-white/10 transition-colors duration-150 cursor-pointer active:scale-[0.98]">
+          class="w-full min-h-[44px] inline-flex items-center justify-center gap-2 px-3 py-2 rounded-xl text-xs font-medium text-slate-300 hover:text-amber-300 hover:bg-white/5 border border-white/10 transition-colors duration-150 cursor-pointer active:scale-[0.98]">
           <span class="text-sm">⚙️</span>
-          <span>Ajustes</span>
+          <span>Ajustes & APIs</span>
         </button>
       </div>
+    </div>
     </div>
   </aside>
 
   <!-- Mobile Top Header (hidden on md:) -->
   <header class="md:hidden border-b border-slate-800 bg-slate-900/95 backdrop-blur px-3 py-2 flex items-center justify-between shrink-0 z-30">
     <div class="flex items-center gap-2.5 min-w-0">
-      <div id="mobileBrandIconWrapper" class="w-8 h-8 rounded-lg bg-slate-900 border border-white/10 flex items-center justify-center text-accent-text">
+      <div id="mobileBrandIconWrapper" class="w-8 h-8 rounded-lg bg-slate-900 border border-white/10 flex items-center justify-center text-accent-text overflow-hidden">
         <span id="mobileBrandIcon">
-          <svg class="w-4 h-4 text-amber-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3L12 3z"/></svg>
+          <img src="/static/icon-192.png" alt="WhisperDnD" class="w-6 h-6 rounded object-contain">
         </span>
       </div>
       <span id="mobileBrandTitle" class="text-sm font-bold text-white font-fantasy truncate">WhisperDnD</span>
@@ -370,15 +482,15 @@
               <datalist id="campaignListOptions"></datalist>
               <button type="button" id="btnMyCampaigns" onclick="toggleCampaignManagerModal(true)" 
                 title="Ver y administrar mis campañas guardadas"
-                class="min-h-[44px] inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-amber-300 hover:text-amber-200 border border-slate-700 text-xs font-semibold transition active:scale-[0.98] duration-150 cursor-pointer shrink-0">
-                <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
-                <span>Mis Campañas</span>
+                class="btn-subtle min-h-[40px] inline-flex items-center gap-2 px-3.5 py-1.5 text-xs font-semibold cursor-pointer shrink-0">
+                <svg class="w-4 h-4 text-amber-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+                <span class="text-slate-200">Mis Campañas</span>
               </button>
               <button type="button" id="btnImportCampaign" onclick="triggerImportCampaign()"
                 title="Importar campaña desde archivo ZIP o JSON"
-                class="min-h-[44px] inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-slate-100 border border-slate-700 text-xs font-semibold transition active:scale-[0.98] duration-150 cursor-pointer shrink-0">
+                class="btn-subtle min-h-[40px] inline-flex items-center gap-2 px-3.5 py-1.5 text-xs font-semibold cursor-pointer shrink-0">
                 <svg class="w-4 h-4 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-                <span>Importar</span>
+                <span class="text-slate-200">Importar</span>
               </button>
               <input type="file" id="campaignImportFileInput" accept=".zip,.json" class="hidden" onchange="handleCampaignImportFile(event)">
             </div>
@@ -387,7 +499,7 @@
               <div class="relative flex items-center gap-1.5">
                 <input type="number" id="sessionNumberInput" min="1" value="" placeholder="-" disabled
                   title="Número de sesión. En Vivo se bloquea para avance continuo; en Archivo/URL es editable para reprocesar."
-                  class="w-16 min-h-[44px] bg-slate-950 border border-slate-800 rounded-xl px-2.5 py-2 text-xs text-slate-400 text-center font-bold font-mono cursor-not-allowed outline-none select-none transition duration-150">
+                  class="w-16 min-h-[40px] bg-slate-950 border border-slate-800 rounded-xl px-2.5 py-2 text-xs text-slate-400 text-center font-bold font-mono cursor-not-allowed outline-none select-none transition duration-150">
                 <span id="sessionLockBadge" class="hidden px-2 py-0.5 rounded-full text-[10px] font-mono font-semibold bg-slate-800 text-slate-400 border border-slate-700">🔒 En Vivo</span>
               </div>
             </div>
@@ -398,7 +510,7 @@
                 Regrabar / Reemplazar
               </label>
             </div>
-            <button onclick="loadCurrentCampaign()" title="Recargar datos de la campaña" class="min-h-[44px] min-w-[44px] p-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 transition text-xs border border-slate-700 flex items-center justify-center cursor-pointer active:scale-[0.98]">
+            <button onclick="loadCurrentCampaign()" title="Recargar datos de la campaña" class="btn-subtle min-h-[40px] min-w-[40px] p-2 text-slate-300 flex items-center justify-center cursor-pointer">
               <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 21h5v-5"/></svg>
             </button>
             <span id="campaignDriveSyncIndicator" class="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium bg-slate-950 border border-slate-800 text-slate-500 transition-colors select-none" title="Estado de persistencia con Google Drive">
@@ -447,17 +559,17 @@
               <span>ROSTER DE LA MESA & VINCULACIÓN DISCORD</span>
             </h3>
             <div class="flex flex-wrap items-center gap-2">
-              <button type="button" onclick="refreshDiscordParticipants(true)" id="btn-refresh-discord" title="Escanear participantes activos en canal de voz de Discord" class="min-h-[36px] px-3 py-1.5 rounded-xl bg-sky-500/15 hover:bg-sky-500/25 active:scale-[0.98] text-sky-300 text-xs font-semibold border border-sky-500/30 transition duration-150 flex items-center gap-1.5 cursor-pointer shadow-sm">
-                <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 18v-6a9 9 0 0 1 18 0v6"/><path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"/></svg>
-                <span>Refrescar Discord</span>
+              <button type="button" onclick="refreshDiscordParticipants(true)" id="btn-refresh-discord" title="Escanear participantes activos en canal de voz de Discord" class="btn-subtle min-h-[36px] px-3 py-1.5 text-xs font-medium flex items-center gap-1.5 cursor-pointer">
+                <svg class="w-3.5 h-3.5 text-sky-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 18v-6a9 9 0 0 1 18 0v6"/><path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"/></svg>
+                <span class="text-slate-300">Refrescar Discord</span>
               </button>
-              <button type="button" onclick="addRosterRow()" class="min-h-[36px] px-3 py-1.5 rounded-xl bg-indigo-500/15 hover:bg-indigo-500/25 active:scale-[0.98] text-indigo-300 text-xs font-semibold border border-indigo-500/30 transition duration-150 flex items-center gap-1.5 cursor-pointer shadow-sm">
-                <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" x2="12" y1="5" y2="19"/><line x1="5" x2="19" y1="12" y2="12"/></svg>
-                <span>[ + Agregar Jugador ]</span>
+              <button type="button" onclick="addRosterRow()" class="btn-subtle min-h-[36px] px-3 py-1.5 text-xs font-medium flex items-center gap-1.5 cursor-pointer">
+                <svg class="w-3.5 h-3.5 text-amber-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" x2="12" y1="5" y2="19"/><line x1="5" x2="19" y1="12" y2="12"/></svg>
+                <span class="text-slate-300">+ Agregar Jugador</span>
               </button>
-              <button type="button" onclick="manualSaveRoster()" class="min-h-[36px] px-3.5 py-1.5 rounded-xl bg-emerald-500/15 hover:bg-emerald-500/25 active:scale-[0.98] text-emerald-300 text-xs font-semibold border border-emerald-500/30 transition duration-150 flex items-center gap-1.5 cursor-pointer shadow-sm">
-                <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
-                <span>Guardar Grupo</span>
+              <button type="button" onclick="manualSaveRoster()" class="btn-subtle min-h-[36px] px-3.5 py-1.5 text-xs font-semibold flex items-center gap-1.5 cursor-pointer border-emerald-500/30 hover:border-emerald-500/50">
+                <svg class="w-3.5 h-3.5 text-emerald-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+                <span class="text-emerald-300">Guardar Grupo</span>
               </button>
               <span id="saveStatusBadge" class="hidden text-emerald-400 text-xs font-semibold animate-pulse">✓ Guardado</span>
             </div>
@@ -482,7 +594,7 @@
                         </span>
                       </div>
                     </th>
-                    <th class="py-3 px-2 w-[8%] text-center" title="Ausencia temporal en esta sesión o eliminar">Acción</th>
+                    <th class="py-3 px-2 w-[8%] text-center" title="Estado de asistencia en la sesión (Presente / Ausente)">Estado</th>
                   </tr>
                 </thead>
                 <tbody id="rosterTableBody" class="divide-y divide-slate-900/80 text-slate-200">
@@ -492,35 +604,60 @@
             </div>
 
             <datalist id="species-options">
+              <!-- === 1. ESPECIES CORE D&D 2024 (5.5e) & PHB 2014 === -->
+              <option value="Humano (Human)"></option>
               <option value="Humano"></option>
+              <option value="Elfo (Elf)"></option>
               <option value="Elfo"></option>
+              <option value="Alto Elfo (High Elf)"></option>
+              <option value="Elfo de los Bosques (Wood Elf)"></option>
+              <option value="Drow (Elfo Oscuro / Dark Elf)"></option>
               <option value="Enano (Dwarf)"></option>
+              <option value="Enano de las Colinas (Hill Dwarf)"></option>
+              <option value="Enano de la Montaña (Mountain Dwarf)"></option>
               <option value="Mediano (Halfling)"></option>
-              <option value="Gnomo"></option>
+              <option value="Mediano Piesligeros (Lightfoot Halfling)"></option>
+              <option value="Mediano Fornido (Stout Halfling)"></option>
+              <option value="Gnomo (Gnome)"></option>
+              <option value="Gnomo de los Bosques (Forest Gnome)"></option>
+              <option value="Gnomo de las Rocas (Rock Gnome)"></option>
               <option value="Dracónido (Dragonborn)"></option>
+              <option value="Dracónido Cromático"></option>
+              <option value="Dracónido Metálico"></option>
+              <option value="Dracónido Gemario"></option>
               <option value="Tiefling"></option>
-              <option value="Orco"></option>
-              <option value="Goliat (5.5e)"></option>
-              <option value="Aasimar (5.5e)"></option>
-              <option value="Semielfo (5e)"></option>
-              <option value="Semiorco (5e)"></option>
+              <option value="Tiefling Infernal"></option>
+              <option value="Tiefling Abisal"></option>
+              <option value="Tiefling Ctónico"></option>
+              <option value="Orco (Orc)"></option>
+              <option value="Goliat (Goliath)"></option>
+              <option value="Aasimar"></option>
+              <option value="Semielfo (Half-Elf)"></option>
+              <option value="Semiorco (Half-Orc)"></option>
+
+              <!-- === 2. MONSTERS OF THE MULTIVERSE (MotM) & EXPANSIÓN 5e === -->
               <option value="Aarakocra"></option>
               <option value="Autognomo (Autognome)"></option>
               <option value="Bugbear"></option>
               <option value="Centauro (Centaur)"></option>
               <option value="Changeling (Cambiante)"></option>
-              <option value="Duérgar"></option>
+              <option value="Duérgar (Enano Gris)"></option>
+              <option value="Eladrin"></option>
               <option value="Elfo Marino (Sea Elf)"></option>
+              <option value="Fairy (Pixie / Hada)"></option>
               <option value="Firbolg"></option>
-              <option value="Forjado (Warforged)"></option>
-              <option value="Genasi (Aire / Fuego / Agua / Tierra)"></option>
+              <option value="Genasi de Aire (Air Genasi)"></option>
+              <option value="Genasi de Fuego (Fire Genasi)"></option>
+              <option value="Genasi de Agua (Water Genasi)"></option>
+              <option value="Genasi de Tierra (Earth Genasi)"></option>
               <option value="Giff"></option>
               <option value="Githyanki"></option>
               <option value="Githzerai"></option>
-              <option value="Glith"></option>
+              <option value="Glitchling"></option>
               <option value="Gnoll"></option>
               <option value="Goblin"></option>
-              <option value="Grummgar / Grung"></option>
+              <option value="Grung (Grummgar)"></option>
+              <option value="Hadozee"></option>
               <option value="Harengon (Hombre Liebre)"></option>
               <option value="Hobgoblin"></option>
               <option value="Kalashtar"></option>
@@ -531,14 +668,42 @@
               <option value="Lizardfolk (Hombre Lagarto)"></option>
               <option value="Loxodon"></option>
               <option value="Minotauro (Minotaur)"></option>
-              <option value="Satir (Sátiro)"></option>
-              <option value="Shifter (Cambiante)"></option>
+              <option value="Owlin (Hombre Búho)"></option>
+              <option value="Plasmoid (Plasmoide)"></option>
+              <option value="Sátiro (Satyr)"></option>
+              <option value="Shadar-kai (Elfo Sombrío)"></option>
+              <option value="Shifter (Cambiante Bestial)"></option>
+              <option value="Simic Hybrid (Híbrido Simic)"></option>
+              <option value="Svirfneblin (Gnomo Profundo)"></option>
               <option value="Tabaxi"></option>
               <option value="Thri-kreen"></option>
               <option value="Tortle (Hombre Tortuga)"></option>
               <option value="Tritón (Triton)"></option>
+              <option value="Vedalken"></option>
               <option value="Verdan"></option>
-              <option value="Yuan-ti"></option>
+              <option value="Yuan-ti (Purasangre)"></option>
+
+              <!-- === 3. LINAJES DE RAVENLOFT, EBERRON & SPELLJAMMER === -->
+              <option value="Dhampir (Semivampiro)"></option>
+              <option value="Hexblood (Sangre de Bruja)"></option>
+              <option value="Reborn (Renacido)"></option>
+              <option value="Forjado (Warforged)"></option>
+              <option value="Astral Elf (Elfo Astral)"></option>
+
+              <!-- === 4. CRITICAL ROLE / EXANDRIA & CAMPAÑAS ESPECIALES === -->
+              <option value="Sentient Mask"></option>
+              <option value="Demon (Demonio)"></option>
+              <option value="Nama (Lionfolk)"></option>
+              <option value="Human (Hollow One)"></option>
+              <option value="Elf (Drow)"></option>
+              <option value="Pallid Elf (Elfo Pálido)"></option>
+              <option value="Lotusden Halfling"></option>
+              <option value="Ravenite Dragonborn"></option>
+
+              <!-- === 5. PERSONALIZADAS & HOMEBREW === -->
+              <option value="Linaje Personalizado (Custom Lineage)"></option>
+              <option value="Mestizo / Multirracial"></option>
+              <option value="Otro / Personalizado"></option>
             </datalist>
 
             <datalist id="class-options">
@@ -678,31 +843,10 @@
             <!-- Selector de Fuente de Captura: PC Host vs Móvil/Navegador -->
             <div class="flex flex-wrap items-center justify-between gap-2 p-2.5 rounded-lg bg-slate-950/60 border border-white/5">
               <div class="flex items-center gap-2">
-                <span class="text-xs font-medium text-slate-300">Fuente de Audio:</span>
-                <span id="badgeCurrentSource" class="px-2 py-0.5 rounded text-[10px] font-mono bg-slate-800 text-slate-300 border border-white/5">PC Host (Dual)</span>
+                <span class="w-2 h-2 rounded-full bg-emerald-400"></span>
+                <span class="text-xs font-medium text-slate-300">Captura Estéreo PC:</span>
+                <span class="px-2 py-0.5 rounded text-[10px] font-mono bg-slate-800 text-emerald-300 border border-emerald-500/20">Canal 1 (Mic) + Canal 2 (Discord / Audio)</span>
               </div>
-              <div class="inline-flex p-0.5 rounded-lg bg-slate-950 border border-white/10">
-                <button type="button" id="btnSourcePcHost" onclick="setAudioSourceMode('pc_host')"
-                  title="Captura dual del servidor: Micrófono local + audio loopback de Discord"
-                  class="px-3 py-1.5 rounded-md text-xs font-medium flex items-center gap-1.5 transition-all bg-slate-800 text-white shadow-sm cursor-pointer">
-                  <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="14" x="2" y="3" rx="2"/><line x1="8" x2="16" y1="21" y2="21"/><line x1="12" x2="12" y1="17" y2="21"/></svg>
-                  <span>💻 PC Host</span>
-                </button>
-                <button type="button" id="btnSourceBrowserMic" onclick="setAudioSourceMode('browser_mic')"
-                  title="Captura directa desde el micrófono de tu teléfono o navegador web"
-                  class="px-3 py-1.5 rounded-md text-xs font-medium flex items-center gap-1.5 transition-all text-slate-400 hover:text-slate-200 cursor-pointer">
-                  <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="20" x="5" y="2" rx="2" ry="2"/><path d="M12 18h.01"/></svg>
-                  <span>📱 Móvil / Navegador</span>
-                </button>
-              </div>
-            </div>
-
-            <!-- Banner Informativo de Micrófono del Dispositivo Móvil -->
-            <div id="browserMicNotice" class="hidden bg-slate-900 border border-sky-500/20 rounded-lg p-3 text-xs text-sky-300 space-y-1">
-              <strong class="font-medium text-sky-200">Modo Micrófono de Móvil Activo:</strong>
-              <p class="text-slate-400 leading-relaxed text-[11px]">
-                El audio se registrará directamente con el micrófono de este dispositivo mediante la API <code class="font-mono text-slate-300">MediaRecorder</code>. El archivo se enviará al servidor para transcripción profunda al finalizar la grabación.
-              </p>
             </div>
 
             <!-- Dropdowns de Dispositivos (PC Host) -->
@@ -817,7 +961,7 @@
                 <span>Nivel Discord:</span>
                 <span id="gainSpkDisplay" class="font-mono text-amber-300 font-medium">2.0x (+6 dB)</span>
               </div>
-              <input type="range" id="sliderGainSpk" min="0.5" max="5.0" step="0.1" value="2.0"
+              <input type="range" id="sliderGainSpk" min="0.5" max="8.0" step="0.1" value="2.0"
                 oninput="onGainSliderChange('speaker', this.value)"
                 class="w-32 sm:w-44 accent-amber-500 bg-slate-800 h-1.5 rounded-lg cursor-pointer"
                 title="Amplifica la llamada de Discord para nivelarla con tu micrófono">
@@ -846,17 +990,17 @@
 
           <!-- Botones de Control de Sesión -->
           <div class="flex flex-wrap items-center justify-center gap-3 pt-1">
-            <!-- Iniciar Grabación -->
+            <!-- Iniciar Grabación (Diseño Hardware Audio Pro) -->
             <button id="btnStartRecording" onclick="startSessionRecording()" type="button"
-              class="min-h-[44px] px-6 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-amber-300 border border-amber-500/40 hover:border-amber-400 shadow-sm active:scale-[0.98] transition-all duration-150 font-medium text-sm cursor-pointer flex items-center gap-2.5">
-              <span id="recordDotIndicator" class="w-2.5 h-2.5 rounded-full bg-amber-400"></span>
+              class="btn-record-main min-h-[46px] px-7 py-2.5 flex items-center gap-3 cursor-pointer">
+              <span id="recordDotIndicator" class="w-2.5 h-2.5 rounded-full bg-amber-400 shadow-sm shadow-amber-400/50"></span>
               <span id="btnStartRecordingText">Iniciar Grabación</span>
             </button>
 
-            <!-- Detener y Procesar -->
+            <!-- Detener y Procesar (Acción Resolutiva) -->
             <button id="btnStopRecording" onclick="stopSessionAndProcess()" disabled type="button"
-              class="min-h-[44px] px-6 py-2.5 rounded-xl border border-white/15 bg-transparent hover:bg-white/5 active:scale-[0.98] text-slate-300 hover:text-white font-medium text-sm transition-all duration-150 flex items-center gap-2 disabled:opacity-25 disabled:pointer-events-none cursor-pointer">
-              <svg class="w-3.5 h-3.5 fill-current shrink-0 text-slate-400" viewBox="0 0 24 24"><rect width="14" height="14" x="5" y="5" rx="1.5"/></svg>
+              class="btn-stop-main min-h-[46px] px-6 py-2.5 flex items-center gap-2.5">
+              <svg class="w-3.5 h-3.5 fill-current shrink-0" viewBox="0 0 24 24"><rect width="14" height="14" x="5" y="5" rx="2"/></svg>
               <span id="btnStopRecordingText">Detener y Procesar</span>
             </button>
           </div>
@@ -929,7 +1073,7 @@
       </div>
 
     <div id="processingCard" class="hidden bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-2xl space-y-6">
-      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-800/80 pb-3">
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800/80 pb-3">
         <div class="space-y-1 text-left">
           <h3 id="procStepTitle" class="text-base font-bold text-slate-100 flex items-center gap-2">
             <span class="inline-block w-2.5 h-2.5 rounded-full bg-amber-400 animate-ping"></span>
@@ -937,17 +1081,23 @@
           </h3>
           <p id="procStepDesc" class="text-xs text-slate-400">Iniciando tareas del pipeline...</p>
         </div>
-        <div class="text-right">
-          <span id="progressBarPercent" class="text-2xl font-black font-mono tracking-tight text-white">
-            0%
-          </span>
+        <div class="flex items-center gap-4">
+          <button id="btnCancelProcess" onclick="cancelCurrentTask()" type="button" class="min-h-[36px] px-3.5 py-1.5 rounded-xl bg-rose-950/70 hover:bg-rose-900 active:scale-[0.98] border border-rose-800/80 text-rose-300 hover:text-white text-xs font-semibold transition duration-150 flex items-center gap-1.5 cursor-pointer shadow-sm shadow-rose-950/50" title="Detener el proceso actual">
+            <svg class="w-3.5 h-3.5 text-rose-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+            <span id="btnCancelProcessText">Detener Proceso</span>
+          </button>
+          <div class="text-right">
+            <span id="progressBarPercent" class="text-2xl font-black font-mono tracking-tight text-white tabular-nums select-none">
+              0.0%
+            </span>
+          </div>
         </div>
       </div>
 
       <!-- Barra de Progreso Granular -->
       <div class="space-y-2">
         <div class="w-full bg-slate-950 border border-slate-800 rounded-full h-3.5 p-0.5 overflow-hidden shadow-inner">
-          <div id="progressBarFill" class="bg-amber-500 h-full rounded-full" style="width: 0%; transition: width 300ms cubic-bezier(0.4, 0, 0.2, 1);"></div>
+          <div id="progressBarFill" class="bg-amber-500 h-full rounded-full transition-all duration-75 ease-out" style="width: 0.0%;"></div>
         </div>
       </div>
 
@@ -1076,9 +1226,7 @@
           <span class="px-3 py-1 rounded-full text-xs font-semibold bg-amber-500/10 text-amber-300 border border-amber-500/20">
             <span id="resCampaignLabel">Campaña</span>: <strong id="resCampaignName" class="text-white">--</strong>
           </span>
-          <span class="px-3 py-1 rounded-full text-xs font-semibold bg-orange-500/10 text-orange-300 border border-orange-500/20">
-            Motor: <strong id="resEngineUsed" class="text-white">--</strong>
-          </span>
+          <span id="resEngineUsed" class="hidden"></span>
           <span class="px-3 py-1 rounded-full text-xs font-semibold bg-indigo-500/10 text-indigo-300 border border-indigo-500/20">
             Idioma: <strong id="resLanguage" class="text-white">--</strong>
           </span>
@@ -1090,31 +1238,31 @@
           </span>
         </div>
 
-        <!-- Botones de Acción / Descarga -->
+        <!-- Botones de Acción / Descarga (Estilo Linear / Apple) -->
         <div class="flex flex-wrap items-center gap-2">
-          <button id="btnDownloadDocx" onclick="downloadCampaignDocx()" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 active:scale-[0.98] duration-150 text-slate-200 hover:text-white text-xs font-medium border border-white/10 transition flex items-center gap-1.5 cursor-pointer">
+          <button id="btnDownloadDocx" onclick="downloadCampaignDocx()" class="btn-subtle min-h-[36px] px-3.5 py-1.5 text-slate-200 hover:text-white text-xs font-medium flex items-center gap-1.5 cursor-pointer">
             <span id="btnDownloadDocxIcon">📄</span> <span id="btnDownloadDocxText">Grimorio .docx</span>
           </button>
-          <button id="btnDownloadMd" onclick="downloadCampaignMd()" class="hidden px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 active:scale-[0.98] duration-150 text-slate-200 hover:text-white text-xs font-medium border border-white/10 transition flex items-center gap-1.5 cursor-pointer">
+          <button id="btnDownloadMd" onclick="downloadCampaignMd()" class="hidden btn-subtle min-h-[36px] px-3.5 py-1.5 text-slate-200 hover:text-white text-xs font-medium flex items-center gap-1.5 cursor-pointer">
             <span id="btnDownloadMdIcon">📑</span> <span id="btnDownloadMdText">Grimorio .md</span>
           </button>
-          <button id="btnDownloadTxt" onclick="downloadTranscriptTxt()" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 active:scale-[0.98] duration-150 text-slate-200 hover:text-white text-xs font-medium border border-white/10 transition flex items-center gap-1.5 cursor-pointer" title="Descargar transcripción completa en formato .txt">
+          <button id="btnDownloadTxt" onclick="downloadTranscriptTxt()" class="btn-subtle min-h-[36px] px-3.5 py-1.5 text-slate-200 hover:text-white text-xs font-medium flex items-center gap-1.5 cursor-pointer" title="Descargar transcripción completa en formato .txt">
             <span>⬇️</span> <span id="btnDownloadTxtText">Transcripción (.txt)</span>
           </button>
-          <button id="btnDownloadAudio" onclick="downloadAudioFile()" class="hidden px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 active:scale-[0.98] duration-150 text-slate-200 hover:text-white text-xs font-medium border border-white/10 transition flex items-center gap-1.5 cursor-pointer" title="Descargar archivo de audio original (.wav)">
+          <button id="btnDownloadAudio" onclick="downloadAudioFile()" class="hidden btn-subtle min-h-[36px] px-3.5 py-1.5 text-slate-200 hover:text-white text-xs font-medium flex items-center gap-1.5 cursor-pointer" title="Descargar archivo de audio original (.wav)">
             <span>⬇️</span> <span id="btnDownloadAudioText">Descargar Audio</span>
           </button>
-          <button onclick="copyCurrentContent()" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 active:scale-[0.98] duration-150 text-slate-200 text-xs font-medium border border-slate-700 transition flex items-center gap-1.5 cursor-pointer">
+          <button onclick="copyCurrentContent()" class="btn-subtle min-h-[36px] px-3.5 py-1.5 text-slate-200 hover:text-white text-xs font-medium flex items-center gap-1.5 cursor-pointer">
             <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg> <span id="copyBtnText">Copiar</span>
           </button>
-          <button id="btnReprocessCampaign" onclick="reprocessCampaignChronicle()" class="px-3.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 active:scale-[0.98] duration-150 text-slate-200 hover:text-white text-xs font-semibold border border-slate-700 hover:border-amber-500/50 transition flex items-center gap-1.5 shadow-sm cursor-pointer" title="Volver a generar la crónica profunda por actos y escenas en español con Gemini usando la transcripción en memoria">
-            <span id="btnReprocessCampaignIcon">🔄</span> <span id="btnReprocessCampaignText">Regenerar con Crónica Profunda (Español)</span>
+          <button id="btnReprocessCampaign" onclick="reprocessCampaignChronicle()" class="btn-subtle min-h-[36px] px-3.5 py-1.5 text-slate-200 hover:text-amber-300 border-amber-500/20 hover:border-amber-500/40 text-xs font-semibold flex items-center gap-1.5 cursor-pointer" title="Volver a generar la crónica profunda por actos y escenas en español con Gemini usando la transcripción en memoria">
+            <span id="btnReprocessCampaignIcon">🔄</span> <span id="btnReprocessCampaignText">Regenerar con Crónica Profunda</span>
           </button>
-          <button id="btnSwitchLanguage" onclick="switchSummaryLanguage()" class="px-3.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 active:scale-[0.98] duration-150 text-slate-200 hover:text-white text-xs font-semibold border border-slate-700 hover:border-indigo-500/50 transition flex items-center gap-1.5 shadow-sm cursor-pointer" title="Cambiar idioma del resumen entre Español e Inglés">
-            <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="2" x2="22" y1="12" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg> <span id="btnSwitchLanguageText">Cambiar idioma (EN / ES)</span>
+          <button id="btnSwitchLanguage" onclick="switchSummaryLanguage()" class="btn-subtle min-h-[36px] px-3.5 py-1.5 text-slate-200 hover:text-sky-300 border-sky-500/20 hover:border-sky-500/40 text-xs font-semibold flex items-center gap-1.5 cursor-pointer" title="Traducir y cambiar idioma de las notas/crónica (Español / Inglés)">
+            <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="2" x2="22" y1="12" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg> <span id="btnSwitchLanguageText">Traducir a Inglés (EN)</span>
           </button>
-          <button id="btnDeleteOriginalAudio" onclick="deleteOriginalAudio()" class="hidden px-3.5 py-1.5 rounded-lg bg-rose-950/60 hover:bg-rose-900/80 active:scale-[0.98] duration-150 text-rose-300 hover:text-rose-100 text-xs font-semibold border border-rose-800/80 transition flex items-center gap-1.5 cursor-pointer" title="Eliminar el archivo de audio original grabado en disco">
-            <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg> <span id="btnDeleteOriginalAudioText">Eliminar audio original</span>
+          <button id="btnDeleteOriginalAudio" onclick="deleteOriginalAudio()" class="hidden btn-subtle min-h-[36px] px-3.5 py-1.5 text-rose-300 hover:text-rose-100 border-rose-800/40 hover:border-rose-700 text-xs font-semibold flex items-center gap-1.5 cursor-pointer" title="Eliminar el archivo de audio original grabado en disco">
+            <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg> <span id="btnDeleteOriginalAudioText">Eliminar audio</span>
           </button>
         </div>
       </div>
@@ -1593,7 +1741,30 @@
                 <h4 id="noteViewTitle" class="text-base font-bold text-white font-sans"></h4>
                 <p id="noteViewMeta" class="text-xs text-slate-400 font-mono mt-0.5"></p>
               </div>
-              <div class="flex items-center gap-2">
+              <div class="flex flex-wrap items-center gap-2">
+                <!-- Selector de sub-vistas del apunte -->
+                <div class="flex items-center p-0.5 bg-slate-900/90 rounded-xl border border-slate-800 text-xs shadow-inner">
+                  <button type="button" id="tabNoteViewFull" onclick="switchNoteDetailTab('full')"
+                    class="min-h-[36px] px-3 py-1.5 rounded-lg font-medium transition-all flex items-center gap-1.5 bg-sky-600/30 text-sky-200 border border-sky-500/40 shadow-sm cursor-pointer"
+                    title="Ver apunte académico completo">
+                    <span>📄</span>
+                    <span>Apunte</span>
+                  </button>
+                  <button type="button" id="tabNoteViewKeyPoints" onclick="switchNoteDetailTab('keypoints')"
+                    class="min-h-[36px] px-3 py-1.5 rounded-lg font-medium transition-all flex items-center gap-1.5 text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 border border-transparent cursor-pointer"
+                    title="Ver glosario conceptual y conclusiones clave">
+                    <span>⭐</span>
+                    <span>Puntos Clave & Glosario</span>
+                  </button>
+                  <button type="button" id="tabNoteViewTasks" onclick="switchNoteDetailTab('tasks')"
+                    class="min-h-[36px] px-3 py-1.5 rounded-lg font-medium transition-all flex items-center gap-1.5 text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 border border-transparent cursor-pointer"
+                    title="Ver lista de tareas y compromisos detectados">
+                    <span>✅</span>
+                    <span>Tareas</span>
+                    <span id="badgeNoteTasksCount" class="hidden px-1.5 py-0.2 rounded-full text-[10px] font-mono font-bold bg-sky-500/20 text-sky-300 border border-sky-500/30">0</span>
+                  </button>
+                </div>
+
                 <button type="button" id="btnCopyNoteContent" onclick="copyCurrentNoteContent()"
                   class="min-h-[44px] px-3.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 active:scale-[0.98] text-slate-200 border border-slate-700 text-xs font-semibold shadow-sm transition flex items-center gap-1.5 cursor-pointer">
                   <svg class="w-3.5 h-3.5 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>
@@ -1805,8 +1976,8 @@
       </div>
     </section>
 
-    <div id="campaignManagerModal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 opacity-0 transition-opacity duration-150 ease-out" onclick="if(event.target === this) toggleCampaignManagerModal(false)">
-      <div id="campaignManagerModalBox" class="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-lg overflow-hidden shadow-2xl space-y-4 p-5 flex flex-col max-h-[85vh] transform scale-95 transition-transform duration-150 ease-out origin-center">
+    <div id="campaignManagerModal" class="hidden fixed inset-0 z-50 items-center justify-center bg-black/80 backdrop-blur-sm p-4 opacity-0 pointer-events-none transition-opacity duration-150 ease-out" onclick="if(event.target === this) toggleCampaignManagerModal(false)">
+      <div id="campaignManagerModalBox" class="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-lg overflow-hidden shadow-2xl space-y-4 p-5 flex flex-col max-h-[85vh] transform scale-95 transition-transform duration-150 ease-out origin-center pointer-events-auto">
         <!-- Header -->
         <div class="flex items-center justify-between border-b border-slate-800 pb-3">
           <div class="flex items-center gap-2">
@@ -1843,8 +2014,8 @@
     </div>
 
     <!-- Modal: Fusionar Personaje (Wiki) -->
-    <div id="mergeEntityModal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 opacity-0 transition-opacity duration-150 ease-out" onclick="if(event.target === this) toggleMergeEntityModal(false)">
-      <div id="mergeEntityModalBox" class="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-md overflow-hidden shadow-2xl space-y-4 p-5 flex flex-col max-h-[85vh] transform scale-95 transition-transform duration-150 ease-out origin-center">
+    <div id="mergeEntityModal" class="hidden fixed inset-0 z-50 items-center justify-center bg-black/80 backdrop-blur-sm p-4 opacity-0 pointer-events-none transition-opacity duration-150 ease-out" onclick="if(event.target === this) toggleMergeEntityModal(false)">
+      <div id="mergeEntityModalBox" class="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-md overflow-hidden shadow-2xl space-y-4 p-5 flex flex-col max-h-[85vh] transform scale-95 transition-transform duration-150 ease-out origin-center pointer-events-auto">
         <!-- Header -->
         <div class="flex items-center justify-between border-b border-slate-800 pb-3">
           <div class="flex items-center gap-2">
@@ -1883,8 +2054,8 @@
     </div>
 
 
-    <div id="tunnelModal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4 opacity-0 transition-opacity duration-150 ease-out" onclick="if(event.target === this) closeTunnelModal()">
-      <div id="tunnelModalBox" class="bg-slate-900 border border-slate-700/80 rounded-2xl w-full max-w-xl overflow-hidden shadow-2xl space-y-4 p-6 flex flex-col max-h-[90vh] transform scale-95 transition-transform duration-150 ease-out origin-center">
+    <div id="tunnelModal" class="hidden fixed inset-0 z-50 items-center justify-center bg-black/80 backdrop-blur-md p-4 opacity-0 pointer-events-none transition-opacity duration-150 ease-out" onclick="if(event.target === this) closeTunnelModal()">
+      <div id="tunnelModalBox" class="bg-slate-900 border border-slate-700/80 rounded-2xl w-full max-w-xl overflow-hidden shadow-2xl space-y-4 p-6 flex flex-col max-h-[90vh] transform scale-95 transition-transform duration-150 ease-out origin-center pointer-events-auto">
         <!-- Header -->
         <div class="flex items-center justify-between border-b border-slate-800 pb-3">
           <div class="flex items-center gap-3">
@@ -2027,8 +2198,8 @@
 
 
 
-    <div id="backupFallbackModal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4 opacity-0 transition-opacity duration-150 ease-out" role="dialog" aria-modal="true" aria-labelledby="backupModalTitle">
-      <div id="backupFallbackModalBox" class="bg-slate-900 border border-amber-500/40 rounded-2xl w-full max-w-lg overflow-hidden shadow-2xl space-y-4 p-5 sm:p-6 flex flex-col max-h-[90vh] transform scale-95 transition-transform duration-150 ease-out origin-center">
+    <div id="backupFallbackModal" class="hidden fixed inset-0 z-50 items-center justify-center bg-black/80 backdrop-blur-md p-4 opacity-0 pointer-events-none transition-opacity duration-150 ease-out" role="dialog" aria-modal="true" aria-labelledby="backupModalTitle" onclick="if(event.target === this) closeBackupFallbackModal()">
+      <div id="backupFallbackModalBox" class="bg-slate-900 border border-amber-500/40 rounded-2xl w-full max-w-lg overflow-hidden shadow-2xl space-y-4 p-5 sm:p-6 flex flex-col max-h-[90vh] transform scale-95 transition-transform duration-150 ease-out origin-center pointer-events-auto">
         <!-- Header -->
         <div class="flex items-start gap-3.5 border-b border-slate-800 pb-3">
           <div class="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400 shrink-0 mt-0.5">
@@ -2097,9 +2268,68 @@
       </div>
     </div>
 
+    <!-- Modal: Agregar Término al Glosario (Work & Study) -->
+    <div id="modalAddGlossaryTerm" class="hidden fixed inset-0 z-50 items-center justify-center bg-black/80 backdrop-blur-md p-4 opacity-0 pointer-events-none transition-opacity duration-150 ease-out" role="dialog" aria-modal="true" aria-labelledby="modalGlossaryTitle" onclick="if(event.target === this) closeAddGlossaryModal()">
+      <div id="modalAddGlossaryTermBox" class="bg-slate-900 border border-sky-500/40 rounded-2xl w-full max-w-md overflow-hidden shadow-2xl space-y-4 p-5 sm:p-6 flex flex-col pointer-events-auto transform scale-95 transition-transform duration-150 ease-out origin-center">
+        <!-- Header -->
+        <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+          <div class="flex items-center gap-2.5">
+            <span class="text-xl">📖</span>
+            <h3 id="modalGlossaryTitle" class="text-sm sm:text-base font-bold text-white tracking-tight">Agregar al Glosario / Técnicas</h3>
+          </div>
+          <button type="button" onclick="closeAddGlossaryModal()" class="text-slate-400 hover:text-white transition p-1 cursor-pointer">
+            <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+          </button>
+        </div>
+
+        <!-- Form fields -->
+        <div class="space-y-3 text-xs">
+          <div>
+            <label class="block text-slate-300 font-medium mb-1">Palabra o Concepto:</label>
+            <input type="text" id="inputGlossaryTerm" placeholder="Ej. Glándula apócrina, Lumen, 40x..."
+              class="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-700 text-slate-100 placeholder-slate-500 focus:border-sky-500 focus:outline-none">
+          </div>
+          <div>
+            <label class="block text-slate-300 font-medium mb-1">Tipo de Entrada:</label>
+            <select id="selectGlossaryType" class="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-700 text-slate-100 focus:border-sky-500 focus:outline-none">
+              <option value="concept">📖 Glosario Conceptual (Definición)</option>
+              <option value="technique">🛠️ Técnica, Método o Procedimiento</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-slate-300 font-medium mb-1">Definición o Explicación (cuándo y cómo se usa):</label>
+            <textarea id="inputGlossaryDefinition" rows="3" placeholder="Explica qué significa o cuándo y cómo se aplica..."
+              class="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-700 text-slate-100 placeholder-slate-500 focus:border-sky-500 focus:outline-none resize-none"></textarea>
+          </div>
+        </div>
+
+        <!-- Action Buttons -->
+        <div class="flex items-center justify-end gap-2 pt-2 border-t border-slate-800">
+          <button type="button" onclick="closeAddGlossaryModal()" class="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium transition cursor-pointer">
+            Cancelar
+          </button>
+          <button type="button" onclick="saveNewGlossaryTerm()" class="px-4 py-2 rounded-xl bg-sky-600 hover:bg-sky-500 text-white text-xs font-semibold shadow-md shadow-sky-900/30 transition flex items-center gap-1.5 cursor-pointer">
+            <span>💾</span> <span>Guardar en Glosario</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
   </main>
 
-  <script>
+  <!-- Modularized Application Scripts -->
+  <script src="/static/js/utils.js?v=20261011_1"></script>
+  <script src="/static/js/api.js?v=20261011_1"></script>
+  <script src="/static/js/progress.js?v=20261011_1"></script>
+  <script src="/static/js/audio.js?v=20261011_1"></script>
+  <script src="/static/js/drive.js?v=20261011_1"></script>
+  <script src="/static/js/roster.js?v=20261011_1"></script>
+  <script src="/static/js/wiki.js?v=20261011_1"></script>
+  <script src="/static/js/notes.js?v=20261011_1"></script>
+  <script src="/static/js/app.js?v=20261011_1"></script>
+
+  <!-- Legacy Code Purge Area -->
+  <script type="text/plain" id="legacy-disabled-script">
 function refreshAudioDevices() {
       loadAudioDevices(true);
     }
@@ -2595,7 +2825,11 @@ function refreshAudioDevices() {
         if (workContainer) workContainer.classList.add("hidden");
 
         if (brandIcon) {
-          brandIcon.innerHTML = `<svg class="w-6 h-6 text-amber-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3L12 3z"/></svg>`;
+          brandIcon.innerHTML = `<img src="/static/icon-192.png" alt="WhisperDnD" class="w-8 h-8 rounded-lg object-contain">`;
+        }
+        const mobileBrandIconDnd = document.getElementById("mobileBrandIcon");
+        if (mobileBrandIconDnd) {
+          mobileBrandIconDnd.innerHTML = `<img src="/static/icon-192.png" alt="WhisperDnD" class="w-6 h-6 rounded object-contain">`;
         }
         if (brandTitle) {
           brandTitle.textContent = "WhisperDnD";
@@ -2638,6 +2872,10 @@ function refreshAudioDevices() {
         if (brandIcon) {
           brandIcon.innerHTML = `<svg class="w-6 h-6 text-sky-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="14" x="2" y="7" rx="2" ry="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>`;
         }
+        const mobileBrandIconWork = document.getElementById("mobileBrandIcon");
+        if (mobileBrandIconWork) {
+          mobileBrandIconWork.innerHTML = `<svg class="w-4 h-4 text-sky-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="14" x="2" y="7" rx="2" ry="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>`;
+        }
         if (brandTitle) {
           brandTitle.textContent = "Work & Study";
           brandTitle.className = "text-base font-bold tracking-tight text-white font-sans transition-all duration-200 truncate";
@@ -2676,7 +2914,7 @@ function refreshAudioDevices() {
       } else {
         if (btnDownloadDocxText) btnDownloadDocxText.textContent = "Apuntes .docx";
         if (btnDownloadMd) btnDownloadMd.classList.add("hidden");
-        if (btnSwitchLanguage) btnSwitchLanguage.classList.add("hidden");
+        if (btnSwitchLanguage) btnSwitchLanguage.classList.remove("hidden");
         if (btnReprocessCampaignText) btnReprocessCampaignText.textContent = "Regenerar Apuntes (Gemini)";
         if (typeof renderAcademicTasks === "function") {
           if (currentAcademicTasks && currentAcademicTasks.length > 0) {
@@ -2880,6 +3118,9 @@ function refreshAudioDevices() {
 
     // Carga inicial al montar el DOM
     document.addEventListener("DOMContentLoaded", () => {
+      if (typeof initCustomSpeciesList === "function") {
+        initCustomSpeciesList();
+      }
       initEngineSelector();
       initLanguageSelector();
       updateStepperMode(false);
@@ -3838,14 +4079,43 @@ function refreshAudioDevices() {
     }
 
     // -----------------------------------------------------------------
-    // Gestión del Progreso Granular y Polling de Tareas
+    // Gestión del Progreso Granular con Decimales y Polling de Tareas
     // -----------------------------------------------------------------
     let progressPollInterval = null;
     let currentTaskId = null;
     let lastActionCallback = null;
+    let currentProgressPercent = 0.0;
+    let targetProgressPercent = 0.0;
+    let progressAnimationRaf = null;
+    let progressCurrentStage = null;
 
     function generateTaskId() {
       return 'task_' + Date.now() + '_' + Math.random().toString(36).substring(2, 9);
+    }
+
+    function showProcessingCard(title = "", desc = "") {
+      const card = document.getElementById("processingCard");
+      if (card) {
+        card.classList.remove("hidden");
+        card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }
+      if (title) {
+        const titleEl = document.getElementById("procStepTitle");
+        if (titleEl) {
+          const span = titleEl.querySelector("span:last-child");
+          if (span) span.textContent = title;
+          else titleEl.textContent = title;
+        }
+      }
+      if (desc) {
+        const descEl = document.getElementById("procStepDesc");
+        if (descEl) descEl.textContent = desc;
+      }
+    }
+
+    function hideProcessingCard() {
+      const card = document.getElementById("processingCard");
+      if (card) card.classList.add("hidden");
     }
 
     function showErrorCard(errorMessage, retryCallback = null) {
@@ -3878,16 +4148,78 @@ function refreshAudioDevices() {
       }
     }
 
+    function renderProgressDOM(val) {
+      const clamped = Math.max(0.0, Math.min(100.0, val));
+      const formatted = clamped.toFixed(1) + "%";
+      const percentEl = document.getElementById("progressBarPercent");
+      const fillEl = document.getElementById("progressBarFill");
+
+      if (percentEl) percentEl.textContent = formatted;
+      if (fillEl) fillEl.style.width = formatted;
+      updateStageHighlights(clamped, progressCurrentStage);
+    }
+
+    function startProgressAnimationLoop() {
+      if (progressAnimationRaf) return;
+
+      const tick = () => {
+        let diff = targetProgressPercent - currentProgressPercent;
+
+        if (diff > 0.05) {
+          // Easing suave hacia el hito reportado por el backend
+          const step = Math.max(0.05, diff * 0.12);
+          currentProgressPercent = Math.min(targetProgressPercent, currentProgressPercent + step);
+        } else if (currentTaskId && targetProgressPercent > 0.0 && targetProgressPercent < 99.0) {
+          // Micro-incremento fluido y vivo mientras el backend procesa entre polls (sin rebasar el techo de la fase)
+          let stageCeiling = 98.5;
+          if (progressCurrentStage === "audio") stageCeiling = 24.9;
+          else if (progressCurrentStage === "segmenting") stageCeiling = 29.9;
+          else if (progressCurrentStage === "transcribing") stageCeiling = 79.9;
+          else if (progressCurrentStage === "analyzing") stageCeiling = 98.9;
+
+          if (currentProgressPercent < stageCeiling) {
+            currentProgressPercent = Math.min(stageCeiling, currentProgressPercent + 0.035);
+          }
+        } else if (targetProgressPercent >= 100.0) {
+          currentProgressPercent = 100.0;
+        }
+
+        renderProgressDOM(currentProgressPercent);
+
+        if (currentTaskId || currentProgressPercent < targetProgressPercent) {
+          progressAnimationRaf = requestAnimationFrame(tick);
+        } else {
+          progressAnimationRaf = null;
+        }
+      };
+
+      progressAnimationRaf = requestAnimationFrame(tick);
+    }
+
+    function stopProgressAnimationLoop() {
+      if (progressAnimationRaf) {
+        cancelAnimationFrame(progressAnimationRaf);
+        progressAnimationRaf = null;
+      }
+    }
+
     function startProgressTracking(taskId, initialTitle, initialDesc) {
       currentTaskId = taskId;
+      currentProgressPercent = 0.0;
+      targetProgressPercent = 0.0;
+      progressCurrentStage = null;
       hideErrorCard();
       hideAlert();
+
       if (progressPollInterval) {
         clearInterval(progressPollInterval);
         progressPollInterval = null;
       }
+      stopProgressAnimationLoop();
+
       showProcessingCard(initialTitle, initialDesc);
-      updateProgressBar(0, initialTitle, initialDesc);
+      renderProgressDOM(0.0);
+      startProgressAnimationLoop();
 
       progressPollInterval = setInterval(async () => {
         if (!currentTaskId) return;
@@ -3895,6 +4227,15 @@ function refreshAudioDevices() {
           const res = await fetch(`/api/task/status?task_id=${encodeURIComponent(currentTaskId)}`);
           if (res.ok) {
             const data = await res.json();
+            if (data && data.status === 'cancelled') {
+              if (progressPollInterval) {
+                clearInterval(progressPollInterval);
+                progressPollInterval = null;
+              }
+              finishProgressTracking(false);
+              hideProcessingCard();
+              return;
+            }
             if (data && data.status === 'error') {
               if (progressPollInterval) {
                 clearInterval(progressPollInterval);
@@ -3929,14 +4270,13 @@ function refreshAudioDevices() {
     }
 
     function updateProgressBar(percent, title, desc, stage = null) {
-      const p = Math.max(0, Math.min(100, Math.round(percent)));
-      const percentEl = document.getElementById("progressBarPercent");
-      const fillEl = document.getElementById("progressBarFill");
+      const p = Math.max(0.0, Math.min(100.0, parseFloat(percent) || 0.0));
+      targetProgressPercent = Math.max(targetProgressPercent, p);
+      if (stage) progressCurrentStage = stage;
+
       const titleEl = document.getElementById("procStepTitle");
       const descEl = document.getElementById("procStepDesc");
 
-      if (percentEl) percentEl.textContent = `${p}%`;
-      if (fillEl) fillEl.style.width = `${p}%`;
       if (title && titleEl) {
         const span = titleEl.querySelector("span:last-child");
         if (span) span.textContent = title;
@@ -3944,7 +4284,7 @@ function refreshAudioDevices() {
       }
       if (desc && descEl) descEl.textContent = desc;
 
-      updateStageHighlights(p, stage);
+      startProgressAnimationLoop();
     }
 
     let isYoutubeStepper = false;
@@ -4004,7 +4344,7 @@ function refreshAudioDevices() {
             setStageElementState(elTranscribe, "completed");
             setStageElementState(elGemini, "active");
             setStageElementState(elDone, "waiting");
-          } else if (stage === "done" || p >= 100) {
+          } else if (stage === "done" || p >= 100.0) {
             setStageElementState(elAudio, "completed");
             setStageElementState(elTranscribe, "completed");
             setStageElementState(elGemini, "completed");
@@ -4012,10 +4352,10 @@ function refreshAudioDevices() {
           }
         } else {
           // Fallback percentage-based for YouTube
-          setStageElementState(elAudio, p >= 30 ? "completed" : (p > 0 ? "active" : "waiting"));
-          setStageElementState(elTranscribe, p >= 75 ? "completed" : (p >= 30 ? "active" : "waiting"));
-          setStageElementState(elGemini, p >= 95 ? "completed" : (p >= 75 ? "active" : "waiting"));
-          setStageElementState(elDone, p >= 100 ? "completed" : "waiting");
+          setStageElementState(elAudio, p >= 30.0 ? "completed" : (p > 0.0 ? "active" : "waiting"));
+          setStageElementState(elTranscribe, p >= 75.0 ? "completed" : (p >= 30.0 ? "active" : "waiting"));
+          setStageElementState(elGemini, p >= 95.0 ? "completed" : (p >= 75.0 ? "active" : "waiting"));
+          setStageElementState(elDone, p >= 100.0 ? "completed" : "waiting");
         }
       } else {
         // Fallback percentage-based for 3-step Local / Live / File
@@ -4030,7 +4370,7 @@ function refreshAudioDevices() {
             setStageElementState(elTranscribe, "completed");
             setStageElementState(elGemini, "active");
             setStageElementState(elDone, "waiting");
-          } else if (stage === "done" || p >= 100) {
+          } else if (stage === "done" || p >= 100.0) {
             setStageElementState(elAudio, "waiting");
             setStageElementState(elTranscribe, "completed");
             setStageElementState(elGemini, "completed");
@@ -4038,9 +4378,9 @@ function refreshAudioDevices() {
           }
         } else {
           setStageElementState(elAudio, "waiting");
-          setStageElementState(elTranscribe, p >= 75 ? "completed" : (p > 0 ? "active" : "waiting"));
-          setStageElementState(elGemini, p >= 95 ? "completed" : (p >= 75 ? "active" : "waiting"));
-          setStageElementState(elDone, p >= 100 ? "completed" : "waiting");
+          setStageElementState(elTranscribe, p >= 75.0 ? "completed" : (p > 0.0 ? "active" : "waiting"));
+          setStageElementState(elGemini, p >= 95.0 ? "completed" : (p >= 75.0 ? "active" : "waiting"));
+          setStageElementState(elDone, p >= 100.0 ? "completed" : "waiting");
         }
       }
     }
@@ -4050,15 +4390,58 @@ function refreshAudioDevices() {
         clearInterval(progressPollInterval);
         progressPollInterval = null;
       }
+      currentTaskId = null;
+
       if (success) {
-        updateProgressBar(100, "¡Finalizado!", "Procesamiento completado y Grimorio actualizado.");
+        targetProgressPercent = 100.0;
+        currentProgressPercent = 100.0;
+        progressCurrentStage = "done";
+        renderProgressDOM(100.0);
+
+        const titleEl = document.getElementById("procStepTitle");
+        const descEl = document.getElementById("procStepDesc");
+        if (titleEl) {
+          const span = titleEl.querySelector("span:last-child");
+          if (span) span.textContent = "¡Finalizado!";
+          else titleEl.textContent = "¡Finalizado!";
+        }
+        if (descEl) descEl.textContent = "Procesamiento completado y Grimorio actualizado.";
+
         setTimeout(() => {
+          stopProgressAnimationLoop();
           hideProcessingCard();
         }, 800);
       } else {
+        stopProgressAnimationLoop();
         hideProcessingCard();
       }
-      currentTaskId = null;
+    }
+
+    async function cancelCurrentTask() {
+      const tid = currentTaskId;
+      const btn = document.getElementById("btnCancelProcess");
+      const btnText = document.getElementById("btnCancelProcessText");
+      if (btn) btn.disabled = true;
+      if (btnText) btnText.textContent = "Deteniendo...";
+
+      if (tid) {
+        try {
+          await fetch('/api/task/cancel', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ task_id: tid })
+          });
+        } catch (err) {
+          console.warn("Error calling cancel task:", err);
+        }
+      }
+
+      finishProgressTracking(false);
+      hideProcessingCard();
+      showAlert("Proceso detenido por el usuario.");
+
+      if (btn) btn.disabled = false;
+      if (btnText) btnText.textContent = "Detener Proceso";
     }
 
     // -----------------------------------------------------------------
@@ -4519,6 +4902,49 @@ function refreshAudioDevices() {
       const match = options.find(opt => isClassMatch(savedVal, opt.value) || isClassMatch(savedVal, opt.textContent));
       if (match) {
         selectEl.value = match.value;
+      } else {
+        const newOpt = document.createElement("option");
+        newOpt.value = savedVal;
+        newOpt.textContent = savedVal;
+        selectEl.appendChild(newOpt);
+        selectEl.value = savedVal;
+      }
+    }
+
+    // -----------------------------------------------------------------
+    // Registro y Persistencia Dinámica de Especies
+    // -----------------------------------------------------------------
+    function registerDynamicSpecies(val) {
+      if (!val) return;
+      const clean = val.trim();
+      if (!clean || clean.length < 2 || clean === "(N/A - DM)" || clean === "-") return;
+      const datalist = document.getElementById("species-options");
+      if (!datalist) return;
+      const existing = Array.from(datalist.options).map(o => o.value.trim().toLowerCase());
+      if (!existing.includes(clean.toLowerCase())) {
+        const opt = document.createElement("option");
+        opt.value = clean;
+        datalist.appendChild(opt);
+        try {
+          const stored = JSON.parse(localStorage.getItem("custom_species_list") || "[]");
+          if (!stored.map(s => s.toLowerCase()).includes(clean.toLowerCase())) {
+            stored.push(clean);
+            localStorage.setItem("custom_species_list", JSON.stringify(stored));
+          }
+        } catch (e) {
+          console.warn("Error storing custom species in localStorage:", e);
+        }
+      }
+    }
+
+    function initCustomSpeciesList() {
+      try {
+        const stored = JSON.parse(localStorage.getItem("custom_species_list") || "[]");
+        if (Array.isArray(stored)) {
+          stored.forEach(s => registerDynamicSpecies(s));
+        }
+      } catch (e) {
+        console.warn("Error initializing custom species list:", e);
       }
     }
 
@@ -4728,6 +5154,9 @@ function refreshAudioDevices() {
       }
 
       const p = playerData || { player_name: "", character_name: "", species: "", role: "", subclass: "", is_user: false, is_user_character: false, discord_user_id: "", is_absent: false };
+      if (p && p.species) {
+        registerDynamicSpecies(p.species);
+      }
       const isUserChar = Boolean(p.is_user || p.is_user_character);
       const isAbsent = Boolean(p.is_absent);
       const discordUserId = (p.discord_user_id || p.discord_id || p.discord || "").toString().trim();
@@ -4766,7 +5195,7 @@ function refreshAudioDevices() {
           <input type="text" data-field="character_name" value="${escapeHtml(p.character_name || '')}" oninput="saveCurrentRoster()" placeholder="Ej. Kaelen" class="char-name w-full bg-slate-950/70 border border-slate-800/80 hover:border-slate-700 focus:border-sky-500 focus:ring-1 focus:ring-sky-500/30 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-slate-100 placeholder-slate-500 outline-none transition duration-150">
         </td>
         <td class="py-2.5 px-2.5">
-          <input list="species-options" data-field="species" value="${escapeHtml(p.species || '')}" oninput="saveCurrentRoster()" placeholder="Ej. Elfo o busca..." class="species-select w-full bg-slate-950/70 border border-slate-800/80 hover:border-slate-700 focus:border-sky-500 focus:ring-1 focus:ring-sky-500/30 rounded-lg px-2.5 py-1.5 text-xs text-slate-200 placeholder-slate-500 outline-none transition duration-150">
+          <input list="species-options" data-field="species" value="${escapeHtml(p.species || '')}" oninput="saveCurrentRoster(); registerDynamicSpecies(this.value);" onchange="registerDynamicSpecies(this.value); saveCurrentRoster();" placeholder="Ej. Elfo o escribe especie..." class="species-select w-full bg-slate-950/70 border border-slate-800/80 hover:border-slate-700 focus:border-sky-500 focus:ring-1 focus:ring-sky-500/30 rounded-lg px-2.5 py-1.5 text-xs text-slate-200 placeholder-slate-500 outline-none transition duration-150">
         </td>
         <td class="py-2.5 px-2.5">
           <select data-field="role" onchange="saveCurrentRoster()" class="class-select w-full bg-slate-950/70 border border-slate-800/80 hover:border-slate-700 focus:border-sky-500 focus:ring-1 focus:ring-sky-500/30 rounded-lg px-2 py-1.5 text-xs text-slate-200 outline-none transition duration-150 cursor-pointer">
@@ -4855,8 +5284,16 @@ function refreshAudioDevices() {
       if (Array.isArray(players)) {
         players.forEach(p => {
           if (p && p.character_name !== "(DM)" && p.role !== "Dungeon Master (DM)") {
+            if (p.species) registerDynamicSpecies(p.species);
             addPlayerRow(p);
           }
+        });
+      }
+
+      if (typeof currentCampaignState !== "undefined" && currentCampaignState && Array.isArray(currentCampaignState.universal_pcs)) {
+        currentCampaignState.universal_pcs.forEach(upc => {
+          const esp = upc.especie || upc.species;
+          if (esp) registerDynamicSpecies(esp);
         });
       }
 
@@ -6124,6 +6561,9 @@ function refreshAudioDevices() {
     // -----------------------------------------------------------------
     // YouTube & File Handlers
     // -----------------------------------------------------------------
+    let youtubeAbortController = null;
+    let isYoutubeTranscribing = false;
+
     async function transcribeYoutube() {
       const url = document.getElementById("youtubeUrl").value.trim();
       const modelSize = document.getElementById("globalModelSize").value;
@@ -6146,6 +6586,24 @@ function refreshAudioDevices() {
       const roster = getRosterFromTable(true);
 
       if (!url) return showAlert("Introduce una URL de YouTube válida.");
+
+      // Si ya hay una descarga/procesamiento en curso y el usuario vuelve a presionar el botón (por ej. tras cambiar idioma):
+      // cancelamos limpiamente la petición anterior del cliente para reiniciar con los nuevos parámetros.
+      if (isYoutubeTranscribing && youtubeAbortController) {
+        try {
+          youtubeAbortController.abort();
+        } catch (_) {}
+        finishProgressTracking(false);
+      }
+
+      youtubeAbortController = new AbortController();
+      isYoutubeTranscribing = true;
+
+      const btnYt = document.getElementById("btnYoutube");
+      const origBtnHtml = btnYt ? btnYt.innerHTML : "Descargar y Procesar";
+      if (btnYt) {
+        btnYt.innerHTML = `<span class="inline-block animate-spin">⏳</span> Procesando...`;
+      }
 
       lastActionCallback = () => transcribeYoutube();
       const taskId = generateTaskId();
@@ -6196,7 +6654,8 @@ function refreshAudioDevices() {
             "Content-Type": "application/json",
             ...getUserApiHeaders()
           },
-          body: JSON.stringify(bodyPayload)
+          body: JSON.stringify(bodyPayload),
+          signal: youtubeAbortController.signal
         });
         const data = await res.json();
         if (checkAuthErrorAndRedirect(res.status, data)) {
@@ -6206,8 +6665,17 @@ function refreshAudioDevices() {
         displayResults(data, { source: "youtube" });
         finishProgressTracking(true);
       } catch (err) {
+        if (err.name === "AbortError") {
+          console.log("[transcribeYoutube] Petición previa cancelada para reiniciar.");
+          return;
+        }
         finishProgressTracking(false);
         showErrorCard(err.message, () => transcribeYoutube());
+      } finally {
+        isYoutubeTranscribing = false;
+        if (btnYt) {
+          btnYt.innerHTML = origBtnHtml;
+        }
       }
     }
 
@@ -6346,6 +6814,10 @@ function refreshAudioDevices() {
       const sessionNumber = (document.getElementById("sessionNumberInput") && parseInt(document.getElementById("sessionNumberInput").value)) || null;
       const roster = typeof getRosterFromTable === "function" ? getRosterFromTable(true) : [];
 
+      const taskId = generateTaskId();
+      const engineName = (engine === "groq") ? "Groq Whisper Large-v3" : "faster-whisper local";
+      lastActionCallback = () => transcribeFile();
+
       updateStepperMode(false);
       if (isClass) {
         startProgressTracking(
@@ -6359,6 +6831,13 @@ function refreshAudioDevices() {
           "Transcribiendo archivo local y procesando campaña...",
           `Cargando audio, ejecutando inferencia con ${engineName} y actualizando el Diario de Campaña con Gemini.`
         );
+      }
+
+      const btnF = document.getElementById("btnFile");
+      const origBtnFHtml = btnF ? btnF.innerHTML : "Procesar Grabación";
+      if (btnF) {
+        btnF.disabled = true;
+        btnF.innerHTML = `<span class="inline-block animate-spin">⏳</span> Procesando...`;
       }
 
       try {
@@ -6404,6 +6883,11 @@ function refreshAudioDevices() {
       } catch (err) {
         finishProgressTracking(false);
         showErrorCard(err.message, () => transcribeFile());
+      } finally {
+        if (btnF) {
+          btnF.disabled = false;
+          btnF.innerHTML = origBtnFHtml;
+        }
       }
     }
 
@@ -6447,8 +6931,10 @@ function refreshAudioDevices() {
       const activeLang = (data.target_language || data.language || currentTargetLanguage || "es").toUpperCase();
       document.getElementById("resLanguage").textContent = activeLang;
       const switchBtnText = document.getElementById("btnSwitchLanguageText");
+      const btnSwitchLang = document.getElementById("btnSwitchLanguage");
+      if (btnSwitchLang) btnSwitchLang.classList.remove("hidden");
       if (switchBtnText) {
-        switchBtnText.textContent = activeLang.startsWith("EN") ? "Cambiar a Español (ES)" : "Cambiar a Inglés (EN)";
+        switchBtnText.textContent = activeLang.startsWith("EN") ? "Traducir a Español (ES)" : "Traducir a Inglés (EN)";
       }
       const reprocessBtnText = document.getElementById("btnReprocessCampaignText");
       if (reprocessBtnText) {
@@ -6591,7 +7077,7 @@ function refreshAudioDevices() {
         }
       }
       if (chronicleContent) {
-        chronicleEl.innerHTML = marked.parse(chronicleContent);
+        chronicleEl.innerHTML = renderMarkdownWithKaTeX(chronicleContent);
       } else {
         chronicleEl.innerHTML = `
           <div class="py-10 text-center space-y-4">
@@ -6610,9 +7096,9 @@ function refreshAudioDevices() {
         const grimorioEl = document.getElementById("grimorio-content");
         const mdContent = data.chronicle_markdown || data.grimorio_markdown || data.chronicle || chronicleContent || "";
         if (grimorioEl && mdContent) {
-          grimorioEl.innerHTML = marked.parse(mdContent);
+          grimorioEl.innerHTML = renderMarkdownWithKaTeX(mdContent);
         } else if (document.getElementById("journalView") && mdContent) {
-          document.getElementById("journalView").innerHTML = `<div id="grimorio-content">${marked.parse(mdContent)}</div>`;
+          document.getElementById("journalView").innerHTML = `<div id="grimorio-content">${renderMarkdownWithKaTeX(mdContent)}</div>`;
         }
       }
 
@@ -6638,7 +7124,27 @@ function refreshAudioDevices() {
         const keyPointsEl = document.getElementById("keyPointsView");
         if (keyPointsEl) {
           if (keyPointsContent) {
-            keyPointsEl.innerHTML = marked.parse(keyPointsContent);
+            keyPointsEl.innerHTML = `
+              <div class="space-y-4">
+                <div class="flex flex-wrap items-center justify-between gap-2 p-2.5 rounded-xl bg-slate-900/80 border border-slate-800">
+                  <div class="flex items-center gap-2 text-xs text-slate-300">
+                    <span class="text-base">📖</span>
+                    <span class="font-semibold text-sky-300">Glosario & Técnicas Clave</span>
+                  </div>
+                  <div class="flex items-center gap-2">
+                    <input type="text" placeholder="🔍 Buscar término..." oninput="filterGlossaryItemsInContainer(this.value, 'keyPointsItemsContainer')"
+                      class="px-2.5 py-1 text-xs rounded-lg bg-slate-950 border border-slate-700 text-slate-200 placeholder-slate-500 focus:border-sky-500 focus:outline-none w-44 sm:w-56">
+                    <button type="button" onclick="openAddGlossaryModal()"
+                      class="px-3 py-1 rounded-lg bg-sky-600/30 hover:bg-sky-600/50 text-sky-200 border border-sky-500/40 text-xs font-medium flex items-center gap-1.5 transition cursor-pointer">
+                      <span>➕</span> <span>Agregar Término</span>
+                    </button>
+                  </div>
+                </div>
+                <div id="keyPointsItemsContainer" class="prose-dnd text-slate-300 text-xs sm:text-sm leading-relaxed overflow-x-auto space-y-3 font-sans">
+                  ${renderMarkdownWithKaTeX(keyPointsContent)}
+                </div>
+              </div>
+            `;
           } else {
             keyPointsEl.innerHTML = `<p class="italic text-slate-500 text-xs p-6 text-center">No hay glosario ni puntos clave disponibles para esta sesión.</p>`;
           }
@@ -6912,9 +7418,9 @@ function refreshAudioDevices() {
     function extractActionItemsFromMarkdown(md) {
       if (!md || typeof md !== "string") return [];
       const items = [];
-      const sec5Match = md.match(/(?:^|\n)#+\s*5\.\s*(?:Avisos Relevantes|Avisos|Tareas y Próximos Pasos|Tareas|Pendientes|Action Items|Announcements|Deadlines).*?\n([\s\S]*?)(?=\n#+\s*6\.|\n#+\s*\d\.|\Z)/i);
-      if (sec5Match && sec5Match[1]) {
-        const lines = sec5Match[1].split('\n');
+      const secTaskMatch = md.match(/(?:^|\n)#+\s*(?:5|6)\.\s*(?!(?:Conclusiones|Key Takeaways|Resumen|Summary))(?:Avisos Relevantes|Avisos|Tareas y Entregables|Tareas y Próximos Pasos|Tareas|Entregables|Pendientes|Announcements|Deadlines|Deliverables).*?\n([\s\S]*?)(?=\n#+\s*\d\.|\Z)/i);
+      if (secTaskMatch && secTaskMatch[1]) {
+        const lines = secTaskMatch[1].split('\n');
         for (const line of lines) {
           const trimmed = line.trim();
           const m = trimmed.match(/^(?:[-*+]\s*(?:\[[ xX]\]\s*)?|\d+[\.)]\s+)(.+)$/);
@@ -6928,18 +7434,15 @@ function refreshAudioDevices() {
       }
 
       if (items.length === 0) {
-        const sec6Match = md.match(/(?:^|\n)#+\s*6\.\s*(?:Conclusiones Clave|Conclusiones|Key Takeaways).*?\n([\s\S]*?)(?=\n#+\s*\d\.|\Z)/i);
-        if (sec6Match && sec6Match[1]) {
-          const taskSubMatch = sec6Match[1].match(/(?:Tareas y acuerdos|Acciones|Action items|Tareas|Tasks).*?\n([\s\S]*?)(?=\n\s*[-*+]\s*3\s*(?:a|to)\s*5|\n#+|\Z)/i);
-          if (taskSubMatch && taskSubMatch[1]) {
-            for (const line of taskSubMatch[1].split('\n')) {
-              const trimmed = line.trim();
-              const m = trimmed.match(/^(?:[-*+]\s*(?:\[[ xX]\]\s*)?|\d+[\.)]\s+)(.+)$/);
-              if (m && m[1]) {
-                const itemText = m[1].trim();
-                if (itemText && !/^(?:no se (?:anunciaron|mencionaron)|no hay|ninguna|ninguno|no assignments|none)/i.test(itemText)) {
-                  items.push(itemText);
-                }
+        const taskSubMatch = md.match(/\n\s*(?:Tareas y acuerdos|Acuerdos de acción|Acciones pendientes|Tareas pendientes|Tasks).*?\n([\s\S]*?)(?=\n\s*[-*+]\s*3\s*(?:a|to)\s*5|\n#+|\Z)/i);
+        if (taskSubMatch && taskSubMatch[1]) {
+          for (const line of taskSubMatch[1].split('\n')) {
+            const trimmed = line.trim();
+            const m = trimmed.match(/^(?:[-*+]\s*(?:\[[ xX]\]\s*)?|\d+[\.)]\s+)(.+)$/);
+            if (m && m[1]) {
+              const itemText = m[1].trim();
+              if (itemText && !/^(?:no se (?:anunciaron|mencionaron)|no hay|ninguna|ninguno|no assignments|none)/i.test(itemText)) {
+                items.push(itemText);
               }
             }
           }
@@ -6950,15 +7453,40 @@ function refreshAudioDevices() {
 
     function extractKeyPointsFromMarkdown(md) {
       if (!md || typeof md !== "string") return "";
+      const cleanMd = typeof sanitizeFormulaDelimiters === "function" ? sanitizeFormulaDelimiters(md) : md;
+      const sec2Match = cleanMd.match(/(?:^|\n)(?:#{1,2}\s*2\.\s*[^\n]+\n)([\s\S]*?)(?=\n#{1,2}\s*3\.|\Z)/i);
+      if (!sec2Match || !sec2Match[1]) return "";
+
+      let sec2Body = sec2Match[1].trim();
+      sec2Body = sec2Body.replace(/\n---+/g, "").trim();
+
+      const hasGlossary = /###\s*(?:📖\s*)?Glosario/i.test(sec2Body);
+      const hasTech = /###\s*(?:🛠️\s*)?Técnicas/i.test(sec2Body);
+
       const parts = [];
-      const sec2Match = md.match(/(?:^|\n)(#+\s*2\.\s*(?:Conceptos Teóricos|Conceptos|Glosario|Fundamental Theoretical|Theoretical Concepts)[\s\S]*?)(?=\n#+\s*3\.|\Z)/i);
-      if (sec2Match && sec2Match[1]) {
-        parts.push(sec2Match[1].trim());
+      if (hasGlossary || hasTech) {
+        parts.push(sec2Body);
+      } else {
+        const bodyClean = sec2Body.replace(/^(?:A continuación[^\n]+\n+|To understand[^\n]+\n+)/i, "").trim();
+        parts.push(`### 📖 Glosario Conceptual\n${bodyClean}`);
       }
-      const sec6Match = md.match(/(?:^|\n)(#+\s*6\.\s*(?:Conclusiones Clave|Conclusiones|Key Takeaways)[\s\S]*?)(?=\n#+\s*\d\.|\Z)/i);
-      if (sec6Match && sec6Match[1]) {
-        parts.push(sec6Match[1].trim());
+
+      if (!hasTech) {
+        const techSnippets = [];
+        const techRegex = /^(###\s*(?:[^\n]*(?:Estrategia|Técnica|Protocol|Step Strategy|Method|Procedimiento)[^\n]*))\n([\s\S]*?)(?=(?:^#{1,3}\s|\Z))/gmi;
+        let match;
+        while ((match = techRegex.exec(cleanMd)) !== null) {
+          const header = match[1].trim();
+          const body = match[2].trim();
+          if (body && body.length > 40) {
+            techSnippets.push(`${header}\n${body}`);
+          }
+        }
+        if (techSnippets.length > 0) {
+          parts.push("### 🛠️ Técnicas y Procedimientos Clave\n" + techSnippets.slice(0, 2).join("\n\n"));
+        }
       }
+
       return parts.join("\n\n---\n\n");
     }
 
@@ -9732,11 +10260,21 @@ async function selectWikiEntity(type, key, data) {
     // =========================================================================
     // MARKDOWN & KATEX RENDERING
     // =========================================================================
+    function sanitizeFormulaDelimiters(text) {
+      if (!text || typeof text !== 'string') return text || '';
+      // Strip dollar signs around magnification multipliers, zoom levels, scales ($40x$ -> 40x, $10x$ -> 10x)
+      let clean = text.replace(/\$\s*([0-9]+(?:\.[0-9]+)?\s*[xX])\s*\$/g, '$1');
+      // Also clean simple percentages or units in dollar signs: "$50%$" -> "50%", "$10 mm$" -> "10 mm"
+      clean = clean.replace(/\$\s*([0-9]+(?:\.[0-9]+)?\s*(?:%|mm|cm|m|km|g|kg|mg|ml|mL|L|fps|rpm|Hz|kHz|MHz|GHz))\s*\$/g, '$1');
+      return clean;
+    }
+
     function renderMarkdownWithKaTeX(text) {
       if (!text) return '';
+      const sanitized = sanitizeFormulaDelimiters(text);
       
       // 1. Si marked está disponible, convertir Markdown a HTML
-      let html = typeof marked !== 'undefined' ? marked.parse(text) : text;
+      let html = typeof marked !== 'undefined' ? marked.parse(sanitized) : sanitized;
       
       // 2. Renderizar KaTeX si la librería está cargada
       if (typeof renderMathInElement !== 'undefined') {
@@ -9878,6 +10416,298 @@ async function selectWikiEntity(type, key, data) {
       renderAcademicNotesList(filtered);
     }
 
+    let currentActiveNoteDetailTab = 'full';
+    let currentActiveNoteData = null;
+
+    function updateNoteDetailTabUI() {
+      const tabFull = document.getElementById("tabNoteViewFull");
+      const tabKp = document.getElementById("tabNoteViewKeyPoints");
+      const tabTasks = document.getElementById("tabNoteViewTasks");
+      const btnCopyText = document.getElementById("btnCopyNoteText");
+
+      const activeClasses = ["bg-sky-600/30", "text-sky-200", "border-sky-500/40", "shadow-sm"];
+      const inactiveClasses = ["text-slate-400", "hover:text-slate-200", "hover:bg-slate-800/60", "border-transparent"];
+
+      const applyTabStyle = (el, isActive) => {
+        if (!el) return;
+        if (isActive) {
+          el.classList.remove(...inactiveClasses);
+          el.classList.add(...activeClasses);
+        } else {
+          el.classList.remove(...activeClasses);
+          el.classList.add(...inactiveClasses);
+        }
+      };
+
+      applyTabStyle(tabFull, currentActiveNoteDetailTab === "full");
+      applyTabStyle(tabKp, currentActiveNoteDetailTab === "keypoints");
+      applyTabStyle(tabTasks, currentActiveNoteDetailTab === "tasks");
+
+      if (btnCopyText) {
+        if (currentActiveNoteDetailTab === "keypoints") {
+          btnCopyText.textContent = "Copiar Glosario";
+        } else if (currentActiveNoteDetailTab === "tasks") {
+          btnCopyText.textContent = "Copiar Tareas";
+        } else {
+          btnCopyText.textContent = "Copiar Apunte";
+        }
+      }
+    }
+
+    function renderNoteDetailBody() {
+      const bodyEl = document.getElementById("noteViewBody");
+      if (!bodyEl) return;
+      if (!currentActiveNoteData || !currentActiveNoteData.content) {
+        bodyEl.innerHTML = `<div class="py-8 text-center text-xs text-slate-500 italic">No hay contenido disponible para este apunte.</div>`;
+        return;
+      }
+
+      const content = currentActiveNoteData.content;
+      if (currentActiveNoteDetailTab === "full") {
+        bodyEl.innerHTML = renderMarkdownWithKaTeX(content);
+      } else if (currentActiveNoteDetailTab === "keypoints") {
+        const keypoints = typeof extractKeyPointsFromMarkdown === "function" ? extractKeyPointsFromMarkdown(content) : "";
+        if (keypoints && keypoints.trim()) {
+          bodyEl.innerHTML = `
+            <div class="space-y-4">
+              <!-- Toolbar superior: Búsqueda y Agregar Término -->
+              <div class="flex flex-wrap items-center justify-between gap-2 p-2.5 rounded-xl bg-slate-900/80 border border-slate-800">
+                <div class="flex items-center gap-2 text-xs text-slate-300">
+                  <span class="text-base">📖</span>
+                  <span class="font-semibold text-sky-300">Glosario & Técnicas Clave</span>
+                </div>
+                <div class="flex items-center gap-2">
+                  <input type="text" placeholder="🔍 Buscar concepto..." oninput="filterGlossaryItemsInContainer(this.value, 'noteGlossaryContainer')"
+                    class="px-2.5 py-1 text-xs rounded-lg bg-slate-950 border border-slate-700 text-slate-200 placeholder-slate-500 focus:border-sky-500 focus:outline-none w-44 sm:w-56">
+                  <button type="button" onclick="openAddGlossaryModal()"
+                    class="px-3 py-1 rounded-lg bg-sky-600/30 hover:bg-sky-600/50 text-sky-200 border border-sky-500/40 text-xs font-medium flex items-center gap-1.5 transition cursor-pointer">
+                    <span>➕</span> <span>Agregar Término</span>
+                  </button>
+                </div>
+              </div>
+              <div id="noteGlossaryContainer" class="prose-dnd text-slate-300 text-xs sm:text-sm leading-relaxed overflow-x-auto space-y-3 font-sans">
+                ${renderMarkdownWithKaTeX(keypoints)}
+              </div>
+            </div>
+          `;
+        } else {
+          bodyEl.innerHTML = `
+            <div class="p-8 text-center space-y-3 bg-slate-900/40 rounded-xl border border-dashed border-slate-800">
+              <span class="text-3xl">⭐</span>
+              <p class="text-xs text-slate-300 font-medium">No se detectaron secciones específicas de glosario o técnicas.</p>
+              <p class="text-[11px] text-slate-500">Puedes agregar tus propios conceptos o técnicas a esta nota con el botón a continuación:</p>
+              <button type="button" onclick="openAddGlossaryModal()" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-sky-600 hover:bg-sky-500 text-white text-xs font-semibold shadow-md transition cursor-pointer">
+                <span>➕</span> <span>Agregar Término al Glosario</span>
+              </button>
+            </div>
+          `;
+        }
+      } else if (currentActiveNoteDetailTab === "tasks") {
+        const taskItems = typeof extractActionItemsFromMarkdown === "function" ? extractActionItemsFromMarkdown(content) : [];
+        if (taskItems && taskItems.length > 0) {
+          bodyEl.innerHTML = `
+            <div class="space-y-3">
+              <div class="flex items-center justify-between pb-2 border-b border-slate-800">
+                <h5 class="text-xs font-semibold text-sky-300 uppercase tracking-wider font-mono">Tareas & Compromisos Asignados</h5>
+                <span class="text-[11px] text-slate-400 font-mono">${taskItems.length} tarea${taskItems.length === 1 ? '' : 's'}</span>
+              </div>
+              <div class="space-y-2">
+                ${taskItems.map((item, idx) => `
+                  <label class="flex items-start gap-3 p-3 rounded-xl bg-slate-900/90 border border-slate-800/80 hover:border-sky-500/40 transition-all cursor-pointer group">
+                    <input type="checkbox" onchange="
+                      const span = this.nextElementSibling;
+                      if (this.checked) {
+                        span.classList.add('line-through', 'text-slate-500');
+                        span.classList.remove('text-slate-200');
+                      } else {
+                        span.classList.remove('line-through', 'text-slate-500');
+                        span.classList.add('text-slate-200');
+                      }
+                    " class="mt-0.5 w-4 h-4 rounded bg-slate-950 border-slate-700 text-sky-500 focus:ring-0 cursor-pointer">
+                    <span class="text-xs leading-relaxed text-slate-200 transition-all select-none">${escapeHtml(item)}</span>
+                  </label>
+                `).join('')}
+              </div>
+            </div>
+          `;
+        } else {
+          bodyEl.innerHTML = `
+            <div class="p-8 text-center space-y-2 bg-slate-900/40 rounded-xl border border-dashed border-slate-800">
+              <span class="text-2xl">📋</span>
+              <p class="text-xs text-slate-300 font-medium">No se detectaron tareas ni fechas límite en esta nota.</p>
+              <p class="text-[11px] text-slate-500">No se encontraron entregables pendientes en la sección de avisos o compromisos.</p>
+            </div>
+          `;
+        }
+      }
+    }
+
+    function filterGlossaryItemsInContainer(query, containerId) {
+      const container = document.getElementById(containerId);
+      if (!container) return;
+      const q = (query || "").trim().toLowerCase();
+      const listItems = container.querySelectorAll("li, p, h3");
+      listItems.forEach(el => {
+        if (!q) {
+          el.style.display = "";
+        } else {
+          const match = el.textContent.toLowerCase().includes(q);
+          el.style.display = match ? "" : "none";
+        }
+      });
+    }
+
+    function openAddGlossaryModal(prefillWord = "") {
+      const modal = document.getElementById("modalAddGlossaryTerm");
+      const box = document.getElementById("modalAddGlossaryTermBox");
+      const inputTerm = document.getElementById("inputGlossaryTerm");
+      const inputDef = document.getElementById("inputGlossaryDefinition");
+      if (!modal || !inputTerm) return;
+
+      const selectedText = window.getSelection() ? window.getSelection().toString().trim() : "";
+      inputTerm.value = prefillWord || selectedText || "";
+      if (inputDef) inputDef.value = "";
+      modal.classList.remove("hidden");
+      modal.classList.add("flex");
+      requestAnimationFrame(() => {
+        modal.classList.remove("opacity-0", "pointer-events-none");
+        modal.classList.add("opacity-100", "pointer-events-auto");
+        if (box) {
+          box.classList.remove("scale-95");
+          box.classList.add("scale-100");
+        }
+      });
+      setTimeout(() => {
+        if (!inputTerm.value) {
+          inputTerm.focus();
+        } else if (inputDef) {
+          inputDef.focus();
+        }
+      }, 50);
+    }
+
+    function closeAddGlossaryModal() {
+      const modal = document.getElementById("modalAddGlossaryTerm");
+      const box = document.getElementById("modalAddGlossaryTermBox");
+      if (!modal) return;
+      modal.classList.remove("opacity-100", "pointer-events-auto");
+      modal.classList.add("opacity-0", "pointer-events-none");
+      if (box) {
+        box.classList.remove("scale-100");
+        box.classList.add("scale-95");
+      }
+      setTimeout(() => {
+        modal.classList.add("hidden");
+        modal.classList.remove("flex");
+      }, 150);
+    }
+
+    async function saveNewGlossaryTerm() {
+      const inputTerm = document.getElementById("inputGlossaryTerm");
+      const inputDef = document.getElementById("inputGlossaryDefinition");
+      const selectType = document.getElementById("selectGlossaryType");
+      if (!inputTerm || !inputDef) return;
+
+      const term = inputTerm.value.trim();
+      const def = inputDef.value.trim();
+      const type = selectType ? selectType.value : "concept";
+
+      if (!term) {
+        alert("Por favor ingresa la palabra o concepto.");
+        return;
+      }
+      if (!def) {
+        alert("Por favor ingresa la definición o explicación.");
+        return;
+      }
+
+      const entryLine = `- **${term}**: ${def}`;
+
+      // Update in note history viewer if active
+      if (currentActiveNoteData && currentActiveNoteData.filename) {
+        let md = currentActiveNoteData.content || "";
+        const sec2HeaderMatch = md.match(/(#+\s*2\.\s*(?:Conceptos Teóricos|Conceptos|Glosario|Fundamental Theoretical|Theoretical Concepts|Theoretical|Glossary|Key Concepts|Terminology).*?\n)/i);
+        if (sec2HeaderMatch) {
+          if (type === "technique") {
+            const techMatch = md.match(/###\s*(?:🛠️\s*)?(?:Técnicas|Key Techniques|Procedimientos).*?\n/i);
+            if (techMatch) {
+              const insertIdx = techMatch.index + techMatch[0].length;
+              md = md.slice(0, insertIdx) + entryLine + "\n" + md.slice(insertIdx);
+            } else {
+              const insertIdx = sec2HeaderMatch.index + sec2HeaderMatch[0].length;
+              md = md.slice(0, insertIdx) + "### 🛠️ Técnicas, Métodos y Cuándo se Usan\n" + entryLine + "\n\n" + md.slice(insertIdx);
+            }
+          } else {
+            const glossMatch = md.match(/###\s*(?:📖\s*)?(?:Glosario|Conceptual Glossary).*?\n/i);
+            if (glossMatch) {
+              const insertIdx = glossMatch.index + glossMatch[0].length;
+              md = md.slice(0, insertIdx) + entryLine + "\n" + md.slice(insertIdx);
+            } else {
+              const insertIdx = sec2HeaderMatch.index + sec2HeaderMatch[0].length;
+              md = md.slice(0, insertIdx) + "### 📖 Glosario Conceptual\n" + entryLine + "\n" + md.slice(insertIdx);
+            }
+          }
+        } else {
+          md += `\n\n# 2. Conceptos Teóricos Fundamentales y Glosario\n### 📖 Glosario Conceptual\n${entryLine}\n`;
+        }
+
+        currentActiveNoteData.content = md;
+
+        // Persist to server
+        try {
+          await fetch('/api/academic-notes/save', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              filename: currentActiveNoteData.filename,
+              content: md,
+              subject: currentActiveNoteData.subject || "Materia",
+              topic: currentActiveNoteData.topic || currentActiveNoteData.title || "Apuntes"
+            })
+          });
+        } catch (e) {
+          console.warn("Could not save updated note to backend:", e);
+        }
+
+        closeAddGlossaryModal();
+        renderNoteDetailBody();
+        if (typeof showSuccessAlert === "function") {
+          showSuccessAlert(`✓ Término "${term}" guardado en el glosario.`);
+        } else if (typeof showAlert === "function") {
+          showAlert(`✓ Término "${term}" guardado en el glosario.`);
+        }
+        return;
+      }
+
+      // Also support live result screen
+      if (currentResult && (currentResult.chronicle_markdown || currentResult.chronicle)) {
+        let md = currentResult.chronicle_markdown || currentResult.chronicle || "";
+        const sec2HeaderMatch = md.match(/(#+\s*2\.\s*(?:Conceptos Teóricos|Conceptos|Glosario|Fundamental Theoretical|Theoretical Concepts|Theoretical|Glossary|Key Concepts|Terminology).*?\n)/i);
+        if (sec2HeaderMatch) {
+          const insertIdx = sec2HeaderMatch.index + sec2HeaderMatch[0].length;
+          md = md.slice(0, insertIdx) + entryLine + "\n" + md.slice(insertIdx);
+        } else {
+          md += `\n\n# 2. Conceptos Teóricos Fundamentales y Glosario\n### 📖 Glosario Conceptual\n${entryLine}\n`;
+        }
+        currentResult.chronicle_markdown = md;
+        currentResult.chronicle = md;
+        closeAddGlossaryModal();
+        displayResults(currentResult);
+        if (typeof showSuccessAlert === "function") {
+          showSuccessAlert(`✓ Término "${term}" guardado en el glosario.`);
+        }
+        return;
+      }
+
+      closeAddGlossaryModal();
+    }
+
+    function switchNoteDetailTab(tab) {
+      currentActiveNoteDetailTab = tab;
+      updateNoteDetailTabUI();
+      renderNoteDetailBody();
+    }
+
     async function selectAcademicNote(filename) {
       selectedNoteFilename = filename;
       renderAcademicNotesList(academicNotesList);
@@ -9895,11 +10725,16 @@ async function selectWikiEntity(type, key, data) {
       if (!note) {
         emptyEl.classList.remove("hidden");
         contentEl.classList.add("hidden");
+        currentActiveNoteData = null;
         return;
       }
 
       emptyEl.classList.add("hidden");
       contentEl.classList.remove("hidden");
+
+      currentActiveNoteData = note;
+      currentActiveNoteDetailTab = 'full';
+      updateNoteDetailTabUI();
 
       titleEl.textContent = cleanNoteDisplayTitle(note.title || note.topic, note.filename);
       const wordCount = note.word_count !== undefined ? note.word_count : 0;
@@ -9913,8 +10748,22 @@ async function selectWikiEntity(type, key, data) {
         docxBtn.classList.remove("hidden");
       }
 
+      const refreshTasksBadge = (mdText) => {
+        const tasks = typeof extractActionItemsFromMarkdown === "function" ? extractActionItemsFromMarkdown(mdText || "") : [];
+        const badgeTasks = document.getElementById("badgeNoteTasksCount");
+        if (badgeTasks) {
+          if (tasks.length > 0) {
+            badgeTasks.textContent = tasks.length;
+            badgeTasks.classList.remove("hidden");
+          } else {
+            badgeTasks.classList.add("hidden");
+          }
+        }
+      };
+
       if (note.content) {
-        bodyEl.innerHTML = renderMarkdownWithKaTeX(note.content);
+        refreshTasksBadge(note.content);
+        renderNoteDetailBody();
       } else {
         bodyEl.innerHTML = `<div class="py-8 text-center text-xs text-slate-500 italic animate-pulse">Cargando contenido del apunte...</div>`;
         try {
@@ -9922,6 +10771,9 @@ async function selectWikiEntity(type, key, data) {
           if (resp.ok) {
             const data = await resp.json();
             note.content = data.content || "";
+            note.action_items = data.action_items || [];
+            note.key_points = data.key_points || "";
+            currentActiveNoteData = note;
             if (data.topic || data.title) {
               note.title = cleanNoteDisplayTitle(data.title || data.topic, data.filename || filename);
               note.topic = note.title;
@@ -9930,7 +10782,8 @@ async function selectWikiEntity(type, key, data) {
             if (data.docx_filename && docxBtn) {
               docxBtn.href = `/api/academic-notes/download/${encodeURIComponent(data.docx_filename)}`;
             }
-            bodyEl.innerHTML = renderMarkdownWithKaTeX(note.content);
+            refreshTasksBadge(note.content);
+            renderNoteDetailBody();
           } else {
             bodyEl.innerHTML = `<div class="py-4 text-xs text-rose-400">Error al cargar contenido (${resp.status}).</div>`;
           }
@@ -10061,6 +10914,7 @@ async function selectWikiEntity(type, key, data) {
     window.resetAudioGains = resetAudioGains;
     window.initGainSliders = initGainSliders;
     window.selectAcademicNote = selectAcademicNote;
+    window.switchNoteDetailTab = switchNoteDetailTab;
     window.loadAcademicNotesHistory = loadAcademicNotesHistory;
     window.handleAcademicNoteImport = handleAcademicNoteImport;
     window.toggleCampaignManagerModal = toggleCampaignManagerModal;
@@ -10080,6 +10934,11 @@ async function selectWikiEntity(type, key, data) {
     window.handleCampaignImportFile = handleCampaignImportFile;
     window.connectGoogleDriveUpfront = connectGoogleDriveUpfront;
     window.disconnectGoogleDrive = disconnectGoogleDrive;
+    window.openAddGlossaryModal = openAddGlossaryModal;
+    window.closeAddGlossaryModal = closeAddGlossaryModal;
+    window.saveNewGlossaryTerm = saveNewGlossaryTerm;
+    window.filterGlossaryItemsInContainer = filterGlossaryItemsInContainer;
+    window.sanitizeFormulaDelimiters = sanitizeFormulaDelimiters;
 
   </script>
 </body>

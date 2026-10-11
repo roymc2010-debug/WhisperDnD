@@ -9,12 +9,97 @@ load_dotenv()
 
 
 from src.summarizer.prompts import (
-    build_dnd_session_prompt,
     build_continuity_session_prompt,
     build_academic_lecture_prompt,
 )
 import json
 import re
+
+
+def normalize_academic_sections(md: str) -> str:
+    """
+    Ensure correct ordering and numbering of Academic Study Guide sections:
+    - Cleans non-formula dollar signs ($40x$, $10x$, $50%, etc.).
+    - Section 5 MUST ALWAYS be 'Conclusiones Clave, Métricas y Acciones' (or Key Takeaways).
+    - Section 6 is STRICTLY CONDITIONAL: 'Avisos Relevantes, Tareas y Entregables' (or Announcements).
+    - If Section 5 is Tasks and Section 6 is Conclusions: swaps them.
+    - If Section 6 is Conclusions and Section 5 was skipped (jumped from 4 to 6): renumbers Section 6 to Section 5.
+    - If Tasks/Announcements section is empty or states no tasks exist: omits it cleanly.
+    """
+    if not md:
+        return ""
+
+    # 1. Clean non-formula dollar signs like $40x$, $10x$, $50%$
+    cleaned = re.sub(r'\$\s*([0-9]+(?:\.[0-9]+)?\s*[xX])\s*\$', r'\1', md)
+    cleaned = re.sub(r'\$\s*([0-9]+(?:\.[0-9]+)?\s*(?:%|mm|cm|m|km|g|kg|mg|ml|mL|L|fps|rpm|Hz|kHz|MHz|GHz))\s*\$', r'\1', cleaned)
+    # Strip prompt template tags from headings (e.g. '(MANDATORY SECTION)', '(SECCIÓN OBLIGATORIA)', etc.)
+    cleaned = re.sub(r'\s*\((?:MANDATORY SECTION|SECCIÓN OBLIGATORIA|STRICTLY CONDITIONAL|ESTRICTAMENTE CONDICIONAL|Correct|Obligatoria|Condicional)\)', '', cleaned, flags=re.IGNORECASE)
+
+    concl_pat = r'(?:Conclusiones|Key Takeaways|Takeaways|Métricas|Metrics|Acciones y Conclusiones|Resumen Final)'
+    tasks_pat = r'(?:Avisos|Tareas|Entregables|Compromisos|Próximos Pasos|Announcements|Deadlines|Deliverables|Action Items)'
+
+    sec_blocks = list(re.finditer(r'(?m)^(#{1,2}\s*(\d)\.\s*([^\n]+))\n([\s\S]*?)(?=(?:^#{1,2}\s*\d\.|\Z))', cleaned))
+
+    sec5_match = None
+    sec6_match = None
+
+    for m in sec_blocks:
+        num = m.group(2)
+        if num == '5':
+            sec5_match = m
+        elif num == '6':
+            sec6_match = m
+
+    def is_empty_tasks(body: str) -> bool:
+        lines = [l.strip() for l in body.split('\n') if l.strip()]
+        if not lines:
+            return True
+        first_few = ' '.join(lines[:3]).lower()
+        return any(neg in first_few for neg in [
+            'no se anunciaron', 'no se mencionaron', 'no hay tareas', 'no se asignaron',
+            'ninguna tarea', 'ningún aviso', 'no formal assignments', 'none', 'no hay entregables',
+            'no se establecieron'
+        ])
+
+    if sec5_match and sec6_match:
+        sec5_title = sec5_match.group(3)
+        sec5_body = sec5_match.group(4)
+        sec6_title = sec6_match.group(3)
+        sec6_body = sec6_match.group(4)
+
+        sec5_is_tasks = bool(re.search(tasks_pat, sec5_title, re.I))
+        sec5_is_concl = bool(re.search(concl_pat, sec5_title, re.I))
+        sec6_is_tasks = bool(re.search(tasks_pat, sec6_title, re.I))
+        sec6_is_concl = bool(re.search(concl_pat, sec6_title, re.I))
+
+        if sec5_is_tasks and sec6_is_concl:
+            clean_sec5_title = re.sub(r'^(?:5|6)\.\s*', '', sec6_title).strip()
+            clean_sec6_title = re.sub(r'^(?:5|6)\.\s*', '', sec5_title).strip()
+            new_sec5 = f"# 5. {clean_sec5_title}\n{sec6_body.strip()}\n\n"
+            
+            if is_empty_tasks(sec5_body):
+                new_sec6 = ""
+            else:
+                new_sec6 = f"# 6. {clean_sec6_title}\n{sec5_body.strip()}\n\n"
+
+            start_pos = sec5_match.start()
+            end_pos = sec6_match.end()
+            cleaned = cleaned[:start_pos] + new_sec5 + new_sec6 + cleaned[end_pos:]
+
+        elif sec5_is_concl and sec6_is_tasks:
+            if is_empty_tasks(sec6_body):
+                cleaned = cleaned[:sec6_match.start()].rstrip() + '\n'
+
+    elif not sec5_match and sec6_match:
+        sec6_title = sec6_match.group(3)
+        sec6_body = sec6_match.group(4)
+        clean_title = re.sub(r'^(?:5|6)\.\s*', '', sec6_title).strip()
+        start_pos = sec6_match.start()
+        end_pos = sec6_match.end()
+        new_sec5 = f"# 5. {clean_title}\n{sec6_body.strip()}\n\n"
+        cleaned = cleaned[:start_pos] + new_sec5 + cleaned[end_pos:]
+
+    return cleaned.strip() + '\n'
 
 
 class GeminiTTRPGSummarizer:
@@ -128,42 +213,6 @@ class GeminiTTRPGSummarizer:
 
         raise RuntimeError(f"Error al generar con Gemini tras reintentos y modelos alternativos: {last_error}") from last_error
 
-    def generate_chronicle(
-        self,
-        transcript_text: str,
-        roster: List[Dict[str, str]],
-        target_language: str = "es",
-        session_number: int = 1,
-        user_character: Optional[Dict[str, Any]] = None,
-        is_youtube: bool = False,
-    ) -> str:
-        """
-        Generate a D&D session report from transcription and party roster.
-
-        :param transcript_text: The complete speech-to-text transcript.
-        :param roster: List of dicts with keys player_name, role, character_name, species, subclass.
-        :param target_language: Target output language ('es' or 'en').
-        :param session_number: The current session number.
-        :param user_character: Optional dict of the user's selected character for coaching.
-        :param is_youtube: Whether this report comes from a YouTube video.
-        :return: Formatted Markdown report.
-        """
-        if not transcript_text or not transcript_text.strip():
-            return "No hay transcripción de audio disponible para generar la crónica."
-
-        roster_formatted = self.format_roster(roster)
-        has_markus = self.check_has_markus(roster) or bool(user_character)
-        prompt = build_dnd_session_prompt(
-            roster_formatted=roster_formatted,
-            transcript_text=transcript_text,
-            has_markus=has_markus,
-            target_language=target_language,
-            session_number=session_number,
-            user_character=user_character,
-            is_youtube=is_youtube,
-        )
-
-        return self._generate_with_retry(prompt)
 
     def generate_academic_notes(
         self,
@@ -176,11 +225,11 @@ class GeminiTTRPGSummarizer:
         """
         Generate a structured Academic Study Guide from a university lecture transcript:
         1. Resumen de la Clase
-        2. Conceptos Teóricos Fundamentales
-        3. Fórmulas, Ecuaciones y Procedimientos
-        4. Ejemplos Resueltos en Clase
-        5. Avisos Relevantes y Fechas Clave
-        6. Guía de Estudio Rápida
+        2. Conceptos Teóricos Fundamentales y Glosario
+        3. Recorrido Temático Detallado y Explicaciones Profundas
+        4. Ejemplos Resueltos en Clase y Casos Prácticos
+        5. Conclusiones Clave, Métricas y Acciones
+        6. Avisos Relevantes y Fechas Clave (Estrictamente condicional)
 
         :param transcript_text: Full speech-to-text transcript of the lecture.
         :param subject: Course / Subject title (e.g. 'Sistemas de Control').
@@ -200,7 +249,21 @@ class GeminiTTRPGSummarizer:
             target_language=target_language,
         )
 
-        return self._generate_with_retry(prompt)
+        generation_config = {
+            "temperature": 0.0,
+            "top_p": 0.95,
+        }
+        raw_notes = self._generate_with_retry(prompt, config=generation_config)
+        notes_md = normalize_academic_sections(raw_notes)
+        if transcript_text and transcript_text.strip() and "# 📝" not in notes_md and "Transcripción" not in notes_md:
+            is_en = str(target_language).lower().startswith("en")
+            transcript_header = (
+                "\n\n---\n\n# 📝 Complete Audio Transcript\n\n"
+                if is_en
+                else "\n\n---\n\n# 📝 Transcripción Completa del Audio\n\n"
+            )
+            notes_md = f"{notes_md.rstrip()}{transcript_header}{transcript_text.strip()}\n"
+        return notes_md
 
     def generate_campaign_session(
         self,
@@ -254,8 +317,9 @@ class GeminiTTRPGSummarizer:
             character_backstory=character_backstory,
         )
 
+        campaign_temperature = 0.1 if is_youtube else 0.2
         generation_config = {
-            "temperature": 0.2,
+            "temperature": campaign_temperature,
             "top_p": 0.95,
             "response_mime_type": "application/json",
         }

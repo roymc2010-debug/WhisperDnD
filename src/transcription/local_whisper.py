@@ -117,8 +117,9 @@ class LocalWhisperTranscriber:
         segments: List[Dict[str, Any]] = []
         text_chunks: List[str] = []
 
+        from .groq_whisper import clean_whisper_hallucinations
         for segment in segments_generator:
-            segment_text = segment.text.strip()
+            segment_text = clean_whisper_hallucinations(segment.text.strip())
             seg_data = {
                 "start": round(segment.start, 2),
                 "end": round(segment.end, 2),
@@ -130,7 +131,7 @@ class LocalWhisperTranscriber:
             if on_segment is not None:
                 on_segment(seg_data)
 
-        full_text = " ".join(text_chunks)
+        full_text = clean_whisper_hallucinations(" ".join(text_chunks)).strip()
         raw_text = full_text
         formatted_transcript = ""
 

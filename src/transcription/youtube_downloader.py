@@ -2,8 +2,26 @@
 
 import os
 import re
+import threading
 from pathlib import Path
 from typing import Callable, Optional
+
+_yt_download_lock = threading.Lock()
+
+
+def extract_youtube_video_id(url: str) -> Optional[str]:
+    """Extract YouTube 11-char video ID from various URL formats."""
+    if not url or not isinstance(url, str):
+        return None
+    patterns = [
+        r'(?:v=|\/v\/|embed\/|youtu\.be\/|shorts\/|\/e\/|watch\?v=)([\w-]{11})',
+        r'^([\w-]{11})$'
+    ]
+    for pattern in patterns:
+        m = re.search(pattern, url.strip())
+        if m:
+            return m.group(1)
+    return None
 
 
 def is_valid_youtube_url(url: str) -> bool:
@@ -24,18 +42,33 @@ def download_youtube_audio(
     on_progress: Optional[Callable[[int, str], None]] = None,
 ) -> str:
     """
-    Download audio from a YouTube URL and extract it as an MP3 file.
+    Download audio from a YouTube URL and extract it as an MP3/M4A file.
+    Reuses existing cached audio in output_dir if already downloaded.
+    Thread-safe to prevent concurrent file-lock collisions.
 
     :param url: The YouTube video URL to download audio from.
     :param output_dir: Destination directory for the downloaded audio file.
     :param on_progress: Optional callback function receiving (percent: int, message: str).
-    :return: Absolute file path of the downloaded MP3.
+    :return: Absolute file path of the downloaded audio.
     :raises ValueError: If the URL is invalid or the video is unavailable/private.
     :raises RuntimeError: If audio extraction or download fails.
     :raises ImportError: If yt-dlp is not installed.
     """
     if not is_valid_youtube_url(url):
         raise ValueError(f"Invalid or unsupported YouTube URL: '{url}'. Please provide a valid YouTube link.")
+
+    dest_dir = Path(output_dir).resolve()
+    dest_dir.mkdir(parents=True, exist_ok=True)
+
+    # 1. Fast cache check before acquiring lock or calling yt-dlp
+    vid_id = extract_youtube_video_id(url)
+    if vid_id:
+        for ext in ["m4a", "webm", "opus", "mp3", "aac", "ogg"]:
+            cand = dest_dir / f"{vid_id}.{ext}"
+            if cand.is_file() and cand.stat().st_size > 10000:
+                if on_progress:
+                    on_progress(20, "Audio encontrado en caché local. Saltando descarga...")
+                return str(cand.resolve())
 
     try:
         import yt_dlp
@@ -44,9 +77,6 @@ def download_youtube_audio(
             "yt-dlp is required to download YouTube audio. "
             "Please install it using 'pip install yt-dlp'."
         ) from exc
-
-    dest_dir = Path(output_dir).resolve()
-    dest_dir.mkdir(parents=True, exist_ok=True)
 
     out_template = str(dest_dir / "%(id)s.%(ext)s")
 
@@ -71,44 +101,54 @@ def download_youtube_audio(
     }
 
     try:
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            info = ydl.extract_info(url, download=True)
-            if not info:
-                raise RuntimeError("Failed to extract information from YouTube URL.")
-
-            # 1. Look for downloaded audio file in requested_downloads
-            requested_downloads = info.get("requested_downloads")
-            if requested_downloads and len(requested_downloads) > 0:
-                final_path = requested_downloads[0].get("filepath")
-                if final_path and Path(final_path).is_file():
-                    return str(Path(final_path).resolve())
-
-            # 2. Check filename prepared by yt-dlp
-            prepared = ydl.prepare_filename(info)
-            if Path(prepared).is_file():
-                return str(Path(prepared).resolve())
-
-            # 3. Check for %(id)s.%(ext)s candidates
-            vid_id = info.get("id")
+        with _yt_download_lock:
+            # Re-check cache under lock in case another concurrent request just finished
             if vid_id:
                 for ext in ["m4a", "webm", "opus", "mp3", "aac", "ogg"]:
                     cand = dest_dir / f"{vid_id}.{ext}"
-                    if cand.is_file():
+                    if cand.is_file() and cand.stat().st_size > 10000:
+                        if on_progress:
+                            on_progress(20, "Audio descargado por proceso previo. Utilizando audio existente...")
                         return str(cand.resolve())
 
-                for f in dest_dir.glob(f"*{vid_id}*"):
-                    if f.is_file():
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                info = ydl.extract_info(url, download=True)
+                if not info:
+                    raise RuntimeError("Failed to extract information from YouTube URL.")
+
+                # 1. Look for downloaded audio file in requested_downloads
+                requested_downloads = info.get("requested_downloads")
+                if requested_downloads and len(requested_downloads) > 0:
+                    final_path = requested_downloads[0].get("filepath")
+                    if final_path and Path(final_path).is_file():
+                        return str(Path(final_path).resolve())
+
+                # 2. Check filename prepared by yt-dlp
+                prepared = ydl.prepare_filename(info)
+                if Path(prepared).is_file():
+                    return str(Path(prepared).resolve())
+
+                # 3. Check for %(id)s.%(ext)s candidates
+                vid_id = info.get("id")
+                if vid_id:
+                    for ext in ["m4a", "webm", "opus", "mp3", "aac", "ogg"]:
+                        cand = dest_dir / f"{vid_id}.{ext}"
+                        if cand.is_file():
+                            return str(cand.resolve())
+
+                    for f in dest_dir.glob(f"*{vid_id}*"):
+                        if f.is_file():
+                            return str(f.resolve())
+
+                # 4. Fallback: search in dest_dir for recent file matching title
+                clean_title = re.sub(r"[^\w\-_\.]", "_", info.get("title", ""))
+                for f in dest_dir.iterdir():
+                    if f.is_file() and (clean_title[:20] in f.name or (vid_id and vid_id in f.name)):
                         return str(f.resolve())
 
-            # 4. Fallback: search in dest_dir for recent file matching title
-            clean_title = re.sub(r"[^\w\-_\.]", "_", info.get("title", ""))
-            for f in dest_dir.iterdir():
-                if f.is_file() and (clean_title[:20] in f.name or (vid_id and vid_id in f.name)):
-                    return str(f.resolve())
-
-            raise RuntimeError(
-                f"Audio file was downloaded but could not be located in {dest_dir}."
-            )
+                raise RuntimeError(
+                    f"Audio file was downloaded but could not be located in {dest_dir}."
+                )
 
     except yt_dlp.utils.DownloadError as exc:
         err_msg = str(exc)

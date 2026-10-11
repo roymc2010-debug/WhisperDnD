@@ -1,6 +1,8 @@
 """Groq Whisper Cloud transcription module for ultra-fast audio transcription with native FFmpeg stream segmentation."""
 
 import os
+import re
+import sys
 import subprocess
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
@@ -103,6 +105,30 @@ def _format_hhmmss(seconds: float) -> str:
     return f"{hrs:02d}:{mins:02d}:{secs:02d}"
 
 
+def clean_whisper_hallucinations(text: str) -> str:
+    """
+    Remove repetitive artifact hallucination patterns from Whisper output,
+    such as edition tags (5e, 6e, 7e, 5e., 6e-, etc.), leading edition prefixes,
+    and repetitive stutter loops (e.g. 'o o o o', 'la la la la').
+    """
+    if not text:
+        return ""
+    # Strip edition artifacts like "5e", "6e", "7e", "6e-", "7e-", "5e.", "5e,"
+    cleaned = re.sub(r'(?i)(?:^|(?<=[\s.,;:!?¿¡]))[5-9]e[-.:,]?(?=[\s.,;:!?¿¡]|$)', '', text)
+    cleaned = re.sub(r'^\s*(?:[5-9]e[-.:,]?\s*)+', '', cleaned, flags=re.IGNORECASE)
+    # Clean repetitive single letters or short syllables (e.g., 'o o o o', 'ah ah ah ah')
+    cleaned = re.sub(r'(?i)\b([a-zñáéíóú])(?:\s+\1\b){3,}', '', cleaned)
+    cleaned = re.sub(r'(?i)\b([a-zñáéíóú]{1,3})(?:\s+\1\b){4,}', '', cleaned)
+    # Clean empty punctuation pairs left behind by hallucinations like "¿?" or "¡!"
+    cleaned = re.sub(r'¿\s*\?', '', cleaned)
+    cleaned = re.sub(r'¡\s*!', '', cleaned)
+    cleaned = re.sub(r'([?¡!])\s*\.', r'\1', cleaned)
+    cleaned = re.sub(r'\s+([.,;:!?])', r'\1', cleaned)
+    cleaned = re.sub(r'^\s*[-.,;:!?]+\s*', '', cleaned)
+    cleaned = re.sub(r'\s{2,}', ' ', cleaned).strip()
+    return cleaned
+
+
 def tag_dual_channel_speakers(
     audio_path: str,
     segments: List[Dict[str, Any]],
@@ -169,7 +195,8 @@ def tag_dual_channel_speakers(
                     end_sec = max(start_sec, float(seg.get("end", start_sec)))
                     start_ts = _format_hhmmss(start_sec)
                     end_ts = _format_hhmmss(end_sec)
-                    text_clean = str(seg.get("text", "")).strip()
+                    text_clean = clean_whisper_hallucinations(str(seg.get("text", "")).strip())
+                    seg["text"] = text_clean
                     seg["formatted_line"] = f"[{start_ts} -> {end_ts}] {text_clean}"
                 return segments
 
@@ -221,7 +248,8 @@ def tag_dual_channel_speakers(
 
                 start_ts = _format_hhmmss(start_sec)
                 end_ts = _format_hhmmss(end_sec)
-                text_clean = str(seg.get("text", "")).strip()
+                text_clean = clean_whisper_hallucinations(str(seg.get("text", "")).strip())
+                seg["text"] = text_clean
                 seg["formatted_line"] = f"[{start_ts} -> {end_ts}] {speaker_tag}: {text_clean}"
     except Exception as exc:
         print(f"[!] Warning: Dual-channel speaker tagging skipped: {exc}")
@@ -274,7 +302,7 @@ class GroqWhisperTranscriber:
     def transcribe(
         self,
         audio_path: str,
-        language: str = "es",
+        language: Optional[str] = None,
         on_progress: Optional[Callable[[int, str], None]] = None,
         source: str = "local",
         user_char_name: Optional[str] = None,
@@ -288,7 +316,7 @@ class GroqWhisperTranscriber:
         If file is a dual-channel recording (Left=Mic, Right=Discord), tags segments by comparing channel RMS energy.
 
         :param audio_path: Path to the audio file (.wav, .mp3, .m4a, etc.).
-        :param language: Language code (ISO-639-1, default 'es').
+        :param language: Optional language code (default None = auto-detect spoken language).
         :param on_progress: Optional callback function receiving (percent: int, message: str).
         :param source: Source type ('youtube', 'local', or 'live').
         :param user_char_name: Optional user player character name for transcript tagging.
@@ -301,11 +329,13 @@ class GroqWhisperTranscriber:
         if not path.is_file():
             raise FileNotFoundError(f"Archivo de audio no encontrado: {path}")
 
+        effective_lang = language if (language and str(language).strip().lower() != "auto") else None
+
         file_size = path.stat().st_size
         if file_size <= self.MAX_FILE_SIZE_BYTES:
             min_pct = 30.0
             max_pct = 80.0
-            single_kwargs = {"language": language, "timeout": 60.0}
+            single_kwargs = {"language": effective_lang, "timeout": 60.0}
             if prompt is not None:
                 single_kwargs["prompt"] = prompt
             res = self._transcribe_single_file(str(path), **single_kwargs)
@@ -315,7 +345,7 @@ class GroqWhisperTranscriber:
             # File is > 24 MB: slice using fast FFmpeg CLI
             res = self._transcribe_chunked(
                 str(path),
-                language=language,
+                language=effective_lang,
                 on_progress=on_progress,
                 source=source,
                 prompt=prompt,
@@ -338,7 +368,8 @@ class GroqWhisperTranscriber:
                 for s in res["segments"]
             ]
             formatted_text = "\n".join(formatted_lines)
-            res["raw_text"] = res.get("text", "")
+            res["text"] = clean_whisper_hallucinations(res.get("text", "")).strip()
+            res["raw_text"] = res["text"]
             res["formatted_transcript"] = formatted_text
 
         return res
@@ -346,7 +377,7 @@ class GroqWhisperTranscriber:
     def _transcribe_single_file(
         self,
         file_path: str,
-        language: str = "es",
+        language: Optional[str] = None,
         time_offset: float = 0.0,
         timeout: float = 60.0,
         prompt: Optional[str] = None,
@@ -357,10 +388,11 @@ class GroqWhisperTranscriber:
             kwargs = {
                 "model": self.model,
                 "file": f,
-                "language": language,
                 "response_format": "verbose_json",
                 "timeout": timeout,
             }
+            if language and str(language).strip().lower() != "auto":
+                kwargs["language"] = str(language).strip()
             if prompt:
                 kwargs["prompt"] = prompt
             response = self.client.audio.transcriptions.create(**kwargs)
@@ -368,8 +400,8 @@ class GroqWhisperTranscriber:
         return self._parse_groq_response(response, time_offset=time_offset)
 
     def _parse_groq_response(self, response: Any, time_offset: float = 0.0) -> Dict[str, Any]:
-        """Parse Groq transcription response object or dict."""
-        raw_text = getattr(response, "text", "") or ""
+        """Parse Groq transcription response object or dict with robust hallucination filtering."""
+        raw_text = clean_whisper_hallucinations(getattr(response, "text", "") or "")
         raw_segments = (
             getattr(response, "segments", None)
             or (response.model_extra.get("segments") if hasattr(response, "model_extra") and response.model_extra else None)
@@ -401,14 +433,42 @@ class GroqWhisperTranscriber:
         )
 
         segments = []
+        last_clean_text = ""
         for s in raw_segments:
             s_start = s.get("start", 0.0) if isinstance(s, dict) else getattr(s, "start", 0.0)
             s_end = s.get("end", 0.0) if isinstance(s, dict) else getattr(s, "end", 0.0)
             s_text = s.get("text", "") if isinstance(s, dict) else getattr(s, "text", "")
+            s_no_speech = s.get("no_speech_prob", 0.0) if isinstance(s, dict) else getattr(s, "no_speech_prob", 0.0)
+            s_avg_logprob = s.get("avg_logprob", 0.0) if isinstance(s, dict) else getattr(s, "avg_logprob", 0.0)
+            s_compression = s.get("compression_ratio", 1.0) if isinstance(s, dict) else getattr(s, "compression_ratio", 1.0)
+
+            # 1. Skip high probability non-speech / silence
+            if s_no_speech and float(s_no_speech) > 0.8 and float(s_avg_logprob) < -0.8:
+                continue
+
+            # 2. Skip extreme repetitive loops (high compression ratio)
+            if s_compression and float(s_compression) > 2.4:
+                continue
+
+            s_text_clean = clean_whisper_hallucinations(s_text.strip())
+            if not s_text_clean or len(s_text_clean) < 2:
+                continue
+
+            # 3. Discard consecutive duplicate loops (e.g. repeated "o", "gracias", etc.)
+            if s_text_clean.lower() == last_clean_text.lower():
+                continue
+
+            # 4. If detected language is Latin-based, discard completely out-of-alphabet hallucinations (Cyrillic, Arabic, CJK)
+            if detected_lang in ("es", "en", "pt", "fr", "it", "de", "ca"):
+                has_non_latin = bool(re.search(r'[\u0400-\u04FF\u0600-\u06FF\u4E00-\u9FFF\u3040-\u30FF]', s_text_clean))
+                if has_non_latin:
+                    continue
+
+            last_clean_text = s_text_clean
             segments.append({
                 "start": round(float(s_start) + time_offset, 2),
                 "end": round(float(s_end) + time_offset, 2),
-                "text": s_text.strip(),
+                "text": s_text_clean,
             })
 
         if not segments and raw_text:
@@ -418,9 +478,11 @@ class GroqWhisperTranscriber:
                 "text": raw_text.strip(),
             })
 
+        parsed_text = " ".join([seg["text"] for seg in segments]).strip() if segments else raw_text.strip()
+
         return {
             "segments": segments,
-            "text": raw_text.strip(),
+            "text": parsed_text,
             "language": {
                 "code": detected_lang,
                 "probability": 1.0,
@@ -441,13 +503,14 @@ class GroqWhisperTranscriber:
     def _transcribe_chunked(
         self,
         audio_path: str,
-        language: str = "es",
+        language: Optional[str] = None,
         on_progress: Optional[Callable[[int, str], None]] = None,
         source: str = "local",
         prompt: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         Slice audio file into 15-minute chunks with FFmpeg and transcribe each sequentially.
+        If language is not specified, auto-detects on chunk 1 and pins that language for all remaining chunks.
         """
         # Progress range calibration
         # If source is YouTube: maps from 35% to 80%
@@ -471,7 +534,7 @@ class GroqWhisperTranscriber:
         text_parts: List[str] = []
         total_duration = 0.0
         current_time_offset = 0.0
-        detected_lang = language
+        detected_lang = language if (language and str(language).strip().lower() != "auto") else None
 
         try:
             for idx, chunk_item in enumerate(chunks_list):
@@ -487,8 +550,9 @@ class GroqWhisperTranscriber:
 
                 try:
                     # Enviar chunk a Groq con timeout de 60s
+                    # Si detected_lang ya fue determinado (por fragmento 1 o usuario), fijar en todos los fragmentos
                     kwargs = {
-                        "language": language,
+                        "language": detected_lang,
                         "time_offset": current_time_offset,
                         "timeout": 60.0,
                     }
@@ -502,8 +566,9 @@ class GroqWhisperTranscriber:
                     all_segments.extend(chunk_res.get("segments", []))
                     if chunk_res.get("text"):
                         text_parts.append(chunk_res["text"])
-                    if chunk_res.get("language_code"):
+                    if not detected_lang and chunk_res.get("language_code"):
                         detected_lang = chunk_res["language_code"]
+                        print(f"[groq_whisper] Idioma de audio detectado en fragmento 1: '{detected_lang}'. Fijando para todos los fragmentos restantes.")
 
                     chunk_dur = chunk_res.get("duration", 0.0) or estimated_chunk_dur
                 except Exception as e:
@@ -534,7 +599,7 @@ class GroqWhisperTranscriber:
 
         return {
             "segments": all_segments,
-            "text": " ".join(text_parts).strip(),
+            "text": clean_whisper_hallucinations(" ".join(text_parts)).strip(),
             "language": {
                 "code": detected_lang,
                 "probability": 1.0,

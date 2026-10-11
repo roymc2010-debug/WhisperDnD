@@ -3,318 +3,6 @@
 from typing import Any, Dict, List, Optional
 
 
-def build_dnd_session_prompt(
-    roster_formatted: str,
-    transcript_text: str,
-    has_markus: Optional[bool] = None,
-    user_character: Optional[Dict[str, Any]] = None,
-    session_number: int = 1,
-    target_language: str = "es",
-    is_youtube: bool = False,
-) -> str:
-    """
-    Build a forward-looking structured prompt for generating the comprehensive D&D session report:
-    1. SECCIÓN 1: CRÓNICA DETALLADA DE LA AVENTURA Y COMBATES
-       - Narrative recounting with dialogue highlights & story context.
-       - Combat breakdown (dice rolls, spell names, tactical decisions).
-       - NPCs encountered, locations discovered, and loot/gold acquired.
-    2. SECCIÓN 2: CIERRE DE MESA, DECISIONES Y EXPECTATIVAS
-       - Notable highlights chosen by the players at the end of the game.
-       - Immediate plans, intentions, and loot/gold acquired.
-    3. SECCIÓN 3: REFLEXIÓN DE ROL Y COMPAÑERISMO (CONDICIONAL)
-       - ONLY generated if user_character is specified. OMITTED completely if none.
-    4. SECCIÓN 4: 🎙️ GUION PARA ABRIR LA PRÓXIMA SESIÓN (PARA LEER EN VOZ ALTA)
-       - Casual, conversational first-person plural recap ("A ver gente...") to open the next session.
-    """
-    is_english = str(target_language).lower().startswith("en")
-    next_session = session_number + 1
-    # Determine user character
-    char_name = ""
-    char_class_desc = ""
-    if not is_youtube:
-        if user_character is not None and isinstance(user_character, dict):
-            char_name = (user_character.get("character_name") or user_character.get("name") or "").strip()
-            if char_name in ("-", "(DM)", "Dungeon Master", ""):
-                char_name = ""
-            else:
-                p_name = (user_character.get("player_name") or user_character.get("player") or "").strip()
-                c_role = (user_character.get("role") or user_character.get("class") or "").strip()
-                c_sub = (user_character.get("subclass") or "").strip()
-                c_spec = (user_character.get("species") or "").strip()
-                parts = [p for p in [p_name, c_spec, c_role, c_sub] if p and p not in ("-", "N/A", "(N/A)")]
-                char_class_desc = " ".join(parts)
-        elif has_markus and user_character is None:
-            char_name = "Markus Veyl"
-            char_class_desc = "Guerrero (Fighter) Battle Master"
-
-    if is_english:
-        lang_instruction = """⚠️ CRITICAL LANGUAGE DIRECTIVE (100% ENGLISH MANDATORY):
-Generate all content (Executive Briefing, Detailed Notes, Action Items, Key Points, Chronicle) strictly in English (e.g., English if 'en', Spanish if 'es'). Match the language requested by the user.
-- Target language is ENGLISH.
-- 100% of the generated output (act and scene titles, headings, tables, combat breakdown, quotes, and synopsis) MUST be in English.
-- STRICTLY FORBIDDEN to output text in any other language.
-- ⚠️ CRITICAL DIAGRAMMING DIRECTIVE: Do NOT generate fragile ASCII text diagrams (boxes made of '+---+' or '|'). To represent comparisons, workflows, decision matrices, or state transitions, ALWAYS use native Markdown tables or structured step-by-step lists.
-- When outputting mathematical or probabilistic formulas involving money, escape currency dollar signs inside math blocks (e.g., use '\\$1,000' or write 'USD 1,000') so they do not collide with LaTeX delimiters. Ensure equations are cleanly structured for KaTeX rendering."""
-        header_title = "# 📜 D&D SESSION COMPREHENSIVE REPORT"
-        sec0_title = "# 🎭 ADVENTURING COMPANY (DETECTED PROTAGONISTS)"
-        sec0_body = """Generate a Markdown table of the detected protagonist characters in this session:
-| Character | Player / Role | Class / Species | Session Role |
-|---|---|---|---|
-(Include Character name, Player, Class and Species, and a 1-sentence summary of their in-world fictional actions or achievements in this episode).
-⚠️ STRICT DIRECTIVE: ONLY Player Characters (PCs) belong in this table. A player who acts as a core protagonist in the narrative (e.g. Liam O'Brien playing Halendiel Fang) is a Player Character (PC); DO NOT omit, discard, or drop them from this table. Distinguish the true Dungeon Master (who sets DCs, describes monster attacks, and runs the world) from the players. Liam O'Brien is a PLAYER playing the Bard Halendiel Fang. The Dungeon Master (DM) is strictly the referee/narrator and NEVER has a character row. Characters can NEVER have the class or role 'Dungeon Master'.
-⚠️ MANDATORY DIRECTIVE FOR ABSENT PLAYERS:
-If campaign notes, prior lore, or session context state that a regular party character was absent in this session (e.g. "Selen was absent today"):
-- NEVER delete or drop their row from this table.
-- KEEP their row in the table, explicitly noting in 'Session Role': "Absent in this session (character remains with the company in the background)"."""
-        sec1_title = "# SECTION 1: DETAILED ADVENTURE CHRONICLE & COMBAT BREAKDOWN"
-        sec1_guidelines = """⚠️ MANDATORY DIRECTIVE: DEEP CHRONOLOGICAL SCENE BREAKDOWN (NO OVER-SUMMARIZATION):
-- STRICTLY FORBIDDEN to write a generic 3-paragraph summary. This audio represents hours of roleplay gameplay.
-- Structure the chronicle into detailed chronological ACTS AND SCENES (e.g. '### Act I: Scene 1: The Mountain Trail', '### Scene 2: Negotiation in the Keep', '### Act II: Scene 3: Ambush in the Caverns').
-- Dedicate 2 to 3 comprehensive, rich paragraphs per major scene or encounter:
-  * Specific verbal dialogues and quotes between characters, NPCs, and the DM.
-  * Strategic discussions and party plans debated prior to action.
-  * Skill checks and dice rolls (Athletics, Perception, Stealth, saving throws, natural 20s, natural 1s).
-  * Tactical combat maneuvers described step-by-step (specific spells cast, environmental interactions, tactical positioning), NOT just the final outcome.
-- ⚠️ STRICT GROUNDING & ZERO TACTICAL HALLUCINATIONS:
-  * FORBIDDEN to invent grid distances or precise foot movements not verbalized in the audio (e.g. NEVER invent 'retreated 25 feet' or 'moved 15 feet to the left').
-  * FORBIDDEN to invent phantom terrain or structures not described by the DM (e.g. phantom shacks, huts, pits).
-  * Ground all scene descriptions, spells, checks, and interactions strictly in the verbal transcript.
-- ⚠️ STRICT PHYSICAL CAUSALITY & BAN ON PASSIVE/LAZY TRANSITION SUMMARIES:
-  * STRICTLY FORBIDDEN to use passive abstractions or lazy transition summaries (e.g. NEVER write 'the party was transported', 'a trap absorbed them', 'they ended up at', or 'they suddenly appeared').
-  * You MUST document the EXPLICIT PHYSICAL CAUSALITY spoken in the transcript: detail who or what executed the physical trigger (who pulled a lever, who pushed, who triggered the mechanism, who ambushed from behind, or what creature/entity intervened).
-  * AUTOMATIC MYSTERY EXTRACTION: If a physical action, ambush, trap, or intervention is caused by an unseen, unidentified, masked, or concealed entity whose identity was not revealed in the audio, you MUST register it as an open mystery entry (e.g. 'Investigate the identity of the unknown entity that intervened/attacked during [Scene]').
-- ⚠️ MANDATORY FULL COVERAGE OF ALL COMBATS & ENCOUNTERS:
-  * If multiple major combats occurred (e.g. a Troll fight AND a Dragon fight), EACH MUST be chronicled in distinct chronological scenes. DO NOT merge, omit, or skip major battles.
-- ⚠️ REGISTER COMPANIONS & CHARACTER SWAPS:
-  * Capture party animal companions, familiars, or mascots (e.g. Minipeko) and character switches/retirements.
-- ⚠️ UNIVERSAL MID-SESSION PLAYER CHARACTER TRANSITIONS:
-  * If operational table discussion indicates a player is retiring/benching a character and introducing a new one mid-session:
-    - Reflect the departure of the former character in their session milestone/role (e.g. separated, departed on their own path, or staying in reserve).
-    - Register the new character starting from this session with their debut.
-    - DO NOT attribute subsequent battles or actions to the retired character once the new character enters play."""
-        sec1_sub1 = "## 1.1 Narrative Summary & Dialogue Highlights (Organized by Acts & Scenes)"
-        sec1_sub2 = "## 1.2 Combat Breakdown & Tactical Decisions (Maneuvers, Spells & Critical Rolls)"
-        sec1_sub3 = "## 1.3 NPCs Encountered & Key Clues (Include both direct interactions and NPCs tagged with '[Mentioned in story]')"
-        sec1_sub4 = "## 1.4 Locations, Traps & Points of Interest"
-        sec2_title = "# SECTION 2: TABLE CLOSING, DECISIONS & IMMEDIATE PLANS"
-        sec2_body = "- Key takeaways, party decisions at session end, loot and gold acquired, and immediate plans."
-
-        if char_name:
-            sec3_title = f"# SECTION 3: ROLEPLAY & COMRADERY REFLECTION: {char_name} ({char_class_desc})"
-            sec3_body = f"""Reflection for **{char_name}** ({char_class_desc}):
-> ⚠️ **CRITICAL DIRECTIVE: NO MIN/MAXING OR ROBOTIC COMBAT DPS COACHING**
-> - DO NOT lecture the player on damage optimization or action economy.
-> - Help the player be a better teammate and roleplayer true to their character.
-Analyze 4 areas:
-## 3.1 Character Coherence & Roleplay Development
-## 3.2 Creativity & Environment Usage vs. Rules (Rule of Cool vs RAW)
-## 3.3 Party Dynamics & Teamwork
-## 3.4 In-Character Dilemmas for Next Session"""
-            sec3_block = f"{sec3_title}\n{sec3_body}\n\n---\n"
-            sec4_num = 4
-        else:
-            sec3_block = ""
-            sec4_num = 3
-
-        if is_youtube:
-            sec4_title = f"# SECTION {sec4_num}: 📌 EXECUTIVE EPISODE SYNOPSIS"
-            sec4_body = """Write a crisp, objective executive synopsis of exactly **3 to 4 paragraphs** summarizing the episode's major plot developments, key revelations, dramatic twists, and the ending status of characters and factions for viewers and analysts."""
-        else:
-            sec4_title = f'# SECTION {sec4_num}: 🎙️ SCRIPT TO OPEN SESSION #{next_session} (READ ALOUD)'
-            sec4_body = f"""Write a crisp, fast-paced read-aloud script of exactly **3 to 4 paragraphs** to be read at the start of Session #{next_session} before rolling dice.
-> ⚠️ **STRICT DIRECTIVE: DO NOT USE AN EPIC HIGH-FANTASY NOVEL NARRATOR.**
-> - **MANDATORY VOICE: Casual, conversational FIRST-PERSON PLURAL tone ("Alright folks, quick recap of where we left off last time: we went to... talked to... got ambushed at... and the session ended right when...")**, exactly as a player talking to friends over Discord.
-> - Direct, practical, ends in the immediate cliffhanger."""
-
-        return f"""PARTY ROSTER:
-{roster_formatted}
-
-GENERAL INSTRUCTIONS:
-You are an expert Dungeons & Dragons (5e / 5.5e) chronicler and tactical roleplay analyst.
-Analyze the following session audio transcript.
-{lang_instruction}
-
-{header_title}
-
----
-
-{sec0_title}
-{sec0_body}
-
----
-
-{sec1_title}
-{sec1_guidelines}
-
-{sec1_sub1}
-{sec1_sub2}
-{sec1_sub3}
-{sec1_sub4}
-
----
-
-{sec2_title}
-{sec2_body}
-
----
-
-{sec3_block}{sec4_title}
-{sec4_body}
-
----
-
-{lang_instruction}
-
-FULL SESSION AUDIO TRANSCRIPT:
-{transcript_text}
-"""
-
-    # Spanish (Default)
-    lang_instruction = """⚠️ DIRECTIVA CRÍTICA DE IDIOMA Y JERGA NATURAL DE D&D:
-Generate all content (Executive Briefing, Detailed Notes, Action Items, Key Points, Chronicle) strictly in Spanish (e.g., English if 'en', Spanish if 'es'). Match the language requested by the user.
-- Redacta la crónica, el informe y la narrativa en ESPAÑOL FLUIDO Y NATURAL.
-- NO fuerces traducciones artificiales u ortopédicas de la terminología oficial de D&D.
-- PRESERVA INTACTOS los términos oficiales de D&D, nombres de conjuros, clases, dotes, maniobras, tiradas de salvación y mecánicas en inglés o spanglish tal como se hablan en la mesa de juego (ej. Action Surge, Sneak Attack, Divine Smite, Battle Master, Insight check, Death saving throw, Saving throw, Short rest, Long rest, nat 20, nat 1).
-- Usa títulos y encabezados de actos y escenas en español (ej. 'Acto I: Escena 1', 'Crónica Narrativa').
-- Al generar fórmulas matemáticas o probabilísticas que involucren cantidades monetarias, escapa los signos de dólar dentro de los bloques matemáticos (ej. usa '\\$1,000' o escribe 'USD 1,000') para que no colisionen con los delimitadores de LaTeX."""
-    header_title = "# 📜 INFORME COMPLETO DE SESIÓN DE D&D"
-    sec0_title = "# 🎭 COMPAÑÍA DE AVENTUREROS (PROTAGONISTAS DETECTADOS)"
-    sec0_body = """Genera una tabla Markdown con los personajes protagonistas de esta sesión:
-| Personaje | Jugador / Rol | Clase / Especie | Rol en la Sesión |
-|---|---|---|---|
-(Incluye Nombre del personaje, Jugador, Clase y Especie, y un resumen de exactamente 1 oración sobre sus acciones ficticias in-character o logros dentro del mundo en este episodio).
-⚠️ DIRECTIVA ESTRICTA: Esta tabla es EXCLUSIVA para Personajes Jugadores (PCs). Un jugador que actúe como protagonista clave en la narrativa (por ejemplo, Liam O'Brien interpretando al bardo Halendiel Fang) es un Personaje Jugador (PC); PROHIBIDO omitirlo, descartarlo o borrarlo de esta tabla. Distingue con precisión al verdadero Dungeon Master (quien establece dificultades de tirada/DC, describe ataques de monstruos, narra el entorno y arbitra el mundo) de los jugadores. Liam O'Brien es un JUGADOR que interpreta al bardo Halendiel Fang, NO el Dungeon Master. El DM es el narrador/árbitro fuera de personaje y NUNCA tiene fila en esta tabla. Ningún personaje puede tener la clase o rol 'Dungeon Master'.
-⚠️ DIRECTIVA OBLIGATORIA PARA JUGADORES AUSENTES:
-Si las notas de la campaña, el lore previo o el contexto de la sesión indican que un personaje habitual estuvo ausente en esta sesión (por ejemplo, "Selen no estuvo en la partida de hoy" o "Velith no participó hoy"):
-- PROHIBIDO borrar o eliminar su fila de esta tabla.
-- MANTÉN su fila intacta en la tabla, indicando explícitamente en 'Rol en la Sesión': "Ausente en esta sesión (el personaje se mantiene con el grupo en segundo plano)"."""
-    sec1_title = "# SECCIÓN 1: CRÓNICA DETALLADA DE LA AVENTURA Y COMBATES"
-    sec1_guidelines = """⚠️ DIRECTIVA OBLIGATORIA: CRÓNICA PROFUNDA POR ACTOS Y ESCENAS CRONOLÓGICAS (PROHIBIDO EL RESUMEN SUPERFICIAL):
-- PROHIBIDO TERMINANTEMENTE escribir un resumen genérico o superficial de 3 o 4 párrafos para toda la sesión. Esta transcripción representa horas de partida real de rol.
-- Estructura OBLIGATORIAMENTE la crónica narrativa en ACTOS Y ESCENAS cronológicas detalladas (ej. '### Acto I: Escena 1: El Camino del Bosque', '### Escena 2: Negociación en la Posada', '### Acto II: Escena 3: Emboscada en las Cavernas', etc.).
-- Dedica entre 2 y 3 PÁRRAFOS COMPLETOS Y EXTENSOS a cada escena principal o combate:
-  * Diálogos verbales y citas directas: cita frases, discusiones o intercambios emocionales entre personajes, PNJs o el DM.
-  * Planes y debates estratégicos: describe las discusiones tácticas y dilemas que la mesa debatió antes de actuar.
-  * Pruebas de habilidad y dados: menciona explícitamente tiradas destacadas (pruebas de Atletismo, Percepción, Sigilo, Engaño, salvaciones críticas '20 natural' y pifias '1 natural').
-  * Combates y maniobras turno a turno: describe la coreografía táctica detallada (conjuros específicos lanzados, posiciones, uso del entorno, daño recibido), NO solo el desenlace.
-- ⚠️ GROUNDING ESTRICTO Y CERO ALUCINACIONES TÁCTICAS:
-  * PROHIBIDO inventar movimientos de cuadrícula o distancias precisas no verbalizadas en el audio (ej. NUNCA inventar 'se replegó 25 pies', 'se colocó a 15 pies').
-  * PROHIBIDO inventar elementos topográficos, estructuras o terreno fantasma (ej. chozas, cabañas o fosos no descritos por el DM).
-  * La crónica debe ceñirse al 100% a lo efectivamente verbalizado por los jugadores y el DM.
-- ⚠️ CAUSALIDAD FÍSICA ESTRICTA Y PROHIBICIÓN DE RESÚMENES PASIVOS/PEREZOSOS:
-  * PROHIBIDO TERMINANTEMENTE usar abstracciones pasivas o resúmenes perezosos de transición (ej. NUNCA escribas "el grupo fue transportado", "una trampa los absorbió", "terminaron en" o "aparecieron de repente").
-  * Registra OBLIGATORIAMENTE la CAUSALIDAD FÍSICA EXPLÍCITA verbalizada en la transcripción: detalla quién o qué ejecutó el detonante físico (quién tiró de una palanca, quién empujó, quién activó el mecanismo, quién atacó por la espalda o qué criatura/entidad los emboscó).
-  * EXTRACCIÓN AUTOMÁTICA DE MISTERIOS: Si una acción física, trampa, emboscada o intervención es provocada por una entidad oculta, enmascarada, invisible o cuya identidad no fue revelada en el audio, debes registrarla OBLIGATORIAMENTE como una entrada de misterio abierto (ej. "Investigar la identidad de la entidad desconocida que intervino/atacó durante [Escena]").
-- ⚠️ COBERTURA OBLIGATORIA DE TODOS LOS COMBATES Y ENCUENTROS:
-  * Si en la sesión ocurren múltiples combates o encuentros mayores (por ejemplo, combate con un Trol Y combate con un Dragón), AMBOS deben ser narrados exhaustivamente en escenas separadas.
-  * PROHIBIDO omitir, fusionar apresuradamente o saltarse combates mayores.
-- ⚠️ VOCABULARIO LITERAL DE MESA Y PROHIBICIÓN DE ARCAÍSMOS:
-  * PROHIBIDO usar arcaísmos o sinónimos medievales rebuscados (ej. NUNCA uses 'sierpe' para dragón, 'pertrechos' para suministros o equipo, 'yacija', 'mengua').
-  * Usa vocabulario directo de la mesa de D&D y spanglish natural: 'dragón', 'trol', 'suministros', 'equipo', 'pociones', 'trampa'.
-- ⚠️ DIRECTIVA CRÍTICA DE DIAGRAMAS Y TABLAS: Queda estrictamente PROHIBIDO generar diagramas frágiles en texto ASCII (cajas compuestas por '+---+' o '|'). Para representar comparaciones, flujos de trabajo, matrices de decisión o transiciones de estado, utiliza SIEMPRE tablas nativas en Markdown o listas estructuradas paso a paso.
-- ⚠️ REGISTRO DE COMPAÑEROS, MASCOTAS Y RELEVOS DE PERSONAJE:
-  * Registra adecuadamente acompañantes, familiares o mascotas de la party (ej. Minipeko) y cambios o relevos de personajes.
-- ⚠️ REGLA UNIVERSAL DE TRANSICIÓN Y RELEVO DE PERSONAJES A MITAD DE SESIÓN:
-  * Si las conversaciones operativas de la mesa indican que un jugador retira, deja en reserva o sustituye a su personaje e introduce uno nuevo a mitad de la partida:
-    - Refleja la salida o retiro del personaje saliente en su resumen/hito de sesión (ej. se separó del grupo, marchó por un camino propio o quedó en reserva).
-    - Registra el nuevo personaje en la compañía de aventureros comenzando desde esta sesión con su debut.
-    - PROHIBIDO TERMINANTEMENTE atribuir combates, diálogos o acciones posteriores al personaje retirado una vez que el nuevo entra en juego.
-- ⚠️ DIRECTIVA CRÍTICA: PRONUNCIACIÓN EN ESPAÑOL DE NOMBRES EN INGLÉS/FANTASÍA (DESAMBIGUACIÓN FONÉTICA):
-  * La mesa de juego habla en ESPAÑOL, pero los nombres propios de Personajes Jugadores (PCs) y de los módulos de D&D están en INGLÉS o fantasía anglosajona.
-  * Whisper transcribe el audio interpretando los sonidos con fonemas del español, causando distorsiones fonéticas sistemáticas.
-  * PROHIBIDO inventar PNJs o atribuir acciones a figuras inexistentes cuando se trate de distorsiones fonéticas de Personajes Jugadores:
-    - "Viri", "Belly", "Belith", "Belita", "Veli", "Vel" se refieren SIEMPRE a la barda tiefling **Velith**. NUNCA confundas a Velith con un PNJ ni la llames 'Viri'.
-    - "Atou", "Ato", "A-tú", "Toad", "A todos" en combates y diálogos se refieren al monje **Atou Shadowgrace**.
-    - "Markus", "Marco", "Matthew" se refieren al guerrero **Markus Veyl**.
-    - "Minipeko", "Peko", "Mipe", "Mi pez", "Mi pepe", "Nipe" se refieren al mago kenku **Minipeko**.
-    - "Selen", "Selle", "Seren" se refieren a la pícaro **Selen**.
-  * Al narrar PNJs y elementos de módulos oficiales (como Candlekeep Mysteries - Book of the Raven / Chalet Brantifax), utiliza OBLIGATORIAMENTE los nombres canónicos oficiales en lugar de las interpretaciones fonéticas de Whisper:
-    - "Marina" / "Madrina Nateras" -> **Madrina Natterask**
-    - "Ego" / "Taspar" / "Tasspart" -> **Taspar Hatchhill**
-    - "Vinic" / "Viníque" -> **Vinique** (wereraven tiefling)
-    - "Benji" / "Rénik" / "Grokka" -> **Rennick Groka**
-    - "Sifén" / "Silfén" -> **Sylphene**
-    - "El lute" / "Ute" / "Lute" -> **Heluthe**
-    - "Braun" / "B-R-O-R-N" -> **Brorn** (el mastín cazador)
-    - "Antipax" / "Brandy bags" / "Pratt" -> **Barón Brantifax**"""
-    sec1_sub1 = "## 1.1 Resumen Narrativo y Diálogos Memorables (Estructurado por Actos y Escenas)"
-    sec1_sub2 = "## 1.2 Desglose Pormenorizado de Combates y Táctica (Maniobras, Conjuros y Críticos/Pifias)"
-    sec1_sub3 = "## 1.3 Personajes No Jugadores (PNJs) e Interacciones Clave (Taxonomía de 3 niveles: Importantes, Interacción/Contexto incluyendo regla de personajes sin nombre, y Mencionados en la historia)"
-    sec1_sub4 = "## 1.4 Lugares Explorados, Trampas y Tesoros"
-    sec2_title = "# SECCIÓN 2: CIERRE DE MESA, DECISIONES Y PLANES INMEDIATOS"
-    sec2_body = "- Momentos destacados elegidos por la mesa, decisiones al culminar la partida y planes inmediatos para la siguiente sesión."
-
-    if char_name:
-        sec3_title = f"# SECCIÓN 3: REFLEXIÓN DE ROL Y COMPAÑERISMO: {char_name} ({char_class_desc})"
-        sec3_body = f"""Reflexión de interpretación y trabajo en equipo para **{char_name}** ({char_class_desc}):
-> ⚠️ **DIRECTIVA CRÍTICA: PROHIBIDO EL MIN/MAXING O COACHING ROBÓTICO DE COMBATE**
-> - NO sermonees al jugador sobre maximizar daño por turno ni optimización matemática.
-> - El objetivo es enriquecer el rol dramático y el compañerismo con la mesa.
-Analiza 4 áreas:
-## 3.1 Coherencia y Desarrollo de Personaje (fidelidad a personalidad y trasfondo, decisiones potentes y oportunidades desaprovechadas)
-## 3.2 Creatividad y Uso del Entorno vs. Reglas (Rule of Cool vs RAW y advertencias amables)
-## 3.3 Dinámica de Grupo y Trabajo en Equipo (apoyo a los compañeros para permitirles brillar)
-## 3.4 Dilemas para la Próxima Sesión (1 o 2 preguntas reflexivas in-character)"""
-        sec3_block = f"{sec3_title}\n{sec3_body}\n\n---\n"
-        sec4_num = 4
-    else:
-        sec3_block = ""
-        sec4_num = 3
-
-    if is_youtube:
-        sec4_title = f"# SECCIÓN {sec4_num}: 📌 SINOPSIS EJECUTIVA DEL EPISODIO"
-        sec4_body = """Redacta un resumen ejecutivo y objetivo de exactamente **3 a 4 párrafos** que sintetice los acontecimientos dramáticos más importantes del episodio, revelaciones clave, giros de trama y el estado en el que quedan los personajes y facciones al concluir la sesión para espectadores y analistas."""
-    else:
-        sec4_title = f'# SECCIÓN {sec4_num}: 🎙️ GUION PARA ABRIR LA SESIÓN #{next_session} (PARA LEER EN VOZ ALTA)'
-        sec4_body = f"""Redacta un guion electrizante de exactamente **3 a 4 párrafos** para leer en voz alta al inicio de la Sesión #{next_session} en 45-60 segundos antes de tirar dados.
-> ⚠️ **DIRECTIVA CRÍTICA: PROHIBIDO USAR NARRADOR ÉPICO SOLEMNE DE NOVELA O EN TERCERA PERSONA.**
-> - **VOZ Y TONO OBLIGATORIO: Conversacional, relajado y directo en PRIMERA PERSONA DEL PLURAL ("A ver gente, la sesión pasada fuimos a... hablamos con... nos emboscaron en... y la partida se cortó justo cuando...")**, como hablarle a compas por Discord.
-> - Culmina en el cliffhanger o situación inmediata en la que arranca la Sesión #{next_session}."""
-
-    return f"""ROSTER DE LA MESA:
-{roster_formatted}
-
-INSTRUCCIONES GENERALES:
-Eres un cronista profesional de Dungeons & Dragons (5e / 5.5e) y analista táctico-narrativo.
-Analiza la siguiente transcripción de audio. Divide el informe en las siguientes secciones secuenciales:
-{lang_instruction}
-
-{header_title}
-
----
-
-{sec0_title}
-{sec0_body}
-
----
-
-{sec1_title}
-{sec1_guidelines}
-
-{sec1_sub1}
-{sec1_sub2}
-{sec1_sub3}
-{sec1_sub4}
-
----
-
-{sec2_title}
-{sec2_body}
-
----
-
-{sec3_block}{sec4_title}
-{sec4_body}
-
----
-
-{lang_instruction}
-
-TRANSCRIPCIÓN COMPLETA DEL AUDIO DE LA SESIÓN:
-{transcript_text}
-"""
-
-
 # -----------------------------------------------------------------
 # Multi-Session Continuity Prompt for Living Campaign Journal
 # -----------------------------------------------------------------
@@ -963,8 +651,22 @@ CRITICAL LANGUAGE ENFORCEMENT DIRECTIVE:
 Generate all content (Executive Briefing, Detailed Notes, Action Items, Key Points) strictly in English (e.g., English if 'en', Spanish if 'es'). Match the language requested by the user.
 100% of all headings, narrative notes, terms, action items, and review questions MUST be written in English.
 ================================================================================
+GENERAL DIRECTIVE ON PHONETICS, LOANWORDS & ZERO HALLUCINATIONS:
+- The primary audio was spoken in its detected language, but speakers frequently introduce technical terms, author names, programming libraries, methodologies, or acronyms in English or foreign languages with regional accents or non-native pronunciation.
+- Whisper transcribes sounds phonetically. Recognize the true canonical technical/academic meaning of these spoken terms instead of inventing phantom words or misattributing sounds.
+- Preserve standard technical nomenclature in its original canonical form (e.g., 'Random Forest', 'Trade-off', 'Pipeline', 'Backpropagation', 'REST API', 'Deadlock') without awkward literal translations.
+- ⚠️ STRICT ZERO-HALLUCINATION, SPEAKER ATTRIBUTION & TIMESTAMP DIRECTIVE:
+  * Ground 100% of the content strictly in what is explicitly spoken in the transcript.
+  * STRICTLY FORBIDDEN to invent philosophical doctrines, religious texts (e.g. Bhagavad Gita, Karma), external business examples, fictitious timelines, or quotes not present in the transcript.
+  * If a concept, equation, or assignment is NOT mentioned in the audio, DO NOT invent it.
+  * SPEAKER ATTRIBUTION: Accurately distinguish who says what (e.g., host/interviewer introducing metrics in the opening vs. guest/speaker). Never attribute background or introductory facts to the main speaker or vice-versa.
+  * TIMESTAMPS: Whenever timestamps (e.g. [mm:ss] or [hh:mm:ss]) appear in the transcript lines, include the exact timestamp [mm:ss] next to key claims, quantitative metrics, or major case studies so that every important assertion can be independently verified.
+================================================================================
 CRITICAL MATHEMATICAL & FORMULA FORMATTING DIRECTIVE:
-When outputting mathematical or probabilistic formulas involving money, escape currency dollar signs inside math blocks (e.g., use '\\$1,000' or write 'USD 1,000') so they do not collide with LaTeX delimiters. Ensure equations are cleanly structured for KaTeX rendering.
+- Use LaTeX delimiters ($...$ for inline or $$...$$ for display blocks) EXCLUSIVELY for genuine mathematical, physical, or chemical equations (e.g., $E = mc^2$, $\\Delta H = Q_p$, $\\sum_{{i=1}}^n x_i$, $\\int f(x)\\,dx$).
+- STRICTLY FORBIDDEN: NEVER wrap optical magnifications, zoom levels, multipliers, scales, or camera settings in dollar signs (e.g. write '40x', '10x', '100x', '5x' directly as plain text, NEVER '$40x$' nor '$10x$').
+- NEVER wrap plain numbers, percentages, physical dimensions, or single units in dollar signs (e.g. write '10 mm', '50%', '30 fps', NEVER '$10 mm$' nor '$50%$').
+- When outputting formulas involving money, escape currency dollar signs inside math blocks (e.g., use '\\$1,000' or write 'USD 1,000') so they do not collide with LaTeX delimiters. Ensure equations are cleanly structured for KaTeX rendering.
 ================================================================================
 CRITICAL DIAGRAMMING & TABLE DIRECTIVE:
 Do NOT generate fragile ASCII text diagrams (boxes made of '+---+' or '|'). To represent comparisons, workflows, decision matrices, or state transitions, ALWAYS use native Markdown tables or structured step-by-step lists.
@@ -973,10 +675,10 @@ CRITICAL EXPLANATORY DIRECTIVE (WORK & STUDY):
 Do NOT output lazy, shallow summaries or disconnected bullet points. Write a comprehensive, deeply explanatory narrative breakdown of the talk/lecture.
 1. Introduction & Context: Outline the speaker's main thesis, context, and core argument.
 2. Thematic Walkthrough: Explain each topic covered in logical progression. You MUST retain and fully explain all real-world examples, case studies, technical analogies, and edge cases shared by the speaker.
-3. Key Takeaways & Data Points (At the end only): Reserve concise bullet points strictly for the final section: specific dates, metrics, tools mentioned, action items, and concluding answers.
+3. Key Takeaways & Data Points (In Section 5): Reserve concise bullet points strictly for Section 5: specific dates, metrics, tools mentioned, and review questions.
 ================================================================================
 
-Structure the guide into the following 6 sections:
+Structure the guide into the following sections:
 
 # 🎓 EXECUTIVE BRIEFING & DEEP STUDY GUIDE: {subj}
 ## 📌 Topic: {top}
@@ -986,8 +688,14 @@ Structure the guide into the following 6 sections:
 # 1. Introduction & Context
 - Comprehensive narrative outlining the speaker's main thesis, background context, core problem being addressed, and primary thesis.
 
-# 2. Fundamental Theoretical Concepts & Terminology
-- Deep explanatory glossary, technical definitions, mathematical foundations, and thorough conceptual explanations taught by the speaker.
+# 2. Fundamental Theoretical Concepts & Glossary
+### 📖 Conceptual Glossary
+- **[Term / Concept]**: Concise, clear, and precise technical definition explaining what it means in this context.
+(Define ONLY terms that were actually discussed or introduced in the lecture. There is NO minimum or maximum: include all and only the terms mentioned, whether 0 or many. If no distinct technical terms were introduced, write: "No new specialized terms introduced in this session.")
+
+### 🛠️ Key Techniques, Procedures & Methods
+- **[Technique or Method]**: When to use it, how to apply it step-by-step, and expected outcome or diagnostic criteria.
+(Document only techniques and methods actually discussed by the speaker).
 
 # 3. Thematic Walkthrough & Deep Explanations
 - Detailed walkthrough of each topic in logical progression.
@@ -996,16 +704,18 @@ Structure the guide into the following 6 sections:
 
 # 4. Solved Examples & Practical Applications
 - Detailed breakdown of practical exercises, case studies, code patterns, or real-world dilemmas discussed, including problem statement, methodology, steps, and resolution.
+- If no practical exercises or solved examples were conducted, write: "No practical exercises or numerical examples were covered in this session."
 
-# 5. Announcements, Deadlines & Next Steps (STRICTLY CONDITIONAL)
-- Deadlines & Action Items Section: Include this section ONLY IF concrete homework assignments, project deadlines, or explicit organizational announcements were stated in the audio. If NO actionable tasks or deadlines exist (e.g. YouTube educational videos, general keynotes), OMIT this section entirely. Do NOT output placeholder text such as 'No assignments were mentioned'.
-
-# 6. Key Takeaways, Metrics & Action Items
-- Reserve concise bullet points strictly for this final section:
+# 5. Key Takeaways, Metrics & Concluding Actions
+- Reserve concise bullet points strictly for this section:
   * Key numerical metrics, benchmarks, and quantitative data points.
   * Tools, libraries, and frameworks mentioned.
-  * Direct action items and concluding answers.
   * 3 to 5 key conceptual review questions for exam or meeting retention.
+- Note: This section must always be included. Do not append '(MANDATORY SECTION)' to the section heading.
+
+# 6. Announcements, Deadlines & Deliverables
+- If the lecture/meeting explicitly mentioned homework, problem sets, project deliverables, or exam dates, list them with clear requirements and deadlines.
+- If NO formal assignments, homework, or exam dates were mentioned in the audio, OMIT this Section 6 entirely so the document concludes cleanly at Section 5. Do not append '(STRICTLY CONDITIONAL)' to the section heading.
 
 ---
 
@@ -1027,8 +737,22 @@ DIRECTIVA CRÍTICA DE IDIOMA OBLIGATORIO:
 Generate all content (Executive Briefing, Detailed Notes, Action Items, Key Points) strictly in Spanish (e.g., English if 'en', Spanish if 'es'). Match the language requested by the user.
 El 100% de los encabezados, textos narrativos, glosarios, tareas y preguntas DEBEN generarse estrictamente en español.
 ================================================================================
+DIRECTIVA GENERAL DE FONÉTICA, PRÉSTAMOS LINGÜÍSTICOS Y CERO ALUCINACIONES:
+- El audio se desarrolla en el idioma detectado, pero los expositores frecuentemente mencionan términos técnicos, nombres de autores, librerías, metodologías, herramientas o acrónimos en inglés u otros idiomas con acentos locales o pronunciación no nativa.
+- Whisper transcribe interpretando sonidos fonéticamente. Reconoce e interpreta el significado canónico y técnico real de dichos términos en lugar de transcribir errores fonéticos o inventar términos inexistentes.
+- Preserva la terminología técnica estándar en su grafía canónica original (ej. 'Random Forest', 'Gradient Descent', 'Trade-off', 'Pipeline', 'Backpropagation', 'REST API', 'Deadlock', 'Overfitting') sin forzar traducciones ortopédicas.
+- ⚠️ REGLA ESTRICTA DE CERO ALUCINACIONES, ATRIBUCIÓN Y MARCAS DE TIEMPO:
+  * Fundamenta el 100% del contenido estrictamente en lo verbalizado en la transcripción.
+  * QUEDA ESTRICTAMENTE PROHIBIDO inventar doctrinas filosóficas o religiosas (ej. Karma-Phala, Bhagavad Gita), citas externas, anécdotas ajenas, o ejemplos no mencionados en el audio.
+  * Si un concepto, fórmula, tarea o fecha NO fue mencionado por el expositor, PROHIBIDO inventarlo para rellenar secciones.
+  * ATRIBUCIÓN DE HABLANTES: Distingue con rigor quién dice cada dato (ej. presentadora o anfitriona en la introducción vs. expositor o invitado). No atribuyas cifras de la apertura al invitado ni viceversa.
+  * MARCAS DE TIEMPO: Siempre que la transcripción contenga marcas de tiempo (ej. [mm:ss] o [hh:mm:ss]), incluye la marca de tiempo exacta [mm:ss] junto a las afirmaciones centrales, métricas cuantitativas y casos de estudio para permitir su verificación inmediata.
+================================================================================
 DIRECTIVA CRÍTICA DE FORMATEO MATEMÁTICO Y FÓRMULAS:
-When outputting mathematical or probabilistic formulas involving money, escape currency dollar signs inside math blocks (e.g., use '\\$1,000' or write 'USD 1,000') so they do not collide with LaTeX delimiters. Ensure equations are cleanly structured for KaTeX rendering.
+- Utiliza delimitadores de LaTeX ($...$ para fórmulas en línea o $$...$$ para bloques destacados) EXCLUSIVAMENTE para ecuaciones matemáticas, físicas, químicas o algebraicas reales (ej. $E = mc^2$, $\\Delta H = Q_p$, $\\sum_{{i=1}}^n x_i$, $\\int f(x)\\,dx$).
+- QUEDA ESTRICTAMENTE PROHIBIDO encerrar aumentos ópticos, niveles de zoom, escalas o multiplicadores entre signos de dólar (por ejemplo, escribe '40x', '10x', '100x', '5x' directamente como texto simple, NUNCA '$40x$' ni '$10x$').
+- NUNCA coloques signos de dólar alrededor de números simples, porcentajes, dimensiones físicas o unidades (por ejemplo, escribe '10 mm', '50%', '30 fps', '40 aumentos', NUNCA '$10 mm$' ni '$50%$').
+- Al generar fórmulas que involucren dinero, escapa los símbolos de moneda para no romper KaTeX (usa '\\$1,000' o escribe 'USD 1,000').
 ================================================================================
 DIRECTIVA CRÍTICA DE DIAGRAMAS Y TABLAS:
 Queda estrictamente PROHIBIDO generar diagramas frágiles en texto ASCII (cajas compuestas por '+---+' o '|'). Para representar comparaciones, flujos de trabajo, matrices de decisión o transiciones de estado, utiliza SIEMPRE tablas nativas en Markdown (| Columna 1 | Columna 2 |) o listas estructuradas paso a paso.
@@ -1037,10 +761,10 @@ DIRECTIVA CRÍTICA DE PROFUNDIDAD EXPLICATIVA (WORK & STUDY):
 NO generes resúmenes superficiales, perezosos ni listas de viñetas desconectadas. Escribe un desglose narrativo exhaustivo, profundo y detallado de la exposición/clase/reunión.
 1. Introducción y Contexto: Sintetiza la tesis central del expositor, el contexto de fondo y su argumento rector.
 2. Recorrido Temático Detallado: Explica cada tema tratado en rigurosa progresión lógica. DEBES conservar y explicar a fondo todos los ejemplos del mundo real, casos de estudio, analogías técnicas y casos extremos (edge cases) mencionados por el expositor.
-3. Conclusiones Clave, Datos y Acciones (Exclusivamente al final): Reserva las viñetas concisas ÚNICAMENTE para la sección final: fechas exactas, métricas, herramientas mencionadas, tareas/acuerdos pendientes y respuestas de cierre.
+3. Conclusiones Clave, Datos y Acciones (En la Sección 5): Reserva las viñetas concisas para la Sección 5: fechas exactas, métricas, herramientas mencionadas y preguntas de repaso.
 ================================================================================
 
-Estructura obligatoriamente la respuesta en las siguientes 6 secciones:
+Estructura la respuesta en las siguientes secciones:
 
 # 🎓 BRIEFING EJECUTIVO Y GUÍA DE ESTUDIO PROFUNDA: {subj}
 ## 📌 Tema: {top}
@@ -1050,8 +774,14 @@ Estructura obligatoriamente la respuesta en las siguientes 6 secciones:
 # 1. Introducción y Contexto
 - Desglose narrativo profundo que sintetiza la tesis central del expositor, el contexto de fondo, la problemática analizada y los objetivos pedagógicos o estratégicos.
 
-# 2. Conceptos Teóricos Fundamentales y Terminología
-- Glosario riguroso, definiciones técnicas precisas, formulaciones y explicaciones teóricas detalladas de los conceptos abordados.
+# 2. Conceptos Teóricos Fundamentales y Glosario
+### 📖 Glosario Conceptual
+- **[Término o Concepto]**: Definición técnica concisa, clara y precisa de su significado exacto en este contexto.
+(Define ÚNICAMENTE los términos que hayan sido efectivamente tratados o explicados en la clase. La cantidad es totalmente flexible: incluye todos y solo los que se hayan mencionado, sean 0 o muchos, SIN mínimos ni máximos forzados. Si no se introdujeron términos técnicos especializados, escribe: "No se introdujeron términos especializados nuevos en esta sesión").
+
+### 🛠️ Técnicas, Métodos y Cuándo se Usan
+- **[Técnica o Método]**: Cuándo se utiliza, cómo se aplica paso a paso y qué criterio o resultado produce.
+(Documenta únicamente las técnicas o métodos realmente explicados por el expositor).
 
 # 3. Recorrido Temático Detallado y Explicaciones Profundas
 - Explicación estructurada de cada tema en progresión lógica.
@@ -1059,17 +789,19 @@ Estructura obligatoriamente la respuesta en las siguientes 6 secciones:
 - Documenta detalladamente los casos extremos (edge cases), limitaciones y advertencias enfatizadas por el expositor.
 
 # 4. Ejemplos Resueltos y Casos Prácticos
-- Desglose exhaustivo de los problemas prácticos, ejercicios o casos de negocio discutidos durante la sesión, detallando su planteamiento, desarrollo analítico y conclusión.
+- Desglose exhaustivo de los problemas prácticos, ejercicios o casos de negocio discutidos durante la sesión, detallando su planteamiento, desarrollo analítico paso a paso y conclusión.
+- Si en la sesión no se realizaron ejercicios prácticos o casos numéricos, indica: "No se desarrollaron ejercicios prácticos ni problemas resueltos en esta sesión."
 
-# 5. Avisos Relevantes, Tareas y Próximos Pasos (ESTRICTAMENTE CONDICIONAL)
-- Sección de Avisos, Tareas y Próximos Pasos: Incluye esta sección ÚNICAMENTE SI en el audio se mencionaron explícitamente tareas concretas, fechas de examen, entregas de proyectos o avisos organizativos formales. Si NO existen tareas ni fechas límite accionables (por ejemplo, videos educativos de YouTube, charlas magistrales o ponencias generales), OMITE esta sección por completo. Queda estrictamente PROHIBIDO emitir texto de relleno como 'No se anunciaron exámenes ni tareas pendientes'.
-
-# 6. Conclusiones Clave, Métricas y Acciones
-- Reserva las viñetas concisas EXCLUSIVAMENTE para esta sección de cierre:
+# 5. Conclusiones Clave, Métricas y Acciones
+- Reserva las viñetas concisas para esta sección:
   * Métricas numéricas clave, benchmarks y datos cuantitativos específicos.
   * Herramientas, software, librerías o normativas citadas.
-  * Tareas y acuerdos de acción concretos.
   * 3 a 5 preguntas de repaso conceptual o práctico para autoevaluación o preparación de exámenes.
+- Nota: Esta sección debe incluirse siempre. No agregues '(SECCIÓN OBLIGATORIA)' al título del encabezado.
+
+# 6. Avisos Relevantes, Tareas y Entregables
+- Si en la clase o reunión se mencionaron tareas obligatorias, lecturas asignadas, proyectos o fechas de exámenes, detállalos aquí con claridad, requisitos y plazos.
+- Si NO se anunciaron tareas, compromisos formales ni fechas límite en el audio, OMITE la Sección 6 por completo para que el documento concluya limpiamente en la Sección 5. No agregues '(ESTRICTAMENTE CONDICIONAL)' al título del encabezado.
 
 ---
 

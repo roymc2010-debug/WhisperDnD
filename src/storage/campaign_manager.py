@@ -95,8 +95,6 @@ def is_entity_substring_duplicate(
         return False
     if s1.lower() == s2.lower():
         return True
-    if len(s1) >= len(s2):
-        return False
 
     l1 = s1.lower()
     l2 = s2.lower()
@@ -121,10 +119,35 @@ def is_entity_substring_duplicate(
             if pl1 == pl2:
                 c1 = re.sub(r"[^\w\s]", "", l1)
                 c2 = re.sub(r"[^\w\s]", "", l2)
-                t1 = set(c1.split())
-                t2 = set(c2.split())
-                if t1.issubset(t2) or c1 in c2:
-                    return True
+                t1 = {t for t in c1.split() if len(t) >= 3 and t not in generic_titles}
+                t2 = {t for t in c2.split() if len(t) >= 3 and t not in generic_titles}
+                shared_tokens = (t1 & t2)
+                e1_aliases = [str(a).strip().lower() for a in entity1.get("aliases", [])]
+                e2_aliases = [str(a).strip().lower() for a in entity2.get("aliases", [])]
+                is_alias_match = (l1 in e2_aliases or l2 in e1_aliases)
+                if shared_tokens or t1.issubset(t2) or t2.issubset(t1) or c1 in c2 or c2 in c1 or is_alias_match or is_npc_name_match(s1, s2):
+                    if len(s1) < len(s2):
+                        return True
+                    elif len(s1) > len(s2):
+                        return False
+                    else:
+                        def _get_max_session(e):
+                            max_s = 0
+                            for h in e.get("hitos_acumulados", []):
+                                m = re.search(r"(?:sesi[oó]n|session)\s*#?(\d+)", str(h), re.IGNORECASE)
+                                if m:
+                                    max_s = max(max_s, int(m.group(1)))
+                            return max_s
+                        ms1 = _get_max_session(entity1)
+                        ms2 = _get_max_session(entity2)
+                        if ms1 < ms2:
+                            return True
+                        elif ms1 > ms2:
+                            return False
+                        return l1 > l2
+
+    if len(s1) >= len(s2):
+        return False
 
     c1 = re.sub(r"[^\w\s]", "", l1)
     c2 = re.sub(r"[^\w\s]", "", l2)
@@ -772,6 +795,63 @@ class CampaignManager:
                     "subclass": ch_sub,
                 })
 
+            existing_roster = state.get("roster", [])
+            merged_players = []
+            for r in existing_roster:
+                if r.get("character_name") == "(DM)" or r.get("role") == "Dungeon Master (DM)":
+                    continue
+                # Purge mock DM Rodrigo/Markus if external campaign
+                if r.get("player_name") in ("Rodrigo", "Markus") and not (r.get("is_user_character") or r.get("is_user")):
+                    continue
+                merged_players.append(dict(r))
+
+            for cp in clean_pcs:
+                cp_pl = cp["player_name"].strip().lower()
+                cp_char = cp["character_name"].strip().lower()
+                match = None
+                for mp in merged_players:
+                    mp_pl = (mp.get("player_name") or "").strip().lower()
+                    mp_char = (mp.get("character_name") or "").strip().lower()
+                    if cp_pl and cp_pl not in ("-", "desconocido", "") and mp_pl == cp_pl:
+                        match = mp
+                        break
+                    if cp_char and cp_char not in ("-", "") and (mp_char == cp_char or is_npc_name_match(mp_char, cp_char)):
+                        match = mp
+                        break
+                if match:
+                    for attr in ("species", "role", "subclass"):
+                        if cp.get(attr) and cp[attr] not in ("-", "Desconocido", "N/A", ""):
+                            match[attr] = cp[attr]
+                    if cp["character_name"] and cp["character_name"] not in ("-", "") and len(cp["character_name"]) > len(match.get("character_name", "")):
+                        match["character_name"] = cp["character_name"]
+                    if cp["player_name"] and cp["player_name"] not in ("-", "") and len(cp["player_name"]) > len(match.get("player_name", "")):
+                        match["player_name"] = cp["player_name"]
+                else:
+                    merged_players.append(cp)
+
+            # Synchronize any missing players from universal_pcs
+            for upc in state.get("universal_pcs", []):
+                upc_char = str(upc.get("personaje") or "").strip()
+                upc_pl = str(upc.get("jugador") or "").strip()
+                if not upc_char or upc_char in ("-", "(DM)", "Dungeon Master"):
+                    continue
+                has_in_roster = any(
+                    (str(r.get("character_name", "")).strip().lower() == upc_char.lower())
+                    or (str(r.get("character_name", "")).strip().lower() in [str(a).strip().lower() for a in upc.get("aliases", [])])
+                    or (upc_pl and upc_pl not in ("-", "Desconocido", "") and str(r.get("player_name", "")).strip().lower() == upc_pl.lower())
+                    for r in merged_players
+                )
+                if not has_in_roster:
+                    merged_players.append({
+                        "player_name": upc_pl or "-",
+                        "character_name": upc_char,
+                        "species": str(upc.get("especie") or "-").strip(),
+                        "role": str(upc.get("clase") or "-").strip(),
+                        "subclass": str(upc.get("subclase") or "-").strip(),
+                        "is_user_character": False,
+                        "is_user": False,
+                    })
+
             new_roster = []
             if detected_dm_name:
                 new_roster.append({
@@ -781,7 +861,9 @@ class CampaignManager:
                     "role": "Dungeon Master (DM)",
                     "subclass": "-",
                 })
-            new_roster.extend(clean_pcs)
+            elif existing_roster and (existing_roster[0].get("character_name") == "(DM)" or existing_roster[0].get("role") == "Dungeon Master (DM)"):
+                new_roster.append(dict(existing_roster[0]))
+            new_roster.extend(merged_players)
             state["roster"] = new_roster
         elif roster and len(roster) > 0:
             roster_has_user_char = any(p.get("is_user_character") or p.get("is_user") for p in roster)
@@ -792,9 +874,55 @@ class CampaignManager:
             if (not is_private or is_yt_campaign) and fallback_party and roster_has_markus and not detected_has_markus and not roster_has_user_char:
                 state["roster"] = fallback_party
             else:
-                state["roster"] = roster
+                # Merge incoming roster with existing roster to preserve rotating/absent players
+                existing_roster = state.get("roster", [])
+                if existing_roster:
+                    merged_r = []
+                    dm_entry = existing_roster[0] if existing_roster and (existing_roster[0].get("character_name") == "(DM)" or existing_roster[0].get("role") == "Dungeon Master (DM)") else None
+                    if dm_entry:
+                        merged_r.append(dict(dm_entry))
+                    curr_players = [dict(r) for r in existing_roster if r != dm_entry and r.get("character_name") != "(DM)"]
+                    for inc in roster:
+                        if inc.get("character_name") == "(DM)" or inc.get("role") == "Dungeon Master (DM)":
+                            continue
+                        inc_pl = str(inc.get("player_name", "")).strip().lower()
+                        inc_char = str(inc.get("character_name", "")).strip().lower()
+                        m = next((p for p in curr_players if (inc_pl and inc_pl not in ("-", "") and str(p.get("player_name", "")).strip().lower() == inc_pl) or (inc_char and inc_char not in ("-", "") and str(p.get("character_name", "")).strip().lower() == inc_char)), None)
+                        if m:
+                            for k, v in inc.items():
+                                if v not in (None, "", "-", "N/A"):
+                                    m[k] = v
+                        else:
+                            curr_players.append(inc)
+                    merged_r.extend(curr_players)
+                    state["roster"] = merged_r
+                else:
+                    state["roster"] = roster
         elif fallback_party:
-            state["roster"] = fallback_party
+            existing_roster = state.get("roster", [])
+            if existing_roster:
+                # Merge fallback_party without dropping existing roster
+                dm_entry = existing_roster[0] if existing_roster and (existing_roster[0].get("character_name") == "(DM)" or existing_roster[0].get("role") == "Dungeon Master (DM)") else None
+                curr_players = [dict(r) for r in existing_roster if r != dm_entry and r.get("character_name") != "(DM)"]
+                for fb in fallback_party:
+                    fb_pl = str(fb.get("player_name") or fb.get("jugador") or "").strip().lower()
+                    fb_char = str(fb.get("character_name") or fb.get("personaje") or "").strip().lower()
+                    m = next((p for p in curr_players if (fb_pl and fb_pl not in ("-", "") and str(p.get("player_name", "")).strip().lower() == fb_pl) or (fb_char and fb_char not in ("-", "") and str(p.get("character_name", "")).strip().lower() == fb_char)), None)
+                    if not m:
+                        curr_players.append({
+                            "player_name": str(fb.get("player_name") or fb.get("jugador") or "-").strip(),
+                            "character_name": str(fb.get("character_name") or fb.get("personaje") or "-").strip(),
+                            "species": str(fb.get("species") or fb.get("especie") or "-").strip(),
+                            "role": str(fb.get("role") or fb.get("clase") or "-").strip(),
+                            "subclass": str(fb.get("subclass") or fb.get("subclase") or "-").strip(),
+                        })
+                merged_all = []
+                if dm_entry:
+                    merged_all.append(dict(dm_entry))
+                merged_all.extend(curr_players)
+                state["roster"] = merged_all
+            else:
+                state["roster"] = fallback_party
 
         # Clean is_absent from state["roster"] so absence is NEVER remembered permanently across sessions
         if state.get("roster"):
@@ -1095,6 +1223,27 @@ class CampaignManager:
             matched_pc = next((p for p in existing_universal_pcs if str(p.get("personaje", "")).strip().lower() == char_name.lower()), None)
             if not matched_pc:
                 matched_pc = next((p for p in existing_universal_pcs if is_npc_name_match(p.get("personaje", ""), char_name)), None)
+            if not matched_pc:
+                # Match against aliases
+                for p in existing_universal_pcs:
+                    aliases_clean = [str(a).strip().lower() for a in p.get("aliases", [])]
+                    if char_lower in aliases_clean:
+                        matched_pc = p
+                        break
+            if not matched_pc and player_name_raw and player_name_raw.lower() not in ("-", "desconocido", "n/a", ""):
+                # Match by player name with shared tokens or name match
+                for p in existing_universal_pcs:
+                    pl = str(p.get("jugador") or p.get("player_name") or "").strip().lower()
+                    if pl == player_name_raw.lower():
+                        p_char = str(p.get("personaje") or "").strip()
+                        c1 = re.sub(r"[^\w\s]", "", p_char.lower())
+                        c2 = re.sub(r"[^\w\s]", "", char_lower)
+                        t1 = {t for t in c1.split() if len(t) >= 3 and t not in generic_titles}
+                        t2 = {t for t in c2.split() if len(t) >= 3 and t not in generic_titles}
+                        p_aliases = [str(a).strip().lower() for a in p.get("aliases", [])]
+                        if (t1 and t2 and (t1 & t2)) or char_lower in p_aliases or is_npc_name_match(p_char, char_name):
+                            matched_pc = p
+                            break
 
             session_achievement = str(upc.get("rol_en_sesion") or upc.get("session_role") or "").strip()
             milestone_regex = re.compile(rf"^(sesi[oó]n|session)\s*#?{actual_session_num}\s*:", re.IGNORECASE)
@@ -1117,7 +1266,10 @@ class CampaignManager:
             if matched_pc:
                 # Upgrade character name if incoming name is longer / more complete (e.g. "Octus" -> "Octus Taconis")
                 old_pc_name = matched_pc.get("personaje", "")
-                if len(char_name) > len(old_pc_name):
+                if len(char_name) > len(old_pc_name) and char_name.lower() != old_pc_name.lower():
+                    pc_aliases = matched_pc.setdefault("aliases", [])
+                    if old_pc_name and old_pc_name not in pc_aliases:
+                        pc_aliases.append(old_pc_name)
                     matched_pc["personaje"] = char_name
                     # Synchronize roster if needed
                     for r in state.get("roster", []):
@@ -1436,6 +1588,31 @@ class CampaignManager:
                 j += 1
             if not merged_any:
                 i += 1
+
+        # Synchronize roster with universal_pcs so absent rotating party members are preserved in the table
+        roster = state.get("roster", [])
+        if roster:
+            for pc in pcs:
+                p_char = str(pc.get("personaje") or "").strip()
+                p_pl = str(pc.get("jugador") or "").strip()
+                if not p_char or p_char in ("-", "(DM)", "Dungeon Master"):
+                    continue
+                has_in_roster = any(
+                    (str(r.get("character_name", "")).strip().lower() == p_char.lower())
+                    or (str(r.get("character_name", "")).strip().lower() in [str(a).strip().lower() for a in pc.get("aliases", [])])
+                    or (p_pl and p_pl not in ("-", "Desconocido", "") and str(r.get("player_name", "")).strip().lower() == p_pl.lower())
+                    for r in roster
+                )
+                if not has_in_roster:
+                    roster.append({
+                        "player_name": p_pl or "-",
+                        "character_name": p_char,
+                        "species": str(pc.get("especie") or "-").strip(),
+                        "role": str(pc.get("clase") or "-").strip(),
+                        "subclass": str(pc.get("subclase") or "-").strip(),
+                        "is_user_character": False,
+                        "is_user": False,
+                    })
 
         # --- 2. Deduplicate npcs ---
         npcs = state.get("npcs", [])

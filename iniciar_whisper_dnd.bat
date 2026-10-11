@@ -7,7 +7,7 @@ cd /d "%~dp0"
 netstat -aon | findstr :8080 | findstr LISTENING > nul
 if errorlevel 1 (
     start /min "" "%~dp0.venv\Scripts\python.exe" "%~dp0main.py"
-    timeout /t 2 /nobreak > nul
+    ping 127.0.0.1 -n 3 > nul
 )
 
 :: 2. Abrir como ventana de aplicacion
