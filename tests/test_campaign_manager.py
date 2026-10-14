@@ -1382,6 +1382,123 @@ class TestCampaignManager(unittest.TestCase):
         self.assertEqual(len(s4["detected_pcs"]), 1)
         self.assertEqual(s4["detected_party"], [])
 
+    def test_record_session_npc_category_and_status(self):
+        """Verify that record_session properly persists category and status for NPCs."""
+        camp_name = "Category & Status Test"
+        s1_chapter = {
+            "title": "La emboscada",
+            "recap_text": "Recap",
+            "chronicle_text": "Crónica",
+            "closing_expectations": "Seguir adelante",
+        }
+        s1_npcs = [
+            {
+                "name": "Halsey",
+                "role": "Guerrera aliada",
+                "category": "aliado",
+                "status": "activo",
+                "notes": ["Combatió con glaive"]
+            },
+            {
+                "name": "Barlgura",
+                "role": "Demonio simio",
+                "category": "amenaza",
+                "status": "abatido",
+                "notes": ["Derrotado"]
+            }
+        ]
+        state = self.manager.record_session(
+            name=camp_name,
+            session_chapter=s1_chapter,
+            updated_quests=[],
+            updated_npcs=s1_npcs,
+            session_number=1,
+        )
+
+        npcs = state["npcs"]
+        halsey = next(n for n in npcs if n["name"] == "Halsey")
+        self.assertEqual(halsey["category"], "aliado")
+        self.assertEqual(halsey["status"], "activo")
+
+        barlgura = next(n for n in npcs if n["name"] == "Barlgura")
+        self.assertEqual(barlgura["category"], "amenaza")
+        self.assertEqual(barlgura["status"], "abatido")
+
+    def test_update_npc_method(self):
+        """Verify that update_npc properly updates fields, aliases, category, and status."""
+        camp_name = "Update NPC Test"
+        state = self.manager.load_campaign(camp_name)
+        state["npcs"] = [
+            {
+                "name": "Hetzi",
+                "role": "Compañera misteriosa",
+                "category": "interaccion_contexto",
+                "status": "activo",
+                "aliases": [],
+                "notes": ["Acompañó al grupo."],
+            }
+        ]
+        self.manager.save_campaign(state)
+
+        updated = self.manager.update_npc(
+            campaign_name=camp_name,
+            npc_name="Hetzi",
+            new_name="Halsey",
+            role="Guerrera aliada bárbara",
+            category="aliado",
+            status="herido",
+        )
+
+        self.assertEqual(updated["name"], "Halsey")
+        self.assertEqual(updated["role"], "Guerrera aliada bárbara")
+        self.assertEqual(updated["category"], "aliado")
+        self.assertEqual(updated["status"], "herido")
+        self.assertIn("Hetzi", updated["aliases"])
+
+        # Reload from disk
+        reloaded = self.manager.load_campaign(camp_name)
+        reloaded_npc = next(n for n in reloaded["npcs"] if n["name"] == "Halsey")
+        self.assertEqual(reloaded_npc["category"], "aliado")
+        self.assertEqual(reloaded_npc["status"], "herido")
+
+    def test_merge_entities_npc_category_and_status(self):
+        """Verify that merging two NPCs retains the stronger category and recent status."""
+        camp_name = "Merge NPC Test"
+        state = self.manager.load_campaign(camp_name)
+        state["npcs"] = [
+            {
+                "name": "Halsey",
+                "role": "Guerrera bárbara aliada",
+                "category": "aliado",
+                "status": "activo",
+                "notes": ["Lucha con glaive"],
+            },
+            {
+                "name": "Hetzi",
+                "role": "Compañera",
+                "category": "interaccion_contexto",
+                "status": "herido",
+                "notes": ["Recibió daño psíquico."],
+            }
+        ]
+        self.manager.save_campaign(state)
+
+        res = self.manager.merge_entities(
+            campaign_name=camp_name,
+            source_name="Hetzi",
+            target_name="Halsey",
+            entity_type="npc",
+        )
+
+        reloaded = self.manager.load_campaign(camp_name)
+        self.assertEqual(len(reloaded["npcs"]), 1)
+        merged = reloaded["npcs"][0]
+        self.assertEqual(merged["name"], "Halsey")
+        self.assertEqual(merged["category"], "aliado")
+        self.assertEqual(merged["status"], "herido")
+        self.assertIn("Hetzi", merged["aliases"])
+        self.assertEqual(len(merged["notes"]), 2)
+
 
 if __name__ == "__main__":
     unittest.main()

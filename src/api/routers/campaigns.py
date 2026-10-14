@@ -75,6 +75,17 @@ class MergeEntitiesRequest(BaseModel):
     keep_name: Optional[str] = Field(default=None, description="Optional custom target name")
 
 
+class UpdateNpcRequest(BaseModel):
+    model_config = ConfigDict(extra="allow")
+
+    name: Optional[str] = Field(default=None, description="New name for the NPC")
+    new_name: Optional[str] = Field(default=None, description="New name for the NPC alias")
+    role: Optional[str] = Field(default=None, description="Role or subtitle of the NPC")
+    category: Optional[str] = Field(default=None, description="Category: 'clave', 'aliado', 'invocacion', 'amenaza', 'interaccion_contexto'")
+    status: Optional[str] = Field(default=None, description="Vital status: 'activo', 'herido', 'abatido', 'desvanecido'")
+    tipo: Optional[str] = Field(default=None, description="Legacy tipo: 'importantes', 'interaccion_contexto'")
+    aliases: Optional[List[str]] = Field(default=None, description="List of aliases")
+    notes: Optional[List[str]] = Field(default=None, description="Historical notes")
 
 
 # ---------------------------------------------------------------------------
@@ -109,6 +120,12 @@ async def get_campaign_session_endpoint(campaign_name: str, session_num: int):
 
     sessions = state.get("sessions", [])
     target_session = next((s for s in sessions if int(s.get("session_number", 0)) == int(session_num)), None)
+    if not target_session and sessions:
+        sorted_sessions = sorted(sessions, key=lambda s: int(s.get("session_number", 0)))
+        latest_sess = sorted_sessions[-1]
+        latest_num = int(latest_sess.get("session_number", 0))
+        if len(sessions) == 1 or int(session_num) == latest_num + 1:
+            target_session = latest_sess
     if not target_session:
         raise HTTPException(status_code=404, detail=f"Sesión #{session_num} no encontrada en la campaña '{campaign_name}'.")
 
@@ -424,6 +441,24 @@ async def finalize_npcs(campaign_name: str, payload: FinalizeNpcsRequest):
     server.export_living_journal_docx(state)
     server.export_living_journal_md(state)
 
+    # Re-export individual session chronicles
+    for sess in state.get("sessions", []):
+        try:
+            server.export_session_docx(
+                session_data=sess,
+                campaign_name=state.get("campaign_name", campaign_name),
+                roster=state.get("roster", []),
+                include_coaching=True,
+            )
+            server.export_session_md(
+                session_data=sess,
+                campaign_name=state.get("campaign_name", campaign_name),
+                roster=state.get("roster", []),
+                include_coaching=True,
+            )
+        except Exception as e:
+            print(f"[finalize_npcs] Warning re-exporting session {sess.get('session_number')}: {e}")
+
     saved_path = manager.get_campaign_path(campaign_name)
     server.trigger_drive_sync_background([saved_path])
 
@@ -527,6 +562,46 @@ async def merge_campaign_entities_endpoint(campaign_name: str, payload: MergeEnt
         raise HTTPException(status_code=500, detail=f"Error al fusionar entidades: {e}") from e
 
 
+@router.put("/api/campaigns/{campaign_name}/npcs/{npc_name}")
+async def update_campaign_npc_endpoint(campaign_name: str, npc_name: str, payload: UpdateNpcRequest):
+    """Update an NPC's details (name, role, category, status) in a campaign."""
+    manager = server.CampaignManager()
+    decoded_npc_name = urllib.parse.unquote(npc_name)
+    try:
+        new_name_val = payload.new_name or payload.name
+        updated_npc = manager.update_npc(
+            campaign_name=campaign_name,
+            npc_name=decoded_npc_name,
+            new_name=new_name_val,
+            role=payload.role,
+            category=payload.category,
+            status=payload.status,
+            tipo=payload.tipo,
+            aliases=payload.aliases,
+            notes=payload.notes,
+        )
+        updated_state = manager.load_campaign(campaign_name)
+        try:
+            server.export_living_journal_docx(updated_state)
+            server.export_living_journal_md(updated_state)
+        except Exception:
+            pass
+
+        saved_path = manager.get_campaign_path(campaign_name)
+        server.trigger_drive_sync_background([saved_path])
+
+        return {
+            "status": "success",
+            "message": f"PNJ '{decoded_npc_name}' actualizado correctamente.",
+            "npc": updated_npc,
+            "campaign_state": updated_state,
+        }
+    except ValueError as ve:
+        raise HTTPException(status_code=404, detail=str(ve)) from ve
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error al actualizar PNJ: {e}") from e
+
+
 @router.post("/api/campaigns/{campaign_name}/deduplicate")
 async def deduplicate_campaign_endpoint(campaign_name: str):
     """Run retroactive entity deduplication on a campaign."""
@@ -576,6 +651,12 @@ async def download_session_docx(campaign_name: str, session_num: int, include_co
     state = manager.load_campaign(campaign_name)
     sessions = state.get("sessions", [])
     target_session = next((s for s in sessions if int(s.get("session_number", 0)) == int(session_num)), None)
+    if not target_session and sessions:
+        sorted_sessions = sorted(sessions, key=lambda s: int(s.get("session_number", 0)))
+        latest_sess = sorted_sessions[-1]
+        latest_num = int(latest_sess.get("session_number", 0))
+        if len(sessions) == 1 or int(session_num) == latest_num + 1:
+            target_session = latest_sess
     if not target_session:
         raise HTTPException(status_code=404, detail=f"Sesión #{session_num} no encontrada en la campaña '{campaign_name}'.")
 
@@ -603,6 +684,12 @@ async def download_session_md(campaign_name: str, session_num: int, include_coac
     state = manager.load_campaign(campaign_name)
     sessions = state.get("sessions", [])
     target_session = next((s for s in sessions if int(s.get("session_number", 0)) == int(session_num)), None)
+    if not target_session and sessions:
+        sorted_sessions = sorted(sessions, key=lambda s: int(s.get("session_number", 0)))
+        latest_sess = sorted_sessions[-1]
+        latest_num = int(latest_sess.get("session_number", 0))
+        if len(sessions) == 1 or int(session_num) == latest_num + 1:
+            target_session = latest_sess
     if not target_session:
         raise HTTPException(status_code=404, detail=f"Sesión #{session_num} no encontrada en la campaña '{campaign_name}'.")
 

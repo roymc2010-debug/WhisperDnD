@@ -648,6 +648,7 @@ class TestAPIEndpoints(unittest.TestCase):
                 mode="roleplay",
                 mic_id="custom-mic-id",
                 speaker_id="custom-spk-id",
+                campaign_name=None,
             )
 
     def test_download_transcript_txt(self):

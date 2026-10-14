@@ -53,6 +53,33 @@ class TestRosterNormalizer(unittest.TestCase):
         self.assertIn("Lanzó el conjuro.", cleaned)
         self.assertIn("Entonces atacó.", cleaned)
 
+    def test_clean_whisper_ghost_subtitles_discard_pure_hallucination_lines(self):
+        """Test discarding lines that only contain ghost subtitle or channel hallucinations."""
+        lines = [
+            "Subtitulado por la comunidad de Amara.org",
+            "Subtítulos por Jnkoil",
+            "Escuela de Lingüística de la PUCE",
+            "Visita www.comunidad-dnd.es para más información.",
+            "Inauguración de la nueva sede.",
+            "Lavoratorio de Bundru",
+            "Laboratorio de Bundru",
+        ]
+        sample = "\n".join(lines)
+        cleaned = clean_whisper_hallucinations(sample)
+        self.assertEqual(cleaned.strip(), "")
+
+    def test_clean_whisper_ghost_subtitles_trim_trailing_dialogue(self):
+        """Test trimming trailing ghost phrases when attached to real dialogue."""
+        sample = "Sir Yato desenfunda su espada y avanza con cuidado. Subtitulado por la Escuela de Lingüística"
+        cleaned = clean_whisper_hallucinations(sample)
+        self.assertEqual(cleaned.strip(), "Sir Yato desenfunda su espada y avanza con cuidado.")
+
+    def test_clean_whisper_ghost_subtitles_preserves_legitimate_content(self):
+        """Ensure genuine dialogue and narrative without hallucinations remain intact."""
+        sample = "Halsey carga contra el Barlgura mientras la Hermana Lenure lanza Eldritch Blast."
+        cleaned = clean_whisper_hallucinations(sample)
+        self.assertEqual(cleaned.strip(), sample)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -5,7 +5,7 @@ import json
 import os
 import re
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Set, Tuple
 
 
 def is_npc_name_match(name1: str, name2: str) -> bool:
@@ -386,7 +386,12 @@ def are_locations_duplicate(loc1: Dict[str, Any], loc2: Dict[str, Any]) -> Tuple
     return False, None
 
 
-def merge_two_locations(target: Dict[str, Any], source: Dict[str, Any], canonical_name: Optional[str] = None) -> Dict[str, Any]:
+def merge_two_locations(
+    target: Dict[str, Any],
+    source: Dict[str, Any],
+    canonical_name: Optional[str] = None,
+    known_pc_names: Optional[Set[str]] = None,
+) -> Dict[str, Any]:
     """Merge content of source location into target location."""
     if canonical_name:
         target["name"] = canonical_name
@@ -403,6 +408,7 @@ def merge_two_locations(target: Dict[str, Any], source: Dict[str, Any], canonica
     for a in source.get("associated_characters", []):
         if a and str(a).strip():
             curr_ac.add(str(a).strip())
+
     target["associated_characters"] = sorted(list(curr_ac))
 
     # Type: prefer specific type over generic punto_de_interes
@@ -1350,6 +1356,18 @@ class CampaignManager:
                     if unpc.get("tipo") and matched_npc.get("tipo") != "importantes":
                         matched_npc["tipo"] = unpc["tipo"]
 
+                    # Update semantic category and vital status
+                    if unpc.get("category"):
+                        if matched_npc.get("category") != "clave" or unpc.get("category") == "clave":
+                            matched_npc["category"] = unpc["category"]
+                    elif not matched_npc.get("category"):
+                        matched_npc["category"] = "clave" if matched_npc.get("tipo") == "importantes" else "interaccion_contexto"
+
+                    if unpc.get("status"):
+                        matched_npc["status"] = unpc["status"]
+                    elif not matched_npc.get("status"):
+                        matched_npc["status"] = "activo"
+
                     # Preserve earliest first_seen_session
                     matched_npc["first_seen_session"] = min(
                         matched_npc.get("first_seen_session", actual_session_num),
@@ -1389,6 +1407,8 @@ class CampaignManager:
                         "aliases": [str(al).strip() for al in unpc.get("aliases", []) if str(al).strip()],
                         "role": unpc.get("role", "Desconocido / PNJ"),
                         "tipo": unpc.get("tipo", "interaccion_contexto"),
+                        "category": unpc.get("category") or ("clave" if unpc.get("tipo") == "importantes" else "interaccion_contexto"),
+                        "status": unpc.get("status") or "activo",
                         "first_seen_session": actual_session_num,
                         "notes": notes,
                     })
@@ -1580,6 +1600,10 @@ class CampaignManager:
                 loc_name = str(loc.get("name") or "").strip()
                 if not loc_name:
                     continue
+
+                raw_assoc = [str(ac).strip() for ac in loc.get("associated_characters", []) if str(ac).strip()]
+                loc["associated_characters"] = raw_assoc
+
                 matched_loc = next((l for l in existing_locations if are_locations_duplicate(l, loc)[0]), None)
                 if matched_loc:
                     _, canonical = are_locations_duplicate(matched_loc, loc)
@@ -1590,7 +1614,7 @@ class CampaignManager:
                         "type": loc.get("type", "punto_de_interes"),
                         "description": loc.get("description", ""),
                         "status": loc.get("status", "explorado"),
-                        "associated_characters": [str(ac).strip() for ac in loc.get("associated_characters", []) if str(ac).strip()],
+                        "associated_characters": raw_assoc,
                     })
 
         # 6. Merge Items
@@ -1687,15 +1711,147 @@ class CampaignManager:
         old_name: str,
         new_name: str,
     ) -> Dict[str, Any]:
-        """Update an NPC's name across the directory after user spell review."""
+        """Update an NPC's name across the directory, sessions, quests, locations, and items after user spell review."""
         state = self.load_campaign(name)
         clean_new = new_name.strip()
-        if not clean_new:
+        clean_old = old_name.strip()
+        if not clean_new or not clean_old or clean_new.lower() == clean_old.lower():
             return state
 
+        # Collect tokens to match: full old name, slash parts, and known aliases
+        tokens_to_match = [clean_old]
+        if "/" in clean_old:
+            tokens_to_match.extend([p.strip() for p in clean_old.split("/") if len(p.strip()) >= 3])
+
+        # Also find target npc in state to check its existing aliases
         for npc in state.get("npcs", []):
-            if npc.get("name", "").lower() == old_name.strip().lower():
+            if (npc.get("name") or "").strip().lower() == clean_old.lower():
+                for al in npc.get("aliases", []):
+                    al_s = str(al).strip()
+                    if len(al_s) >= 3 and al_s.lower() != clean_new.lower() and al_s not in tokens_to_match:
+                        tokens_to_match.append(al_s)
+                break
+
+        patterns = [
+            re.compile(rf"\b{re.escape(tok)}\b", re.IGNORECASE)
+            for tok in sorted(set(tokens_to_match), key=len, reverse=True)
+        ]
+
+        def _sub_text(text: Any) -> Any:
+            if not isinstance(text, str):
+                return text
+            res = text
+            for pat in patterns:
+                res = pat.sub(clean_new, res)
+            return res
+
+        # 1. Update in NPCs directory
+        for npc in state.get("npcs", []):
+            npc_name = (npc.get("name") or "").strip()
+            if npc_name.lower() == clean_old.lower():
                 npc["name"] = clean_new
+                aliases = npc.setdefault("aliases", [])
+                if clean_old not in aliases and clean_old.lower() != clean_new.lower():
+                    aliases.append(clean_old)
+            elif any(pat.search(npc_name) for pat in patterns):
+                for pat in patterns:
+                    npc_name = pat.sub(clean_new, npc_name)
+                npc["name"] = npc_name
+
+            if "notes" in npc and isinstance(npc["notes"], list):
+                npc["notes"] = [_sub_text(note) for note in npc["notes"]]
+            if "role" in npc:
+                npc["role"] = _sub_text(npc["role"])
+            if "description" in npc:
+                npc["description"] = _sub_text(npc["description"])
+
+        # 2. Update across session records and chronicles
+        for session in state.get("sessions", []):
+            if "detected_npc_names" in session and isinstance(session["detected_npc_names"], list):
+                updated_detected = []
+                for det in session["detected_npc_names"]:
+                    det_str = str(det).strip()
+                    if det_str.lower() == clean_old.lower():
+                        if clean_new not in updated_detected:
+                            updated_detected.append(clean_new)
+                    elif any(pat.search(det_str) for pat in patterns):
+                        subbed = _sub_text(det_str)
+                        if subbed not in updated_detected:
+                            updated_detected.append(subbed)
+                    else:
+                        if det_str not in updated_detected:
+                            updated_detected.append(det_str)
+                session["detected_npc_names"] = updated_detected
+
+            for key in (
+                "chronicle_text",
+                "chronicle_markdown",
+                "recap_text",
+                "next_session_script",
+                "closing_expectations",
+                "episode_synopsis",
+                "session_title",
+                "title",
+            ):
+                if key in session and isinstance(session[key], str):
+                    session[key] = _sub_text(session[key])
+
+            # Update detected_pcs roles and hitos
+            for pc in session.get("detected_pcs", []):
+                if "rol_en_sesion" in pc and isinstance(pc["rol_en_sesion"], str):
+                    pc["rol_en_sesion"] = _sub_text(pc["rol_en_sesion"])
+                if "hitos_acumulados" in pc and isinstance(pc["hitos_acumulados"], list):
+                    pc["hitos_acumulados"] = [_sub_text(h) for h in pc["hitos_acumulados"]]
+
+            # Update detected_party
+            for p in session.get("detected_party", []):
+                if "rol_en_sesion" in p and isinstance(p["rol_en_sesion"], str):
+                    p["rol_en_sesion"] = _sub_text(p["rol_en_sesion"])
+                if "session_role" in p and isinstance(p["session_role"], str):
+                    p["session_role"] = _sub_text(p["session_role"])
+
+        # 3. Update in quests
+        for quest in state.get("quests", []):
+            for key in ("title", "context", "lifecycle_notes"):
+                if key in quest and isinstance(quest[key], str):
+                    quest[key] = _sub_text(quest[key])
+            for sub in quest.get("subobjectives", []):
+                if isinstance(sub, dict) and "text" in sub:
+                    sub["text"] = _sub_text(sub["text"])
+
+        # 4. Update in locations
+        for loc in state.get("locations", []):
+            if "associated_characters" in loc and isinstance(loc["associated_characters"], list):
+                updated_assoc = []
+                for ac in loc["associated_characters"]:
+                    ac_str = str(ac).strip()
+                    if ac_str.lower() == clean_old.lower():
+                        if clean_new not in updated_assoc:
+                            updated_assoc.append(clean_new)
+                    elif pattern.search(ac_str):
+                        subbed = pattern.sub(clean_new, ac_str)
+                        if subbed not in updated_assoc:
+                            updated_assoc.append(subbed)
+                    else:
+                        if ac_str not in updated_assoc:
+                            updated_assoc.append(ac_str)
+                loc["associated_characters"] = updated_assoc
+            if "description" in loc and isinstance(loc["description"], str):
+                loc["description"] = _sub_text(loc["description"])
+
+        # 5. Update in items
+        for item in state.get("items", []):
+            if "holder" in item and isinstance(item["holder"], str):
+                item["holder"] = _sub_text(item["holder"])
+            if "description" in item and isinstance(item["description"], str):
+                item["description"] = _sub_text(item["description"])
+
+        # 6. Update in universal_pcs hitos and session_role
+        for upc in state.get("universal_pcs", []):
+            if "session_role" in upc and isinstance(upc["session_role"], str):
+                upc["session_role"] = _sub_text(upc["session_role"])
+            if "hitos_acumulados" in upc and isinstance(upc["hitos_acumulados"], list):
+                upc["hitos_acumulados"] = [_sub_text(h) for h in upc["hitos_acumulados"]]
 
         self.save_campaign(state)
         return state
@@ -1866,6 +2022,21 @@ class CampaignManager:
 
                         if npc1.get("tipo") == "importantes":
                             npc2["tipo"] = "importantes"
+
+                        # Preserve semantic category and status
+                        cat1 = npc1.get("category")
+                        cat2 = npc2.get("category")
+                        if cat1 == "clave" or (cat1 and not cat2):
+                            npc2["category"] = cat1
+                        elif not cat2:
+                            npc2["category"] = "clave" if npc2.get("tipo") == "importantes" else "interaccion_contexto"
+
+                        st1 = npc1.get("status")
+                        st2 = npc2.get("status")
+                        if st1 and (not st2 or st2 == "activo"):
+                            npc2["status"] = st1
+                        elif not st2:
+                            npc2["status"] = "activo"
 
                         f1 = int(npc1.get("first_seen_session") or 9999)
                         f2 = int(npc2.get("first_seen_session") or 9999)
@@ -2086,6 +2257,28 @@ class CampaignManager:
                     target_npc["role"] = r1
                 if source_npc.get("tipo") == "importantes":
                     target_npc["tipo"] = "importantes"
+                
+                # Category merge
+                s_cat = source_npc.get("category")
+                t_cat = target_npc.get("category")
+                if s_cat and not t_cat:
+                    target_npc["category"] = s_cat
+                elif s_cat == "clave":
+                    target_npc["category"] = "clave"
+                    target_npc["tipo"] = "importantes"
+                elif s_cat in ("aliado", "invocacion", "amenaza") and t_cat in ("interaccion_contexto", None, ""):
+                    target_npc["category"] = s_cat
+
+                # Status merge
+                s_status = source_npc.get("status")
+                if s_status and (not target_npc.get("status") or target_npc.get("status") == "activo"):
+                    target_npc["status"] = s_status
+
+                if "category" not in target_npc:
+                    target_npc["category"] = "clave" if target_npc.get("tipo") == "importantes" else "interaccion_contexto"
+                if "status" not in target_npc:
+                    target_npc["status"] = "activo"
+
                 f1 = int(source_npc.get("first_seen_session") or 9999)
                 f2 = int(target_npc.get("first_seen_session") or 9999)
                 target_npc["first_seen_session"] = min(f1, f2)
@@ -2111,3 +2304,77 @@ class CampaignManager:
 
         self.save_campaign(state)
         return merged_record
+
+    def update_npc(
+        self,
+        campaign_name: str,
+        npc_name: str,
+        new_name: Optional[str] = None,
+        role: Optional[str] = None,
+        category: Optional[str] = None,
+        status: Optional[str] = None,
+        tipo: Optional[str] = None,
+        aliases: Optional[List[str]] = None,
+        notes: Optional[List[str]] = None,
+    ) -> Dict[str, Any]:
+        """Actualiza los datos de un PNJ existente en la campaña."""
+        state = self.load_campaign(campaign_name)
+        npcs = state.setdefault("npcs", [])
+
+        target_npc = None
+        for n in npcs:
+            if str(n.get("name", "")).strip().lower() == npc_name.strip().lower():
+                target_npc = n
+                break
+
+        if not target_npc:
+            for n in npcs:
+                if any(str(a).strip().lower() == npc_name.strip().lower() for a in n.get("aliases", [])):
+                    target_npc = n
+                    break
+
+        if not target_npc:
+            raise ValueError(f"No se encontró el PNJ '{npc_name}' en la campaña '{campaign_name}'.")
+
+        old_name = target_npc.get("name", npc_name)
+        if new_name and new_name.strip() and new_name.strip() != old_name:
+            final_new_name = new_name.strip()
+            target_aliases = target_npc.setdefault("aliases", [])
+            if old_name not in target_aliases:
+                target_aliases.append(old_name)
+            target_npc["name"] = final_new_name
+            self._sync_roster_and_sessions(state, old_name, final_new_name)
+
+        if role is not None:
+            target_npc["role"] = role.strip()
+
+        if category is not None:
+            cat_clean = category.strip().lower()
+            target_npc["category"] = cat_clean
+            if cat_clean == "clave":
+                target_npc["tipo"] = "importantes"
+            elif cat_clean in ("aliado", "invocacion", "amenaza", "interaccion_contexto"):
+                target_npc["tipo"] = "interaccion_contexto"
+
+        if tipo is not None and category is None:
+            target_npc["tipo"] = tipo.strip().lower()
+            if target_npc["tipo"] == "importantes" and target_npc.get("category") != "clave":
+                target_npc["category"] = "clave"
+
+        if status is not None:
+            target_npc["status"] = status.strip().lower()
+
+        if aliases is not None:
+            target_npc["aliases"] = [a.strip() for a in aliases if a and a.strip()]
+
+        if notes is not None:
+            target_npc["notes"] = notes
+
+        if not target_npc.get("category"):
+            target_npc["category"] = "clave" if target_npc.get("tipo") == "importantes" else "interaccion_contexto"
+        if not target_npc.get("status"):
+            target_npc["status"] = "activo"
+
+        self.save_campaign(state)
+        return target_npc
+

@@ -772,15 +772,107 @@ function findAndSelectWikiEntity(type, entityName) {
   }
 }
 
+function formatCharacterDisplayName(fullName, aliases) {
+  if (!fullName) return fullName || "";
+  let name = String(fullName).trim();
+  if (name.includes('"') || name.includes("'")) {
+    return name;
+  }
+  if (!aliases || !Array.isArray(aliases) || aliases.length === 0) {
+    return name;
+  }
+
+  const words = name.split(/\s+/);
+  const firstName = words[0];
+
+  for (const rawAlias of aliases) {
+    const alias = String(rawAlias).trim();
+    if (!alias) continue;
+    const lowerAlias = alias.toLowerCase();
+    const lowerFirst = firstName.toLowerCase();
+    if (
+      lowerAlias.length >= 3 &&
+      (lowerFirst.startsWith(lowerAlias) || lowerAlias.startsWith(lowerFirst.replace(/[^a-z0-9]/g, ""))) &&
+      lowerAlias !== lowerFirst
+    ) {
+      const rest = words.slice(1).join(" ");
+      return rest ? `${firstName} "${alias}" ${rest}` : `${firstName} "${alias}"`;
+    }
+  }
+  return name;
+}
+
+function getCleanNarrativeAliases(fullName, aliases) {
+  if (!aliases || !Array.isArray(aliases)) return [];
+  const name = String(fullName || "").toLowerCase().trim();
+  const nameWords = name.split(/\s+/).map(w => w.replace(/[^\w]/g, "")).filter(Boolean);
+  const firstName = nameWords[0] || "";
+
+  return aliases.map(a => String(a).trim()).filter(alias => {
+    if (!alias) return false;
+    const lowerAlias = alias.toLowerCase();
+    if (lowerAlias === name) return false;
+    if (nameWords.includes(lowerAlias.replace(/[^\w]/g, ""))) return false;
+
+    // Short-form callsign already in display name (e.g. "John" in Johngalli)
+    if (
+      lowerAlias.length >= 3 &&
+      (firstName.startsWith(lowerAlias) || lowerAlias.startsWith(firstName))
+    ) {
+      return false;
+    }
+
+    // Exclude single-word phonetic variations and Whisper misheard syllables
+    const aliasWords = lowerAlias.split(/\s+/);
+    if (aliasWords.length === 1) {
+      const w = aliasWords[0];
+      const isPhonetic = nameWords.some(nw => {
+        if (Math.abs(nw.length - w.length) <= 3) {
+          let common = 0;
+          for (let i = 0; i < Math.min(nw.length, w.length); i++) {
+            if (nw[i] === w[i]) common++;
+          }
+          if (common >= 3) return true;
+        }
+        return false;
+      });
+      if (isPhonetic) return false;
+    }
+
+    return true;
+  });
+}
+
 function getAssociatedLocationsForCharacter(charName) {
   if (!charName) return [];
   const state = currentWikiCampaignState || {};
   const target = charName.toLowerCase().trim();
+
+  // Check if character is a Player Character (PC)
+  const isPc = (state.universal_pcs || []).some(p => {
+    const pName = (p.name || p.nombre || p.personaje || "").toLowerCase().trim();
+    if (pName === target) return true;
+    return (p.aliases || []).some(a => (a || "").toLowerCase().trim() === target);
+  }) || (state.roster || []).some(r => {
+    const rName = (r.character_name || "").toLowerCase().trim();
+    return rName && rName !== "(dm)" && rName === target;
+  });
+
   return (state.locations || []).filter(loc => {
     const assoc = Array.isArray(loc.associated_characters) ? loc.associated_characters : [];
-    if (assoc.some(a => (a || "").toLowerCase().trim() === target)) return true;
-    const desc = (loc.description || "").toLowerCase();
-    return target.length >= 3 && desc.includes(target);
+    const inAssoc = assoc.some(a => (a || "").toLowerCase().trim() === target);
+    const locType = String(loc.type || "").toLowerCase();
+    const locDesc = String(loc.description || "").toLowerCase();
+    const isResidence = /hogar|residencia|base|cuartel|sede|refugio/i.test(`${locType} ${locDesc}`);
+
+    // If PC: ONLY associate if this place is explicitly their home base or residence!
+    // Transient visits to dungeons, caves or battlefields NEVER link to PC dossiers!
+    if (isPc) {
+      return isResidence && (inAssoc || (target.length >= 3 && locDesc.includes(target)));
+    }
+
+    // For NPCs: ONLY link if listed as inhabitant/custodian/ruler in associated_characters
+    return inAssoc;
   });
 }
 
@@ -906,12 +998,30 @@ function renderWikiDossier() {
 
 function buildLocationDossierHtml(loc) {
   const state = currentWikiCampaignState || {};
-  const assoc = Array.isArray(loc.associated_characters) ? loc.associated_characters : [];
+  const rawAssoc = Array.isArray(loc.associated_characters) ? loc.associated_characters : [];
+  const locType = String(loc.type || "").toLowerCase();
+  const locDesc = String(loc.description || "").toLowerCase();
+  const isResidence = /hogar|residencia|base|cuartel|sede|refugio/i.test(`${locType} ${locDesc}`);
+
+  // Exclude visiting PCs unless the place is explicitly their home / permanent base
+  const assoc = rawAssoc.filter(charName => {
+    const isPc = (state.universal_pcs || []).some(p => {
+      const pName = (p.name || p.nombre || p.personaje || "").toLowerCase().trim();
+      if (pName === charName.toLowerCase().trim()) return true;
+      return (p.aliases || []).some(a => (a || "").toLowerCase().trim() === charName.toLowerCase().trim());
+    }) || (state.roster || []).some(r => {
+      const rName = (r.character_name || "").toLowerCase().trim();
+      return rName && rName !== "(dm)" && rName === charName.toLowerCase().trim();
+    });
+    if (isPc && !isResidence) return false;
+    return true;
+  });
+
   let assocChipsHtml = "";
   if (assoc.length > 0) {
     assocChipsHtml = `
       <div class="space-y-2 pt-2 border-t border-slate-800/80">
-        <span class="text-[11px] font-semibold text-slate-400 block uppercase font-mono">Personajes y PNJs Vinculados:</span>
+        <span class="text-[11px] font-semibold text-slate-400 block uppercase font-mono">Habitantes, Gobernantes o Custodios Permanentes:</span>
         <div class="flex flex-wrap gap-2">
           ${assoc.map(charName => {
             const isPc = (state.universal_pcs || []).some(p => (p.name || p.nombre || p.personaje || "").toLowerCase().trim() === charName.toLowerCase().trim());
@@ -1500,13 +1610,15 @@ function buildNpcDossierHtml(n) {
     tipoBadge = '<span class="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-slate-800 text-slate-300 border border-slate-700">📜 Mencionado en la historia</span>';
   }
 
-  const npcName = n.name || n.nombre || n.personaje || n.character_name || 'Sin nombre';
+  const rawNpcName = n.name || n.nombre || n.personaje || n.character_name || 'Sin nombre';
+  const npcName = formatCharacterDisplayName(rawNpcName, n.aliases);
+  const cleanNpcAliases = getCleanNarrativeAliases(rawNpcName, n.aliases);
   const npcRole = n.role || n.rol_en_sesion || n.session_role || 'Personaje No Jugador';
   const npcDesc = n.description || n.descripcion || n.detalles || n.rol_en_sesion || n.role || n.session_role || (Array.isArray(n.notes) && n.notes[0]) || 'Sin descripción disponible';
   const rawNotes = (Array.isArray(n.notes) && n.notes.length > 0) ? n.notes : (n.description ? [n.description] : (n.descripcion ? [n.descripcion] : []));
   const notes = rawNotes.length > 0 ? rawNotes : [npcDesc];
 
-  const assocLocs = getAssociatedLocationsForCharacter(npcName);
+  const assocLocs = getAssociatedLocationsForCharacter(rawNpcName);
   let locsHtml = "";
   if (assocLocs.length > 0) {
     locsHtml = `
@@ -1526,7 +1638,7 @@ function buildNpcDossierHtml(n) {
     `;
   }
 
-  const heldItems = getHeldItemsForCharacter(npcName);
+  const heldItems = getHeldItemsForCharacter(rawNpcName);
   let itemsHtml = "";
   if (heldItems.length > 0) {
     itemsHtml = `
@@ -1557,17 +1669,17 @@ function buildNpcDossierHtml(n) {
               Visto por primera vez en Sesión #${n.first_seen_session || 1}
             </span>
           </div>
-          <button type="button" onclick="openMergeEntityModal('npc', '${escapeHtml(npcName)}')" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-800/90 hover:bg-slate-700 text-amber-300 border border-slate-700 shadow-sm transition active:scale-95 cursor-pointer" title="Fusionar con otro personaje de la campaña">
+          <button type="button" onclick="openMergeEntityModal('npc', '${escapeHtml(rawNpcName)}')" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-800/90 hover:bg-slate-700 text-amber-300 border border-slate-700 shadow-sm transition active:scale-95 cursor-pointer" title="Fusionar con otro personaje de la campaña">
             <span>🔗</span>
             <span>Fusionar con otro personaje</span>
           </button>
         </div>
         <h3 class="text-base font-bold text-slate-100 font-fantasy">${escapeHtml(npcName)}</h3>
         <p class="text-xs text-amber-300 font-medium">${escapeHtml(npcRole)}</p>
-        ${(Array.isArray(n.aliases) && n.aliases.length > 0) ? `
+        ${cleanNpcAliases.length > 0 ? `
           <div class="flex flex-wrap items-center gap-1.5 pt-1 text-xs">
-            <span class="text-[10px] uppercase font-mono text-slate-400">Alias conocidos:</span>
-            ${n.aliases.map(a => `<span class="px-2 py-0.5 rounded-full bg-slate-900 border border-slate-700/80 text-amber-300 font-mono text-[11px]">${escapeHtml(a)}</span>`).join("")}
+            <span class="text-[10px] uppercase font-mono text-slate-400">Apodo / Sobrenombre:</span>
+            ${cleanNpcAliases.map(a => `<span class="px-2 py-0.5 rounded-full bg-slate-900 border border-slate-700/80 text-amber-300 font-mono text-[11px]">${escapeHtml(a)}</span>`).join("")}
           </div>
         ` : ''}
       </div>
@@ -1591,7 +1703,9 @@ function buildNpcDossierHtml(n) {
 }
 
 function buildPcDossierHtml(p) {
-  const charName = p.name || p.nombre || p.personaje || p.character_name || 'Sin nombre';
+  const rawCharName = p.name || p.nombre || p.personaje || p.character_name || 'Sin nombre';
+  const charName = formatCharacterDisplayName(rawCharName, p.aliases);
+  const cleanPcAliases = getCleanNarrativeAliases(rawCharName, p.aliases);
   const player = p.player_name || p.jugador || p.player || '';
   const species = p.species || p.especie || p.raza || 'Desconocida';
   const cls = p.character_class || p.clase || p.class || p.role || 'Aventurero';
@@ -1601,7 +1715,7 @@ function buildPcDossierHtml(p) {
   const pcDesc = p.description || p.descripcion || p.detalles || p.rol_en_sesion || (rawHitos.length > 0 ? rawHitos[0] : 'Sin descripción disponible');
   const hitos = rawHitos.length > 0 ? rawHitos : [pcDesc];
 
-  const assocLocs = getAssociatedLocationsForCharacter(charName);
+  const assocLocs = getAssociatedLocationsForCharacter(rawCharName);
   let locsHtml = "";
   if (assocLocs.length > 0) {
     locsHtml = `
@@ -1621,7 +1735,7 @@ function buildPcDossierHtml(p) {
     `;
   }
 
-  const heldItems = getHeldItemsForCharacter(charName);
+  const heldItems = getHeldItemsForCharacter(rawCharName);
   let itemsHtml = "";
   if (heldItems.length > 0) {
     itemsHtml = `
@@ -1649,7 +1763,7 @@ function buildPcDossierHtml(p) {
           <span>⬅️</span>
           <span>Ver Todos los Protagonistas</span>
         </button>
-        <button type="button" onclick="openMergeEntityModal('pc', '${escapeHtml(charName)}')" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-800/90 hover:bg-slate-700 text-amber-300 border border-slate-700 shadow-sm transition active:scale-95 cursor-pointer" title="Fusionar con otro personaje de la campaña">
+        <button type="button" onclick="openMergeEntityModal('pc', '${escapeHtml(rawCharName)}')" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-800/90 hover:bg-slate-700 text-amber-300 border border-slate-700 shadow-sm transition active:scale-95 cursor-pointer" title="Fusionar con otro personaje de la campaña">
           <span>🔗</span>
           <span>Fusionar con otro personaje</span>
         </button>
@@ -1665,10 +1779,10 @@ function buildPcDossierHtml(p) {
         </div>
         <h3 class="text-base font-bold text-slate-100 font-fantasy">${escapeHtml(charName)}</h3>
         ${player ? `<p class="text-xs text-slate-300">Jugador: <strong class="text-amber-300">${escapeHtml(player)}</strong></p>` : ''}
-        ${(Array.isArray(p.aliases) && p.aliases.length > 0) ? `
+        ${cleanPcAliases.length > 0 ? `
           <div class="flex flex-wrap items-center gap-1.5 pt-1 text-xs">
-            <span class="text-[10px] uppercase font-mono text-slate-400">Alias conocidos:</span>
-            ${p.aliases.map(a => `<span class="px-2 py-0.5 rounded-full bg-slate-900 border border-slate-700/80 text-amber-300 font-mono text-[11px]">${escapeHtml(a)}</span>`).join("")}
+            <span class="text-[10px] uppercase font-mono text-slate-400">Apodo / Sobrenombre:</span>
+            ${cleanPcAliases.map(a => `<span class="px-2 py-0.5 rounded-full bg-slate-900 border border-slate-700/80 text-amber-300 font-mono text-[11px]">${escapeHtml(a)}</span>`).join("")}
           </div>
         ` : ''}
       </div>
@@ -1709,52 +1823,151 @@ function buildPcDossierHtml(p) {
 // =========================================================================
 // UNIVERSAL NPC & PC DIRECTORIES
 // =========================================================================
+let activeNpcCategoryFilter = 'all';
+
+function setNpcCategoryFilter(filter) {
+  activeNpcCategoryFilter = filter;
+  const chips = document.querySelectorAll(".npc-filter-chip");
+  chips.forEach(chip => {
+    const f = chip.getAttribute("data-npc-filter");
+    if (f === filter) {
+      chip.classList.add("active", "bg-amber-500/20", "border-amber-500/40", "text-amber-200");
+      chip.classList.remove("bg-slate-900/80", "border-slate-800", "text-slate-400");
+    } else {
+      chip.classList.remove("active", "bg-amber-500/20", "border-amber-500/40", "text-amber-200");
+      chip.classList.add("bg-slate-900/80", "border-slate-800", "text-slate-400");
+    }
+  });
+  filterNpcs();
+}
+
+function getNpcCategoryBadge(n) {
+  const cat = String(n.category || "").toLowerCase();
+  const tipo = String(n.tipo || "").toLowerCase();
+
+  if (cat === "clave" || tipo === "importantes" || tipo === "importante") {
+    return `<span class="px-2 py-0.5 rounded-full text-[10px] font-semibold font-mono bg-amber-500/15 text-amber-300 border border-amber-500/30">👑 Clave / Importante</span>`;
+  } else if (cat === "aliado") {
+    return `<span class="px-2 py-0.5 rounded-full text-[10px] font-semibold font-mono bg-sky-500/15 text-cyan-300 border border-sky-500/30">🛡️ Aliado / Compañero</span>`;
+  } else if (cat === "invocacion") {
+    return `<span class="px-2 py-0.5 rounded-full text-[10px] font-semibold font-mono bg-purple-500/15 text-purple-300 border border-purple-500/30">🐾 Invocación / Familiar</span>`;
+  } else if (cat === "amenaza") {
+    return `<span class="px-2 py-0.5 rounded-full text-[10px] font-semibold font-mono bg-rose-500/15 text-rose-300 border border-rose-500/30">💀 Amenaza / Enemigo</span>`;
+  } else {
+    return `<span class="px-2 py-0.5 rounded-full text-[10px] font-semibold font-mono bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">⚔️ Interacción / Contexto</span>`;
+  }
+}
+
+function getNpcStatusBadge(n) {
+  const status = String(n.status || "activo").toLowerCase();
+  if (status === "herido") {
+    return `<span class="px-1.5 py-0.5 rounded-md text-[10px] font-medium font-mono bg-amber-950/60 text-amber-300 border border-amber-800/40" title="Estado al final de la sesión: Herido o Revivido">🟡 Herido</span>`;
+  } else if (status === "abatido") {
+    return `<span class="px-1.5 py-0.5 rounded-md text-[10px] font-medium font-mono bg-rose-950/60 text-rose-300 border border-rose-800/40" title="Estado al final de la sesión: Abatido o Muerto">🔴 Abatido</span>`;
+  } else if (status === "desvanecido") {
+    return `<span class="px-1.5 py-0.5 rounded-md text-[10px] font-medium font-mono bg-purple-950/60 text-purple-300 border border-purple-800/40" title="Estado al final de la sesión: Desvanecido">🟣 Desvanecido</span>`;
+  } else {
+    return `<span class="px-1.5 py-0.5 rounded-md text-[10px] font-medium font-mono bg-emerald-950/60 text-emerald-300 border border-emerald-800/40" title="Estado al final de la sesión: Activo">🟢 Activo</span>`;
+  }
+}
+
 function renderNpcs(npcs) {
   const container = document.getElementById("npcsContainer");
   if (!container) return;
-  if (!npcs || npcs.length === 0) {
-    container.innerHTML = `<p class="italic text-slate-500 text-xs col-span-2">No hay PNJs registrados en la campaña.</p>`;
+
+  const list = npcs || [];
+
+  // Update dynamic counters for category filter chips
+  const countAll = list.length;
+  let countClave = 0, countAliado = 0, countInvocacion = 0, countAmenaza = 0, countInteraccion = 0;
+
+  list.forEach(n => {
+    const c = String(n.category || "").toLowerCase();
+    const t = String(n.tipo || "").toLowerCase();
+    if (c === "clave" || t === "importantes" || t === "importante") countClave++;
+    else if (c === "aliado") countAliado++;
+    else if (c === "invocacion") countInvocacion++;
+    else if (c === "amenaza") countAmenaza++;
+    else countInteraccion++;
+  });
+
+  const elAll = document.getElementById("npcCountAll");
+  const elClave = document.getElementById("npcCountClave");
+  const elAliado = document.getElementById("npcCountAliado");
+  const elInvocacion = document.getElementById("npcCountInvocacion");
+  const elAmenaza = document.getElementById("npcCountAmenaza");
+  const elInteraccion = document.getElementById("npcCountInteraccion");
+
+  if (elAll) elAll.textContent = countAll;
+  if (elClave) elClave.textContent = countClave;
+  if (elAliado) elAliado.textContent = countAliado;
+  if (elInvocacion) elInvocacion.textContent = countInvocacion;
+  if (elAmenaza) elAmenaza.textContent = countAmenaza;
+  if (elInteraccion) elInteraccion.textContent = countInteraccion;
+
+  if (list.length === 0) {
+    container.innerHTML = `<p class="italic text-slate-500 text-xs col-span-2 p-4 text-center">No hay PNJs registrados en la campaña.</p>`;
     return;
   }
 
   container.innerHTML = "";
-  npcs.forEach(n => {
+  list.forEach(n => {
     const card = document.createElement("div");
-    card.className = "npc-card p-4 rounded-xl bg-slate-900/90 border border-slate-800/80 hover:border-sky-500/40 backdrop-blur-sm shadow-md transition-all duration-150 space-y-2.5";
+    card.className = "npc-card group relative p-4 rounded-xl bg-slate-900/90 border border-slate-800/80 hover:border-amber-500/40 backdrop-blur-sm shadow-md transition-all duration-150 flex flex-col justify-between h-full";
+
+    const cat = String(n.category || "").toLowerCase();
+    const t = String(n.tipo || "").toLowerCase();
+    let normCat = "interaccion_contexto";
+    if (cat === "clave" || t === "importantes" || t === "importante") normCat = "clave";
+    else if (cat === "aliado") normCat = "aliado";
+    else if (cat === "invocacion") normCat = "invocacion";
+    else if (cat === "amenaza") normCat = "amenaza";
+
     card.setAttribute("data-name", (n.name || "").toLowerCase());
     card.setAttribute("data-role", (n.role || "").toLowerCase());
+    card.setAttribute("data-category", normCat);
 
-    const nTipo = String(n.tipo || "").toLowerCase();
-    let tipoBadge = "";
-    if (nTipo === "importantes" || nTipo === "importante") {
-      tipoBadge = `<span class="px-2 py-0.5 rounded-full text-[10px] font-semibold font-mono bg-amber-500/15 text-amber-300 border border-amber-500/30">👑 Clave / Importante</span>`;
-    } else if (nTipo === "mencionados" || nTipo === "mencionado" || String(n.role || "").toLowerCase().includes("[mencionado")) {
-      tipoBadge = `<span class="px-2 py-0.5 rounded-full text-[10px] font-semibold font-mono bg-sky-500/15 text-sky-300 border border-sky-500/30">📜 Mencionado</span>`;
-    } else {
-      tipoBadge = `<span class="px-2 py-0.5 rounded-full text-[10px] font-semibold font-mono bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">⚔️ Interacción / Contexto</span>`;
-    }
+    const tipoBadge = getNpcCategoryBadge(n);
+    const statusBadge = getNpcStatusBadge(n);
 
     const notesHtml = (n.notes && n.notes.length > 0)
       ? `<ul class="text-[11px] text-slate-300 space-y-1 list-disc list-inside mt-2 pt-2 border-t border-slate-800/80">${n.notes.map(note => `<li>${escapeHtml(note)}</li>`).join('')}</ul>`
       : '';
 
     card.innerHTML = `
-      <div class="flex items-start justify-between gap-2">
-        <div>
-          <div class="flex items-center gap-2">
-            <h4 class="text-sm font-bold text-slate-100">${escapeHtml(n.name)}</h4>
-            ${tipoBadge}
+      <div class="flex flex-col flex-1">
+        <div class="flex items-start justify-between gap-2 min-h-[52px]">
+          <div class="min-w-0 flex-1">
+            <div class="flex flex-wrap items-center gap-1.5">
+              <h4 class="text-sm font-bold text-slate-100 truncate">${escapeHtml(formatCharacterDisplayName(n.name, n.aliases))}</h4>
+              ${tipoBadge}
+              ${statusBadge}
+            </div>
+            <p class="text-xs text-sky-400 font-medium mt-1 truncate" title="${escapeHtml(n.role || 'PNJ')}">${escapeHtml(n.role || 'PNJ')}</p>
           </div>
-          <p class="text-xs text-sky-400 font-medium mt-0.5">${escapeHtml(n.role || 'PNJ')}</p>
+          <div class="flex items-center gap-1 shrink-0">
+            <!-- Botones de Acción Rápida en Hover -->
+            <div class="opacity-0 group-hover:opacity-100 transition-opacity duration-150 flex items-center gap-1 mr-1">
+              <button type="button" onclick="openEditNpcModal('${escapeHtml(n.name)}')" title="Editar PNJ" class="p-1.5 rounded-lg bg-slate-800 hover:bg-amber-500/20 text-slate-400 hover:text-amber-300 border border-slate-700 hover:border-amber-500/40 active:scale-95 transition cursor-pointer">
+                <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/></svg>
+              </button>
+              <button type="button" onclick="openMergeEntityModal('npc', '${escapeHtml(n.name)}')" title="Fusionar con otro personaje" class="p-1.5 rounded-lg bg-slate-800 hover:bg-sky-500/20 text-slate-400 hover:text-sky-300 border border-slate-700 hover:border-sky-500/40 active:scale-95 transition cursor-pointer">
+                <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+              </button>
+            </div>
+            <span class="px-2 py-0.5 rounded-full text-[10px] bg-slate-800/80 text-slate-400 border border-slate-700/60 font-mono shrink-0">
+              Sesión #${n.first_seen_session || 1}
+            </span>
+          </div>
         </div>
-        <span class="px-2 py-0.5 rounded-full text-[10px] bg-slate-800/80 text-slate-400 border border-slate-700/60 font-mono shrink-0">
-          Sesión #${n.first_seen_session || 1}
-        </span>
+        <div class="border-t border-slate-800/80 mt-2.5 pt-2 flex-1">
+          ${notesHtml}
+        </div>
       </div>
-      ${notesHtml}
     `;
     container.appendChild(card);
   });
+  filterNpcs();
 }
 
 function filterNpcs() {
@@ -1763,12 +1976,178 @@ function filterNpcs() {
   cards.forEach(card => {
     const name = card.getAttribute("data-name") || "";
     const role = card.getAttribute("data-role") || "";
-    if (!query || name.includes(query) || role.includes(query)) {
+    const cat = card.getAttribute("data-category") || "";
+
+    const matchesQuery = !query || name.includes(query) || role.includes(query);
+    const matchesCategory = (activeNpcCategoryFilter === 'all') || (cat === activeNpcCategoryFilter);
+
+    if (matchesQuery && matchesCategory) {
       card.classList.remove("hidden");
     } else {
       card.classList.add("hidden");
     }
   });
+}
+
+function toggleEditNpcModal(show) {
+  const modal = document.getElementById("editNpcModal");
+  const box = document.getElementById("editNpcModalBox");
+  if (!modal || !box) return;
+  if (show) {
+    modal.classList.remove("hidden");
+    modal.classList.add("flex");
+    modal.style.pointerEvents = "auto";
+    box.style.pointerEvents = "auto";
+    requestAnimationFrame(() => {
+      modal.classList.remove("opacity-0", "pointer-events-none");
+      modal.classList.add("opacity-100", "pointer-events-auto");
+      box.classList.remove("scale-95");
+      box.classList.add("scale-100");
+    });
+  } else {
+    modal.style.pointerEvents = "none";
+    modal.classList.remove("opacity-100", "pointer-events-auto");
+    modal.classList.add("opacity-0", "pointer-events-none");
+    box.classList.remove("scale-100");
+    box.classList.add("scale-95");
+    setTimeout(() => {
+      modal.classList.add("hidden");
+      modal.classList.remove("flex");
+    }, 150);
+  }
+}
+
+function openEditNpcModal(npcName) {
+  const state = currentWikiCampaignState || currentCampaignState || {};
+  const npcs = state.npcs || [];
+  const target = npcs.find(n => (n.name || "").trim().toLowerCase() === npcName.trim().toLowerCase());
+
+  const origNameInput = document.getElementById("editNpcOriginalName");
+  const nameInput = document.getElementById("editNpcNameInput");
+  const roleInput = document.getElementById("editNpcRoleInput");
+  const catSelect = document.getElementById("editNpcCategorySelect");
+  const statusSelect = document.getElementById("editNpcStatusSelect");
+  const errEl = document.getElementById("editNpcError");
+
+  if (errEl) errEl.classList.add("hidden");
+
+  if (origNameInput) origNameInput.value = target ? (target.name || npcName) : npcName;
+  if (nameInput) nameInput.value = target ? (target.name || npcName) : npcName;
+  if (roleInput) roleInput.value = target ? (target.role || "") : "";
+
+  if (catSelect) {
+    let catVal = "interaccion_contexto";
+    if (target) {
+      if (target.category) catVal = target.category.toLowerCase();
+      else if (target.tipo === "importantes" || target.tipo === "importante") catVal = "clave";
+    }
+    catSelect.value = catVal;
+  }
+
+  if (statusSelect) {
+    statusSelect.value = target ? (target.status || "activo").toLowerCase() : "activo";
+  }
+
+  toggleEditNpcModal(true);
+}
+
+async function submitEditNpc() {
+  const origNameInput = document.getElementById("editNpcOriginalName");
+  const nameInput = document.getElementById("editNpcNameInput");
+  const roleInput = document.getElementById("editNpcRoleInput");
+  const catSelect = document.getElementById("editNpcCategorySelect");
+  const statusSelect = document.getElementById("editNpcStatusSelect");
+  const errEl = document.getElementById("editNpcError");
+  const btn = document.getElementById("saveNpcBtn");
+
+  const origName = (origNameInput ? origNameInput.value : "").trim();
+  const newName = (nameInput ? nameInput.value : "").trim();
+  const role = (roleInput ? roleInput.value : "").trim();
+  const category = (catSelect ? catSelect.value : "interaccion_contexto").trim();
+  const status = (statusSelect ? statusSelect.value : "activo").trim();
+
+  if (!newName) {
+    if (errEl) {
+      errEl.textContent = "El nombre del personaje no puede estar vacío.";
+      errEl.classList.remove("hidden");
+    }
+    return;
+  }
+
+  const campSelect = document.getElementById("wikiCampaignSelect");
+  const campInput = document.getElementById("campaignNameInput");
+  const campName = (campSelect && campSelect.value && campSelect.value.trim()) ||
+                   (campInput && campInput.value && campInput.value.trim()) ||
+                   (currentWikiCampaignState && currentWikiCampaignState.campaign_name) ||
+                   (currentCampaignState && currentCampaignState.campaign_name) || "";
+
+  if (!campName) {
+    if (errEl) {
+      errEl.textContent = "No hay ninguna campaña seleccionada.";
+      errEl.classList.remove("hidden");
+    }
+    return;
+  }
+
+  const origBtnText = btn ? btn.innerHTML : "";
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = `<span>⏳</span><span>Guardando...</span>`;
+  }
+  if (errEl) errEl.classList.add("hidden");
+
+  try {
+    const res = await fetch(`/api/campaigns/${encodeURIComponent(campName)}/npcs/${encodeURIComponent(origName)}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        new_name: newName,
+        role: role,
+        category: category,
+        status: status,
+      }),
+    });
+
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      throw new Error(data.detail || "Error al actualizar el PNJ.");
+    }
+
+    const data = await res.json();
+    if (data.campaign_state) {
+      currentWikiCampaignState = data.campaign_state;
+      currentCampaignState = data.campaign_state;
+    } else {
+      const npcs = (currentWikiCampaignState && currentWikiCampaignState.npcs) || [];
+      const target = npcs.find(n => (n.name || "").trim().toLowerCase() === origName.toLowerCase());
+      if (target) {
+        target.name = newName;
+        target.role = role;
+        target.category = category;
+        target.status = status;
+        if (category === "clave") target.tipo = "importantes";
+        else target.tipo = "interaccion_contexto";
+      }
+    }
+
+    toggleEditNpcModal(false);
+    renderNpcs((currentWikiCampaignState && currentWikiCampaignState.npcs) || []);
+    if (typeof showTransientAlert === "function") {
+      showTransientAlert(`PNJ '${newName}' actualizado correctamente`, "success");
+    } else if (typeof showAlert === "function") {
+      showAlert(`✅ PNJ '${newName}' actualizado correctamente.`);
+    }
+  } catch (err) {
+    if (errEl) {
+      errEl.textContent = err.message || "Error al conectar con el servidor.";
+      errEl.classList.remove("hidden");
+    }
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = origBtnText;
+    }
+  }
 }
 
 function renderUniversalPcs(pcs) {
@@ -1794,6 +2173,7 @@ function renderUniversalPcs(pcs) {
   container.innerHTML = "";
   list.forEach(pc => {
     const charName = pc.personaje || pc.character_name || "Aventurero";
+    const charDisplayName = typeof formatCharacterDisplayName === "function" ? formatCharacterDisplayName(charName, pc.aliases || []) : charName;
     const player = pc.jugador || pc.player_name || "-";
     const species = pc.especie || pc.species || "-";
     const cls = pc.clase || pc.role || "-";
@@ -1822,7 +2202,7 @@ function renderUniversalPcs(pcs) {
       <div class="flex items-start justify-between gap-2">
         <div>
           <div class="flex items-center gap-2">
-            <h4 class="text-sm font-bold text-slate-100">${escapeHtml(charName)}</h4>
+            <h4 class="text-sm font-bold text-slate-100">${escapeHtml(charDisplayName)}</h4>
             <span class="px-2 py-0.5 rounded-full text-[10px] font-semibold font-mono bg-sky-500/15 text-sky-300 border border-sky-500/30">
               ${escapeHtml(debut)}
             </span>
@@ -2058,6 +2438,68 @@ async function confirmNpcSpellcheck() {
       if (res.ok && data.campaign_state) {
         if (typeof currentCampaignState !== "undefined") currentCampaignState = data.campaign_state;
         if (typeof updateCampaignViewTabs === "function") updateCampaignViewTabs(data.campaign_state);
+
+        if (typeof currentResult !== "undefined" && currentResult) {
+          currentResult.campaign_state = data.campaign_state;
+          for (const [oldName, newName] of Object.entries(corrections)) {
+            const tokens = [oldName];
+            if (oldName.includes("/")) {
+              oldName.split("/").forEach(p => {
+                const pt = p.trim();
+                if (pt.length >= 3 && !tokens.includes(pt)) tokens.push(pt);
+              });
+            }
+            tokens.sort((a, b) => b.length - a.length);
+
+            for (const tok of tokens) {
+              const regex = new RegExp(`\\b${tok.replace(/[.*+?^${}()|[\\]\\]/g, '\\$&')}\\b`, 'gi');
+              if (currentResult.chronicle) currentResult.chronicle = currentResult.chronicle.replace(regex, newName);
+              if (currentResult.chronicle_markdown) currentResult.chronicle_markdown = currentResult.chronicle_markdown.replace(regex, newName);
+              if (currentResult.session_chapter) currentResult.session_chapter = currentResult.session_chapter.replace(regex, newName);
+              if (currentResult.recap_text) currentResult.recap_text = currentResult.recap_text.replace(regex, newName);
+              if (currentResult.next_session_script) currentResult.next_session_script = currentResult.next_session_script.replace(regex, newName);
+              if (Array.isArray(currentResult.detected_pcs)) {
+                currentResult.detected_pcs.forEach(p => {
+                  if (p.rol_en_sesion) p.rol_en_sesion = p.rol_en_sesion.replace(regex, newName);
+                  if (Array.isArray(p.hitos_acumulados)) {
+                    p.hitos_acumulados = p.hitos_acumulados.map(h => typeof h === 'string' ? h.replace(regex, newName) : h);
+                  }
+                });
+              }
+              if (Array.isArray(currentResult.universal_pcs)) {
+                currentResult.universal_pcs.forEach(p => {
+                  if (p.session_role) p.session_role = p.session_role.replace(regex, newName);
+                  if (Array.isArray(p.hitos_acumulados)) {
+                    p.hitos_acumulados = p.hitos_acumulados.map(h => typeof h === 'string' ? h.replace(regex, newName) : h);
+                  }
+                });
+              }
+              if (Array.isArray(currentResult.detected_npc_names)) {
+                currentResult.detected_npc_names = currentResult.detected_npc_names.map(n => (n.toLowerCase() === tok.toLowerCase() || n.toLowerCase() === oldName.toLowerCase()) ? newName : n);
+              }
+              if (Array.isArray(currentResult.npcs)) {
+                currentResult.npcs.forEach(n => {
+                  if (n.name && (n.name.toLowerCase() === tok.toLowerCase() || n.name.toLowerCase() === oldName.toLowerCase())) n.name = newName;
+                  if (n.notes) n.notes = typeof n.notes === 'string' ? n.notes.replace(regex, newName) : (Array.isArray(n.notes) ? n.notes.map(nt => typeof nt === 'string' ? nt.replace(regex, newName) : nt) : n.notes);
+                  if (n.role) n.role = n.role.replace(regex, newName);
+                  if (n.description) n.description = n.description.replace(regex, newName);
+                });
+              }
+              if (Array.isArray(currentResult.updated_npcs)) {
+                currentResult.updated_npcs.forEach(n => {
+                  if (n.name && (n.name.toLowerCase() === tok.toLowerCase() || n.name.toLowerCase() === oldName.toLowerCase())) n.name = newName;
+                  if (n.notes) n.notes = typeof n.notes === 'string' ? n.notes.replace(regex, newName) : (Array.isArray(n.notes) ? n.notes.map(nt => typeof nt === 'string' ? nt.replace(regex, newName) : nt) : n.notes);
+                  if (n.role) n.role = n.role.replace(regex, newName);
+                  if (n.description) n.description = n.description.replace(regex, newName);
+                });
+              }
+            }
+          }
+          if (typeof displayResults === "function") {
+            displayResults(currentResult);
+          }
+        }
+        if (typeof showAlert === "function") showAlert("✅ Nombres de PNJs corregidos y actualizados en el documento y campaña.");
       }
     } catch (err) {
       console.error("Error finalizing NPCs:", err);
@@ -2158,6 +2600,10 @@ window.toggleWikiQuestStatus = toggleWikiQuestStatus;
 window.toggleMergeEntityModal = toggleMergeEntityModal;
 window.openMergeEntityModal = openMergeEntityModal;
 window.submitMergeEntity = submitMergeEntity;
+window.toggleEditNpcModal = toggleEditNpcModal;
+window.openEditNpcModal = openEditNpcModal;
+window.submitEditNpc = submitEditNpc;
+window.setNpcCategoryFilter = setNpcCategoryFilter;
 window.buildNpcDossierHtml = buildNpcDossierHtml;
 window.buildPcDossierHtml = buildPcDossierHtml;
 window.renderNpcs = renderNpcs;

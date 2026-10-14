@@ -449,8 +449,22 @@ When players speak generically on the audio channel without saying character nam
     )
 
     npc_instruction = (
-        """4. CRITERIOS ESTRICTOS DE EXTRACCIÓN DE PNJs (TAXONOMÍA DE 3 NIVELES Y EXHAUSTIVIDAD TOTAL):
-   - ⚠️ ALTA SENSIBILIDAD Y COBERTURA EXHAUSTIVA DE PNJs INTRODUCIDOS:
+        """4. CRITERIOS ESTRICTOS DE EXTRACCIÓN DE PNJs, ALIADOS E INVOCACIONES:
+   - ⚠️ REGLA DE EXCLUSIÓN DE PERSONAJES JUGADORES (LISTA CERRADA DE PCs):
+     * Los ÚNICOS Personajes Jugadores (PCs) son:
+       - Sir Yato (Scailer)
+       - Johngalli A. III / John / Ion (GuzMan_)
+       - Aquilus Bunker (Drowser45)
+       - Zafkiel (lDarkLink)
+       - Raul-Hell / Raúl (Raulhell)
+     * CRÍTICO: Cualquier otro personaje aliado que tenga turno en la iniciativa, tire dados, ataque, cure o acompañe al grupo (por ejemplo, Halsey o la Hermana Lenure / Garael) NO es un jugador. Debe ser extraído obligatoriamente en el directorio de PNJs como 'Compañero / Aliado' ('category': 'aliado').
+   - ⚠️ RECONSTRUCCIÓN FONÉTICA DE D&D 5e / 5.5e (UNIFICAR VARIANTES DE WHISPER):
+     * Whisper genera distorsiones fonéticas por ruido o acentos. Agrupa todas las variantes bajo un solo nombre canónico con sus variantes en 'aliases':
+       - 'Halsey', 'Harsin', 'Hellsie', 'Hetzi', 'Hellsye', 'Hellsing', 'Halcy', 'Halcyon', 'Hasi', 'Jalsi', 'Calcis' → 'Halsey' (Guerrera/Bárbara aliada que combate con Glaive y arco).
+       - 'Hermana Garael', 'Hermana Oscura', 'Lennard', 'Nubre', 'Permanele Nure', 'hermana Lenure', 'hermana del lune' → 'Hermana Lenure / Garael' (Bruja/Guía aliada en la Infraoscuridad que lanza Eldritch Blast e invoca un Celestial).
+       - 'Kira', 'Kirrel', 'Kirreloy', 'Kyrrle', 'Kirill', 'Kyrrell', 'Kyrel', 'Kirin' → 'Quirrel' (Corcel convocado de Sir Yato mediante Find Steed, terrestre, cura 2d8 con lengüetazos; alias fonéticos: Kira, Kirrel, Kyrrel, Kirreloy).
+       - 'Valgo', 'Balbura', 'valvura', 'Vargula' → 'Barlgura' (Demonio simio enemigo).
+       - 'Bundru', 'El Gal', 'El GreciaNiko', 'El Grell' → 'Bundru (El Grell)' (Custodio mutante del laboratorio).
      * El DM o los jugadores pueden introducir, nombrar o interactuar con múltiples personajes no jugadores (PNJs) a lo largo de la sesión: eruditos, bibliotecarios, monjes, sabios, guardias, posaderos, comerciantes, heraldos, prisioneros, enviados de facciones o figuras misteriosas.
      * PROHIBIDO TERMINANTEMENTE ignorar o filtrar PNJs que hablen poco o solo sean introducidos/mencionados por el DM. Si se nombra o introduce a un PNJ, REGÍSTRALO OBLIGATORIAMENTE tanto en 'updated_npcs' como en 'detected_npc_names' para su posterior revisión ortográfica.
      * PRECISIÓN FONÉTICA Y DE ORTOGRAFÍA: En el audio en español, los nombres de fantasía de D&D a menudo son transcritos fonéticamente por Whisper (ej. nombres de Forgotten Realms / Candlekeep Mysteries como Miirym, Sylvira Savikas, Matreous, Bookwyrm, Fistandia, etc.). Utiliza el contexto del mundo de D&D para deducir y corregir la ortografía canónica más verosímil del nombre de fantasía, evitando sustituirlo por palabras comunes del español.
@@ -466,14 +480,33 @@ When players speak generically on the audio channel without saying character nam
          - Para PNJs de aventuras oficiales de Phandalin (Lost Mine of Phandelver / Dragon of Icespire Peak):
           * Usa siempre los nombres canónicos: Sildar Hallwinter, Gundren Rockseeker, Sister Garaele, Linene Graywind, Halia Thornton, Harbin Wester, Toblen Stonehill, Elmar Barthen, Daran Edermath, Qelline Alderleaf, Carp Alderleaf.
           * Los PCs de Phandalin: \"Aquilus\", \"Aquilo\", \"Aquila\" → Aquilus Bunker (Dragonborn Ranger). \"Johngalli\", \"Juan Gali\", \"John\" → Johngalli A. III (Human Pugilist). \"Raul\", \"Raúl Hell\" → Raul-Hell (Gnome Monk). \"Sir Yato\", \"Yato\" → Sir Yato (Human Paladin). \"Zafkiel\", \"Safkiel\", \"Zafquiel\" → Zafkiel (Tiefling Wizard).
-   - Clasifica CADA personaje no jugador (PNJ) en su campo 'tipo':
-     * 'importantes': Villanos principales, patrones, líderes de facción, figuras clave recurrentes de la historia.
-     * 'interaccion_contexto': Diálogo directo o interacción directa (interaccion_directa), comercio, combate o testigos presenciales cara a cara con la party.
-     * 'mencionados': Personajes referenciados en cartas, rumores, trasfondo o menciones indirectas.
-     * ⚠️ NPCS DE FONDO (ESPECTROS, DIARIOS Y MENCIONES INDIRECTAS): Si un nombre aparece solo en documentos leídos, cartas, diarios, inscripciones, visiones o voces espectrales, clasifícalo como 'mencionados' y añade en 'notes': '[Mencionado en Diario]', '[Entidad Espectral]' o '[Mencionado en Inscripción]' según corresponda. NUNCA lo clasifiques como 'interaccion_contexto' si la party no lo vio físicamente.
-   - ⚠️ REGLA DE PERSONAJES SIN NOMBRE: Si un PNJ no tiene nombre propio pero aportó información útil, pistas o interactuó, regístralo por su rol/descriptor (ej. '[Sin nombre] Guardia de la puerta norte', '[Sin nombre] Monje de Candlekeep') registrando su pista o contribución específica en 'notes'.
-   - REGLA TAXATIVA: PROHIBIDO omitir PNJs con nombre propio. Identifícalos a todos exhaustivamente.
-   - Documenta pistas clave, secretos o revelaciones en el array de 'notes'."""
+   - ⚠️ SEPARACIÓN ESTRICTA DE INVOCACIONES, FAMILIARES Y MASCOTAS (PROHIBIDO FUSIONAR):
+     * NO fusiones diferentes mascotas o convocaciones en una sola entidad. Extrae cada una como una entrada independiente con 'category': 'invocacion', indicando en 'role' de quién proviene:
+       - Corceles convocados: ej. 'Quirrel' (Corcel terrestre convocado por Sir Yato mediante Find Steed; NO es aliado aéreo; variantes de Whisper: Kira, Kirrel).
+       - Familiares: ej. 'Búho de Zafkiel' (Familiar aéreo con Flyby que asiste con la acción Help y puede perecer ante daño en área).
+       - Espíritus / Conjuros de Invocación: ej. 'Espíritu Celestial' (Invocado por la Hermana Lenure con conjuro de nivel 5, ataca con arco/rayo radiante a 600 pies y habla en Celestial).
+       - Criaturas de Objetos Mágicos: ej. animales extraídos del 'Bolsito de Trucos' (Bag of Tricks) de Zafkiel: 'Tigre', 'Comadreja Gigante (Giant Weasel)' y 'Simio (Ape)'.
+   - ⚠️ DETECCIÓN DE AMENAZAS Y JEFES RELEVANTES SIN NOMBRE PROPIO:
+     * Si en la sesión aparecen monstruos importantes o jefes de encuentro sin nombre propio (ej. 'Demonio Barlgura', 'Aberración Colosal de Cuerpos Cosidos', 'Aberración Voladora de Cuatro Colas', 'Dragón/Monstruosidad de Truenos'), extráelos obligatoriamente con 'category': 'amenaza'.
+   - ⚠️ EXCLUSIÓN DE CHARLA FUERA DE ROL (OOC / META-JUEGO Y ESTRELLAS Y DESEOS):
+     * Prohibido extraer personajes mencionados únicamente en bromas de campañas pasadas, memes o en la sección post-partida de 'Estrellas y Deseos' (ej. omitir a Zendo, Markus, Velith, Meglax, Ocelen, Van). Solo registra entidades que interactúan o existen activamente en la narrativa in-world de la sesión actual.
+   - CATEGORIZACIÓN SEMÁNTICA ('category') Y ESTADO VITAL ('status'):
+     * 'category':
+       - 'clave': Villanos principales, patrones, líderes de facción, figuras clave recurrentes.
+       - 'aliado': Compañeros de armas, guías o aliados que viajan o combaten con la party (ej. Halsey, Hermana Lenure).
+       - 'invocacion': Corceles convocados, familiares, espíritus de conjuros o criaturas de objetos mágicos.
+       - 'amenaza': Monstruos relevantes, jefes de encuentro, demonios, aberraciones.
+       - 'interaccion_contexto': Diálogo directo, comercio, testigos presenciales cara a cara.
+     * 'status':
+       - 'activo': Vivo, operativo o en combate al final de la sesión.
+       - 'herido': Malherido, derribado, revivido o estabilizado.
+       - 'abatido': Muerto, destruido o abatido en combate.
+       - 'desvanecido': Invocación disipada, tiempo de conjuro expirado o desconvocado.
+     * 'tipo' (retrocompatibilidad):
+       - 'importantes' para clave; 'mencionados' para menciones indirectas [Mencionado en la historia]; 'interaccion_contexto' para los demás.
+    - ⚠️ REGLA DE PERSONAJES SIN NOMBRE: Si un PNJ no tiene nombre propio pero aportó información útil, pistas o interactuó, regístralo por su rol/descriptor (ej. '[Sin nombre] Guardia de la puerta norte') registrando su pista o contribución específica en 'notes'.
+    - REGLA TAXATIVA: PROHIBIDO omitir PNJs con nombre propio. Identifícalos a todos exhaustivamente.
+    - Documenta pistas clave, secretos o revelaciones en el array de 'notes'."""
         if not is_english
         else """4. STRICT NPC EXTRACTION CRITERIA (3-TIER TAXONOMY & HIGH RECALL):
    - ⚠️ HIGH SENSITIVITY AND EXHAUSTIVE COVERAGE OF INTRODUCED NPCS:
@@ -507,12 +540,16 @@ When players speak generically on the audio channel without saying character nam
         """6. EXTRACCIÓN DE LUGARES Y PUNTOS DE INTERÉS:
 - Extrae todas las ciudades, regiones, mazmorras, fortalezas o puntos de interés explorados o descubiertos en la sesión.
 - Asigna 'status': 'explorado' (si la party lo recorrió activamente), 'en_progreso' (si la sesión concluyó allí), 'destruido' o 'no_visitado' (si solo fue mencionado como destino futuro).
-- En 'associated_characters', incluye los nombres de los personajes o PNJs estrechamente vinculados a ese lugar."""
+- REGLA ESTRICTA DE HABITANTES / RESIDENCIA EN 'associated_characters':
+  * NUNCA incluyas a Personajes Jugadores (PCs) ni aventureros visitantes en 'associated_characters' solo porque combatieron, descansaron o pasaron por allí.
+  * Solo incluye en 'associated_characters' a aquellos PNJs, custodios o monstruos residentes para quienes ese lugar es su HOGAR, RESIDENCIA PERMANENTE, PUESTO DE CUSTODIO, DOMINIO/GOBIERNO o GUARIDA/CREACIÓN RESIDENTE (ej. 'Bundru' como custodio; aberraciones o creaciones que habitan en el laboratorio; un rey en su corte). Los aventureros itinerantes, PCs y enemigos de paso están PROHIBIDOS en este campo."""
         if not is_english
         else """6. LOCATIONS & POINTS OF INTEREST EXTRACTION:
 - Extract all cities, dungeons, regions, strongholds, or points of interest explored or discovered in the session.
 - Set 'status': 'explorado' (actively explored), 'en_progreso' (current location), 'destruido' (destroyed), or 'no_visitado' (mentioned for the future).
-- In 'associated_characters', list character or NPC names strongly tied to this location."""
+- STRICT RESIDENCY / INHABITANT RULE FOR 'associated_characters':
+  * NEVER include Player Characters (PCs) or visiting adventurers in 'associated_characters' merely because they explored, fought, or rested there.
+  * Only include in 'associated_characters' NPCs, custodians, or resident monsters for whom this location is their HOME, PERMANENT RESIDENCE, CUSTODIAL POST, SEAT OF RULERSHIP, or RESIDENT LAIR/CREATION (e.g. 'Bundru' guarding his lab; laboratory aberrational creations dwelling there; a monarch in their throne room). Transient travelers, adventurers, and roaming enemies are STRICTLY PROHIBITED in this field."""
     )
 
     items_instruction = (
@@ -636,11 +673,13 @@ INSTRUCCIONES DE ANÁLISIS:
   ],
   "updated_npcs": [
     {{
-      "name": "Nombre exacto o descriptor del PNJ (ej. 'Eldrin', '[Sin nombre] Guardia de la puerta norte')",
-      "aliases": ["Alias1", "Apodo"],
-      "role": "Ocupación o rol en la historia (ej. 'Mago de la Torre', 'Noble conspirador [Mencionado en la historia]')",
-      "tipo": "interaccion_contexto",
-      "notes": ["Sesión #{session_number}: Notas concretas de interacción, actitud y pistas clave aportadas"]
+      "name": "Nombre canónico del PNJ, Aliado, Invocación o Monstruo (ej. 'Halsey', 'Hermana Lenure / Garael', 'Kira / Kirrel', 'Búho de Zafkiel', 'Espíritu Celestial', 'Barlgura')",
+      "aliases": ["Variante Fonética 1", "Apodo"],
+      "role": "Rol, ocupación o procedencia exacta (ej. 'Guerrera/Bárbara aliada', 'Corcel terrestre convocado por Sir Yato (Find Steed)', 'Familiar aéreo de Zafkiel', 'Espíritu convocado por Hermana Lenure (Nivel 5)', 'Animal extraído del bolsito de trucos por Zafkiel', 'Demonio simio enemigo')",
+      "category": "clave | aliado | invocacion | amenaza | interaccion_contexto",
+      "tipo": "importantes | interaccion_contexto | mencionados",
+      "status": "activo | herido | abatido | desvanecido",
+      "notes": ["Sesión #{session_number}: Notas concretas de combate, conjuros, interacción, heridas o muerte"]
     }}
   ],
   "detected_npc_names": ["Lista", "De", "Nombres", "De", "PNJs", "Nuevos"],

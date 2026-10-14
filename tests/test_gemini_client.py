@@ -115,15 +115,39 @@ class TestGeminiTTRPGSummarizer(unittest.TestCase):
 
         mock_client.models.generate_content.assert_called_once()
         call_kwargs = mock_client.models.generate_content.call_args.kwargs
+        # Modern models (gemini-3.8-flash default) deprecate temperature and top_p
         self.assertEqual(call_kwargs.get("config"), {
-            "temperature": 0.2,
-            "top_p": 0.95,
             "response_mime_type": "application/json",
         })
         self.assertEqual(result["session_chapter"]["title"], "Sesión #1")
         self.assertEqual(len(result["updated_quests"]), 1)
         self.assertEqual(len(result["updated_npcs"]), 1)
         self.assertEqual(result["detected_npc_names"], ["Eldrin"])
+
+    @patch("google.genai.Client")
+    def test_generate_campaign_session_legacy_model_config(self, mock_client_class):
+        mock_client = MagicMock()
+        mock_client_class.return_value = mock_client
+        mock_response = MagicMock()
+        mock_response.text = '{"session_chapter": {"title": "Sesión #1", "recap_text": "Nos fuimos al bosque.", "chronicle_text": "Llegamos a la torre."}, "updated_quests": [], "updated_npcs": [], "detected_npc_names": []}'
+        mock_client.models.generate_content.return_value = mock_response
+
+        # Legacy model (gemini-2.5-flash) retains temperature and top_p
+        summarizer = GeminiTTRPGSummarizer(api_key="dummy_api_key", model_name="gemini-2.5-flash")
+        result = summarizer.generate_campaign_session(
+            transcript_text="Encontramos a Eldrin en la torre.",
+            roster=[{"player_name": "Roymc89", "role": "Guerrero", "character_name": "Markus Veyl"}],
+            session_number=1,
+            target_language="es",
+        )
+
+        mock_client.models.generate_content.assert_called_once()
+        call_kwargs = mock_client.models.generate_content.call_args.kwargs
+        self.assertEqual(call_kwargs.get("config"), {
+            "temperature": 0.2,
+            "top_p": 0.95,
+            "response_mime_type": "application/json",
+        })
 
     def test_parse_json_response_markdown_fences(self):
         raw_output_with_fences = """```json
@@ -245,7 +269,8 @@ class TestGeminiTTRPGSummarizer(unittest.TestCase):
         # Verify strict NPC and Quest extraction criteria
         self.assertIn("CRITERIOS ESTRICTOS DE EXTRACCIÓN DE PNJs", prompt)
         self.assertIn("interaccion_contexto", prompt)
-        self.assertIn("interaccion_directa", prompt)
+        self.assertIn("category", prompt)
+        self.assertIn("status", prompt)
         self.assertIn("CRITERIOS ESTRICTOS DE EXTRACCIÓN DE MISIONES", prompt)
         self.assertIn("subclase", prompt)
 
@@ -567,6 +592,76 @@ class TestGeminiTTRPGSummarizer(unittest.TestCase):
 
         self.assertEqual(parsed["detected_pcs"][0]["aliases"], ["Octus", "Lord Octus"])
         self.assertEqual(parsed["updated_npcs"][0]["aliases"], ["Neverember", "El Protector"])
+        # Retrocompatibility check: old entry without category or status gets defaults
+        self.assertEqual(parsed["updated_npcs"][0]["category"], "clave")
+        self.assertEqual(parsed["updated_npcs"][0]["status"], "activo")
+        self.assertEqual(parsed["updated_npcs"][0]["tipo"], "importantes")
+
+    def test_parse_json_response_npc_new_categories_and_status(self):
+        """Test parse_json_response with new category and status values."""
+        import json
+
+        json_payload = json.dumps({
+            "session_chapter": {"title": "S1", "recap_text": "R", "chronicle_text": "C", "closing_expectations": "E"},
+            "updated_quests": [],
+            "updated_npcs": [
+                {
+                    "name": "Halsey",
+                    "role": "Guerrera aliada",
+                    "category": "aliado",
+                    "status": "herido",
+                    "notes": ["Combatió valientemente."]
+                },
+                {
+                    "name": "Kira / Kirrel",
+                    "role": "Corcel convocado de Sir Yato (Find Steed)",
+                    "category": "invocacion",
+                    "status": "activo",
+                    "notes": ["Curó a Sir Yato."]
+                },
+                {
+                    "name": "Barlgura",
+                    "role": "Demonio simio enemigo",
+                    "category": "amenaza",
+                    "status": "abatido",
+                    "notes": ["Derrotado por el grupo."]
+                },
+                {
+                    "name": "Espíritu Celestial",
+                    "role": "Invocación de la Hermana Lenure (nivel 5)",
+                    "category": "invocacion",
+                    "status": "desvanecido",
+                    "notes": ["Atacó a distancia antes de disiparse."]
+                }
+            ],
+            "locations": [],
+            "items": []
+        })
+
+        parsed = GeminiTTRPGSummarizer.parse_json_response(json_payload, session_number=2)
+        npcs = parsed["updated_npcs"]
+        self.assertEqual(len(npcs), 4)
+
+        # Halsey
+        halsey = next(n for n in npcs if n["name"] == "Halsey")
+        self.assertEqual(halsey["category"], "aliado")
+        self.assertEqual(halsey["status"], "herido")
+        self.assertEqual(halsey["tipo"], "interaccion_contexto")
+
+        # Kira
+        kira = next(n for n in npcs if "Kira" in n["name"])
+        self.assertEqual(kira["category"], "invocacion")
+        self.assertEqual(kira["status"], "activo")
+
+        # Barlgura
+        barlgura = next(n for n in npcs if n["name"] == "Barlgura")
+        self.assertEqual(barlgura["category"], "amenaza")
+        self.assertEqual(barlgura["status"], "abatido")
+
+        # Espíritu Celestial
+        celestial = next(n for n in npcs if "Celestial" in n["name"])
+        self.assertEqual(celestial["category"], "invocacion")
+        self.assertEqual(celestial["status"], "desvanecido")
 
 
 if __name__ == "__main__":

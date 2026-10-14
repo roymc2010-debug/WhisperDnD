@@ -1,9 +1,12 @@
 // Service Worker para WhisperDnD & Study PWA
-const CACHE_NAME = 'whisper-dnd-study-v6';
+const CACHE_NAME = 'whisper-dnd-study-v11';
 const ASSETS_TO_CACHE = [
   '/',
   '/manifest.json',
   '/static/manifest.json',
+  '/static/styles.css',
+  '/static/app.js',
+  '/static/js/wiki.js',
   '/static/icon-192.png',
   '/static/icon-512.png',
   '/icon-192.png',
@@ -43,11 +46,11 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Estrategia Network-First con fallback a Caché para experiencia offline
+  // Estrategia Network-First con fallback a Caché para archivos locales (.js, .css, .html)
   event.respondWith(
     fetch(event.request)
       .then((networkResponse) => {
-        if (networkResponse && networkResponse.status === 200 && networkResponse.type === 'basic') {
+        if (networkResponse && networkResponse.status === 200) {
           const responseToCache = networkResponse.clone();
           caches.open(CACHE_NAME).then((cache) => {
             cache.put(event.request, responseToCache);

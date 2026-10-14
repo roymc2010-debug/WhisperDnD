@@ -102,6 +102,22 @@ def normalize_academic_sections(md: str) -> str:
     return cleaned.strip() + '\n'
 
 
+DEFAULT_GEMINI_MODEL = "gemini-3.8-flash"
+FAST_GEMINI_MODEL = "gemini-3.5-flash-lite"
+DEEP_REASONING_MODELS = ["gemini-3.1-pro-preview", "gemini-4-argon"]
+
+
+def is_legacy_gemini_model(model_name: Optional[str]) -> bool:
+    """
+    Check if a model is a legacy Gemini model (1.5, 2.0, 2.5).
+    Modern models (3.5, 3.6, 3.8+, 4.x) deprecate temperature, top_p, top_k parameters.
+    """
+    if not model_name:
+        return False
+    m = model_name.lower().strip()
+    return any(leg in m for leg in ["gemini-1.5", "gemini-2.0", "gemini-2.5"])
+
+
 class GeminiTTRPGSummarizer:
     """Client for generating D&D session chronicles using Gemini API."""
 
@@ -111,7 +127,7 @@ class GeminiTTRPGSummarizer:
         model_name: Optional[str] = None,
     ):
         self.api_key = api_key or os.getenv("GEMINI_API_KEY", "").strip()
-        self.model_name = model_name or os.getenv("GEMINI_MODEL", "gemini-3.5-flash")
+        self.model_name = model_name or os.getenv("GEMINI_MODEL", DEFAULT_GEMINI_MODEL)
         self._client = None
 
     @property
@@ -178,13 +194,14 @@ class GeminiTTRPGSummarizer:
         """
         Executes generate_content with automatic retries on 503 UNAVAILABLE / 429 RESOURCE_EXHAUSTED
         and seamless fallback to next available active models:
-        [self.model_name, "gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash"]
+        [self.model_name, DEFAULT_GEMINI_MODEL, FAST_GEMINI_MODEL, "gemini-3.1-pro-preview", "gemini-4-argon"]
         """
         candidate_models = [
             self.model_name,
-            "gemini-3.5-flash",
-            "gemini-3.5-flash-lite",
-            "gemini-3.8-flash",
+            DEFAULT_GEMINI_MODEL,
+            FAST_GEMINI_MODEL,
+            "gemini-3.1-pro-preview",
+            "gemini-4-argon",
         ]
         models_to_try = []
         for m in candidate_models:
@@ -193,11 +210,28 @@ class GeminiTTRPGSummarizer:
 
         last_error = None
         for model in models_to_try:
+            # Prepare configuration respecting API 3.6+/3.8+ parameter deprecations
+            call_config = None
+            if config is not None:
+                if isinstance(config, dict):
+                    if is_legacy_gemini_model(model):
+                        call_config = dict(config)
+                    else:
+                        # Strip deprecated parameters for modern Gemini 3.6+/3.8+ models
+                        call_config = {
+                            k: v for k, v in config.items()
+                            if k not in ("temperature", "top_p", "top_k")
+                        }
+                        if not call_config:
+                            call_config = None
+                else:
+                    call_config = config
+
             for attempt in range(3):
                 try:
                     kwargs = {"model": model, "contents": contents}
-                    if config is not None:
-                        kwargs["config"] = config
+                    if call_config is not None:
+                        kwargs["config"] = call_config
                     response = self.client.models.generate_content(**kwargs)
                     if response and response.text:
                         return response.text
@@ -241,6 +275,12 @@ class GeminiTTRPGSummarizer:
         if not transcript_text or not transcript_text.strip():
             return "No hay transcripción de audio disponible para generar la guía de estudio."
 
+        try:
+            from src.transcription.groq_whisper import clean_whisper_hallucinations
+            transcript_text = clean_whisper_hallucinations(transcript_text)
+        except Exception:
+            pass
+
         prompt = build_academic_lecture_prompt(
             subject=subject,
             topic=topic,
@@ -249,11 +289,11 @@ class GeminiTTRPGSummarizer:
             target_language=target_language,
         )
 
-        generation_config = {
-            "temperature": 0.0,
-            "top_p": 0.95,
-        }
-        raw_notes = self._generate_with_retry(prompt, config=generation_config)
+        generation_config = {}
+        if is_legacy_gemini_model(self.model_name):
+            generation_config["temperature"] = 0.0
+            generation_config["top_p"] = 0.95
+        raw_notes = self._generate_with_retry(prompt, config=generation_config or None)
         notes_md = normalize_academic_sections(raw_notes)
         if transcript_text and transcript_text.strip() and "# 📝" not in notes_md and "Transcripción" not in notes_md:
             is_en = str(target_language).lower().startswith("en")
@@ -302,6 +342,12 @@ class GeminiTTRPGSummarizer:
                 "detected_npc_names": [],
             }
 
+        try:
+            from src.transcription.groq_whisper import clean_whisper_hallucinations
+            transcript_text = clean_whisper_hallucinations(transcript_text, roster=roster)
+        except Exception:
+            pass
+
         roster_formatted = self.format_roster(roster)
         has_markus = self.check_has_user_character(roster)
         prompt = build_continuity_session_prompt(
@@ -319,12 +365,13 @@ class GeminiTTRPGSummarizer:
             last_session_recap=last_session_recap,
         )
 
-        campaign_temperature = 0.1 if is_youtube else 0.2
         generation_config = {
-            "temperature": campaign_temperature,
-            "top_p": 0.95,
             "response_mime_type": "application/json",
         }
+        if is_legacy_gemini_model(self.model_name):
+            campaign_temperature = 0.1 if is_youtube else 0.2
+            generation_config["temperature"] = campaign_temperature
+            generation_config["top_p"] = 0.95
 
         raw_text = self._generate_with_retry(prompt, config=generation_config)
         return self.parse_json_response(raw_text, session_number)
@@ -532,7 +579,7 @@ class GeminiTTRPGSummarizer:
                     "subobjectives": subobjs,
                 })
 
-            # Normalize NPCs (3 Tiers: importantes, interaccion_contexto, mencionados)
+            # Normalize NPCs (Semantic categories: clave, aliado, invocacion, amenaza, interaccion_contexto; vital status: activo, herido, abatido, desvanecido)
             raw_npcs = data.get("updated_npcs", []) if isinstance(data.get("updated_npcs"), list) else []
             normalized_npcs = []
             for n in raw_npcs:
@@ -542,9 +589,44 @@ class GeminiTTRPGSummarizer:
                 if not name:
                     continue
                 n_raw_tipo = str(n.get("tipo") or n.get("type") or "").lower().strip()
-                if n_raw_tipo in ("importantes", "importante", "principal", "clave"):
+                n_raw_cat = str(n.get("category") or n.get("categoria") or "").lower().strip()
+                n_role_lower = str(n.get("role") or "").lower()
+
+                # Semantic category normalization
+                if n_raw_cat in ("clave", "importante", "importantes", "principal"):
+                    n_category = "clave"
+                elif n_raw_cat in ("aliado", "aliados", "companero", "compañero", "amigo", "guia", "guía"):
+                    n_category = "aliado"
+                elif n_raw_cat in ("invocacion", "invocación", "familiar", "mascota", "corcel", "summon", "invocaciones"):
+                    n_category = "invocacion"
+                elif n_raw_cat in ("amenaza", "amenazas", "enemigo", "enemigos", "monstruo", "monstruos", "boss", "jefe"):
+                    n_category = "amenaza"
+                elif "invocad" in n_role_lower or "familiar" in n_role_lower or "corcel" in n_role_lower or "bag of tricks" in n_role_lower or "bolsito" in n_role_lower:
+                    n_category = "invocacion"
+                elif "aliad" in n_role_lower or "compañer" in n_role_lower:
+                    n_category = "aliado"
+                elif "enemig" in n_role_lower or "monstruo" in n_role_lower or "demonio" in n_role_lower or "aberraci" in n_role_lower or "amenaza" in n_role_lower:
+                    n_category = "amenaza"
+                elif n_raw_tipo in ("importantes", "importante", "principal", "clave"):
+                    n_category = "clave"
+                else:
+                    n_category = "interaccion_contexto"
+
+                # Vital status normalization
+                n_raw_status = str(n.get("status") or n.get("estado") or "").lower().strip()
+                if n_raw_status in ("herido", "herida", "revivido", "revivida", "inconsciente"):
+                    n_status = "herido"
+                elif n_raw_status in ("abatido", "abatida", "muerto", "muerta", "destruido", "destruida", "fallecido", "fallecida"):
+                    n_status = "abatido"
+                elif n_raw_status in ("desvanecido", "desvanecida", "disipado", "disipada", "expirado", "expirada", "retirado", "retirada"):
+                    n_status = "desvanecido"
+                else:
+                    n_status = "activo"
+
+                # Preserve backwards-compatible n_tipo
+                if n_category == "clave" or n_raw_tipo in ("importantes", "importante", "principal", "clave"):
                     n_tipo = "importantes"
-                elif n_raw_tipo in ("mencionados", "mencionado", "rumor") or "[mencionado" in str(n.get("role", "")).lower() or "mencionado" in str(n.get("notes", "")).lower():
+                elif n_raw_tipo in ("mencionados", "mencionado", "rumor") or "[mencionado" in n_role_lower or "mencionado" in str(n.get("notes", "")).lower():
                     n_tipo = "mencionados"
                 else:
                     n_tipo = "interaccion_contexto"
@@ -560,6 +642,8 @@ class GeminiTTRPGSummarizer:
                     "aliases": npc_aliases,
                     "role": n.get("role", "Desconocido / PNJ"),
                     "tipo": n_tipo,
+                    "category": n_category,
+                    "status": n_status,
                     "notes": notes,
                 })
 
