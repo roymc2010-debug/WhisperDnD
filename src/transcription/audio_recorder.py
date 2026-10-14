@@ -1,6 +1,7 @@
 """Dual-channel audio recorder capturing mic and system/Discord loopback audio."""
 
 import datetime
+import json
 import os
 import threading
 import time
@@ -268,6 +269,7 @@ class DualChannelAudioRecorder:
         self._speaking_log: List[Dict[str, Any]] = []
         self._loopback_active = False
         self._last_error: Optional[str] = None
+        self._campaign_name: Optional[str] = None
         self._lock = threading.Lock()
 
     @property
@@ -354,6 +356,7 @@ class DualChannelAudioRecorder:
         speaker_id: Optional[str] = None,
         gain_mic: float = 1.0,
         gain_spk: float = 1.0,
+        campaign_name: Optional[str] = None,
     ) -> str:
         """
         Start recording audio in a background thread.
@@ -366,6 +369,7 @@ class DualChannelAudioRecorder:
         :param speaker_id: Optional playback speaker/headphone device ID for loopback.
         :param gain_mic: Software volume multiplier for microphone (0.1 to 5.0).
         :param gain_spk: Software volume multiplier for loopback/Discord (0.1 to 10.0).
+        :param campaign_name: Optional campaign name to organize recordings into dedicated folders.
         :return: The path to the WAV file being recorded.
         """
         with self._lock:
@@ -378,6 +382,7 @@ class DualChannelAudioRecorder:
             self._speaker_id = speaker_id
             self._gain_mic = max(0.1, min(5.0, float(gain_mic if gain_mic is not None else 1.0)))
             self._gain_spk = max(0.1, min(10.0, float(gain_spk if gain_spk is not None else 1.0)))
+            self._campaign_name = campaign_name
             self._latest_mic_rms = 0.0
             self._latest_spk_rms = 0.0
             self._frames_written = 0
@@ -386,10 +391,16 @@ class DualChannelAudioRecorder:
 
             if not output_path:
                 project_root = Path(__file__).resolve().parent.parent.parent
-                dest_dir = project_root / "data" / "input"
-                dest_dir.mkdir(parents=True, exist_ok=True)
                 timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
                 prefix = "lecture" if self._mode == "class" else "session"
+                if self._campaign_name and self._campaign_name.strip() and self._mode == "roleplay":
+                    import re
+                    clean_c = re.sub(r'[\\/*?:"<>|]', "", self._campaign_name.strip())
+                    safe_c = re.sub(r"\s+", "_", clean_c).lower() or "campana_principal"
+                    dest_dir = project_root / "data" / "campaigns" / safe_c / "recordings"
+                else:
+                    dest_dir = project_root / "data" / "input"
+                dest_dir.mkdir(parents=True, exist_ok=True)
                 output_path = str((dest_dir / f"{prefix}_{timestamp}.wav").resolve())
             else:
                 Path(output_path).parent.mkdir(parents=True, exist_ok=True)
@@ -445,7 +456,37 @@ class DualChannelAudioRecorder:
             self._latest_mic_rms = 0.0
             self._latest_spk_rms = 0.0
             final_path = self._file_path
-            return final_path or ""
+
+        # Persist speaking_log timeline alongside WAV file for roleplay sessions
+        if final_path and self._mode == "roleplay":
+            try:
+                timeline_path = Path(final_path).with_suffix(".timeline.json")
+                timeline_data = {
+                    "audio_file": Path(final_path).name,
+                    "created_at": datetime.datetime.now().isoformat(),
+                    "speaking_log": list(self._speaking_log),
+                }
+                timeline_content = json.dumps(timeline_data, indent=2, ensure_ascii=False)
+                timeline_path.write_text(timeline_content, encoding="utf-8")
+                print(f"[AudioRecorder] Timeline saved with {len(self._speaking_log)} events: {timeline_path}")
+
+                # Also mirror into data/input if recorded into a campaign folder so all components find it
+                project_root = Path(__file__).resolve().parent.parent.parent
+                input_dir = project_root / "data" / "input"
+                if timeline_path.parent.resolve() != input_dir.resolve():
+                    input_dir.mkdir(parents=True, exist_ok=True)
+                    (input_dir / timeline_path.name).write_text(timeline_content, encoding="utf-8")
+                    input_wav = input_dir / Path(final_path).name
+                    if not input_wav.exists():
+                        try:
+                            import shutil
+                            shutil.copyfile(final_path, input_wav)
+                        except Exception:
+                            pass
+            except Exception as save_err:
+                print(f"[AudioRecorder] Warning: Failed to save timeline file: {save_err}")
+
+        return final_path or ""
 
     def _record_worker(
         self,
@@ -795,3 +836,41 @@ def get_audio_levels(
         "gain_mic": round(g_mic, 2),
         "gain_spk": round(g_spk, 2),
     }
+
+
+def load_timeline_for_audio(audio_path: str | Path) -> Optional[List[Dict[str, Any]]]:
+    """
+    Load matching .timeline.json speaking log for an audio file if it exists.
+    Searches next to the audio file, in data/input, and across data/campaigns/*/recordings.
+    Supports both Path and str objects.
+    """
+    if not audio_path:
+        return None
+    p = Path(audio_path)
+    candidates = [
+        p.with_suffix(".timeline.json"),
+        p.parent / f"{p.stem}.timeline.json",
+    ]
+    # Check project data/input
+    project_root = Path(__file__).resolve().parent.parent.parent
+    candidates.append(project_root / "data" / "input" / f"{p.stem}.timeline.json")
+
+    # Check all campaign recordings
+    camp_dir = project_root / "data" / "campaigns"
+    if camp_dir.is_dir():
+        for c in camp_dir.iterdir():
+            if c.is_dir():
+                candidates.append(c / "recordings" / f"{p.stem}.timeline.json")
+
+    for c_path in candidates:
+        if c_path.is_file():
+            try:
+                data = json.loads(c_path.read_text(encoding="utf-8"))
+                if isinstance(data, dict) and "speaking_log" in data:
+                    return data["speaking_log"]
+                elif isinstance(data, list):
+                    return data
+            except Exception as exc:
+                print(f"[AudioRecorder] Error loading timeline {c_path}: {exc}")
+    return None
+

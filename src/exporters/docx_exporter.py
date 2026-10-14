@@ -419,6 +419,7 @@ def export_chronicle_docx(
 def export_living_journal_docx(
     campaign_state: Dict[str, Any],
     output_path: Optional[str] = None,
+    include_coaching: bool = True,
 ) -> str:
     """
     Format and export the complete Living Campaign Journal into a styled Word .docx document.
@@ -426,6 +427,7 @@ def export_living_journal_docx(
 
     :param campaign_state: Dict containing campaign metadata, quests, npcs, and sessions.
     :param output_path: Destination path. Defaults to data/output/<campaign_name>_Grimorio.docx.
+    :param include_coaching: Whether to include personal character roleplay coaching reflection.
     :return: Absolute file path to the generated .docx file.
     """
     import re
@@ -792,19 +794,19 @@ def export_living_journal_docx(
 
                 for pc in pcs_list:
                     pc_cells = proto_table.add_row().cells
-                    pc_cells[0].text = pc.get("personaje", "-")
+                    pc_cells[0].text = str(pc.get("personaje") or pc.get("character_name") or "-")
                     if pc_cells[0].paragraphs[0].runs:
                         pc_cells[0].paragraphs[0].runs[0].font.bold = True
-                    pc_cells[1].text = pc.get("jugador", "-")
-                    c_cls = pc.get("clase", "-")
-                    c_esp = pc.get("especie", "-")
+                    pc_cells[1].text = str(pc.get("jugador") or pc.get("player_name") or "-")
+                    c_cls = str(pc.get("clase") or pc.get("role") or "-")
+                    c_esp = str(pc.get("especie") or pc.get("species") or "-")
                     if c_cls != "-" and c_esp != "-":
                         pc_cells[2].text = f"{c_cls} / {c_esp}"
                     elif c_cls != "-":
                         pc_cells[2].text = c_cls
                     else:
                         pc_cells[2].text = c_esp
-                    pc_cells[3].text = pc.get("rol_en_sesion", "-")
+                    pc_cells[3].text = str(pc.get("rol_en_sesion") or pc.get("session_role") or "-")
                     if pc_cells[3].paragraphs[0].runs:
                         pc_cells[3].paragraphs[0].runs[0].font.size = Pt(9.5)
 
@@ -838,7 +840,7 @@ def export_living_journal_docx(
             if not char_name and s.get("markus_coaching") and not synopsis_text:
                 char_name = "Markus Veyl"
 
-            if coaching and char_name and not synopsis_text and char_name not in ("-", "(DM)", "Dungeon Master"):
+            if include_coaching and coaching and char_name and not synopsis_text and char_name not in ("-", "(DM)", "Dungeon Master"):
                 char_title = f"Reflexión de Rol y Compañerismo: {char_name}"
                 mc_h = doc.add_heading(f"{sec_num}. {char_title}", level=3)
                 mc_h.paragraph_format.space_before = Pt(10)
@@ -886,7 +888,216 @@ def export_living_journal_docx(
 
     target = Path(output_path).resolve()
     target.parent.mkdir(parents=True, exist_ok=True)
-    doc.save(str(target))
+    try:
+        doc.save(str(target))
+    except PermissionError:
+        import time
+        fallback_target = target.with_stem(f"{target.stem}_{int(time.time())}")
+        doc.save(str(fallback_target))
+        target = fallback_target
+    return str(target)
+
+
+def export_session_docx(
+    session_data: Dict[str, Any],
+    campaign_name: str = "Campaña Principal",
+    roster: Optional[List[Dict[str, Any]]] = None,
+    output_path: Optional[str] = None,
+    include_coaching: bool = True,
+) -> str:
+    """
+    Format and export a single session chronicle into a styled Word .docx document.
+    Allows generating player-ready chronicles by setting include_coaching=False.
+
+    :param session_data: Dict containing session chapter fields (title, chronicle_text, etc.).
+    :param campaign_name: Name of the campaign.
+    :param roster: Optional roster or participant list.
+    :param output_path: Custom output path. Defaults to outputs/<campaign>_Sesion_<num>_Cronica.docx.
+    :param include_coaching: Whether to include personal roleplay reflection / coaching.
+    :return: Absolute file path to the generated .docx file.
+    """
+    import re
+    import time
+    clean_name = re.sub(r'[\\/*?:"<>|]', "", str(campaign_name).strip())
+    safe_name = re.sub(r"\s+", "_", clean_name) or "Campana_Principal"
+    num = session_data.get("session_number", 1)
+    suffix = "" if include_coaching else "_Jugadores"
+
+    if not output_path:
+        out_dir = _get_default_output_dir()
+        output_path = str((out_dir / f"{safe_name}_Sesion_{num}_Cronica{suffix}.docx").resolve())
+
+    doc = docx.Document()
+    for section in doc.sections:
+        section.top_margin = Inches(1)
+        section.bottom_margin = Inches(1)
+        section.left_margin = Inches(1)
+        section.right_margin = Inches(1)
+
+    # Document Title
+    title_p = doc.add_paragraph()
+    title_p.paragraph_format.space_before = Pt(0)
+    title_p.paragraph_format.space_after = Pt(4)
+    raw_title = str(session_data.get("session_title") or session_data.get("title") or f"Sesión #{num}").strip()
+    clean_title = re.sub(r"^(?:sesi[oó]n|session)\s*#?\d+\s*[:\-]\s*", "", raw_title, flags=re.IGNORECASE).strip() or raw_title
+    full_title = f"{campaign_name} - Sesión #{num}: {clean_title}"
+
+    title_run = title_p.add_run(full_title)
+    title_run.font.name = "Georgia"
+    title_run.font.size = Pt(22)
+    title_run.font.bold = True
+    title_run.font.color.rgb = RGBColor(0x31, 0x2E, 0x81)
+
+    date_str = session_data.get("date", "")
+    if date_str:
+        dp = doc.add_paragraph(f"Fecha de Juego: {date_str}")
+        dp.paragraph_format.space_after = Pt(12)
+        dp.runs[0].font.italic = True
+        dp.runs[0].font.size = Pt(10)
+        dp.runs[0].font.color.rgb = RGBColor(0x6B, 0x72, 0x80)
+
+    # Protagonistas Detectados
+    pcs_list = session_data.get("detected_pcs") or [
+        {
+            "personaje": p.get("character_name", "-"),
+            "jugador": p.get("player_name", "-"),
+            "clase": p.get("role", "-"),
+            "especie": p.get("species", "-"),
+            "rol_en_sesion": p.get("session_role", "-"),
+        }
+        for p in (session_data.get("detected_party") or [])
+    ]
+    if not pcs_list and roster:
+        pcs_list = [
+            {
+                "personaje": p.get("character_name", "-"),
+                "jugador": p.get("player_name", "-"),
+                "clase": p.get("role", "-"),
+                "especie": p.get("species", "-"),
+                "rol_en_sesion": "-",
+            }
+            for p in roster
+            if str(p.get("character_name", "")).strip() not in ("(DM)", "")
+        ]
+
+    if pcs_list:
+        proto_h = doc.add_heading("🎭 Compañía de Aventureros (Protagonistas)", level=2)
+        proto_h.paragraph_format.space_before = Pt(8)
+        proto_h.paragraph_format.space_after = Pt(4)
+
+        proto_table = doc.add_table(rows=1, cols=4)
+        proto_table.alignment = WD_TABLE_ALIGNMENT.CENTER
+        proto_table.style = "Table Grid"
+
+        p_hdrs = proto_table.rows[0].cells
+        p_hdrs[0].text = "Personaje"
+        p_hdrs[1].text = "Jugador / Rol"
+        p_hdrs[2].text = "Clase / Especie"
+        p_hdrs[3].text = "Rol en la Sesión"
+
+        for cell in p_hdrs:
+            for p_cell in cell.paragraphs:
+                for run in p_cell.runs:
+                    run.font.bold = True
+                    run.font.color.rgb = RGBColor(0x1F, 0x29, 0x37)
+
+        for pc in pcs_list:
+            pc_cells = proto_table.add_row().cells
+            pc_cells[0].text = str(pc.get("personaje") or pc.get("character_name") or "-")
+            if pc_cells[0].paragraphs[0].runs:
+                pc_cells[0].paragraphs[0].runs[0].font.bold = True
+            pc_cells[1].text = str(pc.get("jugador") or pc.get("player_name") or "-")
+            c_cls = str(pc.get("clase") or pc.get("role") or "-")
+            c_esp = str(pc.get("especie") or pc.get("species") or "-")
+            if c_cls != "-" and c_esp != "-":
+                pc_cells[2].text = f"{c_cls} / {c_esp}"
+            elif c_cls != "-":
+                pc_cells[2].text = c_cls
+            else:
+                pc_cells[2].text = c_esp
+            pc_cells[3].text = str(pc.get("rol_en_sesion") or pc.get("session_role") or "-")
+            if pc_cells[3].paragraphs[0].runs:
+                pc_cells[3].paragraphs[0].runs[0].font.size = Pt(9.5)
+
+        doc.add_paragraph().paragraph_format.space_after = Pt(8)
+
+    sec_num = 1
+    # 1. Crónica Narrativa y Combates
+    if session_data.get("chronicle_text"):
+        ch_title = doc.add_heading(f"{sec_num}. Crónica Narrativa y Desglose de Combates", level=2)
+        ch_title.paragraph_format.space_before = Pt(12)
+        ch_title.paragraph_format.space_after = Pt(4)
+        render_markdown_to_docx(doc, clean_math_delimiters_for_docx(session_data["chronicle_text"]))
+        sec_num += 1
+
+    # 2. Cierre de Mesa y Expectativas
+    if session_data.get("closing_expectations"):
+        cl_h = doc.add_heading(f"{sec_num}. Cierre de Sesión, Decisiones y Expectativas", level=2)
+        cl_h.paragraph_format.space_before = Pt(12)
+        cl_h.paragraph_format.space_after = Pt(4)
+        cp = doc.add_paragraph()
+        cp.paragraph_format.space_after = Pt(6)
+        add_formatted_runs_to_paragraph(cp, clean_math_delimiters_for_docx(session_data["closing_expectations"]))
+        sec_num += 1
+
+    # 3. Reflexión de Rol y Compañerismo (Condicional)
+    synopsis_text = (session_data.get("episode_synopsis") or "").strip()
+    coaching = (session_data.get("user_coaching") or session_data.get("markus_coaching") or "").strip()
+    user_char = session_data.get("user_character", {})
+    char_name = (user_char.get("character_name") or user_char.get("name") or "").strip() if isinstance(user_char, dict) else ""
+    if not char_name and session_data.get("markus_coaching") and not synopsis_text:
+        char_name = "Markus Veyl"
+
+    if include_coaching and coaching and char_name and not synopsis_text and char_name not in ("-", "(DM)", "Dungeon Master"):
+        char_title = f"Reflexión de Rol y Compañerismo: {char_name}"
+        mc_h = doc.add_heading(f"{sec_num}. {char_title}", level=2)
+        mc_h.paragraph_format.space_before = Pt(12)
+        mc_h.paragraph_format.space_after = Pt(4)
+        for line in coaching.split("\n"):
+            stripped = line.strip()
+            if not stripped:
+                continue
+            if re.match(r"^[-*+]\s+", stripped):
+                bp = doc.add_paragraph(style="List Bullet")
+                bp.paragraph_format.space_after = Pt(3)
+                add_formatted_runs_to_paragraph(bp, re.sub(r"^[-*+]\s+", "", stripped))
+            else:
+                p_coach = doc.add_paragraph()
+                p_coach.paragraph_format.space_after = Pt(4)
+                add_formatted_runs_to_paragraph(p_coach, stripped)
+        sec_num += 1
+
+    # 4. Sinopsis o Guion de siguiente sesión
+    if synopsis_text:
+        syn_h = doc.add_heading(f"{sec_num}. 📌 Sinopsis Ejecutiva del Episodio", level=2)
+        syn_h.paragraph_format.space_before = Pt(12)
+        syn_h.paragraph_format.space_after = Pt(4)
+        for line in synopsis_text.split("\n"):
+            stripped = line.strip()
+            if not stripped:
+                continue
+            sp = doc.add_paragraph()
+            sp.paragraph_format.space_after = Pt(4)
+            add_formatted_runs_to_paragraph(sp, stripped)
+    else:
+        script_text = session_data.get("next_session_script") or session_data.get("recap_text")
+        if script_text and script_text.strip():
+            next_num = num + 1
+            rh = doc.add_heading(f"{sec_num}. 🎙️ Guion para abrir la Sesión #{next_num} (Para leer en voz alta)", level=2)
+            rh.paragraph_format.space_before = Pt(12)
+            rh.paragraph_format.space_after = Pt(4)
+            rp = doc.add_paragraph()
+            rp.paragraph_format.space_after = Pt(6)
+            add_formatted_runs_to_paragraph(rp, script_text.strip())
+
+    target = Path(output_path).resolve()
+    target.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        doc.save(str(target))
+    except PermissionError:
+        fallback_target = target.with_stem(f"{target.stem}_{int(time.time())}")
+        doc.save(str(fallback_target))
+        target = fallback_target
     return str(target)
 
 

@@ -1220,6 +1220,168 @@ class TestCampaignManager(unittest.TestCase):
         self.assertTrue(is_entity_substring_duplicate("Wicander 'Wiki' Halovar", "Wicander 'Wick' Halovar", w1, w2))
         self.assertFalse(is_entity_substring_duplicate("Wicander 'Wick' Halovar", "Wicander 'Wiki' Halovar", w2, w1))
 
+    def test_bilingual_items_and_key_item_deduplication(self):
+        """Verify bilingual item deduplication and E10 key item unification."""
+        camp_name = "Items Deduplication Test"
+        state = self.manager.load_campaign(camp_name)
+        state["items"] = [
+            {
+                "name": "Armadura de Cuero Tachonado (Studded Leather Armor)",
+                "type": "armadura",
+                "description": "Reinforced leather armor found in the attic chest.",
+                "holder": "Selen",
+                "status": "en_posesion",
+            },
+            {
+                "name": "Studded Leather Armor",
+                "type": "armadura",
+                "description": "Sturdy leather armor reinforced with metal rivets.",
+                "holder": "Atou Shadowgrace",
+                "status": "equipado",
+            },
+            {
+                "name": "Heavy Crossbow",
+                "type": "arma",
+                "description": "A powerful heavy crossbow discovered in the attic chest.",
+                "holder": "Atou Shadowgrace",
+                "status": "en_posesion",
+            },
+            {
+                "name": "Ballesta Pesada",
+                "type": "arma",
+                "description": "Heavy crossbow recovered from the attic chest.",
+                "holder": "Atou Shadowgrace",
+                "status": "en_posesion",
+            },
+            {
+                "name": "Rosario Sagrado de Zun",
+                "type": "artefacto",
+                "description": "Rosario de plata con una figurilla votiva consagrado a Zun.",
+                "holder": "Minipeko",
+                "status": "en_posesion",
+            },
+            {
+                "name": "Collar del Pozo",
+                "type": "artefacto",
+                "description": "Collar recuperado del fondo del pozo.",
+                "holder": "Minipeko",
+                "status": "en_posesion",
+            },
+            {
+                "name": "Estatuilla Blasfema de Orcus",
+                "type": "artefacto",
+                "description": "Ídolo profano de tres cabezas.",
+                "holder": "Grupo",
+                "status": "consumido",
+            },
+            {
+                "name": "Statuette of Orcus",
+                "type": "artefacto",
+                "description": "A dark demonic statuette destroyed with radiant scrolls.",
+                "holder": "None",
+                "status": "consumido",
+            },
+        ]
+        self.manager.save_campaign(state)
+
+        # Execute deduplication
+        dedup_result = self.manager.deduplicate_campaign_entities(camp_name)
+        cleaned = self.manager.load_campaign(camp_name)
+
+        item_names = [it["name"] for it in cleaned["items"]]
+        # Leather armor merged
+        self.assertIn("Armadura de Cuero Tachonado (Studded Leather Armor)", item_names)
+        self.assertEqual(sum("leather" in n.lower() or "cuero tachonado" in n.lower() for n in item_names), 1)
+
+        # Crossbow merged
+        self.assertIn("Ballesta Pesada (Heavy Crossbow)", item_names)
+        self.assertEqual(sum("crossbow" in n.lower() or "ballesta" in n.lower() for n in item_names), 1)
+
+        # Zun Key Item unified (E10)
+        self.assertIn("Collar / Rosario Sagrado de Zun (Medallón del Pozo)", item_names)
+        self.assertEqual(sum("zun" in n.lower() or "pozo" in n.lower() for n in item_names), 1)
+
+        # Orcus statuette merged
+        self.assertEqual(sum("orcus" in n.lower() for n in item_names), 1)
+
+    def test_bilingual_locations_deduplication(self):
+        """Verify bilingual location deduplication."""
+        camp_name = "Locations Deduplication Test"
+        state = self.manager.load_campaign(camp_name)
+        state["locations"] = [
+            {
+                "name": "Chalet Brantifax (Brantifax Chalet)",
+                "type": "punto_de_interes",
+                "description": "An isolated mountain hunting lodge surrounded by necrotic mists.",
+                "status": "explorado",
+                "associated_characters": ["Barón Brantifax", "Markus Veyl"],
+            },
+            {
+                "name": "Brantifax Manor",
+                "type": "mazmorra",
+                "description": "An isolated hunting lodge in the mountains haunted by undead.",
+                "status": "explorado",
+                "associated_characters": ["Atou Shadowgrace"],
+            },
+            {
+                "name": "Brantifax Cemetery",
+                "type": "punto_de_interes",
+                "description": "Private family graveyard outside the manor.",
+                "status": "explorado",
+                "associated_characters": ["Minipeko"],
+            },
+            {
+                "name": "Cementerio Brantifax",
+                "type": "punto_de_interes",
+                "description": "Cementerio privado de la familia.",
+                "status": "explorado",
+                "associated_characters": ["Markus Veyl"],
+            },
+        ]
+        self.manager.save_campaign(state)
+
+        self.manager.deduplicate_campaign_entities(camp_name)
+        cleaned = self.manager.load_campaign(camp_name)
+
+        loc_names = [l["name"] for l in cleaned["locations"]]
+        self.assertEqual(len(cleaned["locations"]), 2)
+        # Brantifax residence merged
+        self.assertIn("Chalet Brantifax (Brantifax Manor)", loc_names)
+        chalet = next(l for l in cleaned["locations"] if "Chalet Brantifax" in l["name"])
+        self.assertIn("Markus Veyl", chalet["associated_characters"])
+        self.assertIn("Atou Shadowgrace", chalet["associated_characters"])
+
+        # Cemetery merged
+        self.assertIn("Cementerio Brantifax (Brantifax Cemetery)", loc_names)
+        cemetery = next(l for l in cleaned["locations"] if "Cemetery" in l["name"] or "Cementerio" in l["name"])
+        self.assertIn("Minipeko", cemetery["associated_characters"])
+        self.assertIn("Markus Veyl", cemetery["associated_characters"])
+
+    def test_session_cleanup_removes_duplicate_detected_party(self):
+        """Verify that sessions with both detected_pcs and detected_party have redundant party cleared (E8)."""
+        camp_name = "Session Cleanup Test"
+        state = self.manager.load_campaign(camp_name)
+        state["sessions"] = [
+            {
+                "session_number": 4,
+                "title": "Sesión 4",
+                "detected_pcs": [
+                    {"personaje": "Markus Veyl", "jugador": "Roy"}
+                ],
+                "detected_party": [
+                    {"character_name": "Markus Veyl", "player_name": "Roy"}
+                ],
+            }
+        ]
+        self.manager.save_campaign(state)
+
+        self.manager.deduplicate_campaign_entities(camp_name)
+        cleaned = self.manager.load_campaign(camp_name)
+
+        s4 = cleaned["sessions"][0]
+        self.assertEqual(len(s4["detected_pcs"]), 1)
+        self.assertEqual(s4["detected_party"], [])
+
 
 if __name__ == "__main__":
     unittest.main()

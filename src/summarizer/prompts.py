@@ -20,6 +20,7 @@ def build_continuity_session_prompt(
     is_youtube: bool = False,
     prior_lore: Optional[str] = None,
     character_backstory: Optional[str] = None,
+    last_session_recap: Optional[str] = None,
 ) -> str:
     """
     Build a multi-session continuity prompt for Gemini.
@@ -82,10 +83,21 @@ def build_continuity_session_prompt(
 
     recap_guidance = ""
     if session_number > 1:
-        recap_guidance = f"""
-REGLA CRUCIAL DE CONTINUIDAD (SESIÓN #{session_number}):
-La sesión grabada puede comenzar con los jugadores o el DM haciendo un resumen o recordando lo que pasó en sesiones anteriores.
-RECONOCE ese resumen inicial y utilízalo ÚNICAMENTE como contexto previo; NO dupliques eventos pasados en la crónica de esta sesión #{session_number}. La crónica y el combate deben enfocarse exclusivamente en los hechos nuevos que ocurrieron en esta sesión #{session_number}.
+        if is_english:
+            recap_guidance = f"""
+CRITICAL CONTINUITY & RECAP DIRECTIVE (SESSION #{session_number}):
+1. RECAP VS. TODAY'S ACTIONS SEPARATION: The recorded session may begin with players or DM recapping prior sessions. Acknowledge that initial recap purely as background context; DO NOT duplicate past events in the chronicle or active quests of session #{session_number}. The chronicle and quests must focus strictly on new events that occurred during session #{session_number}.
+2. CONTEXTUAL LORE & MORAL INTENT (NEVER JUDGE ACTIONS BLINDLY OUT OF CONTEXT):
+   - Ground all character actions in their declared intent and accumulated campaign lore.
+   - For example: if the party exhumes a grave, opens a coffin, or recovers a corpse/relic to bury someone with dignity, return a sacred medallion, or lay a spirit to rest, DO NOT blindly judge this as malicious 'grave defilement'. Always evaluate actions against the party's actual quest goals and lore discoveries (e.g. returning relics, burying the baroness, or uncovering demons).
+"""
+        else:
+            recap_guidance = f"""
+REGLA CRUCIAL DE CONTINUIDAD Y RECAP (SESIÓN #{session_number}):
+1. SEPARACIÓN ESTRICTA DE RECAP VS. SESIÓN DE HOY: La sesión grabada puede comenzar con los jugadores o el DM recordando o resumiendo sesiones anteriores. Reconoce ese resumen inicial ÚNICAMENTE como contexto previo; NO dupliques eventos pasados en la crónica ni en las misiones de esta sesión #{session_number}. La crónica y las misiones deben enfocarse exclusivamente en los hechos nuevos que ocurrieron en esta sesión #{session_number}.
+2. CONTEXTO MORAL Y DE LORE (NO JUZGAR ACCIONES FUERA DE CONTEXTO):
+   - Evalúa siempre las acciones de los personajes considerando su intención declarada y el lore acumulado de la campaña.
+   - Por ejemplo: si el grupo desentierra un ataúd, exhuma una tumba o recupera un cuerpo/objeto para devolver un relicario, dar sepultura digna a una baronesa o consagrar un lugar, NO lo juzgues ciegamente como una 'profanación' o acto malvado. Considera SIEMPRE el objetivo de la misión del grupo y las revelaciones previas (como descubrir si una criatura era un demonio o la necesidad de liberar a un espíritu).
 """
 
     prior_lore_block = ""
@@ -94,6 +106,21 @@ RECONOCE ese resumen inicial y utilízalo ÚNICAMENTE como contexto previo; NO d
 LORE PREVIO Y RESUMEN DE SESIONES ANTERIORES (CONTEXTO DE LA CAMPAÑA):
 {str(prior_lore).strip()}
 (Utiliza este lore previo para dar continuidad al mundo, misiones en curso y personajes clave preexistentes).
+"""
+
+    last_recap_block = ""
+    if last_session_recap and str(last_session_recap).strip():
+        if is_english:
+            last_recap_block = f"""
+PREVIOUS SESSION RECAP (WHERE THE PARTY LEFT OFF):
+{str(last_session_recap).strip()}
+(Use this recap strictly for narrative continuity so you know exactly what occurred at the climax of the previous session before new events unfolded).
+"""
+        else:
+            last_recap_block = f"""
+RESUMEN DE LA SESIÓN ANTERIOR (DÓNDE QUEDÓ LA COMPAÑÍA):
+{str(last_session_recap).strip()}
+(Utiliza este resumen estrictamente para continuidad narrativa, sabiendo con exactitud en qué punto quedó la historia al final de la sesión pasada).
 """
 
     backstory_block = ""
@@ -113,10 +140,14 @@ LORE PREVIO Y RESUMEN DE SESIONES ANTERIORES (CONTEXTO DE LA CAMPAÑA):
 (Usa este trasfondo como referencia autoritativa para la sección de Reflexión de Rol y Compañerismo. Cruza las decisiones, diálogos y acciones del personaje con este trasfondo para identificar momentos fuera de personaje y oportunidades de rol perdidas.)
 """
 
-
     if char_name:
         if is_english:
-            coaching_instructions = f"""2. Accurately attribute every action, spell, roll, and decision to the characters and players in the Roster. Pay special attention to {char_name} ({char_desc}) for their "Roleplay & Fellowship Reflection: {char_name}". STRICT ATTRIBUTION RULE: If an action, spell, combat, or decision has no explicit named author in the audio, attribute it to 'the party' or 'the group'. NEVER assume it was {char_name} without direct verbal evidence. IMPORTANT: MIN/MAXING OR ROBOTIC COACHING IS STRICTLY FORBIDDEN (zero lessons on maximizing damage per turn or mathematical action economy; focus is narrative, character depth, teamwork, and in-character dilemmas)."""
+            coaching_instructions = f"""2. Accurately attribute every action, spell, roll, and decision to the characters and players in the Roster. Pay special attention to {char_name} ({char_desc}) for their "Roleplay & Fellowship Reflection: {char_name}".
+STRICT ATTRIBUTION & PERSONAL EVALUATION RULE:
+- Evaluate {char_name} EXCLUSIVELY based on words and declared actions spoken by {char_name} (or their player) in the verbal transcript.
+- ABSOLUTELY FORBIDDEN to evaluate or attribute actions performed by other characters to {char_name} (e.g., if another party member kicked down a door, forced open a chest, or cast a spell, NEVER critique or judge that action as part of {char_name}'s review).
+- NEVER assume an action was taken by {char_name} without direct verbal evidence in the transcript. If an action has no explicit named author, attribute it to 'the party' or 'the group'.
+- MIN/MAXING OR ROBOTIC COACHING IS STRICTLY FORBIDDEN (zero lessons on maximizing damage per turn or mathematical action economy; focus is narrative, character depth, teamwork, and in-character dilemmas)."""
             coaching_json_desc = f"""Roleplay & Fellowship Reflection for {char_name} ({char_desc}) WITHOUT min/maxing or combat optimization, divided into 4 areas:
 1) Character Consistency & Development: Analyze fidelity to the character's known personality, backstory, and values. MANDATORY — detect and flag any moments where the player appeared to speak or act out-of-character (breaking immersion, making meta decisions, speaking as themselves rather than as {char_name}). Cite the exact scene. Then cross-reference with the character's known backstory and class identity to suggest 1-2 specific roleplay moments the player could have seized but didn't (e.g. 'In Scene 2 when the NPC mentioned X, {char_name}'s backstory with Y was a perfect opening that wasn't used').
 2) Creativity & Rules vs. Environment: Constructive analysis of rule flexibility vs. cinematic narrative, and gentle warnings about overlooked dangers.
@@ -124,7 +155,12 @@ LORE PREVIO Y RESUMEN DE SESIONES ANTERIORES (CONTEXTO DE LA CAMPAÑA):
 4) Next Session Dilemmas: 1-2 reflective in-character questions about worldview, loyalties, or relationships.
 ⚠️ HONESTY DIRECTIVE: Report things exactly as they happened — if the session was excellent, say so specifically and cite the exact scene. If there were real mistakes or missed opportunities, name them with the exact scene. STRICTLY FORBIDDEN: generic empty praise ('they did great', 'it was incredible') with no specific evidence, AND forced criticism invented just to 'balance' a genuinely good session. Every observation — positive or negative — MUST be grounded in a specific moment from the transcript."""
         else:
-            coaching_instructions = f"""2. Atribuye con precisión cada acción, hechizo, tirada y decisión a los personajes y jugadores del Roster. Presta atención especial a {char_name} ({char_desc}) para su "Reflexión de Rol y Compañerismo: {char_name}". DIRECTIVA ESTRICTA DE ATRIBUCIÓN: Si una acción, hechizo, combate o decisión no tiene un autor explícitamente nombrado en el audio, atribúyelo a 'la compañía' o 'el grupo'. NUNCA asumir que fue {char_name} sin evidencia verbal directa en la transcripción. IMPORTANTE: PROHIBIDO EL MIN/MAXING O COACHING ROBÓTICO (cero lecciones sobre maximizar daño por turno o economía matemática de acciones; el foco es narrativa, carácter de personaje, apoyo a compañeros y dilemas in-character)."""
+            coaching_instructions = f"""2. Atribuye con precisión cada acción, hechizo, tirada y decisión a los personajes y jugadores del Roster. Presta atención especial a {char_name} ({char_desc}) para su "Reflexión de Rol y Compañerismo: {char_name}".
+REGLA DE ORO DE EVALUACIÓN PERSONAL ({char_name}):
+- Evalúa a {char_name} EXCLUSIVAMENTE a partir de los diálogos, decisiones y acciones que {char_name} (o su jugador) verbalizó explícitamente en la transcripción.
+- PROHIBIDO TERMINANTEMENTE evaluar o atribuir a {char_name} acciones de otros personajes (por ejemplo, si Atou o Selen derribaron una puerta, forzaron un cofre o lanzaron un conjuro, JAMÁS juzgues esa acción en la revisión de {char_name}).
+- NUNCA asumir que una acción fue ejecutada por {char_name} sin evidencia verbal directa en la transcripción. Si una acción no tiene autor explícito, atribúyela a 'la compañía' o 'el grupo'.
+- PROHIBIDO EL MIN/MAXING O COACHING ROBÓTICO (cero lecciones sobre maximizar daño por turno o economía matemática de acciones; el foco es narrativa, carácter de personaje, apoyo a compañeros y dilemas in-character)."""
             coaching_json_desc = f"""Reflexión de Rol y Compañerismo para {char_name} ({char_desc}) SIN min/maxing ni optimización robótica de combate, dividida en 4 áreas:
 1) Coherencia y Desarrollo de Personaje: Analiza la fidelidad a la personalidad conocida, trasfondo y valores del personaje. OBLIGATORIO — detecta y señala cualquier momento donde el jugador pareció hablar o actuar fuera de personaje (rompiendo la inmersión, tomando decisiones meta, hablando como él mismo en lugar de como {char_name}). Cita la escena exacta. Luego cruza con el trasfondo conocido del personaje y su identidad de clase para sugerir 1-2 momentos de rol específicos que el jugador pudo aprovechar pero no aprovechó (ej. 'En la Escena 2 cuando el PNJ mencionó X, el trasfondo de {char_name} con Y era una apertura perfecta que no se utilizó').
 2) Creatividad y Uso del Entorno vs. Reglas: Análisis constructivo si flexionó RAW en favor de la narrativa cinematográfica vs regla formal estricta, y advertencias amables sobre peligros pasados por alto.
@@ -150,14 +186,25 @@ Generate all content (Executive Briefing, Detailed Notes, Action Items, Key Poin
 - NEVER use raw double quotes (") inside JSON string values (for nicknames, character aliases, titles, or dialogue quotes).
 - STRICTLY USE single quotes (') for any nicknames, titles, or dialogue quotes (e.g. 'Hal', 'Wiki', 'The Undying', 'He shouted: Attack!').
 - Raw double quotes inside string values corrupt JSON parsing and will crash the application."""
-        scene_instructions = """⚠️ MANDATORY DIRECTIVE: DEEP CHRONOLOGICAL SCENE BREAKDOWN (NO OVER-SUMMARIZATION):
-- STRICTLY FORBIDDEN to write a generic 3-paragraph summary for the session. This represents hours of roleplay gameplay.
+        scene_instructions = """⚠️ MANDATORY DIRECTIVE: DEEP CHRONOLOGICAL SCENE BREAKDOWN (NO OVER-SUMMARIZATION / STORY-FIRST):
+- STRICTLY FORBIDDEN to write a generic 3-paragraph summary for the session. This represents hours of real roleplay gameplay.
 - Structure 'chronicle_text' into detailed chronological ACTS AND SCENES (e.g. '### Act I: Scene 1: ...', '### Scene 2: ...', '### Act II: Scene 3: ...').
 - Dedicate 2 to 3 comprehensive, rich paragraphs per major scene:
-  * Specific verbal dialogues and quotes between characters, NPCs, and DM.
-  * Strategic discussions and party plans debated prior to action.
-  * Skill checks and dice rolls (Athletics, Perception, Stealth, saving throws, natural 20s, natural 1s).
-  * Tactical combat maneuvers described step-by-step (specific spells cast, positioning, environmental usage, damage taken), NOT just the final outcome.
+  * STORY-FIRST NARRATIVE & CONTEXT: Recount what happened, context, cause-and-effect, discoveries, moral dilemmas, and how circumstances advanced. Anyone who missed the session must be able to read this and fully understand the entire story smoothly without gaps.
+  * DO NOT OVER-SUMMARIZE: Narrate the progression from start to finish, but avoid word-for-word transcriptions of everyday banter or trivial details.
+  * STRICT DICE ROLLS RULE (CRITICALS & FUMBLES ONLY - NO PHANTOM NAT 20s):
+    - Highlight ONLY Natural 20s and Natural 1s if and only if they were explicitly verbalized as 'natural', 'nat 20', 'nat 1', or 'critical fumble/success' in the audio transcript.
+    - CRITICAL: A roll of 20 (or total result of 20 with modifiers, like an Athletics check of 20) is NOT a Natural 20 unless the word 'natural' or 'nat 20' was explicitly spoken. NEVER label a total check of 20 as a Natural 20 without explicit spoken proof.
+    - FORBIDDEN to clutter the chronicle with routine intermediate dice checks or technical DC logs.
+  * LOOT & PARTY INVENTORY RULE:
+    - All loot discovered in chests, rooms, or from enemies defaults strictly to the GROUP/PARTY INVENTORY.
+    - STRICTLY FORBIDDEN to assume or narrate that a specific character equips armor, weapons, or items unless the player explicitly declares equipping it in spoken dialogue.
+  * TACTICAL COMBATS & ENCOUNTERS: Chronicled with narrative drama and consequence (key spells, environmental hazards, heroes falling unconscious or saved in the nick of time, tactical resolution), NOT like robotic spreadsheet math.
+- ⚠️ STRICT CHARACTER DISAMBIGUATION IN INTERLACED / PARALLEL ACTIONS:
+  * When characters operate closely or alternate actions in the same front (e.g., Selen and Atou in the attic, or Markus and Minipeko in the courtyard), PRECISELY ATTRIBUTE EVERY ACTION TO ITS REAL ACTOR based strictly on dialogue, item transfers, and dice rolls:
+    - NEVER rely on simplistic class stereotypes (e.g., do NOT assume the Rogue always succeeds in lockpicking or kicks doors, nor that the Monk always handles relics). If a lockpick fails and another character (e.g. Atou using a quarterstaff as a crowbar) smashes the lock with brute force, or if an item like a mirror is passed between characters and Selen delivers the verbal challenge, attribute each step strictly to the character who actually executed it.
+    - Track physical custody of items and verbal cues (who kicks the door, who attempts the lock, who breaks it, and who utters the words holding the mirror).
+  * STRICTLY FORBIDDEN to misattribute or swap actions between characters.
 - ⚠️ STRICT GROUNDING & ZERO TACTICAL HALLUCINATIONS:
   * FORBIDDEN to invent grid distances or precise foot movements not verbalized in the audio (e.g. NEVER invent 'retreated 25 feet' or 'moved 15 feet to the left').
   * FORBIDDEN to invent phantom terrain or structures not described by the DM (e.g. phantom shacks, huts, pits).
@@ -168,10 +215,14 @@ Generate all content (Executive Briefing, Detailed Notes, Action Items, Key Poin
   * AUTOMATIC MYSTERY EXTRACTION: If a physical action, ambush, trap, or intervention is caused by an unseen, unidentified, masked, or concealed entity whose identity was not revealed in the audio, you MUST register it as an entry in 'updated_quests' with 'tipo': 'misterios_abiertos' (e.g. 'Investigate the identity of the unknown entity that intervened/attacked during [Scene]').
 - ⚠️ MANDATORY FULL COVERAGE OF ALL COMBATS & ENCOUNTERS:
   * If multiple major combats occurred (e.g. a Troll fight AND a Dragon fight), EACH MUST be chronicled in distinct chronological scenes. DO NOT merge, omit, or skip major battles.
+- ⚠️ PARALLEL SCENES & SIMULTANEOUS ACTION:
+  * If the party splits or actions occur simultaneously in different locations (e.g. party members investigating the attic while others fight or investigate down in the courtyard/outside), explicitly chronicle both fronts as parallel simultaneous events. Maintain chronological coherence and detail the events, discoveries, and perils of each subgroup without omitting either perspective.
+- ⚠️ MAGICAL OVERCHARGES & CRITICAL SPELL ANOMALIES:
+  * Explicitly chronicle and highlight magical overcharge events, wild magic surges, scroll overcharges (e.g. a magical scroll firing 6 rays instead of 3), or critical magical anomalies as pivotal story and tactical moments. Detail who cast or triggered the magic, the overcharged effect, and its immediate tactical and narrative impact.
 - ⚠️ REGISTER COMPANIONS & CHARACTER SWAPS:
   * Capture party animal companions, familiars, or mascots (e.g. Minipeko) and character switches/retirements.
 - ⚠️ MINIMUM SCENE LENGTH: Each scene MUST contain at least 3 full paragraphs. A scene with fewer than 150 words is an INCOMPLETE scene — you MUST expand it with additional detail from the transcript before moving to the next scene."""
-        chronicle_json_desc = "Deep chronicle strictly organized into chronological Acts and Scenes (e.g. '### Act I: Scene 1: ...', '### Scene 2: ...'). Dedicate 2-3 detailed paragraphs per scene with verbatim dialogue quotes, player strategic discussions, explicit dice rolls (Athletics, Perception, nat 20s, nat 1s), and step-by-step tactical combat maneuvers (spells, maneuvers, damage taken). STRICTLY FORBIDDEN to compress into a generic 3-paragraph summary."
+        chronicle_json_desc = "Deep narrative chronicle strictly organized into chronological Acts and Scenes (e.g. '### Act I: Scene 1: ...', '### Scene 2: ...'). Dedicate 2-3 detailed paragraphs per scene narrating the full story and context, highlighting causes and consequences, highlighting dice rolls ONLY when explicitly verbalized as natural 20s or natural 1s, keeping looted gear in party inventory unless explicitly equipped, and precisely attributing actions between interlaced characters without relying on class stereotypes."
     else:
         lang_banner = """⚠️ DIRECTIVA CRÍTICA DE IDIOMA Y JERGA NATURAL DE D&D:
 Generate all content (Executive Briefing, Detailed Notes, Action Items, Key Points, Chronicle) strictly in Spanish (e.g., English if 'en', Spanish if 'es'). Match the language requested by the user.
@@ -186,14 +237,25 @@ Generate all content (Executive Briefing, Detailed Notes, Action Items, Key Poin
 - NUNCA uses comillas dobles (") dentro de los valores de texto del JSON (por ejemplo para apodos, alias, títulos, nombres entre comillas o citas textuales de diálogos).
 - Usa OBLIGATORIAMENTE comillas simples (') para cualquier apodo, alias, título o diálogo textual (ejemplo: 'Hal', 'Wiki', 'Escudo de Roble', 'Dijo: Adelante').
 - Las comillas dobles (") se reservan EXCLUSIVAMENTE para delimitar las claves y los valores del objeto JSON. El uso de comillas dobles sin escapar dentro de un string corrompe el JSON y rompe el sistema."""
-        scene_instructions = """⚠️ DIRECTIVA OBLIGATORIA: CRÓNICA PROFUNDA POR ACTOS Y ESCENAS CRONOLÓGICAS (PROHIBIDO EL RESUMEN SUPERFICIAL):
-- PROHIBIDO TERMINANTEMENTE resumir toda la sesión en 3 o 4 párrafos genéricos. Esta sesión representa horas de partida real de rol.
+        scene_instructions = """⚠️ DIRECTIVA OBLIGATORIA: CRÓNICA PROFUNDA POR ACTOS Y ESCENAS CRONOLÓGICAS (STORY-FIRST / INMERSIÓN TOTAL):
+- PROHIBIDO TERMINANTEMENTE resumir toda la sesión en 3 o 4 párrafos genéricos. Esta sesión representa horas de juego real de rol.
 - Estructura OBLIGATORIAMENTE 'chronicle_text' en ACTOS Y ESCENAS cronológicas detalladas (ej. '### Acto I: Escena 1: El Camino del Bosque', '### Escena 2: Negociación en la Posada', '### Acto II: Escena 3: Emboscada').
-- Dedica entre 2 y 3 PÁRRAFOS COMPLETOS Y EXTENSOS a cada escena principal o combate:
-  * Diálogos verbales y citas directas: cita frases, discusiones o intercambios emocionales entre personajes, PNJs o el DM.
-  * Planes y debates estratégicos: describe las discusiones tácticas y dilemas que la mesa debatió antes de actuar.
-  * Pruebas de habilidad y dados: menciona explícitamente tiradas destacadas (pruebas de Atletismo, Percepción, Sigilo, Engaño, salvaciones, críticos '20 natural' y pifias '1 natural').
-  * Combates y maniobras turno a turno: describe la coreografía táctica detallada (conjuros específicos lanzados, posiciones, uso del entorno, daño recibido), NO solo el desenlace.
+- Dedica entre 2 y 3 PÁRRAFOS COMPLETOS Y EXTENSOS a cada escena principal:
+  * NARRATIVA Y CONTEXTO DE LA HISTORIA: Cuenta qué pasó, por qué pasó, qué descubrieron, qué dilemas enfrentaron y cómo cambiaron las circunstancias de la aventura. Si un lector que NO asistió a la partida lee el documento, debe entender la historia completa con claridad cinematográfica y fluida, sin lagunas argumentales.
+  * PROHIBIDO EL RESUMEN SUPERFICIAL: Explica el desarrollo de la escena de principio a fin, pero NO te desgastes en transcripciones textuales palabra por palabra ni en registrar mecánicas mundanas irrelevantes.
+  * REGLA ESTRICTA DE TIRADAS DE DADOS (SOLO CRÍTICOS Y PIFIAS VERBALIZADOS COMO TAL):
+    - Menciona ÚNICAMENTE los 20 Naturales y los 1 Naturales SI Y SÓLO SI fueron verbalizados explícitamente en el audio o transcripción como 'natural', 'nat 20', 'nat 1', 'pifia' o 'crítico'.
+    - DIRECTIVA CRÍTICA: Un resultado total de 20 (por ejemplo, tirada de Atletismo de 20 con modificadores) NO es un 20 natural a menos que en el audio se diga expresamente la palabra 'natural' o 'nat 20'. PROHIBIDO inventar o asumir que un 20 es 'natural' si no fue dicho con esas palabras exactas.
+    - PROHIBIDO saturar el texto enumerando tiradas mundanas intermedias de dados o clases de dificultad (CD) técnicas.
+  * GESTIÓN DE BOTÍN E INVENTARIO GRUPAL:
+    - Todo botín encontrado en cofres, estancias o enemigos se destina por defecto al INVENTARIO GENERAL DEL GRUPO.
+    - Queda terminantemente PROHIBIDO asumir o narrar que un personaje específico se equipa una armadura, arma o accesorio a menos que el jugador lo declare explícitamente en el diálogo de la transcripción.
+  * COMBATES Y CONFLICTOS: Narra el combate desde una perspectiva narrativa y dramática (hechizos clave, peligros ambientales, héroes caídos o salvados al límite, desenlace táctico), no como un registro numérico de turnos de videojuego.
+- ⚠️ DESAMBIGUACIÓN ESTRICTA DE PERSONAJES EN ACCIONES INTERCALADAS O EN PARALELO:
+  * Cuando dos personajes actúan en el mismo frente o intercambian objetos y turnos rápidamente (por ejemplo, Selen y Atou en el ático, o Markus y Minipeko en el patio), ATRIBUYE CADA ACCIÓN ESTRICTAMENTE A QUIEN LA EJECUTÓ según el diálogo, el traspaso de objetos y las tiradas reales:
+    - PROHIBIDO fiarse de estereotipos superficiales de clase (por ejemplo, NO asumas que por ser Pícaro forzó la cerradura con éxito o derribó la puerta, ni que por ser Monje usó la reliquia). Si una tirada de ganzúas falla (como Atou sacando un 2) y el mismo u otro personaje rompe el candado a la fuerza haciendo palanca con su bastón, o si un objeto (como el espejo) se pasa de mano en mano y al final Selen lo empuña diciendo la frase ('espejo, espejo...') para encarar al fantasma ganando inspiración, atribuye cada acción al personaje que efectivamente la realizó en la transcripción.
+    - Sigue minuciosamente la posesión física de objetos y quién pronuncia las frases clave en voz alta.
+  * PROHIBIDO TERMINANTEMENTE intercambiar, mezclar o atribuir por error las acciones entre personajes.
 - ⚠️ GROUNDING ESTRICTO Y CERO ALUCINACIONES TÁCTICAS:
   * PROHIBIDO inventar movimientos de cuadrícula o distancias precisas no verbalizadas en el audio (ej. NUNCA inventar 'se replegó 25 pies', 'se colocó a 15 pies').
   * PROHIBIDO inventar elementos topográficos, estructuras o terreno fantasma (ej. chozas, cabañas o fosos no descritos por el DM).
@@ -205,13 +267,17 @@ Generate all content (Executive Briefing, Detailed Notes, Action Items, Key Poin
 - ⚠️ COBERTURA OBLIGATORIA DE TODOS LOS COMBATES Y ENCUENTROS:
   * Si en la sesión ocurren múltiples combates o encuentros mayores (por ejemplo, combate con un Trol Y combate con un Dragón), AMBOS deben ser narrados exhaustivamente en escenas separadas.
   * PROHIBIDO omitir, fusionar apresuradamente o saltarse combates mayores.
+- ⚠️ ESCENAS PARALELAS Y ACCIÓN SIMULTÁNEA:
+  * Si el grupo se divide o las acciones ocurren concurrentemente en diferentes lugares (ej. parte del grupo investigando en el ático mientras otros combaten o investigan en el patio/exterior), narra explícitamente ambos frentes como acciones simultáneas o sub-escenas paralelas. Mantén la coherencia temporal y detalla los sucesos y peligros de cada subgrupo sin omitir ningún frente.
+- ⚠️ SOBRECARGAS MÁGICAS Y ANOMALÍAS DE CONJUROS:
+  * Registra y resalta explícitamente eventos de sobrecarga mágica, magia salvaje, sobrecargas de pergaminos o anomalías mágicas críticas como puntos de inflexión tácticos y narrativos. Detalla quién activó o lanzó la magia, el efecto sobrecargado/anómalo y sus consecuencias directas.
 - ⚠️ VOCABULARIO LITERAL DE MESA Y PROHIBICIÓN DE ARCAÍSMOS:
   * PROHIBIDO usar arcaísmos o sinónimos medievales rebuscados (ej. NUNCA uses 'sierpe' para dragón, 'pertrechos' para suministros o equipo, 'yacija', 'mengua').
   * Usa vocabulario directo de la mesa de D&D y spanglish natural: 'dragón', 'trol', 'suministros', 'equipo', 'pociones', 'trampa'.
 - ⚠️ REGISTRO DE COMPAÑEROS, MASCOTAS Y RELEVOS DE PERSONAJE:
   * Registra adecuadamente acompañantes, familiares o mascotas de la party (ej. Minipeko) y cambios o relevos de personajes.
 - ⚠️ PISO MÍNIMO DE EXTENSIÓN POR ESCENA: Cada escena DEBE contener al menos 3 párrafos completos. Una escena con menos de 150 palabras es una ESCENA INCOMPLETA — DEBES ampliarla con detalles adicionales de la transcripción antes de pasar a la siguiente escena."""
-        chronicle_json_desc = "Crónica profunda estructurada OBLIGATORIAMENTE en Actos y Escenas cronológicas (ej. '### Acto I: Escena 1: El Camino del Bosque', '### Escena 2: Negociación en la Posada', '### Acto II: Escena 3: Emboscada'). PROHIBIDO resumir en 3 párrafos. Dedica 2 a 3 párrafos por escena describiendo diálogos textuales entre personajes, debates estratégicos de la mesa, tiradas de dados notables (Percepción, Atletismo, 20s y 1s naturales) y el desarrollo táctico turno a turno de los combates (conjuros, maniobras, daño)."
+        chronicle_json_desc = "Crónica narrativa profunda estructurada OBLIGATORIAMENTE en Actos y Escenas cronológicas (ej. '### Acto I: Escena 1: El Camino del Bosque', '### Escena 2: Negociación en la Posada', '### Acto II: Escena 3: Emboscada'). PROHIBIDO resumir en 3 párrafos. Dedica 2 a 3 párrafos por escena narrando la historia y el contexto completo, destacando causas y consecuencias, destacando tiradas ÚNICAMENTE cuando sean 20s o 1s verbalizados explícitamente como naturales, guardando botín en inventario grupal a menos que se declare equipado, y desambiguando con precisión las acciones entre personajes sin sesgos de clase."
 
     lang_rule = "GENERA TODOS LOS CAMPOS DE TEXTO DEL JSON EN INGLÉS (English)." if is_english else "GENERA EN ESPAÑOL NATURAL CON JERGA OFICIAL DE D&D (SPANGILSH DE MESA PERMITIDO)."
 
@@ -351,7 +417,12 @@ When players speak generically on the audio channel without saying character nam
 - EXCLUSIÓN DEL DUNGEON MASTER (DM):
   * El Dungeon Master (DM) es estrictamente el narrador y árbitro fuera de personaje (out-of-character).
   * El DM NUNCA tiene tarjeta de personaje ni ficha en 'detected_pcs' o 'detected_party'.
-  * Un personaje con nombre de fantasía jamás puede tener como clase o rol 'Dungeon Master' o 'DM'."""
+  * Un personaje con nombre de fantasía jamás puede tener como clase o rol 'Dungeon Master' o 'DM'.
+- ⚠️ PARTICIPANTES INVITADOS / EXTERNOS (NO CONTAR EN LA CAMPAÑA PERMANENTE):
+  * Si en la transcripción aparecen intervenciones de personas no registradas en el Roster de la campaña o etiquetadas como [Invitado] o [Invitado / Nombre]:
+    - Trátalas estrictamente como **Invitados** temporales en la narración.
+    - PROHIBIDO TERMINANTEMENTE incorporarlos como protagonistas a 'universal_pcs', inventarles fichas permanentes o subirlos de nivel en la campaña.
+    - NO se cuentan en la composición fija de la compañía de aventureros ni en la reflexión personal."""
         if not is_english
         else """⚠️ STRICT IN-CHARACTER RULE AND HARD DUNGEON MASTER (DM) EXCLUSION:
 - MANDATORY PRESERVATION OF PLAYER CHARACTERS (DO NOT DISCARD LEGITIMATE PCs):
@@ -369,7 +440,12 @@ When players speak generically on the audio channel without saying character nam
 - MUTUAL EXCLUSIVITY OF THE DM:
   * The Dungeon Master (DM) is strictly the out-of-character narrator and referee.
   * The DM NEVER has a character card or row in 'detected_pcs' or 'detected_party'.
-  * A character with a fictional name can NEVER have the class or role 'Dungeon Master' or 'DM'."""
+  * A character with a fictional name can NEVER have the class or role 'Dungeon Master' or 'DM'.
+- ⚠️ GUEST / OUTSIDE PARTICIPANTS (DO NOT COUNT IN PERMANENT PARTY):
+  * If the transcript contains participants not listed in the campaign Roster or tagged as [Invitado] or [Invitado / Name]:
+    - Treat them strictly as temporary **Guests** in the narrative.
+    - ABSOLUTELY FORBIDDEN to incorporate them as permanent protagonists in 'universal_pcs', create permanent character sheets, or level them up in the campaign.
+    - Guests DO NOT count towards the permanent adventuring company composition or personal reflection."""
     )
 
     npc_instruction = (
@@ -500,7 +576,7 @@ MISIONES EXISTENTES DE LA CAMPAÑA:
 
 DIRECTORIO DE PNJS CONOCIDOS DE LA CAMPAÑA:
 {npcs_formatted}
-{recap_guidance}{prior_lore_block}{backstory_block}
+{recap_guidance}{prior_lore_block}{last_recap_block}{backstory_block}
 {auto_detect_instruction}
 {group_dynamics_instruction}
 
@@ -541,16 +617,6 @@ INSTRUCCIONES DE ANÁLISIS:
       "debut_sesion": {session_number},
       "hitos_acumulados": ["Sesión #{session_number}: Logro o acción ficticia in-world principal"],
       "rol_en_sesion": "Resumen de exactamente 1 oración sobre sus acciones ficticias in-character, decisiones o logros dentro del mundo en este episodio."
-    }}
-  ],
-  "detected_party": [
-    {{
-      "player_name": "Nombre del jugador (o '-' si se desconoce)",
-      "character_name": "Nombre del personaje",
-      "species": "Especie / Raza (ej. Elfo, Humano, etc.)",
-      "role": "Clase (ej. Paladín, Pícaro, Mago, Guerrero, etc. - NUNCA 'Dungeon Master')",
-      "subclass": "Subclase (o '-' si no se menciona)",
-      "session_role": "Resumen de 1 oración sobre sus acciones ficticias in-character en la sesión"
     }}
   ],
   "updated_quests": [

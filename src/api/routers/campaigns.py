@@ -553,11 +553,11 @@ async def deduplicate_campaign_endpoint(campaign_name: str):
 
 
 @router.get("/api/campaigns/{campaign_name}/download-docx")
-async def download_campaign_docx(campaign_name: str):
+async def download_campaign_docx(campaign_name: str, include_coaching: bool = Query(True)):
     """Download the consolidated Word document for the campaign."""
     manager = server.CampaignManager()
     state = manager.load_campaign(campaign_name)
-    docx_path = server.export_living_journal_docx(state)
+    docx_path = server.export_living_journal_docx(state, include_coaching=include_coaching)
     target = Path(docx_path)
     if not target.is_file():
         raise HTTPException(status_code=404, detail="Archivo Grimorio docx no encontrado.")
@@ -566,6 +566,60 @@ async def download_campaign_docx(campaign_name: str):
         path=target,
         filename=target.name,
         media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    )
+
+
+@router.get("/api/campaigns/{campaign_name}/session/{session_num}/download-docx")
+async def download_session_docx(campaign_name: str, session_num: int, include_coaching: bool = Query(True)):
+    """Download a single session chronicle as a standalone Word document."""
+    manager = server.CampaignManager()
+    state = manager.load_campaign(campaign_name)
+    sessions = state.get("sessions", [])
+    target_session = next((s for s in sessions if int(s.get("session_number", 0)) == int(session_num)), None)
+    if not target_session:
+        raise HTTPException(status_code=404, detail=f"Sesión #{session_num} no encontrada en la campaña '{campaign_name}'.")
+
+    docx_path = server.export_session_docx(
+        session_data=target_session,
+        campaign_name=state.get("campaign_name", campaign_name),
+        roster=state.get("roster", []),
+        include_coaching=include_coaching,
+    )
+    target = Path(docx_path)
+    if not target.is_file():
+        raise HTTPException(status_code=404, detail="Archivo de crónica de sesión docx no encontrado.")
+
+    return FileResponse(
+        path=target,
+        filename=target.name,
+        media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    )
+
+
+@router.get("/api/campaigns/{campaign_name}/session/{session_num}/download-md")
+async def download_session_md(campaign_name: str, session_num: int, include_coaching: bool = Query(True)):
+    """Download a single session chronicle as a standalone Markdown document."""
+    manager = server.CampaignManager()
+    state = manager.load_campaign(campaign_name)
+    sessions = state.get("sessions", [])
+    target_session = next((s for s in sessions if int(s.get("session_number", 0)) == int(session_num)), None)
+    if not target_session:
+        raise HTTPException(status_code=404, detail=f"Sesión #{session_num} no encontrada en la campaña '{campaign_name}'.")
+
+    md_path = server.export_session_md(
+        session_data=target_session,
+        campaign_name=state.get("campaign_name", campaign_name),
+        roster=state.get("roster", []),
+        include_coaching=include_coaching,
+    )
+    target = Path(md_path)
+    if not target.is_file():
+        raise HTTPException(status_code=404, detail="Archivo de crónica de sesión md no encontrado.")
+
+    return FileResponse(
+        path=target,
+        filename=target.name,
+        media_type="text/markdown",
     )
 
 

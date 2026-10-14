@@ -5,7 +5,7 @@ import json
 import os
 import re
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 
 def is_npc_name_match(name1: str, name2: str) -> bool:
@@ -208,6 +208,214 @@ def _merge_notes_list(n1: Any, n2: Any) -> List[str]:
     return combined
 
 
+def are_items_duplicate(it1: Dict[str, Any], it2: Dict[str, Any]) -> Tuple[bool, Optional[str]]:
+    """
+    Check if two items are duplicates across Spanish/English names, aliases, or common variants.
+    Returns (is_duplicate, canonical_name).
+    """
+    name1 = str(it1.get("name") or "").strip()
+    name2 = str(it2.get("name") or "").strip()
+    if not name1 or not name2:
+        return False, None
+
+    n1 = name1.lower()
+    n2 = name2.lower()
+    if n1 == n2:
+        return True, name1
+
+    # 1. Special Case E10: Rosario Sagrado de Zun / Collar o Medallón del Pozo
+    zun_tokens = {"zun"}
+    pozo_tokens = {"pozo", "medallon", "medallón", "collar"}
+    is_zun1 = any(t in n1 for t in zun_tokens) or (any(t in n1 for t in pozo_tokens) and ("collar" in n1 or "medall" in n1 or "zun" in n1))
+    is_zun2 = any(t in n2 for t in zun_tokens) or (any(t in n2 for t in pozo_tokens) and ("collar" in n2 or "medall" in n2 or "zun" in n2))
+    if (("zun" in n1 and ("zun" in n2 or "pozo" in n2 or "collar" in n2)) or
+        ("zun" in n2 and ("zun" in n1 or "pozo" in n1 or "collar" in n1)) or
+        ("pozo" in n1 and "pozo" in n2 and ("collar" in n1 or "medall" in n1) and ("collar" in n2 or "medall" in n2))):
+        return True, "Collar / Rosario Sagrado de Zun (Medallón del Pozo)"
+
+    # 2. Studded Leather Armor
+    leather_terms = ("cuero tachonado", "studded leather", "studied leather")
+    if any(t in n1 for t in leather_terms) and any(t in n2 for t in leather_terms):
+        return True, "Armadura de Cuero Tachonado (Studded Leather Armor)"
+
+    # 3. Heavy Crossbow
+    crossbow_terms = ("ballesta pesada", "heavy crossbow")
+    if any(t in n1 for t in crossbow_terms) and any(t in n2 for t in crossbow_terms):
+        return True, "Ballesta Pesada (Heavy Crossbow)"
+
+    # 4. Orcus Statuette
+    if "orcus" in n1 and "orcus" in n2:
+        statuette_terms = ("estatuilla", "statuette", "statue", "estatua", "ídolo", "idolo")
+        if any(t in n1 for t in statuette_terms) and any(t in n2 for t in statuette_terms):
+            return True, "Estatuilla Blasfema de Orcus (Orcus Statuette)"
+
+    # 5. Baroness Diary
+    if ("baronesa" in n1 or "baroness" in n1) and ("baronesa" in n2 or "baroness" in n2):
+        diary_terms = ("diario", "diary", "journal")
+        if any(t in n1 for t in diary_terms) and any(t in n2 for t in diary_terms):
+            return True, "Diario de la Baronesa Brantifax"
+
+    # 6. Bilingual / Substring parenthetical matching
+    clean1 = re.sub(r"[^\w\s]", "", n1)
+    clean2 = re.sub(r"[^\w\s]", "", n2)
+    if clean1 and clean2:
+        if clean1 in clean2:
+            return True, name2 if len(name2) >= len(name1) else name1
+        if clean2 in clean1:
+            return True, name1 if len(name1) >= len(name2) else name2
+
+    # 7. Word translation mapping
+    translation_dict = {
+        "armadura": "armor", "armor": "armadura",
+        "ballesta": "crossbow", "crossbow": "ballesta",
+        "pesada": "heavy", "heavy": "pesada",
+        "estatuilla": "statuette", "statuette": "estatuilla",
+        "diario": "diary", "diary": "diario",
+        "espejo": "mirror", "mirror": "espejo",
+        "mano": "hand", "hand": "mano",
+        "pluma": "feather", "feather": "pluma",
+    }
+    words1 = {translation_dict.get(w, w) for w in clean1.split() if len(w) >= 3}
+    words2 = {translation_dict.get(w, w) for w in clean2.split() if len(w) >= 3}
+    if words1 and words2:
+        overlap = words1 & words2
+        if len(overlap) >= 2 and (overlap == words1 or overlap == words2):
+            preferred = name1 if len(name1) >= len(name2) else name2
+            return True, preferred
+
+    return False, None
+
+
+def merge_two_items(target: Dict[str, Any], source: Dict[str, Any], canonical_name: Optional[str] = None) -> Dict[str, Any]:
+    """Merge content of source item into target item."""
+    if canonical_name:
+        target["name"] = canonical_name
+    elif len(str(source.get("name", ""))) > len(str(target.get("name", ""))):
+        target["name"] = source["name"]
+
+    d_curr = str(target.get("description", "")).strip()
+    d_src = str(source.get("description", "")).strip()
+    if d_src and (not d_curr or len(d_src) > len(d_curr)):
+        target["description"] = d_src
+
+    # Holder: prefer player character over generic
+    generic_holders = {"-", "", "none", "none [destroyed]", "ninguno", "grupo", "desconocido"}
+    curr_holder = str(target.get("holder", "")).strip()
+    src_holder = str(source.get("holder", "")).strip()
+    if curr_holder.lower() in generic_holders and src_holder.lower() not in generic_holders:
+        target["holder"] = src_holder
+    elif src_holder.lower() not in generic_holders:
+        if source.get("status") == "equipado" and target.get("status") != "equipado":
+            target["holder"] = src_holder
+        elif target.get("holder", "").lower() in generic_holders:
+            target["holder"] = src_holder
+
+    # Status: consumido > equipado > en_posesion
+    curr_st = str(target.get("status", "")).strip().lower()
+    src_st = str(source.get("status", "")).strip().lower()
+    if "consumido" in (curr_st, src_st) or "destruido" in (curr_st, src_st):
+        target["status"] = "consumido"
+    elif "equipado" in (curr_st, src_st):
+        target["status"] = "equipado"
+    elif src_st and src_st not in generic_holders:
+        target["status"] = source["status"]
+
+    # Type: prefer specific types over generic artefacto
+    generic_types = {"", "artefacto", "objeto"}
+    if target.get("type", "").lower() in generic_types and source.get("type", "").lower() not in generic_types:
+        target["type"] = source["type"]
+
+    return target
+
+
+def are_locations_duplicate(loc1: Dict[str, Any], loc2: Dict[str, Any]) -> Tuple[bool, Optional[str]]:
+    """
+    Check if two locations are duplicates across Spanish/English names or common variants.
+    Returns (is_duplicate, canonical_name).
+    """
+    name1 = str(loc1.get("name") or "").strip()
+    name2 = str(loc2.get("name") or "").strip()
+    if not name1 or not name2:
+        return False, None
+
+    n1 = name1.lower()
+    n2 = name2.lower()
+    if n1 == n2:
+        return True, name1
+
+    # 1. Brantifax Chalet / Manor
+    brantifax_residence = ("chalet", "manor", "mansión", "mansion", "residencia", "hunting lodge")
+    if "brantifax" in n1 and "brantifax" in n2:
+        if any(t in n1 for t in brantifax_residence) and any(t in n2 for t in brantifax_residence):
+            return True, "Chalet Brantifax (Brantifax Manor)"
+
+    # 2. Brantifax Cemetery
+    cemetery_terms = ("cemetery", "cementerio", "graveyard", "tumbas", "camposanto")
+    if "brantifax" in n1 and "brantifax" in n2:
+        if any(t in n1 for t in cemetery_terms) and any(t in n2 for t in cemetery_terms):
+            return True, "Cementerio Brantifax (Brantifax Cemetery)"
+
+    # 3. Substring matching
+    clean1 = re.sub(r"[^\w\s]", "", n1)
+    clean2 = re.sub(r"[^\w\s]", "", n2)
+    if clean1 and clean2:
+        if clean1 in clean2:
+            return True, name2 if len(name2) >= len(name1) else name1
+        if clean2 in clean1:
+            return True, name1 if len(name1) >= len(name2) else name2
+
+    # 4. Bilingual translation overlap
+    loc_translations = {
+        "cementerio": "cemetery", "cemetery": "cementerio",
+        "chalet": "manor", "manor": "chalet",
+        "mansión": "manor", "mansion": "manor",
+        "castillo": "castle", "castle": "castillo",
+        "torre": "tower", "tower": "torre",
+        "biblioteca": "library", "library": "biblioteca",
+        "mazmorra": "dungeon", "dungeon": "mazmorra",
+        "portal": "portal", "mausoleo": "mausoleum", "mausoleum": "mausoleo",
+    }
+    w1 = {loc_translations.get(w, w) for w in clean1.split() if len(w) >= 3}
+    w2 = {loc_translations.get(w, w) for w in clean2.split() if len(w) >= 3}
+    if w1 and w2:
+        overlap = w1 & w2
+        if len(overlap) >= 2 and (overlap == w1 or overlap == w2):
+            preferred = name1 if len(name1) >= len(name2) else name2
+            return True, preferred
+
+    return False, None
+
+
+def merge_two_locations(target: Dict[str, Any], source: Dict[str, Any], canonical_name: Optional[str] = None) -> Dict[str, Any]:
+    """Merge content of source location into target location."""
+    if canonical_name:
+        target["name"] = canonical_name
+    elif len(str(source.get("name", ""))) > len(str(target.get("name", ""))):
+        target["name"] = source["name"]
+
+    d_curr = str(target.get("description", "")).strip()
+    d_src = str(source.get("description", "")).strip()
+    if d_src and (not d_curr or len(d_src) > len(d_curr)):
+        target["description"] = d_src
+
+    # Associated characters: merge unique
+    curr_ac = set(str(a).strip() for a in target.get("associated_characters", []) if str(a).strip())
+    for a in source.get("associated_characters", []):
+        if a and str(a).strip():
+            curr_ac.add(str(a).strip())
+    target["associated_characters"] = sorted(list(curr_ac))
+
+    # Type: prefer specific type over generic punto_de_interes
+    if target.get("type", "").lower() in ("", "punto_de_interes") and source.get("type", "").lower() not in ("", "punto_de_interes"):
+        target["type"] = source["type"]
+
+    # Status: update with incoming status if provided
+    if source.get("status"):
+        target["status"] = source["status"]
+
+    return target
+
+
 def deduplicate_campaign_entities(campaign_id: str, campaigns_dir: Optional[str] = None) -> Dict[str, Any]:
     """Standalone wrapper to deduplicate campaign entities."""
     mgr = CampaignManager(campaigns_dir=campaigns_dir)
@@ -282,6 +490,14 @@ class CampaignManager:
         """Return the JSON file path for a campaign name."""
         filename = f"{self.sanitize_name(name)}.json"
         return self.campaigns_dir / filename
+
+    def get_campaign_dir(self, name: str) -> Path:
+        """Return dedicated campaign directory data/campaigns/<safe_name>/ with recordings and exports subfolders."""
+        safe_name = self.sanitize_name(name)
+        cdir = self.campaigns_dir / safe_name
+        (cdir / "recordings").mkdir(parents=True, exist_ok=True)
+        (cdir / "exports").mkdir(parents=True, exist_ok=True)
+        return cdir
 
     def list_campaigns(self) -> List[Dict[str, Any]]:
         """List all existing campaigns with high-level statistics."""
@@ -457,7 +673,7 @@ class CampaignManager:
         return initial_state
 
     def save_campaign(self, state: Dict[str, Any]) -> Path:
-        """Save campaign state to disk."""
+        """Save campaign state to disk and ensure campaign folder hierarchy exists."""
         name = state.get("campaign_name", "Campaña Principal")
         state["updated_at"] = datetime.datetime.now().isoformat()
         if "campaign_id" not in state:
@@ -474,8 +690,21 @@ class CampaignManager:
                     m.pop("is_absent", None)
                     m.pop("absent", None)
 
+        # Ensure campaign directory hierarchy:
+        # data/campaigns/<safe_name>/recordings/
+        # data/campaigns/<safe_name>/exports/
+        cdir = self.get_campaign_dir(name)
+
         file_path = self.get_campaign_path(name)
-        file_path.write_text(json.dumps(state, indent=2, ensure_ascii=False), encoding="utf-8")
+        state_json = json.dumps(state, indent=2, ensure_ascii=False)
+        file_path.write_text(state_json, encoding="utf-8")
+
+        # Mirror inside campaign folder as campaign.json
+        try:
+            (cdir / "campaign.json").write_text(state_json, encoding="utf-8")
+        except Exception:
+            pass
+
         return file_path
 
     def set_prior_lore(self, name: str, prior_lore: str) -> Dict[str, Any]:
@@ -698,10 +927,12 @@ class CampaignManager:
 
         is_private = (name or "").strip().lower() in ("campaña principal", "campana principal")
 
-        if detected_pcs:
-            state["detected_pcs"] = detected_pcs
-        if detected_party:
+        # Purge legacy stray root fields if present, but preserve detected_party if explicitly passed
+        state.pop("detected_pcs", None)
+        if detected_party is not None:
             state["detected_party"] = detected_party
+        else:
+            state.pop("detected_party", None)
 
         pcs_as_roster = []
         for p in (detected_pcs or []):
@@ -808,6 +1039,8 @@ class CampaignManager:
             for cp in clean_pcs:
                 cp_pl = cp["player_name"].strip().lower()
                 cp_char = cp["character_name"].strip().lower()
+                if "invitado" in cp_pl or "guest" in cp_pl or "invitado" in cp_char or "guest" in cp_char:
+                    continue
                 match = None
                 for mp in merged_players:
                     mp_pl = (mp.get("player_name") or "").strip().lower()
@@ -907,6 +1140,8 @@ class CampaignManager:
                 for fb in fallback_party:
                     fb_pl = str(fb.get("player_name") or fb.get("jugador") or "").strip().lower()
                     fb_char = str(fb.get("character_name") or fb.get("personaje") or "").strip().lower()
+                    if "invitado" in fb_pl or "guest" in fb_pl or "invitado" in fb_char or "guest" in fb_char:
+                        continue
                     m = next((p for p in curr_players if (fb_pl and fb_pl not in ("-", "") and str(p.get("player_name", "")).strip().lower() == fb_pl) or (fb_char and fb_char not in ("-", "") and str(p.get("character_name", "")).strip().lower() == fb_char)), None)
                     if not m:
                         curr_players.append({
@@ -922,7 +1157,7 @@ class CampaignManager:
                 merged_all.extend(curr_players)
                 state["roster"] = merged_all
             else:
-                state["roster"] = fallback_party
+                state["roster"] = [p for p in fallback_party if not any(x in str(p.get("character_name") or p.get("personaje", "")).lower() or x in str(p.get("player_name") or p.get("jugador", "")).lower() for x in ("invitado", "guest"))]
 
         # Clean is_absent from state["roster"] so absence is NEVER remembered permanently across sessions
         if state.get("roster"):
@@ -960,7 +1195,7 @@ class CampaignManager:
             "markus_coaching": coaching,
             "user_character": user_char or {},
             "detected_npc_names": detected_npc_names or [],
-            "detected_party": detected_party or [],
+            "detected_party": [] if detected_pcs else (detected_party or []),
             "detected_pcs": detected_pcs or [],
             "chronicle_markdown": (chronicle_markdown or session_chapter.get("chronicle_markdown") or "").strip(),
             "raw_transcript": (raw_transcript or session_chapter.get("raw_transcript") or session_chapter.get("transcript", "")).strip(),
@@ -1197,6 +1432,12 @@ class CampaignManager:
                 or char_lower in ("dm", "(dm)", "dungeon master", "(dungeon master)", "el dm", "master", "narrador")
                 or ("dungeon master" in char_lower and len(char_name) <= 18)
                 or "brennan" in player_name_raw.lower()
+                or "invitado" in char_lower
+                or "invitada" in char_lower
+                or "guest" in char_lower
+                or "invitado" in player_name_raw.lower()
+                or "guest" in player_name_raw.lower()
+                or "invitado" in str(upc.get("rol_en_sesion", "")).lower()
             ):
                 if "liam" in player_name_raw.lower():
                     char_name = "Halendiel 'Hal' Fang"
@@ -1339,21 +1580,10 @@ class CampaignManager:
                 loc_name = str(loc.get("name") or "").strip()
                 if not loc_name:
                     continue
-                matched_loc = next((l for l in existing_locations if str(l.get("name", "")).strip().lower() == loc_name.lower()), None)
+                matched_loc = next((l for l in existing_locations if are_locations_duplicate(l, loc)[0]), None)
                 if matched_loc:
-                    curr_desc = str(matched_loc.get("description", "")).strip()
-                    new_desc = str(loc.get("description", "")).strip()
-                    if new_desc and (not curr_desc or len(new_desc) > len(curr_desc)):
-                        matched_loc["description"] = new_desc
-                    if loc.get("status"):
-                        matched_loc["status"] = loc["status"]
-                    if loc.get("type") and (not matched_loc.get("type") or matched_loc.get("type") == "punto_de_interes"):
-                        matched_loc["type"] = loc["type"]
-                    assoc_set = set(str(ac).strip() for ac in matched_loc.get("associated_characters", []) if str(ac).strip())
-                    for ac in loc.get("associated_characters", []):
-                        if ac and str(ac).strip():
-                            assoc_set.add(str(ac).strip())
-                    matched_loc["associated_characters"] = sorted(list(assoc_set))
+                    _, canonical = are_locations_duplicate(matched_loc, loc)
+                    merge_two_locations(matched_loc, loc, canonical_name=canonical)
                 else:
                     existing_locations.append({
                         "name": loc_name,
@@ -1372,18 +1602,10 @@ class CampaignManager:
                 it_name = str(it.get("name") or "").strip()
                 if not it_name:
                     continue
-                matched_it = next((i for i in existing_items if str(i.get("name", "")).strip().lower() == it_name.lower()), None)
+                matched_it = next((i for i in existing_items if are_items_duplicate(i, it)[0]), None)
                 if matched_it:
-                    curr_desc = str(matched_it.get("description", "")).strip()
-                    new_desc = str(it.get("description", "")).strip()
-                    if new_desc and (not curr_desc or len(new_desc) > len(curr_desc)):
-                        matched_it["description"] = new_desc
-                    if it.get("holder") and it.get("holder") != "-":
-                        matched_it["holder"] = it["holder"]
-                    if it.get("status"):
-                        matched_it["status"] = it["status"]
-                    if it.get("type") and (not matched_it.get("type") or matched_it.get("type") == "artefacto"):
-                        matched_it["type"] = it["type"]
+                    _, canonical = are_items_duplicate(matched_it, it)
+                    merge_two_items(matched_it, it, canonical_name=canonical)
                 else:
                     existing_items.append({
                         "name": it_name,
@@ -1393,6 +1615,7 @@ class CampaignManager:
                         "status": it.get("status", "en_posesion"),
                     })
 
+        self._deduplicate_state(state, campaign_name=name)
         self.save_campaign(state)
         return state
 
@@ -1664,6 +1887,74 @@ class CampaignManager:
                 j += 1
             if not merged_any:
                 i += 1
+
+        # --- 3. Deduplicate items ---
+        items = state.get("items", [])
+        i = 0
+        while i < len(items):
+            merged_any = False
+            j = 0
+            while j < len(items):
+                if i != j:
+                    it1 = items[i]
+                    it2 = items[j]
+                    is_dup, canonical = are_items_duplicate(it1, it2)
+                    if is_dup:
+                        n1 = str(it1.get("name", "")).strip()
+                        n2 = str(it2.get("name", "")).strip()
+                        merge_two_items(it1, it2, canonical_name=canonical)
+                        items.pop(j)
+                        merged_events.append({
+                            "type": "item",
+                            "source": n2,
+                            "target": it1.get("name", n1),
+                        })
+                        merged_any = True
+                        break
+                j += 1
+            if not merged_any:
+                i += 1
+
+        for it in items:
+            it_n = str(it.get("name", "")).strip().lower()
+            if "zun" in it_n or (("pozo" in it_n or "collar" in it_n or "medall" in it_n) and ("reliquia" in it_n or "rosario" in it_n or "sagrado" in it_n)):
+                it["name"] = "Collar / Rosario Sagrado de Zun (Medallón del Pozo)"
+
+        # --- 4. Deduplicate locations ---
+        locs = state.get("locations", [])
+        i = 0
+        while i < len(locs):
+            merged_any = False
+            j = 0
+            while j < len(locs):
+                if i != j:
+                    l1 = locs[i]
+                    l2 = locs[j]
+                    is_dup, canonical = are_locations_duplicate(l1, l2)
+                    if is_dup:
+                        n1 = str(l1.get("name", "")).strip()
+                        n2 = str(l2.get("name", "")).strip()
+                        merge_two_locations(l1, l2, canonical_name=canonical)
+                        locs.pop(j)
+                        merged_events.append({
+                            "type": "location",
+                            "source": n2,
+                            "target": l1.get("name", n1),
+                        })
+                        merged_any = True
+                        break
+                j += 1
+            if not merged_any:
+                i += 1
+
+        # --- 5. Clean redundant detected_party in sessions (E8) ---
+        for s in state.get("sessions", []):
+            if s.get("detected_party") and s.get("detected_pcs"):
+                s["detected_party"] = []
+                merged_events.append({
+                    "type": "session_cleanup",
+                    "session_number": s.get("session_number"),
+                })
 
         return merged_events
 

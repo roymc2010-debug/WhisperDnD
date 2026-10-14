@@ -1136,6 +1136,11 @@ async function transcribeYoutube() {
   }
 }
 
+var selectedAudioFile = null;
+var selectedTimelineFile = null;
+var selectedLocalRecordingMeta = null;
+var selectedLocalRecordingHasTimeline = false;
+
 function handleDragOver(e) {
   e.preventDefault();
   e.stopPropagation();
@@ -1156,38 +1161,226 @@ function handleDrop(e) {
   const zone = document.getElementById("dropZone");
   if (zone) zone.classList.remove("border-indigo-500", "bg-indigo-950/20");
   if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-    const fileInput = document.getElementById("audioFileInput");
-    if (fileInput) {
-      fileInput.files = e.dataTransfer.files;
-      handleFileSelect(fileInput);
-    }
+    handleIncomingFiles(e.dataTransfer.files);
   }
 }
 
-function handleFileSelect(input) {
+function handleIncomingFiles(fileListOrInput) {
+  if (!fileListOrInput) return;
+  const rawFiles = fileListOrInput.files ? fileListOrInput.files : fileListOrInput;
+  if (!rawFiles || rawFiles.length === 0) return;
+  const files = Array.from(rawFiles);
+
+  for (const f of files) {
+    const lower = f.name.toLowerCase();
+    if (lower.endsWith(".json")) {
+      selectedTimelineFile = f;
+    } else if (
+      lower.endsWith(".wav") ||
+      lower.endsWith(".mp3") ||
+      lower.endsWith(".m4a") ||
+      lower.endsWith(".aac") ||
+      lower.endsWith(".ogg") ||
+      lower.endsWith(".flac") ||
+      lower.endsWith(".webm") ||
+      (f.type && f.type.startsWith("audio/"))
+    ) {
+      selectedAudioFile = f;
+      selectedLocalRecordingFilename = null;
+      selectedLocalRecordingMeta = null;
+      selectedLocalRecordingHasTimeline = false;
+    }
+  }
+
+  // Si sólo se pasó 1 archivo y no es json, asignarlo como audio
+  if (files.length === 1 && !files[0].name.toLowerCase().endsWith(".json")) {
+    selectedAudioFile = files[0];
+    selectedLocalRecordingFilename = null;
+    selectedLocalRecordingMeta = null;
+    selectedLocalRecordingHasTimeline = false;
+  }
+
+  // Si sólo se seleccionó un .timeline.json y no hay audio, buscar si coincide con una grabación local
+  if (!selectedAudioFile && !selectedLocalRecordingFilename && selectedTimelineFile) {
+    const stem = selectedTimelineFile.name.replace(/\.timeline\.json$/i, "").replace(/\.json$/i, "").toLowerCase();
+    if (window.localRecordingsCache && window.localRecordingsCache.length > 0) {
+      const matched = window.localRecordingsCache.find(r => {
+        const rStem = r.filename.replace(/\.[^.]+$/, "").toLowerCase();
+        return rStem === stem || r.filename.toLowerCase().startsWith(stem);
+      });
+      if (matched) {
+        selectedLocalRecordingFilename = matched.filename;
+        selectedLocalRecordingHasTimeline = Boolean(matched.has_timeline);
+        selectedLocalRecordingMeta = { size_mb: matched.size_mb, folder: matched.folder };
+      }
+    }
+  }
+
+  if (fileListOrInput && fileListOrInput.value !== undefined) {
+    try { fileListOrInput.value = ''; } catch(e){}
+  }
+
+  updateSelectedFilesUI();
+}
+
+function handleAudioOnlySelect(input) {
+  if (input && input.files && input.files[0]) {
+    selectedAudioFile = input.files[0];
+    selectedLocalRecordingFilename = null;
+    selectedLocalRecordingMeta = null;
+    selectedLocalRecordingHasTimeline = false;
+    try { input.value = ''; } catch(e){}
+    updateSelectedFilesUI();
+  }
+}
+
+function handleTimelineOnlySelect(input) {
+  if (input && input.files && input.files[0]) {
+    selectedTimelineFile = input.files[0];
+    try { input.value = ''; } catch(e){}
+    updateSelectedFilesUI();
+  }
+}
+
+function clearSelectedAudio(e) {
+  if (e) e.stopPropagation();
+  selectedAudioFile = null;
   selectedLocalRecordingFilename = null;
+  selectedLocalRecordingMeta = null;
+  selectedLocalRecordingHasTimeline = false;
+  const audioInput = document.getElementById("audioFileInput");
+  if (audioInput) audioInput.value = "";
+  const multiInput = document.getElementById("multiFileInput");
+  if (multiInput) multiInput.value = "";
+  updateSelectedFilesUI();
+}
+
+function clearSelectedTimeline(e) {
+  if (e) e.stopPropagation();
+  selectedTimelineFile = null;
+  selectedLocalRecordingHasTimeline = false;
+  const timelineInput = document.getElementById("timelineFileInput");
+  if (timelineInput) timelineInput.value = "";
+  const multiInput = document.getElementById("multiFileInput");
+  if (multiInput) multiInput.value = "";
+  updateSelectedFilesUI();
+}
+
+function updateSelectedFilesUI() {
   const btn = document.getElementById("btnFile");
-  const label = document.getElementById("selectedFileName");
-  if (input.files && input.files[0]) {
-    if (btn) btn.disabled = false;
-    if (label) {
-      label.textContent = "Archivo Subido: " + input.files[0].name;
-      label.classList.remove("hidden");
+  const dropZone = document.getElementById("dropZone");
+
+  // Audio Slot Elements
+  const slotAudioCard = document.getElementById("slotAudioCard");
+  const btnClearAudio = document.getElementById("btnClearAudio");
+  const slotAudioEmpty = document.getElementById("slotAudioEmpty");
+  const slotAudioFilled = document.getElementById("slotAudioFilled");
+  const slotAudioName = document.getElementById("slotAudioName");
+  const slotAudioMeta = document.getElementById("slotAudioMeta");
+
+  // Timeline Slot Elements
+  const slotTimelineCard = document.getElementById("slotTimelineCard");
+  const btnClearTimeline = document.getElementById("btnClearTimeline");
+  const slotTimelineEmpty = document.getElementById("slotTimelineEmpty");
+  const slotTimelineFilled = document.getElementById("slotTimelineFilled");
+  const slotTimelineName = document.getElementById("slotTimelineName");
+  const slotTimelineMeta = document.getElementById("slotTimelineMeta");
+
+  // 1. Audio Slot State
+  const hasAudio = Boolean(selectedAudioFile || selectedLocalRecordingFilename);
+  if (selectedAudioFile) {
+    if (slotAudioEmpty) slotAudioEmpty.classList.add("hidden");
+    if (slotAudioFilled) slotAudioFilled.classList.remove("hidden");
+    if (slotAudioName) slotAudioName.textContent = selectedAudioFile.name;
+    if (slotAudioMeta) slotAudioMeta.textContent = `Archivo de audio (${(selectedAudioFile.size / (1024 * 1024)).toFixed(1)} MB)`;
+    if (btnClearAudio) btnClearAudio.classList.remove("hidden");
+    if (slotAudioCard) {
+      slotAudioCard.classList.add("border-emerald-500/50", "bg-emerald-950/20");
+      slotAudioCard.classList.remove("border-slate-800", "bg-slate-900/60");
     }
+  } else if (selectedLocalRecordingFilename) {
+    if (slotAudioEmpty) slotAudioEmpty.classList.add("hidden");
+    if (slotAudioFilled) slotAudioFilled.classList.remove("hidden");
+    if (slotAudioName) slotAudioName.textContent = selectedLocalRecordingFilename;
+    const mb = selectedLocalRecordingMeta?.size_mb ? ` (${selectedLocalRecordingMeta.size_mb} MB)` : "";
+    const folder = selectedLocalRecordingMeta?.folder ? ` en ${selectedLocalRecordingMeta.folder}` : " en data/input";
+    if (slotAudioMeta) slotAudioMeta.textContent = `Grabación local guardada${folder}${mb}`;
+    if (btnClearAudio) btnClearAudio.classList.remove("hidden");
+    if (slotAudioCard) {
+      slotAudioCard.classList.add("border-emerald-500/50", "bg-emerald-950/20");
+      slotAudioCard.classList.remove("border-slate-800", "bg-slate-900/60");
+    }
+  } else {
+    if (slotAudioEmpty) slotAudioEmpty.classList.remove("hidden");
+    if (slotAudioFilled) slotAudioFilled.classList.add("hidden");
+    if (btnClearAudio) btnClearAudio.classList.add("hidden");
+    if (slotAudioCard) {
+      slotAudioCard.classList.remove("border-emerald-500/50", "bg-emerald-950/20");
+      slotAudioCard.classList.add("border-slate-800", "bg-slate-900/60");
+    }
+  }
+
+  // 2. Timeline Slot State
+  const hasAutoTimeline = Boolean(selectedLocalRecordingFilename && selectedLocalRecordingHasTimeline);
+  if (selectedTimelineFile) {
+    if (slotTimelineEmpty) slotTimelineEmpty.classList.add("hidden");
+    if (slotTimelineFilled) slotTimelineFilled.classList.remove("hidden");
+    if (slotTimelineName) slotTimelineName.textContent = selectedTimelineFile.name;
+    if (slotTimelineMeta) slotTimelineMeta.textContent = `Archivo timeline subido (${(selectedTimelineFile.size / 1024).toFixed(1)} KB)`;
+    if (btnClearTimeline) btnClearTimeline.classList.remove("hidden");
+    if (slotTimelineCard) {
+      slotTimelineCard.classList.add("border-indigo-500/50", "bg-indigo-950/20");
+      slotTimelineCard.classList.remove("border-slate-800", "bg-slate-900/60");
+    }
+  } else if (hasAutoTimeline) {
+    const stem = selectedLocalRecordingFilename.replace(/\.[^.]+$/, "");
+    if (slotTimelineEmpty) slotTimelineEmpty.classList.add("hidden");
+    if (slotTimelineFilled) slotTimelineFilled.classList.remove("hidden");
+    if (slotTimelineName) slotTimelineName.textContent = `${stem}.timeline.json`;
+    if (slotTimelineMeta) slotTimelineMeta.textContent = "Timeline de Discord detectado en tu PC junto al audio";
+    if (btnClearTimeline) btnClearTimeline.classList.remove("hidden");
+    if (slotTimelineCard) {
+      slotTimelineCard.classList.add("border-indigo-500/50", "bg-indigo-950/20");
+      slotTimelineCard.classList.remove("border-slate-800", "bg-slate-900/60");
+    }
+  } else {
+    if (slotTimelineEmpty) slotTimelineEmpty.classList.remove("hidden");
+    if (slotTimelineFilled) slotTimelineFilled.classList.add("hidden");
+    if (btnClearTimeline) btnClearTimeline.classList.add("hidden");
+    if (slotTimelineCard) {
+      slotTimelineCard.classList.remove("border-indigo-500/50", "bg-indigo-950/20");
+      slotTimelineCard.classList.add("border-slate-800", "bg-slate-900/60");
+    }
+  }
+
+  // 3. DropZone visual state
+  if (dropZone) {
+    if (hasAudio && (selectedTimelineFile || hasAutoTimeline)) {
+      dropZone.classList.add("border-emerald-500/50", "bg-emerald-950/10");
+    } else if (hasAudio) {
+      dropZone.classList.add("border-indigo-500/40", "bg-slate-950");
+      dropZone.classList.remove("border-emerald-500/50", "bg-emerald-950/10");
+    } else {
+      dropZone.classList.remove("border-emerald-500/50", "bg-emerald-950/10", "border-indigo-500/40");
+    }
+  }
+
+  // 4. Submit button state
+  if (btn) {
+    btn.disabled = !hasAudio;
   }
 }
 
-function selectExistingRecording(filename) {
+function selectExistingRecording(filename, hasTimeline = false, sizeMb = null, folder = null) {
   selectedLocalRecordingFilename = filename;
-  const btn = document.getElementById("btnFile");
-  const label = document.getElementById("selectedFileName");
-  if (btn) btn.disabled = false;
-  if (label) {
-    label.textContent = "Grabación Local Seleccionada: " + filename;
-    label.classList.remove("hidden");
-  }
-  const zone = document.getElementById("dropZone");
-  if (zone) zone.classList.add("border-emerald-500/50", "bg-emerald-950/10");
+  selectedLocalRecordingHasTimeline = Boolean(hasTimeline);
+  selectedLocalRecordingMeta = { size_mb: sizeMb, folder: folder };
+  selectedAudioFile = null;
+  const audioInput = document.getElementById("audioFileInput");
+  if (audioInput) audioInput.value = "";
+  const multiInput = document.getElementById("multiFileInput");
+  if (multiInput) multiInput.value = "";
+  updateSelectedFilesUI();
 }
 
 async function loadLocalRecordingsList() {
@@ -1198,8 +1391,9 @@ async function loadLocalRecordingsList() {
     if (!res.ok) throw new Error("No se pudieron cargar las grabaciones.");
     const data = await res.json();
     const files = data.files || [];
+    window.localRecordingsCache = files;
     if (files.length === 0) {
-      container.innerHTML = `<p class="text-slate-500 italic text-[11px]">No hay grabaciones en data/input aún.</p>`;
+      container.innerHTML = `<p class="text-slate-500 italic text-[11px]">No hay grabaciones en data/input ni en campañas aún.</p>`;
       return;
     }
     let html = '<div class="space-y-1.5 max-h-48 overflow-y-auto pr-1">';
@@ -1207,18 +1401,20 @@ async function loadLocalRecordingsList() {
       const isLatest = idx === 0;
       html += `
         <div class="flex items-center justify-between p-2 rounded-xl bg-slate-900/80 hover:bg-slate-800/80 border border-slate-800 transition text-left cursor-pointer group"
-             onclick="selectExistingRecording('${f.filename}')">
+             onclick="selectExistingRecording('${f.filename}', ${f.has_timeline ? 'true' : 'false'}, ${f.size_mb}, '${f.folder || 'data/input'}')">
           <div class="min-w-0 pr-2">
-            <div class="flex items-center gap-1.5">
+            <div class="flex items-center gap-1.5 flex-wrap">
               <span class="font-mono text-xs text-slate-200 group-hover:text-amber-400 font-medium truncate">${f.filename}</span>
               ${isLatest ? '<span class="text-[9px] px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-400 font-semibold border border-emerald-500/30">MÁS RECIENTE</span>' : ''}
+              ${f.has_timeline ? '<span class="text-[9px] px-1.5 py-0.5 rounded bg-indigo-500/20 text-indigo-300 font-semibold border border-indigo-500/30">🎧 Con Timeline</span>' : ''}
             </div>
             <div class="text-[10px] text-slate-500 flex items-center gap-2 mt-0.5">
               <span>📅 ${f.created_at}</span>
               <span>💾 ${f.size_mb} MB</span>
+              ${f.folder ? `<span class="text-indigo-400/80">📁 ${f.folder}</span>` : ''}
             </div>
           </div>
-          <button type="button" class="shrink-0 text-xs px-2.5 py-1 rounded-lg bg-indigo-600/30 hover:bg-indigo-600 text-indigo-300 hover:text-white font-medium border border-indigo-500/30 transition">
+          <button type="button" class="shrink-0 text-xs px-2.5 py-1 rounded-lg bg-indigo-600/30 hover:bg-indigo-600 text-indigo-300 hover:text-white font-medium border border-indigo-500/30 transition cursor-pointer">
             Usar
           </button>
         </div>
@@ -1232,16 +1428,21 @@ async function loadLocalRecordingsList() {
 }
 
 async function transcribeFile() {
-  const fileInput = document.getElementById('audioFileInput') || 
-                    document.getElementById('localAudioFile') || 
-                    document.getElementById('audioFile') ||
-                    document.querySelector('#tabFileContent input[type="file"]') ||
-                    document.querySelector('#tab-archivo-local input[type="file"]') ||
-                    document.querySelector('input[type="file"]');
-
-  const hasUploadedFile = Boolean(fileInput && fileInput.files && fileInput.files.length > 0);
-  if (!selectedLocalRecordingFilename && !hasUploadedFile) {
-    showAlert("Por favor selecciona o arrastra un archivo de audio, o elige una grabación local de la lista.");
+  const hasAudio = Boolean(selectedLocalRecordingFilename || selectedAudioFile);
+  if (!hasAudio) {
+    if (selectedTimelineFile) {
+      if (typeof showAlert === "function") {
+        showAlert("⚠️ Has seleccionado el archivo de timeline (.timeline.json), pero falta el archivo de audio (.wav o .mp3). Por favor selecciona o arrastra el archivo de audio correspondiente, o elige una grabación local de la lista.");
+      } else {
+        alert("⚠️ Has seleccionado el archivo de timeline (.timeline.json), pero falta el archivo de audio (.wav o .mp3). Por favor selecciona o arrastra el archivo de audio correspondiente, o elige una grabación local de la lista.");
+      }
+    } else {
+      if (typeof showAlert === "function") {
+        showAlert("Por favor selecciona o arrastra un archivo de audio, o elige una grabación local de la lista.");
+      } else {
+        alert("Por favor selecciona o arrastra un archivo de audio, o elige una grabación local de la lista.");
+      }
+    }
     return;
   }
 
@@ -1250,7 +1451,7 @@ async function transcribeFile() {
   const isClass = (currentWorkspace === "work_and_study" || currentLiveMode === "class");
   const campaignName = (document.getElementById("campaignNameInput") ? document.getElementById("campaignNameInput").value.trim() : "");
   if (!isClass && !campaignName) {
-    showAlert("⚠️ Debes seleccionar o crear una campaña antes de transcribir un archivo.");
+    if (typeof showAlert === "function") showAlert("⚠️ Debes seleccionar o crear una campaña antes de transcribir un archivo.");
     const campInput = document.getElementById("campaignNameInput");
     if (campInput) {
       campInput.focus();
@@ -1299,8 +1500,12 @@ async function transcribeFile() {
     formData.append("task_id", taskId);
     if (selectedLocalRecordingFilename) {
       formData.append("existing_filename", selectedLocalRecordingFilename);
-    } else if (hasUploadedFile) {
-      formData.append("file", fileInput.files[0]);
+    } else if (selectedAudioFile) {
+      formData.append("file", selectedAudioFile);
+    }
+
+    if (selectedTimelineFile) {
+      formData.append("timeline_file", selectedTimelineFile);
     }
     formData.append("model_size", modelSize);
     formData.append("engine", engine);
@@ -1344,6 +1549,20 @@ async function transcribeFile() {
     }
   }
 }
+
+// Global window bindings
+window.handleDragOver = handleDragOver;
+window.handleDragLeave = handleDragLeave;
+window.handleDrop = handleDrop;
+window.handleIncomingFiles = handleIncomingFiles;
+window.handleAudioOnlySelect = handleAudioOnlySelect;
+window.handleTimelineOnlySelect = handleTimelineOnlySelect;
+window.clearSelectedAudio = clearSelectedAudio;
+window.clearSelectedTimeline = clearSelectedTimeline;
+window.updateSelectedFilesUI = updateSelectedFilesUI;
+window.selectExistingRecording = selectExistingRecording;
+window.loadLocalRecordingsList = loadLocalRecordingsList;
+window.transcribeFile = transcribeFile;
 
 // =========================================================================
 // RESULTS DISPLAY & TABS
@@ -1724,11 +1943,11 @@ function syncResultTabsForWorkspace(mode = null) {
     }
   } else {
     if (btnChronicle) { btnChronicle.classList.remove("hidden"); btnChronicle.style.display = ""; }
-    if (txtChronicle) txtChronicle.textContent = "Crónica de Sesión";
+    if (txtChronicle) txtChronicle.textContent = "Crónica";
     if (iconChronicle) iconChronicle.textContent = "📖";
 
     if (btnQuests) { btnQuests.classList.remove("hidden"); btnQuests.style.display = ""; }
-    if (txtQuests) txtQuests.textContent = "Misiones Activas";
+    if (txtQuests) txtQuests.textContent = "Misiones";
     if (iconQuests) iconQuests.textContent = "🗺️";
 
     if (btnNpcs) { btnNpcs.classList.remove("hidden"); btnNpcs.style.display = ""; }
@@ -1845,6 +2064,89 @@ function updateCampaignViewTabs(state) {
 // =========================================================================
 // EXPORTS & DOWNLOADS
 // =========================================================================
+function downloadSessionDocx(sessionNum = null, cleanMode = false) {
+  if (currentWorkspace === "work_and_study" || (currentResult && currentResult.recording_mode === "class")) {
+    downloadCampaignDocx();
+    return;
+  }
+  const wikiSel = document.getElementById("wikiCampaignSelect");
+  const campInput = document.getElementById("campaignNameInput");
+  const campName = (currentResult && currentResult.campaign_name) ||
+                   (wikiSel && wikiSel.value && wikiSel.value.trim()) ||
+                   (campInput && campInput.value && campInput.value.trim());
+
+  if (!campName) {
+    showAlert("⚠️ No hay campaña seleccionada para descargar la sesión.");
+    return;
+  }
+
+  let num = sessionNum;
+  if (!num) {
+    if (currentResult && currentResult.session_number) {
+      num = currentResult.session_number;
+    } else {
+      const sessInput = document.getElementById("sessionNumberInput");
+      num = (sessInput && sessInput.value) ? parseInt(sessInput.value) : 1;
+    }
+  }
+
+  const includeCoaching = !cleanMode;
+  window.location.href = `/api/campaigns/${encodeURIComponent(campName)}/session/${encodeURIComponent(num)}/download-docx?include_coaching=${includeCoaching}`;
+}
+
+function downloadSessionMd(sessionNum = null, cleanMode = false) {
+  if (currentWorkspace === "work_and_study" || (currentResult && currentResult.recording_mode === "class")) {
+    downloadCampaignMd();
+    return;
+  }
+  const wikiSel = document.getElementById("wikiCampaignSelect");
+  const campInput = document.getElementById("campaignNameInput");
+  const campName = (currentResult && currentResult.campaign_name) ||
+                   (wikiSel && wikiSel.value && wikiSel.value.trim()) ||
+                   (campInput && campInput.value && campInput.value.trim());
+
+  if (!campName) {
+    showAlert("⚠️ No hay campaña seleccionada para descargar la sesión.");
+    return;
+  }
+
+  let num = sessionNum;
+  if (!num) {
+    if (currentResult && currentResult.session_number) {
+      num = currentResult.session_number;
+    } else {
+      const sessInput = document.getElementById("sessionNumberInput");
+      num = (sessInput && sessInput.value) ? parseInt(sessInput.value) : 1;
+    }
+  }
+
+  const includeCoaching = !cleanMode;
+  window.location.href = `/api/campaigns/${encodeURIComponent(campName)}/session/${encodeURIComponent(num)}/download-md?include_coaching=${includeCoaching}`;
+}
+
+function toggleAiToolsMenu() {
+  const menu = document.getElementById("aiToolsDropdown");
+  if (!menu) return;
+  menu.classList.toggle("hidden");
+}
+
+function closeAiToolsMenu() {
+  const menu = document.getElementById("aiToolsDropdown");
+  if (menu) menu.classList.add("hidden");
+}
+
+document.addEventListener("click", (e) => {
+  const container = document.getElementById("aiToolsMenuContainer");
+  if (container && !container.contains(e.target)) {
+    closeAiToolsMenu();
+  }
+});
+
+window.downloadSessionDocx = downloadSessionDocx;
+window.downloadSessionMd = downloadSessionMd;
+window.toggleAiToolsMenu = toggleAiToolsMenu;
+window.closeAiToolsMenu = closeAiToolsMenu;
+
 function downloadCampaignDocx() {
   if (currentWorkspace === "work_and_study" || (currentResult && currentResult.recording_mode === "class")) {
     const file = (currentResult && (currentResult.docx_filename || currentResult.md_filename)) || "apuntes.docx";

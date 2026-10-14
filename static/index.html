@@ -1045,21 +1045,111 @@
           </div>
         </div>
 
-        <div id="dropZone" onclick="document.getElementById('audioFileInput').click()" 
+        <!-- Zona unificada de arrastre y selección múltiple -->
+        <div id="dropZone"
           ondragover="handleDragOver(event)"
           ondragleave="handleDragLeave(event)"
           ondrop="handleDrop(event)"
-          class="border-2 border-dashed border-slate-700 hover:border-indigo-500 rounded-2xl p-8 text-center cursor-pointer transition bg-slate-950/50 hover:bg-slate-950">
-          <p class="text-sm text-slate-300 font-medium">O haz clic / arrastra cualquier archivo de audio (.mp3, .wav, .m4a)</p>
-          <p id="selectedFileName" class="text-xs font-mono text-emerald-400 mt-2 hidden"></p>
+          class="border-2 border-dashed border-slate-700 hover:border-indigo-500 rounded-2xl p-6 text-center transition bg-slate-950/50 hover:bg-slate-950">
+          <div class="flex flex-col items-center justify-center space-y-3">
+            <span class="text-3xl">🎙️</span>
+            <div>
+              <p class="text-sm text-slate-200 font-semibold">Arrastra aquí tu audio (.wav, .mp3) y su archivo <code class="text-indigo-300 text-xs bg-slate-900 px-1.5 py-0.5 rounded border border-slate-700">.timeline.json</code> juntos</p>
+              <p class="text-xs text-slate-400 mt-1">Puedes arrastrar ambos archivos a la vez o presionar el botón para elegirlos en tu explorador</p>
+            </div>
+            
+            <div class="pt-1 flex flex-wrap items-center justify-center gap-2">
+              <button type="button" onclick="document.getElementById('multiFileInput').click()" class="px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-medium text-xs shadow-md shadow-indigo-950/60 hover:shadow-indigo-500/20 transition flex items-center gap-2 cursor-pointer active:scale-95">
+                <span>📁</span> <span>Seleccionar ambos archivos a la vez (.wav + .timeline.json)</span>
+              </button>
+            </div>
+            <p class="text-[11px] text-slate-500">💡 Tip: en Windows, mantén presionada la tecla <kbd class="px-1.5 py-0.5 bg-slate-800 border border-slate-700 rounded text-[10px] text-slate-300 font-mono">Ctrl</kbd> para seleccionar ambos archivos en la ventana de exploración.</p>
+          </div>
+
+          <!-- Inputs ocultos para selección nativa -->
+          <input 
+            type="file" 
+            id="multiFileInput" 
+            multiple
+            accept="audio/*, .mp3, .wav, .m4a, .aac, .ogg, .flac, .webm, .json, application/json"
+            class="hidden" 
+            onchange="handleIncomingFiles(this)"
+          />
           <input 
             type="file" 
             id="audioFileInput" 
             accept="audio/*, .mp3, .wav, .m4a, .aac, .ogg, .flac, .webm"
             class="hidden" 
-            onchange="handleFileSelect(this)"
+            onchange="handleAudioOnlySelect(this)"
+          />
+          <input 
+            type="file" 
+            id="timelineFileInput" 
+            accept=".json,application/json"
+            class="hidden" 
+            onchange="handleTimelineOnlySelect(this)"
           />
         </div>
+
+        <!-- Ranuras Visuales de Archivos (Dual Slots) -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <!-- Ranura 1: Audio -->
+          <div id="slotAudioCard" class="p-3.5 rounded-2xl bg-slate-900/60 border border-slate-800 transition flex flex-col justify-between min-h-[92px]">
+            <div class="flex items-center justify-between gap-2 mb-2">
+              <span class="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
+                <span>🎵</span> <span>Pista de Audio</span>
+                <span class="text-[10px] px-1.5 py-0.2 rounded bg-rose-500/20 text-rose-400 border border-rose-500/30 font-medium">Requerido</span>
+              </span>
+              <button id="btnClearAudio" type="button" onclick="clearSelectedAudio(event)" class="text-xs text-slate-400 hover:text-rose-400 font-semibold px-2 py-0.5 rounded hover:bg-slate-800 transition hidden cursor-pointer" title="Quitar audio">
+                ✕ Quitar
+              </button>
+            </div>
+            
+            <div id="slotAudioEmpty" class="text-left py-1">
+              <p class="text-xs text-slate-500 mb-2">Ningún audio cargado aún.</p>
+              <button type="button" onclick="document.getElementById('audioFileInput').click()" class="text-xs px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 font-medium border border-slate-700/80 transition cursor-pointer flex items-center gap-1.5">
+                <span>+</span> <span>Elegir solo Audio (.wav, .mp3)</span>
+              </button>
+            </div>
+
+            <div id="slotAudioFilled" class="hidden text-left py-1 space-y-0.5">
+              <div class="flex items-center gap-2">
+                <span class="w-2 h-2 rounded-full bg-emerald-400 shrink-0"></span>
+                <span id="slotAudioName" class="font-mono text-xs text-emerald-400 font-semibold truncate"></span>
+              </div>
+              <p id="slotAudioMeta" class="text-[11px] text-slate-400 tabular-nums pl-4"></p>
+            </div>
+          </div>
+
+          <!-- Ranura 2: Timeline -->
+          <div id="slotTimelineCard" class="p-3.5 rounded-2xl bg-slate-900/60 border border-slate-800 transition flex flex-col justify-between min-h-[92px]">
+            <div class="flex items-center justify-between gap-2 mb-2">
+              <span class="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
+                <span>🎧</span> <span>Timeline Discord</span>
+                <span class="text-[10px] px-1.5 py-0.2 rounded bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 font-medium">Opcional</span>
+              </span>
+              <button id="btnClearTimeline" type="button" onclick="clearSelectedTimeline(event)" class="text-xs text-slate-400 hover:text-rose-400 font-semibold px-2 py-0.5 rounded hover:bg-slate-800 transition hidden cursor-pointer" title="Quitar timeline">
+                ✕ Quitar
+              </button>
+            </div>
+
+            <div id="slotTimelineEmpty" class="text-left py-1">
+              <p class="text-xs text-slate-500 mb-2">Sin timeline (se usará diarización estándar).</p>
+              <button type="button" onclick="document.getElementById('timelineFileInput').click()" class="text-xs px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 font-medium border border-slate-700/80 transition cursor-pointer flex items-center gap-1.5">
+                <span>+</span> <span>Elegir solo Timeline (.timeline.json)</span>
+              </button>
+            </div>
+
+            <div id="slotTimelineFilled" class="hidden text-left py-1 space-y-0.5">
+              <div class="flex items-center gap-2">
+                <span class="w-2 h-2 rounded-full bg-indigo-400 shrink-0"></span>
+                <span id="slotTimelineName" class="font-mono text-xs text-indigo-300 font-semibold truncate"></span>
+              </div>
+              <p id="slotTimelineMeta" class="text-[11px] text-indigo-400/80 tabular-nums pl-4"></p>
+            </div>
+          </div>
+        </div>
+
         <div class="flex justify-end">
           <button id="btnFile" onclick="transcribeFile()" disabled class="bg-indigo-600 hover:bg-indigo-500 text-white font-medium text-sm px-6 py-2.5 rounded-xl shadow-lg transition disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer flex items-center gap-2">
             <span>✨</span> <span>Procesar Grabación</span>
@@ -1104,7 +1194,7 @@
       <!-- Hitos / Fases Visuales Dinámicas (3 pasos en Local/En vivo, 4 pasos en YouTube) -->
       <div id="stepperContainer" class="grid grid-cols-1 md:grid-cols-3 gap-2 pt-1">
         <!-- Fase 1: Audio / Descarga (Visible solo en YouTube) -->
-        <div id="stageAudio" class="hidden p-2.5 rounded-xl border border-slate-800 bg-slate-950/60 text-left space-y-1 transition-all">
+        <div id="stageAudio" class="hidden p-2.5 rounded-xl border border-slate-800 bg-slate-950/60 text-left space-y-1 transition-all" style="display: none;">
           <div class="flex items-center justify-between">
             <span id="stageAudioStep" class="text-[10px] font-mono text-slate-500 uppercase tracking-wider">Paso 1</span>
             <span class="stage-icon text-xs">⏳</span>
@@ -1221,47 +1311,80 @@
     <div id="resultsCard" class="hidden bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-2xl space-y-6">
       
       <!-- Barra superior de metadatos y botones de descarga -->
-      <div class="flex flex-wrap items-center justify-between gap-4 pb-4 border-b border-slate-800">
+      <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-3 pb-4 border-b border-slate-800">
+        <!-- Metadatos de la sesión -->
         <div class="flex flex-wrap items-center gap-2">
-          <span class="px-3 py-1 rounded-full text-xs font-semibold bg-amber-500/10 text-amber-300 border border-amber-500/20">
+          <span class="px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-500/10 text-amber-300 border border-amber-500/20">
             <span id="resCampaignLabel">Campaña</span>: <strong id="resCampaignName" class="text-white">--</strong>
           </span>
           <span id="resEngineUsed" class="hidden"></span>
-          <span class="px-3 py-1 rounded-full text-xs font-semibold bg-indigo-500/10 text-indigo-300 border border-indigo-500/20">
+          <span class="hidden px-2.5 py-1 rounded-full text-xs font-semibold bg-indigo-500/10 text-indigo-300 border border-indigo-500/20">
             Idioma: <strong id="resLanguage" class="text-white">--</strong>
           </span>
-          <span class="px-3 py-1 rounded-full text-xs font-semibold bg-slate-800 text-slate-300 border border-slate-700">
-            Duración: <strong id="resDuration" class="text-white">--</strong>
+          <span class="px-2.5 py-1 rounded-full text-xs font-medium bg-slate-800/80 text-slate-300 border border-slate-700/80">
+            Duración: <strong id="resDuration" class="text-white tabular-nums">--</strong>
           </span>
-          <span class="px-3 py-1 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-300 border border-emerald-500/20">
-            Tiempo de proceso: <strong id="resTime" class="text-white">--</strong>
+          <span class="px-2.5 py-1 rounded-full text-xs font-medium bg-emerald-500/10 text-emerald-300 border border-emerald-500/20">
+            Procesado en: <strong id="resTime" class="text-white tabular-nums">--</strong>
           </span>
         </div>
 
-        <!-- Botones de Acción / Descarga (Estilo Linear / Apple) -->
+        <!-- Botones de Acción y Descarga Organizados -->
         <div class="flex flex-wrap items-center gap-2">
-          <button id="btnDownloadDocx" onclick="downloadCampaignDocx()" class="btn-subtle min-h-[36px] px-3.5 py-1.5 text-slate-200 hover:text-white text-xs font-medium flex items-center gap-1.5 cursor-pointer">
-            <span id="btnDownloadDocxIcon">📄</span> <span id="btnDownloadDocxText">Grimorio .docx</span>
-          </button>
-          <button id="btnDownloadMd" onclick="downloadCampaignMd()" class="hidden btn-subtle min-h-[36px] px-3.5 py-1.5 text-slate-200 hover:text-white text-xs font-medium flex items-center gap-1.5 cursor-pointer">
+          <!-- Grupo 1: Descargas Word (.docx) -->
+          <div class="inline-flex items-center rounded-xl bg-slate-950 border border-slate-800 p-0.5 shadow-sm">
+            <button id="btnDownloadCurrentSessionDocx" onclick="downloadSessionDocx(null, false)" class="min-h-[34px] px-3 py-1 text-amber-300 hover:text-amber-100 bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer active:scale-[0.98]" title="Descargar documento Word completo únicamente de esta sesión grabada">
+              <span>📄</span> <span id="btnDownloadCurrentSessionDocxText">Descargar Sesión (.docx)</span>
+            </button>
+            <button id="btnDownloadSessionCleanDocx" onclick="downloadSessionDocx(null, true)" class="min-h-[34px] px-2.5 py-1 text-slate-300 hover:text-white hover:bg-slate-800/80 rounded-lg text-xs font-medium flex items-center gap-1 transition cursor-pointer active:scale-[0.98]" title="Descargar crónica limpia para los jugadores (sin consejos personales)">
+              <span>👥</span> <span>Para Jugadores</span>
+            </button>
+            <button id="btnDownloadDocx" onclick="downloadCampaignDocx()" class="min-h-[34px] px-2.5 py-1 text-slate-400 hover:text-sky-300 hover:bg-slate-800/80 rounded-lg text-xs font-medium flex items-center gap-1 transition cursor-pointer active:scale-[0.98]" title="Descargar Grimorio completo consolidado de toda la campaña (.docx)">
+              <span id="btnDownloadDocxIcon">📚</span> <span id="btnDownloadDocxText">Toda la Campaña</span>
+            </button>
+          </div>
+
+          <!-- Grupo 2: Utilidades Rápidas -->
+          <div class="inline-flex items-center gap-1">
+            <button id="btnDownloadTxt" onclick="downloadTranscriptTxt()" class="min-h-[34px] px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 text-xs font-medium flex items-center gap-1 transition cursor-pointer active:scale-[0.98]" title="Descargar transcripción completa en formato .txt">
+              <span>⬇️</span> <span id="btnDownloadTxtText">.txt</span>
+            </button>
+            <button onclick="copyCurrentContent()" class="min-h-[34px] px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 text-xs font-medium flex items-center gap-1 transition cursor-pointer active:scale-[0.98]" title="Copiar contenido actual">
+              <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg> <span id="copyBtnText">Copiar</span>
+            </button>
+          </div>
+
+          <!-- Grupo 3: Herramientas Avanzadas / Reintento de IA -->
+          <div class="relative inline-block" id="aiToolsMenuContainer">
+            <button type="button" id="btnAiToolsToggle" onclick="toggleAiToolsMenu()" class="min-h-[34px] px-2.5 py-1 rounded-lg bg-indigo-950/40 hover:bg-indigo-900/60 text-indigo-300 border border-indigo-800/50 text-xs font-medium flex items-center gap-1 transition cursor-pointer active:scale-[0.98]" title="Opciones avanzadas de IA (Re-generar crónica o cambiar idioma)">
+              <span>✨</span> <span>Herramientas IA</span> <svg class="w-3 h-3 ml-0.5 text-indigo-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg>
+            </button>
+            <div id="aiToolsDropdown" class="hidden absolute right-0 mt-1.5 w-72 rounded-xl bg-slate-900 border border-slate-700 shadow-2xl p-1.5 z-50 space-y-1 backdrop-blur-md">
+              <button type="button" id="btnReprocessCampaign" onclick="reprocessCampaignChronicle(); closeAiToolsMenu();" class="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-800 text-xs text-slate-200 hover:text-amber-300 flex items-start gap-2.5 cursor-pointer transition" title="Reintento de IA: Vuelve a generar la crónica con Gemini sin volver a transcribir el audio">
+                <span id="btnReprocessCampaignIcon" class="mt-0.5 text-base">🔄</span>
+                <div>
+                  <div class="font-semibold text-amber-300" id="btnReprocessCampaignText">Regenerar con Gemini</div>
+                  <div class="text-[11px] text-slate-400 font-normal leading-tight mt-0.5">Vuelve a redactar la historia y extraer misiones sin volver a procesar el audio de 3 horas.</div>
+                </div>
+              </button>
+              <button type="button" id="btnSwitchLanguage" onclick="switchSummaryLanguage(); closeAiToolsMenu();" class="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-800 text-xs text-slate-200 hover:text-sky-300 flex items-start gap-2.5 cursor-pointer transition border-t border-slate-800/80">
+                <svg class="w-4 h-4 mt-0.5 text-sky-400 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="2" x2="22" y1="12" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+                <div>
+                  <div class="font-semibold text-sky-300" id="btnSwitchLanguageText">Traducir a Inglés (EN)</div>
+                  <div class="text-[11px] text-slate-400 font-normal leading-tight mt-0.5">Traduce las notas/crónica manteniendo todos los datos intactos.</div>
+                </div>
+              </button>
+            </div>
+          </div>
+
+          <!-- Botones opcionales de audio -->
+          <button id="btnDownloadMd" onclick="downloadCampaignMd()" class="hidden btn-subtle min-h-[34px] px-2.5 py-1 text-slate-200 text-xs font-medium">
             <span id="btnDownloadMdIcon">📑</span> <span id="btnDownloadMdText">Grimorio .md</span>
           </button>
-          <button id="btnDownloadTxt" onclick="downloadTranscriptTxt()" class="btn-subtle min-h-[36px] px-3.5 py-1.5 text-slate-200 hover:text-white text-xs font-medium flex items-center gap-1.5 cursor-pointer" title="Descargar transcripción completa en formato .txt">
-            <span>⬇️</span> <span id="btnDownloadTxtText">Transcripción (.txt)</span>
+          <button id="btnDownloadAudio" onclick="downloadAudioFile()" class="hidden min-h-[34px] px-2.5 py-1 text-slate-300 hover:text-white bg-slate-800 rounded-lg text-xs font-medium flex items-center gap-1.5 cursor-pointer" title="Descargar archivo de audio original (.wav)">
+            <span>⬇️</span> <span id="btnDownloadAudioText">Audio</span>
           </button>
-          <button id="btnDownloadAudio" onclick="downloadAudioFile()" class="hidden btn-subtle min-h-[36px] px-3.5 py-1.5 text-slate-200 hover:text-white text-xs font-medium flex items-center gap-1.5 cursor-pointer" title="Descargar archivo de audio original (.wav)">
-            <span>⬇️</span> <span id="btnDownloadAudioText">Descargar Audio</span>
-          </button>
-          <button onclick="copyCurrentContent()" class="btn-subtle min-h-[36px] px-3.5 py-1.5 text-slate-200 hover:text-white text-xs font-medium flex items-center gap-1.5 cursor-pointer">
-            <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg> <span id="copyBtnText">Copiar</span>
-          </button>
-          <button id="btnReprocessCampaign" onclick="reprocessCampaignChronicle()" class="btn-subtle min-h-[36px] px-3.5 py-1.5 text-slate-200 hover:text-amber-300 border-amber-500/20 hover:border-amber-500/40 text-xs font-semibold flex items-center gap-1.5 cursor-pointer" title="Volver a generar la crónica profunda por actos y escenas en español con Gemini usando la transcripción en memoria">
-            <span id="btnReprocessCampaignIcon">🔄</span> <span id="btnReprocessCampaignText">Regenerar con Crónica Profunda</span>
-          </button>
-          <button id="btnSwitchLanguage" onclick="switchSummaryLanguage()" class="btn-subtle min-h-[36px] px-3.5 py-1.5 text-slate-200 hover:text-sky-300 border-sky-500/20 hover:border-sky-500/40 text-xs font-semibold flex items-center gap-1.5 cursor-pointer" title="Traducir y cambiar idioma de las notas/crónica (Español / Inglés)">
-            <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="2" x2="22" y1="12" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg> <span id="btnSwitchLanguageText">Traducir a Inglés (EN)</span>
-          </button>
-          <button id="btnDeleteOriginalAudio" onclick="deleteOriginalAudio()" class="hidden btn-subtle min-h-[36px] px-3.5 py-1.5 text-rose-300 hover:text-rose-100 border-rose-800/40 hover:border-rose-700 text-xs font-semibold flex items-center gap-1.5 cursor-pointer" title="Eliminar el archivo de audio original grabado en disco">
+          <button id="btnDeleteOriginalAudio" onclick="deleteOriginalAudio()" class="hidden min-h-[34px] px-2.5 py-1 text-rose-300 hover:text-rose-100 bg-rose-950/40 border border-rose-800/40 rounded-lg text-xs font-semibold flex items-center gap-1.5 cursor-pointer" title="Eliminar el archivo de audio original grabado en disco">
             <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg> <span id="btnDeleteOriginalAudioText">Eliminar audio</span>
           </button>
         </div>
@@ -1300,30 +1423,28 @@
       </div>
 
       <!-- Selector de Pestañas de Resultados -->
-      <div class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-800 pb-2">
-        <div class="flex flex-wrap gap-2 text-xs">
-          <button id="viewChronicleBtn" onclick="toggleResultTab('chronicle')" class="px-3.5 py-1.5 rounded-lg bg-indigo-600 text-white font-semibold transition flex items-center gap-1.5">
-            <span id="viewChronicleIcon">📖</span> <span id="viewChronicleText">Crónica de Sesión</span>
-          </button>
-          <button id="viewKeyPointsBtn" onclick="toggleResultTab('keypoints')" class="hidden px-3.5 py-1.5 rounded-lg bg-slate-950 text-slate-400 hover:text-slate-200 font-medium transition flex items-center gap-1.5 border border-slate-800">
-            <span id="viewKeyPointsIcon">⭐</span> <span id="viewKeyPointsText">Puntos Clave y Glosario</span>
-          </button>
-          <button id="viewQuestsBtn" onclick="toggleResultTab('quests')" class="px-3.5 py-1.5 rounded-lg bg-slate-950 text-slate-400 hover:text-slate-200 font-medium transition flex items-center gap-1.5 border border-slate-800">
-            <span id="viewQuestsIcon">🗺️</span> <span id="viewQuestsText">Misiones Activas</span> (<span id="questCountBadge">0</span>)
-          </button>
-          <button id="viewNpcsBtn" onclick="toggleResultTab('npcs')" class="px-3.5 py-1.5 rounded-lg bg-slate-950 text-slate-400 hover:text-slate-200 font-medium transition flex items-center gap-1.5 border border-slate-800">
-            <span>🎭</span> Directorio PNJs (<span id="npcCountBadge">0</span>)
-          </button>
-          <button id="viewPcsBtn" onclick="toggleResultTab('pcs')" class="px-3.5 py-1.5 rounded-lg bg-slate-950 text-slate-400 hover:text-slate-200 font-medium transition flex items-center gap-1.5 border border-slate-800">
-            <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg> Directorio PCs (<span id="pcCountBadge">0</span>)
-          </button>
-          <button id="viewJournalBtn" onclick="toggleResultTab('journal')" class="px-3.5 py-1.5 rounded-lg bg-slate-950 text-slate-400 hover:text-slate-200 font-medium transition flex items-center gap-1.5 border border-slate-800">
-            <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1-2.5-2.5Z"/><path d="M6 6h10"/><path d="M6 10h10"/></svg> Grimorio Completo (.md)
-          </button>
-          <button id="viewTranscriptBtn" onclick="toggleResultTab('transcript')" class="px-3.5 py-1.5 rounded-lg bg-slate-950 text-slate-400 hover:text-slate-200 font-medium transition flex items-center gap-1.5 border border-slate-800">
-            <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg> Transcripción
-          </button>
-        </div>
+      <div class="flex items-center gap-1.5 border-b border-slate-800 pb-2 overflow-x-auto no-scrollbar">
+        <button id="viewChronicleBtn" onclick="toggleResultTab('chronicle')" class="px-3 py-1.5 rounded-lg bg-indigo-600 text-white font-semibold transition flex items-center gap-1.5 text-xs shrink-0 cursor-pointer">
+          <span id="viewChronicleIcon">📖</span> <span id="viewChronicleText">Crónica</span>
+        </button>
+        <button id="viewKeyPointsBtn" onclick="toggleResultTab('keypoints')" class="hidden px-3 py-1.5 rounded-lg bg-slate-950 text-slate-400 hover:text-slate-200 font-medium transition flex items-center gap-1.5 border border-slate-800 text-xs shrink-0 cursor-pointer">
+          <span id="viewKeyPointsIcon">⭐</span> <span id="viewKeyPointsText">Puntos Clave</span>
+        </button>
+        <button id="viewQuestsBtn" onclick="toggleResultTab('quests')" class="px-3 py-1.5 rounded-lg bg-slate-950 text-slate-400 hover:text-slate-200 font-medium transition flex items-center gap-1.5 border border-slate-800 text-xs shrink-0 cursor-pointer">
+          <span id="viewQuestsIcon">🗺️</span> <span id="viewQuestsText">Misiones</span> (<span id="questCountBadge">0</span>)
+        </button>
+        <button id="viewNpcsBtn" onclick="toggleResultTab('npcs')" class="px-3 py-1.5 rounded-lg bg-slate-950 text-slate-400 hover:text-slate-200 font-medium transition flex items-center gap-1.5 border border-slate-800 text-xs shrink-0 cursor-pointer">
+          <span>🎭</span> PNJs (<span id="npcCountBadge">0</span>)
+        </button>
+        <button id="viewPcsBtn" onclick="toggleResultTab('pcs')" class="px-3 py-1.5 rounded-lg bg-slate-950 text-slate-400 hover:text-slate-200 font-medium transition flex items-center gap-1.5 border border-slate-800 text-xs shrink-0 cursor-pointer">
+          <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg> PCs (<span id="pcCountBadge">0</span>)
+        </button>
+        <button id="viewJournalBtn" onclick="toggleResultTab('journal')" class="px-3 py-1.5 rounded-lg bg-slate-950 text-slate-400 hover:text-slate-200 font-medium transition flex items-center gap-1.5 border border-slate-800 text-xs shrink-0 cursor-pointer">
+          <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1-2.5-2.5Z"/><path d="M6 6h10"/><path d="M6 10h10"/></svg> Grimorio (.md)
+        </button>
+        <button id="viewTranscriptBtn" onclick="toggleResultTab('transcript')" class="px-3 py-1.5 rounded-lg bg-slate-950 text-slate-400 hover:text-slate-200 font-medium transition flex items-center gap-1.5 border border-slate-800 text-xs shrink-0 cursor-pointer">
+          <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg> Transcripción
+        </button>
       </div>
 
       <!-- Vista 1: Crónica de la Sesión Actual (Previously On, Crónica, Cierre, Markus Coaching) -->
@@ -1562,11 +1683,33 @@
             class="min-h-[44px] min-w-[44px] p-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs border border-slate-700 transition flex items-center justify-center cursor-pointer active:scale-[0.98]">
             <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 21h5v-5"/></svg>
           </button>
-          <div class="flex items-center gap-1.5 pl-1 border-l border-slate-800">
-            <button type="button" onclick="downloadCampaignDocx()" title="Descargar Grimorio Completo en Word (.docx)"
-              class="min-h-[44px] px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-semibold transition flex items-center gap-1.5 cursor-pointer active:scale-[0.98]">
-              <svg class="w-3.5 h-3.5 text-sky-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/></svg>
-              <span>Word (.docx)</span>
+          <div id="wikiHeaderExportActions" class="flex flex-wrap items-center gap-2 pl-1 border-l border-slate-800">
+            <!-- Selector y Descarga de Sesión Individual (Permanente y Visible) -->
+            <div id="wikiSessionExportContainer" class="flex items-center gap-1.5 bg-slate-950 border border-slate-800 rounded-xl p-1 shadow-inner">
+              <label for="wikiSessionExportSelect" class="text-xs font-semibold text-slate-400 pl-2 whitespace-nowrap">Sesión:</label>
+              <select id="wikiSessionExportSelect" onchange="onWikiSessionExportSelectChanged(this.value)"
+                class="bg-transparent text-xs text-amber-300 font-bold focus:outline-none cursor-pointer pr-1">
+                <option value="3">Sesión #3 (Última)</option>
+                <option value="2">Sesión #2</option>
+                <option value="1">Sesión #1</option>
+              </select>
+              <button type="button" id="btnWikiDownloadSelectedSessionDocx" onclick="downloadSelectedWikiSessionDocx(false)" title="Descargar documento Word (.docx) únicamente de la sesión seleccionada"
+                class="min-h-[36px] px-3 py-1.5 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 text-xs font-bold transition flex items-center gap-1.5 cursor-pointer active:scale-[0.98] shadow-sm">
+                <svg class="w-3.5 h-3.5 text-amber-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/></svg>
+                <span>Descargar Sesión (.docx)</span>
+              </button>
+              <button type="button" id="btnWikiDownloadSelectedSessionCleanDocx" onclick="downloadSelectedWikiSessionDocx(true)" title="Descargar versión limpia para jugadores sin consejos personales"
+                class="min-h-[36px] px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-semibold transition flex items-center gap-1 cursor-pointer active:scale-[0.98] shadow-sm">
+                <span>👥</span>
+                <span>Para Jugadores</span>
+              </button>
+            </div>
+
+            <!-- Botón para descargar toda la campaña consolidada -->
+            <button type="button" id="btnWikiDownloadCampaignDocx" onclick="downloadCampaignDocx()" title="Descargar Grimorio completo con todas las sesiones en Word (.docx)"
+              class="min-h-[44px] px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-semibold transition flex items-center gap-1.5 cursor-pointer active:scale-[0.98]">
+              <svg class="w-3.5 h-3.5 text-sky-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1-2.5-2.5Z"/><path d="M6 6h10"/><path d="M6 10h10"/></svg>
+              <span>Toda la Campaña (.docx)</span>
             </button>
             <button type="button" onclick="exportLivingCampaignToDrive()" title="Sincronizar Grimorio a Google Drive"
               class="min-h-[44px] px-3 py-2 rounded-xl bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 border border-emerald-500/30 text-xs font-semibold transition flex items-center gap-1.5 cursor-pointer active:scale-[0.98]">
@@ -2320,13 +2463,13 @@
   <!-- Modularized Application Scripts -->
   <script src="/static/js/utils.js?v=20261011_2"></script>
   <script src="/static/js/api.js?v=20261011_2"></script>
-  <script src="/static/js/progress.js?v=20261011_2"></script>
-  <script src="/static/js/audio.js?v=20261011_2"></script>
+  <script src="/static/js/progress.js?v=20261014_3"></script>
+  <script src="/static/js/audio.js?v=20261014_3"></script>
   <script src="/static/js/drive.js?v=20261011_2"></script>
   <script src="/static/js/roster.js?v=20261011_2"></script>
-  <script src="/static/js/wiki.js?v=20261011_2"></script>
+  <script src="/static/js/wiki.js?v=20261014_4"></script>
   <script src="/static/js/notes.js?v=20261011_2"></script>
-  <script src="/static/js/app.js?v=20261011_2"></script>
+  <script src="/static/js/app.js?v=20261014_4"></script>
 
   <!-- Legacy Code Purge Area -->
   <script type="text/plain" id="legacy-disabled-script">
@@ -3852,6 +3995,10 @@ function refreshAudioDevices() {
     }
 
     async function checkDriveStatus() {
+      if (window.location.protocol === "file:") {
+        console.warn("[checkDriveStatus] La aplicación se abrió con el protocolo file://. El servidor backend debe ejecutarse en http://localhost:8080.");
+        return;
+      }
       const urlParams = new URLSearchParams(window.location.search);
       const isJustConnected = urlParams.get("drive_connected") === "true";
       if (isJustConnected) {
@@ -3927,6 +4074,9 @@ function refreshAudioDevices() {
         if (textSpan) textSpan.textContent = "Conectando...";
       }
       try {
+        if (window.location.protocol === "file:") {
+          throw new Error("Estás abriendo la aplicación como archivo local (file://). Debes abrir http://localhost:8080 en tu navegador con el servidor iniciado.");
+        }
         const res = await fetch("/api/auth/drive/login");
         const data = await res.json();
         if (res.ok && data.auth_url) {
@@ -3936,7 +4086,11 @@ function refreshAudioDevices() {
           throw new Error(data.detail || "No se pudo generar la URL de autenticación.");
         }
       } catch (err) {
-        showAlert("Error conectando Google Drive: " + err.message);
+        let msg = err.message || "";
+        if (err.name === "TypeError" && (msg.includes("fetch") || msg.includes("Failed to fetch") || msg.includes("NetworkError"))) {
+          msg = "No se pudo comunicar con el servidor backend de WhisperDnD (http://localhost:8080). Asegúrate de que el servidor esté iniciado en la terminal con 'python main.py'.";
+        }
+        showAlert("Error conectando Google Drive: " + msg);
         if (btn) {
           btn.disabled = false;
           btn.innerHTML = `<span>🔗</span> Conectar Google Drive`;
@@ -4071,7 +4225,11 @@ function refreshAudioDevices() {
       } catch (err) {
         console.error("Sync Drive error:", err);
         if (!isSilent) {
-          showAlert("Error en la sincronización con Drive: " + err.message);
+          let msg = err.message || "";
+          if (err.name === "TypeError" && (msg.includes("fetch") || msg.includes("Failed to fetch") || msg.includes("NetworkError"))) {
+            msg = "No se pudo comunicar con el servidor backend de WhisperDnD (http://localhost:8080). Asegúrate de que el servidor esté iniciado.";
+          }
+          showAlert("Error en la sincronización con Drive: " + msg);
         }
       } finally {
         setButtonsLoading(false);
@@ -6680,6 +6838,10 @@ function refreshAudioDevices() {
     }
 
     let selectedLocalRecordingFilename = null;
+    let selectedLocalRecordingMeta = null;
+    let selectedLocalRecordingHasTimeline = false;
+    let selectedAudioFile = null;
+    let selectedTimelineFile = null;
 
     function handleDragOver(e) {
       e.preventDefault();
@@ -6701,38 +6863,220 @@ function refreshAudioDevices() {
       const zone = document.getElementById("dropZone");
       if (zone) zone.classList.remove("border-indigo-500", "bg-indigo-950/20");
       if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-        const fileInput = document.getElementById("audioFileInput");
-        if (fileInput) {
-          fileInput.files = e.dataTransfer.files;
-          handleFileSelect(fileInput);
-        }
+        handleIncomingFiles(e.dataTransfer.files);
       }
     }
 
-    function handleFileSelect(input) {
-      selectedLocalRecordingFilename = null;
-      const btn = document.getElementById("btnFile");
-      const label = document.getElementById("selectedFileName");
+    function handleIncomingFiles(fileList) {
+      if (!fileList || fileList.length === 0) return;
+      const files = Array.from(fileList);
+
+      for (const f of files) {
+        const lower = f.name.toLowerCase();
+        if (lower.endsWith(".json")) {
+          selectedTimelineFile = f;
+        } else if (
+          lower.endsWith(".wav") ||
+          lower.endsWith(".mp3") ||
+          lower.endsWith(".m4a") ||
+          lower.endsWith(".aac") ||
+          lower.endsWith(".ogg") ||
+          lower.endsWith(".flac") ||
+          lower.endsWith(".webm") ||
+          (f.type && f.type.startsWith("audio/"))
+        ) {
+          selectedAudioFile = f;
+          selectedLocalRecordingFilename = null;
+          selectedLocalRecordingMeta = null;
+          selectedLocalRecordingHasTimeline = false;
+        }
+      }
+
+      // Si sólo se pasó 1 archivo y no es json, asignarlo como audio
+      if (files.length === 1 && !files[0].name.toLowerCase().endsWith(".json")) {
+        selectedAudioFile = files[0];
+        selectedLocalRecordingFilename = null;
+        selectedLocalRecordingMeta = null;
+        selectedLocalRecordingHasTimeline = false;
+      }
+
+      // Si sólo se seleccionó un .timeline.json y no hay audio, buscar si coincide con una grabación local
+      if (!selectedAudioFile && !selectedLocalRecordingFilename && selectedTimelineFile) {
+        const stem = selectedTimelineFile.name.replace(/\.timeline\.json$/i, "").replace(/\.json$/i, "").toLowerCase();
+        if (window.localRecordingsCache && window.localRecordingsCache.length > 0) {
+          const matched = window.localRecordingsCache.find(r => {
+            const rStem = r.filename.replace(/\.[^.]+$/, "").toLowerCase();
+            return rStem === stem || r.filename.toLowerCase().startsWith(stem);
+          });
+          if (matched) {
+            selectedLocalRecordingFilename = matched.filename;
+            selectedLocalRecordingHasTimeline = Boolean(matched.has_timeline);
+            selectedLocalRecordingMeta = { size_mb: matched.size_mb, folder: matched.folder };
+          }
+        }
+      }
+
+      updateSelectedFilesUI();
+    }
+
+    function handleAudioOnlySelect(input) {
       if (input.files && input.files[0]) {
-        if (btn) btn.disabled = false;
-        if (label) {
-          label.textContent = "Archivo Subido: " + input.files[0].name;
-          label.classList.remove("hidden");
+        selectedAudioFile = input.files[0];
+        selectedLocalRecordingFilename = null;
+        selectedLocalRecordingMeta = null;
+        selectedLocalRecordingHasTimeline = false;
+        updateSelectedFilesUI();
+      }
+      input.value = "";
+    }
+
+    function handleTimelineOnlySelect(input) {
+      if (input.files && input.files[0]) {
+        selectedTimelineFile = input.files[0];
+        updateSelectedFilesUI();
+      }
+      input.value = "";
+    }
+
+    function clearSelectedAudio(e) {
+      if (e) e.stopPropagation();
+      selectedAudioFile = null;
+      selectedLocalRecordingFilename = null;
+      selectedLocalRecordingMeta = null;
+      selectedLocalRecordingHasTimeline = false;
+      const audioInput = document.getElementById("audioFileInput");
+      if (audioInput) audioInput.value = "";
+      const multiInput = document.getElementById("multiFileInput");
+      if (multiInput) multiInput.value = "";
+      updateSelectedFilesUI();
+    }
+
+    function clearSelectedTimeline(e) {
+      if (e) e.stopPropagation();
+      selectedTimelineFile = null;
+      selectedLocalRecordingHasTimeline = false;
+      const timelineInput = document.getElementById("timelineFileInput");
+      if (timelineInput) timelineInput.value = "";
+      const multiInput = document.getElementById("multiFileInput");
+      if (multiInput) multiInput.value = "";
+      updateSelectedFilesUI();
+    }
+
+    function updateSelectedFilesUI() {
+      const btn = document.getElementById("btnFile");
+      const dropZone = document.getElementById("dropZone");
+
+      // Audio Slot Elements
+      const slotAudioCard = document.getElementById("slotAudioCard");
+      const btnClearAudio = document.getElementById("btnClearAudio");
+      const slotAudioEmpty = document.getElementById("slotAudioEmpty");
+      const slotAudioFilled = document.getElementById("slotAudioFilled");
+      const slotAudioName = document.getElementById("slotAudioName");
+      const slotAudioMeta = document.getElementById("slotAudioMeta");
+
+      // Timeline Slot Elements
+      const slotTimelineCard = document.getElementById("slotTimelineCard");
+      const btnClearTimeline = document.getElementById("btnClearTimeline");
+      const slotTimelineEmpty = document.getElementById("slotTimelineEmpty");
+      const slotTimelineFilled = document.getElementById("slotTimelineFilled");
+      const slotTimelineName = document.getElementById("slotTimelineName");
+      const slotTimelineMeta = document.getElementById("slotTimelineMeta");
+
+      // 1. Audio Slot State
+      const hasAudio = Boolean(selectedAudioFile || selectedLocalRecordingFilename);
+      if (selectedAudioFile) {
+        if (slotAudioEmpty) slotAudioEmpty.classList.add("hidden");
+        if (slotAudioFilled) slotAudioFilled.classList.remove("hidden");
+        if (slotAudioName) slotAudioName.textContent = selectedAudioFile.name;
+        if (slotAudioMeta) slotAudioMeta.textContent = `Archivo de audio (${(selectedAudioFile.size / (1024 * 1024)).toFixed(1)} MB)`;
+        if (btnClearAudio) btnClearAudio.classList.remove("hidden");
+        if (slotAudioCard) {
+          slotAudioCard.classList.add("border-emerald-500/50", "bg-emerald-950/20");
+          slotAudioCard.classList.remove("border-slate-800", "bg-slate-900/60");
         }
+      } else if (selectedLocalRecordingFilename) {
+        if (slotAudioEmpty) slotAudioEmpty.classList.add("hidden");
+        if (slotAudioFilled) slotAudioFilled.classList.remove("hidden");
+        if (slotAudioName) slotAudioName.textContent = selectedLocalRecordingFilename;
+        const mb = selectedLocalRecordingMeta?.size_mb ? ` (${selectedLocalRecordingMeta.size_mb} MB)` : "";
+        const folder = selectedLocalRecordingMeta?.folder ? ` en ${selectedLocalRecordingMeta.folder}` : " en data/input";
+        if (slotAudioMeta) slotAudioMeta.textContent = `Grabación local guardada${folder}${mb}`;
+        if (btnClearAudio) btnClearAudio.classList.remove("hidden");
+        if (slotAudioCard) {
+          slotAudioCard.classList.add("border-emerald-500/50", "bg-emerald-950/20");
+          slotAudioCard.classList.remove("border-slate-800", "bg-slate-900/60");
+        }
+      } else {
+        if (slotAudioEmpty) slotAudioEmpty.classList.remove("hidden");
+        if (slotAudioFilled) slotAudioFilled.classList.add("hidden");
+        if (btnClearAudio) btnClearAudio.classList.add("hidden");
+        if (slotAudioCard) {
+          slotAudioCard.classList.remove("border-emerald-500/50", "bg-emerald-950/20");
+          slotAudioCard.classList.add("border-slate-800", "bg-slate-900/60");
+        }
+      }
+
+      // 2. Timeline Slot State
+      const hasAutoTimeline = Boolean(selectedLocalRecordingFilename && selectedLocalRecordingHasTimeline);
+      if (selectedTimelineFile) {
+        if (slotTimelineEmpty) slotTimelineEmpty.classList.add("hidden");
+        if (slotTimelineFilled) slotTimelineFilled.classList.remove("hidden");
+        if (slotTimelineName) slotTimelineName.textContent = selectedTimelineFile.name;
+        if (slotTimelineMeta) slotTimelineMeta.textContent = `Archivo timeline subido (${(selectedTimelineFile.size / 1024).toFixed(1)} KB)`;
+        if (btnClearTimeline) btnClearTimeline.classList.remove("hidden");
+        if (slotTimelineCard) {
+          slotTimelineCard.classList.add("border-indigo-500/50", "bg-indigo-950/20");
+          slotTimelineCard.classList.remove("border-slate-800", "bg-slate-900/60");
+        }
+      } else if (hasAutoTimeline) {
+        const stem = selectedLocalRecordingFilename.replace(/\.[^.]+$/, "");
+        if (slotTimelineEmpty) slotTimelineEmpty.classList.add("hidden");
+        if (slotTimelineFilled) slotTimelineFilled.classList.remove("hidden");
+        if (slotTimelineName) slotTimelineName.textContent = `${stem}.timeline.json`;
+        if (slotTimelineMeta) slotTimelineMeta.textContent = "Timeline de Discord detectado en tu PC junto al audio";
+        if (btnClearTimeline) btnClearTimeline.classList.remove("hidden");
+        if (slotTimelineCard) {
+          slotTimelineCard.classList.add("border-indigo-500/50", "bg-indigo-950/20");
+          slotTimelineCard.classList.remove("border-slate-800", "bg-slate-900/60");
+        }
+      } else {
+        if (slotTimelineEmpty) slotTimelineEmpty.classList.remove("hidden");
+        if (slotTimelineFilled) slotTimelineFilled.classList.add("hidden");
+        if (btnClearTimeline) btnClearTimeline.classList.add("hidden");
+        if (slotTimelineCard) {
+          slotTimelineCard.classList.remove("border-indigo-500/50", "bg-indigo-950/20");
+          slotTimelineCard.classList.add("border-slate-800", "bg-slate-900/60");
+        }
+      }
+
+      // 3. DropZone visual state
+      if (dropZone) {
+        if (hasAudio && (selectedTimelineFile || hasAutoTimeline)) {
+          dropZone.classList.add("border-emerald-500/50", "bg-emerald-950/10");
+        } else if (hasAudio) {
+          dropZone.classList.add("border-indigo-500/40", "bg-slate-950");
+          dropZone.classList.remove("border-emerald-500/50", "bg-emerald-950/10");
+        } else {
+          dropZone.classList.remove("border-emerald-500/50", "bg-emerald-950/10", "border-indigo-500/40");
+        }
+      }
+
+      // 4. Submit button state
+      if (btn) {
+        btn.disabled = !hasAudio;
       }
     }
 
-    function selectExistingRecording(filename) {
+    function selectExistingRecording(filename, hasTimeline = false, sizeMb = null, folder = null) {
       selectedLocalRecordingFilename = filename;
-      const btn = document.getElementById("btnFile");
-      const label = document.getElementById("selectedFileName");
-      if (btn) btn.disabled = false;
-      if (label) {
-        label.textContent = "Grabación Local Seleccionada: " + filename;
-        label.classList.remove("hidden");
-      }
-      const zone = document.getElementById("dropZone");
-      if (zone) zone.classList.add("border-emerald-500/50", "bg-emerald-950/10");
+      selectedLocalRecordingHasTimeline = Boolean(hasTimeline);
+      selectedLocalRecordingMeta = { size_mb: sizeMb, folder: folder };
+      selectedAudioFile = null;
+      const audioInput = document.getElementById("audioFileInput");
+      if (audioInput) audioInput.value = "";
+      const multiInput = document.getElementById("multiFileInput");
+      if (multiInput) multiInput.value = "";
+      updateSelectedFilesUI();
     }
 
     async function loadLocalRecordingsList() {
@@ -6743,8 +7087,9 @@ function refreshAudioDevices() {
         if (!res.ok) throw new Error("No se pudieron cargar las grabaciones.");
         const data = await res.json();
         const files = data.files || [];
+        window.localRecordingsCache = files;
         if (files.length === 0) {
-          container.innerHTML = `<p class="text-slate-500 italic text-[11px]">No hay grabaciones en data/input aún.</p>`;
+          container.innerHTML = `<p class="text-slate-500 italic text-[11px]">No hay grabaciones en data/input ni en campañas aún.</p>`;
           return;
         }
         let html = '<div class="space-y-1.5 max-h-48 overflow-y-auto pr-1">';
@@ -6752,18 +7097,20 @@ function refreshAudioDevices() {
           const isLatest = idx === 0;
           html += `
             <div class="flex items-center justify-between p-2 rounded-xl bg-slate-900/80 hover:bg-slate-800/80 border border-slate-800 transition text-left cursor-pointer group"
-                 onclick="selectExistingRecording('${f.filename}')">
+                 onclick="selectExistingRecording('${f.filename}', ${f.has_timeline ? 'true' : 'false'}, ${f.size_mb}, '${f.folder || 'data/input'}')">
               <div class="min-w-0 pr-2">
-                <div class="flex items-center gap-1.5">
+                <div class="flex items-center gap-1.5 flex-wrap">
                   <span class="font-mono text-xs text-slate-200 group-hover:text-amber-400 font-medium truncate">${f.filename}</span>
                   ${isLatest ? '<span class="text-[9px] px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-400 font-semibold border border-emerald-500/30">MÁS RECIENTE</span>' : ''}
+                  ${f.has_timeline ? '<span class="text-[9px] px-1.5 py-0.5 rounded bg-indigo-500/20 text-indigo-300 font-semibold border border-indigo-500/30">🎧 Con Timeline</span>' : ''}
                 </div>
                 <div class="text-[10px] text-slate-500 flex items-center gap-2 mt-0.5">
                   <span>📅 ${f.created_at}</span>
                   <span>💾 ${f.size_mb} MB</span>
+                  ${f.folder ? `<span class="text-indigo-400/80">📁 ${f.folder}</span>` : ''}
                 </div>
               </div>
-              <button type="button" class="shrink-0 text-xs px-2.5 py-1 rounded-lg bg-indigo-600/30 hover:bg-indigo-600 text-indigo-300 hover:text-white font-medium border border-indigo-500/30 transition">
+              <button type="button" class="shrink-0 text-xs px-2.5 py-1 rounded-lg bg-indigo-600/30 hover:bg-indigo-600 text-indigo-300 hover:text-white font-medium border border-indigo-500/30 transition cursor-pointer">
                 Usar
               </button>
             </div>
@@ -6777,20 +7124,12 @@ function refreshAudioDevices() {
     }
 
     async function transcribeFile() {
-      // Buscar por ID específico o fallback directo al input de tipo file de la pestaña activa
-      const fileInput = document.getElementById('audioFileInput') || 
-                        document.getElementById('localAudioFile') || 
-                        document.getElementById('audioFile') ||
-                        document.querySelector('#tabFileContent input[type="file"]') ||
-                        document.querySelector('#tab-archivo-local input[type="file"]') ||
-                        document.querySelector('input[type="file"]');
-
-      const hasUploadedFile = Boolean(fileInput && fileInput.files && fileInput.files.length > 0);
-      if (!selectedLocalRecordingFilename && !hasUploadedFile) {
-        if (typeof showAlert === "function") {
-          showAlert("Por favor selecciona o arrastra un archivo de audio, o elige una grabación local de la lista.");
+      const hasAudio = Boolean(selectedLocalRecordingFilename || selectedAudioFile);
+      if (!hasAudio) {
+        if (selectedTimelineFile) {
+          showAlert("⚠️ Has seleccionado el archivo de timeline (.timeline.json), pero falta el archivo de audio (.wav o .mp3). Por favor selecciona o arrastra el archivo de audio correspondiente, o elige una grabación local de la lista.");
         } else {
-          alert("Por favor selecciona o arrastra un archivo de audio, o elige una grabación local de la lista.");
+          showAlert("⚠️ Por favor selecciona o arrastra un archivo de audio, o elige una grabación local de la lista.");
         }
         return;
       }
@@ -6845,8 +7184,12 @@ function refreshAudioDevices() {
         formData.append("task_id", taskId);
         if (selectedLocalRecordingFilename) {
           formData.append("existing_filename", selectedLocalRecordingFilename);
-        } else if (hasUploadedFile) {
-          formData.append("file", fileInput.files[0]);
+        } else if (selectedAudioFile) {
+          formData.append("file", selectedAudioFile);
+        }
+
+        if (selectedTimelineFile) {
+          formData.append("timeline_file", selectedTimelineFile);
         }
         formData.append("model_size", modelSize);
         formData.append("engine", engine);
@@ -8163,6 +8506,7 @@ function refreshAudioDevices() {
       const emptyState = document.getElementById("wikiEmptyCampaignState");
       const explorerLayout = document.getElementById("wikiExplorerLayout");
       const select = document.getElementById("wikiCampaignSelect");
+      const sessionExportContainer = document.getElementById("wikiSessionExportContainer");
 
       if (!campName || !campName.trim()) {
         currentWikiCampaignState = null;
@@ -8170,6 +8514,7 @@ function refreshAudioDevices() {
         if (select) select.value = "";
         if (emptyState) emptyState.classList.remove("hidden");
         if (explorerLayout) explorerLayout.classList.add("hidden");
+        if (sessionExportContainer) sessionExportContainer.classList.add("hidden");
         return;
       }
 
@@ -8189,6 +8534,7 @@ function refreshAudioDevices() {
           selectedWikiEntity = null;
           if (emptyState) emptyState.classList.add("hidden");
           if (explorerLayout) explorerLayout.classList.remove("hidden");
+          populateWikiSessionExportDropdown(currentWikiCampaignState.sessions || currentWikiCampaignState.chronicles || []);
           renderWikiCategoryPills();
           renderWikiEntityList();
           renderWikiDossier();
@@ -8196,12 +8542,14 @@ function refreshAudioDevices() {
           currentWikiCampaignState = null;
           if (emptyState) emptyState.classList.remove("hidden");
           if (explorerLayout) explorerLayout.classList.add("hidden");
+          if (sessionExportContainer) sessionExportContainer.classList.add("hidden");
         }
       } catch (err) {
         console.error("Error loading wiki campaign data:", err);
         currentWikiCampaignState = null;
         if (emptyState) emptyState.classList.remove("hidden");
         if (explorerLayout) explorerLayout.classList.add("hidden");
+        if (sessionExportContainer) sessionExportContainer.classList.add("hidden");
       }
     }
 
@@ -8504,6 +8852,12 @@ function refreshAudioDevices() {
 
 async function selectWikiEntity(type, key, data) {
       selectedWikiEntity = { type, key, data };
+      if (type === "session") {
+        const expSelect = document.getElementById("wikiSessionExportSelect");
+        if (expSelect && (key || (data && data.session_number))) {
+          expSelect.value = String(key || data.session_number);
+        }
+      }
       renderWikiEntityList();
 
       // If selecting a session and full chronicle / transcript not yet loaded, fetch session details
@@ -8663,12 +9017,88 @@ async function selectWikiEntity(type, key, data) {
       `;
     }
 
+    function populateWikiSessionExportDropdown(rawSessions, selectedNum = null) {
+      const selectEl = document.getElementById("wikiSessionExportSelect");
+      const containerEl = document.getElementById("wikiSessionExportContainer");
+      if (!selectEl) return;
+
+      const sessionsList = Array.isArray(rawSessions) ? rawSessions : Object.values(rawSessions || {});
+      if (!sessionsList || sessionsList.length === 0) {
+        if (containerEl) containerEl.classList.add("hidden");
+        selectEl.innerHTML = '<option value="">Sin sesiones</option>';
+        return;
+      }
+
+      if (containerEl) containerEl.classList.remove("hidden");
+
+      // Sort sessions descending (highest session number first)
+      const sorted = [...sessionsList].sort((a, b) => {
+        const numA = parseInt(a.session_number || a.number || 0, 10);
+        const numB = parseInt(b.session_number || b.number || 0, 10);
+        return numB - numA;
+      });
+
+      const maxNum = sorted.length > 0 ? (sorted[0].session_number || sorted[0].number || "1") : "1";
+      const targetVal = selectedNum ? String(selectedNum) : String(maxNum);
+
+      selectEl.innerHTML = sorted.map((s, idx) => {
+        const num = String(s.session_number || s.number || (sorted.length - idx));
+        const rawTitle = (s.session_title || s.title || "").trim();
+        const cleanTitle = rawTitle.replace(/^(?:sesi[oó]n|session)\s*#?\d+\s*[:\-]\s*/i, "").trim();
+        const isLatest = idx === 0;
+        const label = isLatest
+          ? `Sesión #${num} (Última)${cleanTitle ? `: ${cleanTitle}` : ""}`
+          : `Sesión #${num}${cleanTitle ? `: ${cleanTitle}` : ""}`;
+        return `<option value="${escapeHtml(num)}">${escapeHtml(label)}</option>`;
+      }).join("");
+
+      selectEl.value = targetVal;
+    }
+
+    function onWikiSessionExportSelectChanged(val) {
+      if (!val || !currentWikiCampaignState) return;
+      const rawSessions = currentWikiCampaignState.sessions || currentWikiCampaignState.chronicles || [];
+      const sessionList = Array.isArray(rawSessions) ? rawSessions : Object.values(rawSessions);
+      const targetSession = sessionList.find(s => String(s.session_number || s.number) === String(val));
+      if (targetSession) {
+        activeWikiCategory = "sessions";
+        renderWikiCategoryPills();
+        selectWikiEntity("session", targetSession.session_number || val, targetSession);
+      }
+    }
+
+    function updateWikiHeaderSessionButtons() {
+      const selectEl = document.getElementById("wikiSessionExportSelect");
+      if (selectedWikiEntity && selectedWikiEntity.type === "session" && selectedWikiEntity.data) {
+        const num = String(selectedWikiEntity.data.session_number || selectedWikiEntity.key || "1");
+        if (selectEl && selectEl.value !== num) {
+          selectEl.value = num;
+        }
+      }
+    }
+
+    function downloadSelectedWikiSessionDocx(withoutCoaching = false) {
+      const selectEl = document.getElementById("wikiSessionExportSelect");
+      let sess = selectEl ? selectEl.value : null;
+      if (!sess) {
+        sess = (selectedWikiEntity && selectedWikiEntity.type === "session" && selectedWikiEntity.data)
+          ? (selectedWikiEntity.data.session_number || selectedWikiEntity.key)
+          : (currentWikiSessionData && currentWikiSessionData.session_number);
+      }
+      if (!sess) {
+        showAlert("Por favor selecciona una sesión en el selector superior o en la lista de la wiki.");
+        return;
+      }
+      downloadSessionDocx(sess, withoutCoaching);
+    }
+
     function renderWikiDossier() {
       const emptyEl = document.getElementById("wikiDossierEmpty");
       const contentEl = document.getElementById("wikiDossierContent");
       if (!emptyEl || !contentEl) return;
 
       if (!selectedWikiEntity || !selectedWikiEntity.data) {
+        updateWikiHeaderSessionButtons();
         if (activeWikiCategory === "pcs") {
           emptyEl.classList.add("hidden");
           contentEl.classList.remove("hidden");
@@ -8697,6 +9127,7 @@ async function selectWikiEntity(type, key, data) {
       } else if (type === "session") {
         contentEl.innerHTML = buildSessionDossierHtml(data);
       }
+      updateWikiHeaderSessionButtons();
     }
 
     function buildLocationDossierHtml(loc) {
@@ -8878,8 +9309,8 @@ async function selectWikiEntity(type, key, data) {
 
       return `
         <div class="space-y-4">
-          <!-- Session Header -->
-          <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border-b border-slate-800 pb-3">
+          <!-- Session Header (Sticky & Persistent) -->
+          <div class="sticky -top-6 z-20 bg-slate-950/95 backdrop-blur-md pb-3 pt-2 border-b border-slate-800 -mx-6 px-6 mb-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-lg">
             <div>
               <div class="flex items-center gap-2">
                 <span class="px-2.5 py-0.5 rounded-full text-xs font-bold font-mono bg-amber-500/20 text-amber-300 border border-amber-500/30">Sesión #${num}</span>
@@ -8890,7 +9321,21 @@ async function selectWikiEntity(type, key, data) {
                 const cleanTitle = rawTitle.replace(/^(?:sesi[oó]n|session)\s*#?\d+\s*[:\-]\s*/i, "").trim();
                 return cleanTitle ? `Sesión #${num}: ${cleanTitle}` : `Sesión #${num}`;
               })())}</h3>
-              ${summaryStr ? `<p class="text-xs text-slate-400 mt-1 max-w-xl">${escapeHtml(summaryStr)}</p>` : ''}
+              ${summaryStr ? `<p class="text-xs text-slate-400 mt-1 max-w-xl truncate">${escapeHtml(summaryStr)}</p>` : ''}
+            </div>
+            <div class="flex flex-wrap items-center gap-2 self-start sm:self-center shrink-0">
+              <button type="button" onclick="downloadSessionDocx(${num}, false)" title="Descargar documento Word completo únicamente de la Sesión #${num}"
+                class="min-h-[36px] px-3.5 py-1.5 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 text-xs font-bold flex items-center gap-1.5 cursor-pointer active:scale-95 transition shadow-sm">
+                <span>📄</span> <span>Descargar Sesión #${num} (.docx)</span>
+              </button>
+              <button type="button" onclick="downloadSessionDocx(${num}, true)" title="Descargar versión limpia para jugadores sin consejos personales"
+                class="min-h-[36px] px-3.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-semibold flex items-center gap-1.5 cursor-pointer active:scale-95 transition shadow-sm">
+                <span>👥</span> <span>Para Jugadores (.docx)</span>
+              </button>
+              <button type="button" onclick="downloadSessionMd(${num}, false)" title="Descargar crónica de esta sesión en Markdown (.md)"
+                class="min-h-[36px] px-3.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-semibold flex items-center gap-1.5 cursor-pointer active:scale-95 transition shadow-sm">
+                <span>📑</span> <span>Sesión .md</span>
+              </button>
             </div>
           </div>
 
@@ -9717,7 +10162,7 @@ async function selectWikiEntity(type, key, data) {
     // -----------------------------------------------------------------
     // Exportación y Descargas del Grimorio
     // -----------------------------------------------------------------
-    function downloadCampaignDocx() {
+    function downloadCampaignDocx(withoutCoaching = false) {
       if (currentWorkspace === "work_and_study" || (currentResult && currentResult.recording_mode === "class")) {
         const file = (currentResult && (currentResult.docx_filename || currentResult.md_filename)) || "apuntes.docx";
         const docxName = file.endsWith(".docx") ? file : file.replace(/\.md$/, ".docx");
@@ -9726,18 +10171,69 @@ async function selectWikiEntity(type, key, data) {
       }
       const wikiSel = document.getElementById("wikiCampaignSelect");
       const campInput = document.getElementById("campaignNameInput");
-      const campName = (wikiSel && wikiSel.value && wikiSel.value.trim()) || (campInput && campInput.value && campInput.value.trim());
+      const campName = (currentResult && currentResult.campaign_name && currentResult.campaign_name.trim()) ||
+                       (currentCampaignState && currentCampaignState.campaign_name && currentCampaignState.campaign_name.trim()) ||
+                       (wikiSel && wikiSel.value && wikiSel.value.trim()) ||
+                       (campInput && campInput.value && campInput.value.trim());
       if (!campName) {
         showAlert("⚠️ Selecciona o abre una campaña para descargar el documento.");
         return;
       }
-      window.location.href = `/api/campaigns/${encodeURIComponent(campName)}/download-docx`;
+      const coachingParam = withoutCoaching ? "?include_coaching=false" : "";
+      window.location.href = `/api/campaigns/${encodeURIComponent(campName)}/download-docx${coachingParam}`;
+    }
+
+    function downloadSessionDocx(sessionNum = null, withoutCoaching = false) {
+      const wikiSel = document.getElementById("wikiCampaignSelect");
+      const campInput = document.getElementById("campaignNameInput");
+      const campName = (currentWikiCampaignState && currentWikiCampaignState.campaign_name && currentWikiCampaignState.campaign_name.trim()) ||
+                       (wikiSel && wikiSel.value && wikiSel.value.trim()) ||
+                       (currentCampaignState && currentCampaignState.campaign_name && currentCampaignState.campaign_name.trim()) ||
+                       (currentResult && currentResult.campaign_name && currentResult.campaign_name.trim()) ||
+                       (campInput && campInput.value && campInput.value.trim());
+      if (!campName) {
+        showAlert("⚠️ Selecciona o abre una campaña para descargar la sesión.");
+        return;
+      }
+      const expSel = document.getElementById("wikiSessionExportSelect");
+      const sess = sessionNum || 
+                   (selectedWikiEntity && selectedWikiEntity.type === 'session' && (selectedWikiEntity.data?.session_number || selectedWikiEntity.key)) ||
+                   (expSel && expSel.value) ||
+                   (currentWikiSessionData && currentWikiSessionData.session_number) || 
+                   (currentResult && currentResult.session_number) || 
+                   1;
+      const coachingParam = withoutCoaching ? "?include_coaching=false" : "";
+      window.location.href = `/api/campaigns/${encodeURIComponent(campName)}/session/${encodeURIComponent(sess)}/download-docx${coachingParam}`;
+    }
+
+    function downloadSessionMd(sessionNum = null, withoutCoaching = false) {
+      const wikiSel = document.getElementById("wikiCampaignSelect");
+      const campInput = document.getElementById("campaignNameInput");
+      const campName = (currentWikiCampaignState && currentWikiCampaignState.campaign_name && currentWikiCampaignState.campaign_name.trim()) ||
+                       (wikiSel && wikiSel.value && wikiSel.value.trim()) ||
+                       (currentCampaignState && currentCampaignState.campaign_name && currentCampaignState.campaign_name.trim()) ||
+                       (currentResult && currentResult.campaign_name && currentResult.campaign_name.trim()) ||
+                       (campInput && campInput.value && campInput.value.trim());
+      if (!campName) {
+        showAlert("⚠️ Selecciona o abre una campaña para descargar la sesión.");
+        return;
+      }
+      const sess = sessionNum || 
+                   (selectedWikiEntity && selectedWikiEntity.type === 'session' && (selectedWikiEntity.data?.session_number || selectedWikiEntity.key)) ||
+                   (currentWikiSessionData && currentWikiSessionData.session_number) || 
+                   (currentResult && currentResult.session_number) || 
+                   1;
+      const coachingParam = withoutCoaching ? "?include_coaching=false" : "";
+      window.location.href = `/api/campaigns/${encodeURIComponent(campName)}/session/${encodeURIComponent(sess)}/download-md${coachingParam}`;
     }
 
     function downloadCampaignMd() {
       const wikiSel = document.getElementById("wikiCampaignSelect");
       const campInput = document.getElementById("campaignNameInput");
-      const campName = (wikiSel && wikiSel.value && wikiSel.value.trim()) || (campInput && campInput.value && campInput.value.trim());
+      const campName = (currentResult && currentResult.campaign_name && currentResult.campaign_name.trim()) ||
+                       (currentCampaignState && currentCampaignState.campaign_name && currentCampaignState.campaign_name.trim()) ||
+                       (wikiSel && wikiSel.value && wikiSel.value.trim()) ||
+                       (campInput && campInput.value && campInput.value.trim());
       if (!campName) {
         showAlert("⚠️ Selecciona o abre una campaña para descargar el documento.");
         return;
@@ -10035,7 +10531,7 @@ async function selectWikiEntity(type, key, data) {
           target_language: newLang,
           recording_mode: isClass ? "class" : "roleplay",
           campaign_name: campName,
-          session_number: isClass ? null : (currentResult.session_number || parseInt(document.getElementById("sessionNumberInput").value) || null),
+          session_number: isClass ? null : (currentResult.session_number || (currentResult.campaign_state && currentResult.campaign_state.last_session) || parseInt(document.getElementById("sessionNumberInput")?.value) || null),
           roster: isClass ? [] : (currentResult.roster || getRosterFromTable(true)),
           subject: isClass ? (currentResult.subject || document.getElementById("lectureSubjectInput")?.value.trim() || "") : "",
           topic: isClass ? (currentResult.topic || document.getElementById("lectureTopicInput")?.value.trim() || "") : "",
@@ -10060,6 +10556,8 @@ async function selectWikiEntity(type, key, data) {
         setTargetLanguage(newLang);
         currentResult.chronicle = data.chronicle;
         currentResult.target_language = newLang;
+        if (data.session_number) currentResult.session_number = data.session_number;
+        if (data.campaign_name) currentResult.campaign_name = data.campaign_name;
         if (data.docx_filename) currentResult.docx_filename = data.docx_filename;
         if (data.md_filename) currentResult.md_filename = data.md_filename;
         if (data.campaign_state) currentResult.campaign_state = data.campaign_state;
@@ -10111,7 +10609,7 @@ async function selectWikiEntity(type, key, data) {
           workspace: isClass ? "work_and_study" : "dnd",
           is_youtube: currentActiveMainTab === "youtube" || !!currentResult.is_youtube,
           campaign_name: campName,
-          session_number: isClass ? null : (currentResult.session_number || parseInt(document.getElementById("sessionNumberInput").value) || null),
+          session_number: isClass ? null : (currentResult.session_number || (currentResult.campaign_state && currentResult.campaign_state.last_session) || parseInt(document.getElementById("sessionNumberInput")?.value) || null),
           roster: isClass ? [] : (currentResult.roster || getRosterFromTable(true)),
           subject: isClass ? (currentResult.subject || document.getElementById("lectureSubjectInput")?.value.trim() || "") : "",
           topic: isClass ? (currentResult.topic || document.getElementById("lectureTopicInput")?.value.trim() || "") : "",
@@ -10132,6 +10630,8 @@ async function selectWikiEntity(type, key, data) {
         if (!res.ok) throw new Error(data.detail || "Error al regenerar la crónica con Gemini.");
 
         currentResult.chronicle = data.chronicle;
+        if (data.session_number) currentResult.session_number = data.session_number;
+        if (data.campaign_name) currentResult.campaign_name = data.campaign_name;
         if (data.docx_filename) currentResult.docx_filename = data.docx_filename;
         if (data.md_filename) currentResult.md_filename = data.md_filename;
         if (data.file_path) currentResult.file_path = data.file_path;
@@ -10930,6 +11430,12 @@ async function selectWikiEntity(type, key, data) {
     window.exportCampaignByName = exportCampaignByName;
     window.exportCurrentCampaign = exportCurrentCampaign;
     window.exportCurrentCampaignFromWiki = exportCurrentCampaignFromWiki;
+    window.downloadSessionDocx = downloadSessionDocx;
+    window.downloadSessionMd = downloadSessionMd;
+    window.downloadSelectedWikiSessionDocx = downloadSelectedWikiSessionDocx;
+    window.populateWikiSessionExportDropdown = populateWikiSessionExportDropdown;
+    window.onWikiSessionExportSelectChanged = onWikiSessionExportSelectChanged;
+    window.updateWikiHeaderSessionButtons = updateWikiHeaderSessionButtons;
     window.triggerImportCampaign = triggerImportCampaign;
     window.handleCampaignImportFile = handleCampaignImportFile;
     window.connectGoogleDriveUpfront = connectGoogleDriveUpfront;

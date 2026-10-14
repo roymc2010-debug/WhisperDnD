@@ -397,6 +397,7 @@ async function onWikiCampaignSelected(campName) {
       renderWikiCategoryPills();
       renderWikiEntityList();
       renderWikiDossier();
+      updateWikiSessionExportSelect(currentWikiCampaignState);
     } else {
       currentWikiCampaignState = null;
       if (emptyState) emptyState.classList.remove("hidden");
@@ -2177,3 +2178,70 @@ window.onCampaignDropdownChanged = onCampaignDropdownChanged;
 window.onUserCharacterSelected = onUserCharacterSelected;
 window.toggleNewCharacterMode = toggleNewCharacterMode;
 window.saveCharacterBackstory = saveCharacterBackstory;
+
+// =========================================================================
+// WIKI SESSION WORD EXPORT (.DOCX)
+// =========================================================================
+function updateWikiSessionExportSelect(state) {
+  const select = document.getElementById("wikiSessionExportSelect");
+  if (!select) return;
+  const rawSessions = (state && (state.sessions || state.chronicles)) || [];
+  const sessions = Array.isArray(rawSessions) ? rawSessions : Object.values(rawSessions);
+  if (sessions.length === 0) {
+    select.innerHTML = '<option value="">Sin sesiones</option>';
+    return;
+  }
+  select.innerHTML = "";
+  const sorted = [...sessions].sort((a, b) => (parseInt(b.session_number || b.number || 0)) - (parseInt(a.session_number || a.number || 0)));
+  sorted.forEach((s, idx) => {
+    const opt = document.createElement("option");
+    const num = s.session_number || s.number || (idx + 1);
+    opt.value = num;
+    const isLatest = idx === 0 ? " (Última)" : "";
+    opt.textContent = `Sesión #${num}${isLatest}`;
+    select.appendChild(opt);
+  });
+}
+
+function onWikiSessionExportSelectChanged(val) {
+  const num = parseInt(val);
+  if (num && currentWikiCampaignState) {
+    const rawSessions = currentWikiCampaignState.sessions || currentWikiCampaignState.chronicles || [];
+    const sessions = Array.isArray(rawSessions) ? rawSessions : Object.values(rawSessions);
+    const s = sessions.find(x => parseInt(x.session_number || x.number || 0) === num);
+    if (s && activeWikiCategory === "sessions") {
+      selectWikiEntity("session", num, s);
+    }
+  }
+}
+
+function downloadSelectedWikiSessionDocx(cleanMode = false) {
+  const select = document.getElementById("wikiCampaignSelect");
+  const campInput = document.getElementById("campaignNameInput");
+  const campName = (select && select.value && select.value.trim()) || (campInput && campInput.value && campInput.value.trim());
+  if (!campName) {
+    if (typeof showAlert === "function") showAlert("⚠️ Selecciona una campaña primero para descargar la sesión.");
+    else alert("Selecciona una campaña primero para descargar la sesión.");
+    return;
+  }
+  const sessionSelect = document.getElementById("wikiSessionExportSelect");
+  let num = sessionSelect ? parseInt(sessionSelect.value) : null;
+  if (!num && currentWikiSessionData) {
+    num = currentWikiSessionData.session_number;
+  }
+  if (!num && currentWikiCampaignState) {
+    const rawSessions = currentWikiCampaignState.sessions || currentWikiCampaignState.chronicles || [];
+    const sessions = Array.isArray(rawSessions) ? rawSessions : Object.values(rawSessions);
+    if (sessions.length > 0) {
+      num = sessions[sessions.length - 1].session_number || sessions[sessions.length - 1].number;
+    }
+  }
+  if (!num) num = 1;
+
+  const includeCoaching = !cleanMode;
+  window.location.href = `/api/campaigns/${encodeURIComponent(campName)}/session/${encodeURIComponent(num)}/download-docx?include_coaching=${includeCoaching}`;
+}
+
+window.updateWikiSessionExportSelect = updateWikiSessionExportSelect;
+window.onWikiSessionExportSelectChanged = onWikiSessionExportSelectChanged;
+window.downloadSelectedWikiSessionDocx = downloadSelectedWikiSessionDocx;

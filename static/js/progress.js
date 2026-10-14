@@ -89,28 +89,17 @@ function startProgressAnimationLoop() {
   const tick = () => {
     let diff = targetProgressPercent - currentProgressPercent;
 
-    if (diff > 0.05) {
-      // Easing suave hacia el hito reportado por el backend
-      const step = Math.max(0.05, diff * 0.12);
-      currentProgressPercent = Math.min(targetProgressPercent, currentProgressPercent + step);
-    } else if (currentTaskId && targetProgressPercent > 0.0 && targetProgressPercent < 99.0) {
-      // Micro-incremento fluido y vivo mientras el backend procesa entre polls (con decimales)
-      let stageCeiling = 98.5;
-      if (progressCurrentStage === "audio") stageCeiling = 24.9;
-      else if (progressCurrentStage === "segmenting") stageCeiling = 29.9;
-      else if (progressCurrentStage === "transcribing") stageCeiling = 79.9;
-      else if (progressCurrentStage === "analyzing") stageCeiling = 98.9;
-
-      if (currentProgressPercent < stageCeiling) {
-        currentProgressPercent = Math.min(stageCeiling, currentProgressPercent + 0.035);
-      }
-    } else if (targetProgressPercent >= 100.0) {
-      currentProgressPercent = 100.0;
+    if (Math.abs(diff) > 0.05) {
+      // Easing suave hacia el porcentaje real reportado por el backend
+      const step = diff * 0.15;
+      currentProgressPercent += step;
+    } else {
+      currentProgressPercent = targetProgressPercent;
     }
 
     renderProgressDOM(currentProgressPercent);
 
-    if (currentTaskId || currentProgressPercent < targetProgressPercent) {
+    if (currentTaskId || Math.abs(currentProgressPercent - targetProgressPercent) > 0.05) {
       progressAnimationRaf = requestAnimationFrame(tick);
     } else {
       progressAnimationRaf = null;
@@ -171,16 +160,27 @@ function startProgressTracking(taskId, initialTitle, initialDesc) {
 
 function setStageElementState(el, state) {
   if (!el) return;
+  const isHidden = el.classList.contains("hidden") || (el.id === "stageAudio" && !isYoutubeStepper);
   const icon = el.querySelector(".stage-icon");
+  const baseClasses = "p-2.5 rounded-xl text-left space-y-1 transition-all";
+
   if (state === "active") {
-    el.className = "p-2.5 rounded-xl border border-amber-500/60 bg-amber-950/30 text-left space-y-1 transition-all ring-1 ring-amber-500/50 shadow-md shadow-amber-900/20";
+    el.className = `${baseClasses} border border-amber-500/60 bg-amber-950/30 ring-1 ring-amber-500/50 shadow-md shadow-amber-900/20`;
     if (icon) icon.textContent = "⚡";
   } else if (state === "completed") {
-    el.className = "p-2.5 rounded-xl border border-emerald-500/40 bg-emerald-950/20 text-left space-y-1 transition-all";
+    el.className = `${baseClasses} border border-emerald-500/40 bg-emerald-950/20`;
     if (icon) icon.textContent = "✓";
   } else {
-    el.className = "p-2.5 rounded-xl border border-slate-800 bg-slate-950/60 text-left space-y-1 transition-all opacity-60";
+    el.className = `${baseClasses} border border-slate-800 bg-slate-950/60 opacity-60`;
     if (icon) icon.textContent = "⏳";
+  }
+
+  if (isHidden) {
+    el.classList.add("hidden");
+    el.style.display = "none";
+  } else {
+    el.classList.remove("hidden");
+    el.style.display = "";
   }
 }
 
@@ -216,7 +216,10 @@ function updateStepperMode(isYoutube) {
     if (container) {
       container.className = "grid grid-cols-1 md:grid-cols-4 gap-2 pt-1";
     }
-    if (stageAudio) stageAudio.classList.remove("hidden");
+    if (stageAudio) {
+      stageAudio.classList.remove("hidden");
+      stageAudio.style.display = "";
+    }
     if (stageAudioStep) stageAudioStep.textContent = "Paso 1";
     if (stageTranscribeStep) stageTranscribeStep.textContent = "Paso 2";
     if (stageTranscribeDesc) stageTranscribeDesc.textContent = "30% – 75% (Whisper)";
@@ -226,7 +229,10 @@ function updateStepperMode(isYoutube) {
     if (container) {
       container.className = "grid grid-cols-1 md:grid-cols-3 gap-2 pt-1";
     }
-    if (stageAudio) stageAudio.classList.add("hidden");
+    if (stageAudio) {
+      stageAudio.classList.add("hidden");
+      stageAudio.style.display = "none";
+    }
     if (stageTranscribeStep) stageTranscribeStep.textContent = "Paso 1";
     if (stageTranscribeDesc) stageTranscribeDesc.textContent = "0% – 75% (Whisper)";
     if (stageGeminiStep) stageGeminiStep.textContent = "Paso 2";
@@ -239,15 +245,24 @@ function updateStageHighlights(p, stage = null) {
   const elTranscribe = document.getElementById("stageTranscribe");
   const elGemini = document.getElementById("stageGemini");
   const elDone = document.getElementById("stageDone");
+  const container = document.getElementById("stepperContainer");
 
   if (isYoutubeStepper) {
+    if (container && !container.className.includes("md:grid-cols-4")) {
+      container.className = "grid grid-cols-1 md:grid-cols-4 gap-2 pt-1";
+    }
+    if (elAudio) {
+      elAudio.classList.remove("hidden");
+      elAudio.style.display = "";
+    }
+
     if (stage) {
       if (stage === "audio") {
         setStageElementState(elAudio, "active");
         setStageElementState(elTranscribe, "waiting");
         setStageElementState(elGemini, "waiting");
         setStageElementState(elDone, "waiting");
-      } else if (stage === "transcribing") {
+      } else if (stage === "segmenting" || stage === "transcribing") {
         setStageElementState(elAudio, "completed");
         setStageElementState(elTranscribe, "active");
         setStageElementState(elGemini, "waiting");
@@ -265,32 +280,37 @@ function updateStageHighlights(p, stage = null) {
       }
     } else {
       setStageElementState(elAudio, p >= 30.0 ? "completed" : (p > 0.0 ? "active" : "waiting"));
-      setStageElementState(elTranscribe, p >= 75.0 ? "completed" : (p >= 30.0 ? "active" : "waiting"));
-      setStageElementState(elGemini, p >= 95.0 ? "completed" : (p >= 75.0 ? "active" : "waiting"));
+      setStageElementState(elTranscribe, p >= 80.0 ? "completed" : (p >= 30.0 ? "active" : "waiting"));
+      setStageElementState(elGemini, p >= 98.0 ? "completed" : (p >= 80.0 ? "active" : "waiting"));
       setStageElementState(elDone, p >= 100.0 ? "completed" : "waiting");
     }
   } else {
+    // Mode Local / En vivo: stageAudio ALWAYS hidden, exactly 3 steps in 1 row
+    if (container && !container.className.includes("md:grid-cols-3")) {
+      container.className = "grid grid-cols-1 md:grid-cols-3 gap-2 pt-1";
+    }
+    if (elAudio) {
+      elAudio.classList.add("hidden");
+      elAudio.style.display = "none";
+    }
+
     if (stage) {
-      if (stage === "audio" || stage === "transcribing") {
-        setStageElementState(elAudio, "waiting");
+      if (stage === "audio" || stage === "segmenting" || stage === "transcribing") {
         setStageElementState(elTranscribe, "active");
         setStageElementState(elGemini, "waiting");
         setStageElementState(elDone, "waiting");
       } else if (stage === "analyzing") {
-        setStageElementState(elAudio, "waiting");
         setStageElementState(elTranscribe, "completed");
         setStageElementState(elGemini, "active");
         setStageElementState(elDone, "waiting");
       } else if (stage === "done" || p >= 100.0) {
-        setStageElementState(elAudio, "waiting");
         setStageElementState(elTranscribe, "completed");
         setStageElementState(elGemini, "completed");
         setStageElementState(elDone, "completed");
       }
     } else {
-      setStageElementState(elAudio, "waiting");
-      setStageElementState(elTranscribe, p >= 75.0 ? "completed" : (p > 0.0 ? "active" : "waiting"));
-      setStageElementState(elGemini, p >= 95.0 ? "completed" : (p >= 75.0 ? "active" : "waiting"));
+      setStageElementState(elTranscribe, p >= 80.0 ? "completed" : (p > 0.0 ? "active" : "waiting"));
+      setStageElementState(elGemini, p >= 98.0 ? "completed" : (p >= 80.0 ? "active" : "waiting"));
       setStageElementState(elDone, p >= 100.0 ? "completed" : "waiting");
     }
   }

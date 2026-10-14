@@ -3,6 +3,7 @@
 import os
 import re
 import sys
+import time
 import subprocess
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
@@ -105,20 +106,30 @@ def _format_hhmmss(seconds: float) -> str:
     return f"{hrs:02d}:{mins:02d}:{secs:02d}"
 
 
-def clean_whisper_hallucinations(text: str) -> str:
+def clean_whisper_hallucinations(text: str, roster: Optional[List[Dict[str, Any]]] = None) -> str:
     """
     Remove repetitive artifact hallucination patterns from Whisper output,
     such as edition tags (5e, 6e, 7e, 5e., 6e-, etc.), leading edition prefixes,
+    subtitle prefixes (E. , B. , T. ), hallucinated acronym chains,
     and repetitive stutter loops (e.g. 'o o o o', 'la la la la').
+    Also applies phonetic roster name normalization.
     """
     if not text:
         return ""
     # Strip edition artifacts like "5e", "6e", "7e", "6e-", "7e-", "5e.", "5e,"
     cleaned = re.sub(r'(?i)(?:^|(?<=[\s.,;:!?¿¡]))[5-9]e[-.:,]?(?=[\s.,;:!?¿¡]|$)', '', text)
     cleaned = re.sub(r'^\s*(?:[5-9]e[-.:,]?\s*)+', '', cleaned, flags=re.IGNORECASE)
+    # Strip hallucinated single-letter and subtitle speaker prefixes (e.g. 'E. ', 'B. ', 'T. ', 'E.R.E.D.E.R.: ')
+    cleaned = re.sub(r'^\s*(?:[A-Z]\.|\b[A-Z]:|[A-Z]\.[A-Z\.]+:?)\s*', '', cleaned)
+    cleaned = re.sub(r'(?<=[.!?¿¡])\s+(?:[A-Z]\.|\b[A-Z]:|[A-Z]\.[A-Z\.]+:?)\s+', ' ', cleaned)
+    # Strip hallucinated dotted acronym chains (e.g. S.I.C.I., S.T.A.A.R.E.A.N.T.I.F.A.R.E.)
+    cleaned = re.sub(r'(?i)\b(?:el\s+)?(?:[A-Z]\.){3,}[A-Z]?(?:\s+de\s+la)?(?=\s|[.,;:!?]|$)', '', cleaned)
+    cleaned = re.sub(r'\b(?:[A-Z]\.){3,}[A-Z]?(?=\s|[.,;:!?]|$)', '', cleaned)
     # Clean repetitive single letters or short syllables (e.g., 'o o o o', 'ah ah ah ah')
     cleaned = re.sub(r'(?i)\b([a-zñáéíóú])(?:\s+\1\b){3,}', '', cleaned)
     cleaned = re.sub(r'(?i)\b([a-zñáéíóú]{1,3})(?:\s+\1\b){4,}', '', cleaned)
+    # Strip repeating multi-word hallucination loops (e.g. 'Eclésion de el Zodíaco, Eclésion...')
+    cleaned = re.sub(r'(\b[\w\s]{4,30}\b)(?:\s*,?\s*\1){2,}', r'\1', cleaned, flags=re.IGNORECASE)
     # Clean empty punctuation pairs left behind by hallucinations like "¿?" or "¡!"
     cleaned = re.sub(r'¿\s*\?', '', cleaned)
     cleaned = re.sub(r'¡\s*!', '', cleaned)
@@ -126,7 +137,163 @@ def clean_whisper_hallucinations(text: str) -> str:
     cleaned = re.sub(r'\s+([.,;:!?])', r'\1', cleaned)
     cleaned = re.sub(r'^\s*[-.,;:!?]+\s*', '', cleaned)
     cleaned = re.sub(r'\s{2,}', ' ', cleaned).strip()
+
+    # Apply contextual roster name normalizer
+    try:
+        from .roster_normalizer import normalize_transcript_roster
+        cleaned = normalize_transcript_roster(cleaned, roster=roster)
+    except ImportError:
+        try:
+            from src.transcription.roster_normalizer import normalize_transcript_roster
+            cleaned = normalize_transcript_roster(cleaned, roster=roster)
+        except Exception:
+            pass
+
     return cleaned
+
+
+def split_dual_channel_audio(audio_path: str, output_dir: Optional[Path] = None) -> tuple[str, str]:
+    """
+    Split a 2-channel stereo audio file into two separate mono files:
+    Channel 0 (Left): Local Microphone -> mic_path
+    Channel 1 (Right): System / Discord Loopback -> discord_path
+    Uses fast single-pass FFmpeg stream extraction if available, falling back to soundfile.
+    Returns (mic_path, discord_path).
+    """
+    p = Path(audio_path).resolve()
+    dest_dir = output_dir or (p.parent / "dual_channels")
+    dest_dir.mkdir(parents=True, exist_ok=True)
+    base_name = p.stem
+    mic_path = str(dest_dir / f"{base_name}_ch0_mic.mp3")
+    discord_path = str(dest_dir / f"{base_name}_ch1_discord.mp3")
+
+    # Fast single-pass FFmpeg extraction
+    try:
+        cmd = [
+            "ffmpeg", "-y", "-threads", "0", "-i", str(p),
+            "-filter_complex", "[0:a]pan=mono|c0=c0[left];[0:a]pan=mono|c0=c1[right]",
+            "-map", "[left]", "-c:a", "libmp3lame", "-b:a", "64k", mic_path,
+            "-map", "[right]", "-c:a", "libmp3lame", "-b:a", "64k", discord_path,
+        ]
+        res = subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        if res.returncode == 0 and Path(mic_path).is_file() and Path(discord_path).is_file():
+            return mic_path, discord_path
+    except Exception:
+        pass
+
+    # Fallback with soundfile
+    try:
+        import soundfile as sf
+        data, sr = sf.read(str(p))
+        if data.ndim == 2 and data.shape[1] >= 2:
+            mic_wav = str(dest_dir / f"{base_name}_ch0_mic.wav")
+            discord_wav = str(dest_dir / f"{base_name}_ch1_discord.wav")
+            sf.write(mic_wav, data[:, 0], sr)
+            sf.write(discord_wav, data[:, 1], sr)
+            return mic_wav, discord_wav
+    except Exception as exc:
+        print(f"[split_dual_channel_audio] Error splitting audio with soundfile: {exc}")
+
+    raise RuntimeError(f"No se pudieron separar los canales de audio de {p}")
+
+
+def check_stereo_channels_rms(audio_path: str) -> tuple[float, float]:
+    """
+    Compute average RMS audio energy for Channel 0 (Mic) and Channel 1 (Discord/Speaker loopback).
+    Reads in low-memory blocks (64k frames) directly from the multi-channel file.
+    Returns (rms_mic, rms_discord).
+    """
+    try:
+        import soundfile as sf
+        import numpy as np
+        with sf.SoundFile(str(audio_path)) as sf_chk:
+            if sf_chk.channels >= 2 and sf_chk.frames > 0:
+                block_size = 65536
+                sq_mic = 0.0
+                sq_spk = 0.0
+                total_frames = 0
+                while total_frames < sf_chk.frames:
+                    block = sf_chk.read(block_size, dtype="float32")
+                    if len(block) == 0:
+                        break
+                    sq_mic += float(np.sum(block[:, 0] ** 2))
+                    sq_spk += float(np.sum(block[:, 1] ** 2))
+                    total_frames += len(block)
+                if total_frames > 0:
+                    return float(np.sqrt(sq_mic / total_frames)), float(np.sqrt(sq_spk / total_frames))
+    except Exception as exc:
+        print(f"[check_stereo_channels_rms] Notice: {exc}")
+    return 0.05, 0.05
+
+
+def tag_discord_channel_segments(
+    segments: List[Dict[str, Any]],
+    speaking_log: Optional[List[Dict[str, Any]]] = None,
+    roster: Optional[List[Dict[str, Any]]] = None,
+) -> List[Dict[str, Any]]:
+    """
+    Assign speaker labels to Discord channel segments using Discord RPC timestamps.
+    """
+    if not segments:
+        return []
+
+    try:
+        from src.transcription.discord_rpc import DiscordRpcTracker
+    except ImportError:
+        try:
+            from .discord_rpc import DiscordRpcTracker
+        except ImportError:
+            DiscordRpcTracker = None
+
+    discord_id_to_speaker: Dict[str, str] = {}
+    known_roster_names: set = set()
+    if roster and isinstance(roster, list):
+        for item in roster:
+            if isinstance(item, dict):
+                c_name = str(item.get("character_name") or item.get("personaje") or "").strip()
+                p_name = str(item.get("player_name") or item.get("jugador") or "").strip()
+                r_name = str(item.get("role") or "").strip()
+                if c_name and c_name not in ("-", "(DM)", "DM"):
+                    known_roster_names.add(c_name.lower())
+                if p_name and p_name not in ("-", "(DM)", "DM"):
+                    known_roster_names.add(p_name.lower())
+                uid = str(item.get("discord_user_id") or "").strip()
+                if uid:
+                    if c_name in ("(DM)", "DM") or r_name == "Dungeon Master (DM)":
+                        label = f"DM ({p_name})" if p_name else "DM"
+                    elif c_name and c_name not in ("-", "(DM)", "DM") and p_name:
+                        label = f"{c_name} ({p_name})"
+                    elif c_name and c_name not in ("-", "(DM)", "DM"):
+                        label = c_name
+                    elif p_name:
+                        label = p_name
+                    else:
+                        label = None
+                    if label:
+                        discord_id_to_speaker[uid] = label
+
+    for seg in segments:
+        start_sec = max(0.0, float(seg.get("start", 0.0)))
+        end_sec = max(start_sec, float(seg.get("end", start_sec)))
+        matched_uid = None
+        matched_user = None
+        if DiscordRpcTracker:
+            if hasattr(DiscordRpcTracker, "match_user_id_in_interval"):
+                matched_uid = DiscordRpcTracker.match_user_id_in_interval(start_sec, end_sec, speaking_log)
+            matched_user = DiscordRpcTracker.match_speaker_in_interval(start_sec, end_sec, speaking_log)
+
+        if matched_uid and matched_uid in discord_id_to_speaker:
+            seg["speaker"] = f"[{discord_id_to_speaker[matched_uid]}]"
+        elif matched_user:
+            m_lower = matched_user.strip().lower()
+            if known_roster_names and not any(r in m_lower or m_lower in r for r in known_roster_names):
+                seg["speaker"] = f"[Invitado / {matched_user}]"
+            else:
+                seg["speaker"] = f"[{matched_user}]"
+        else:
+            seg["speaker"] = "[Invitado]" if known_roster_names else "[Discord]"
+
+    return segments
 
 
 def tag_dual_channel_speakers(
@@ -137,16 +304,8 @@ def tag_dual_channel_speakers(
     roster: Optional[List[Dict[str, Any]]] = None,
 ) -> List[Dict[str, Any]]:
     """
-    Compare RMS volume between Channel 1 (Left = Mic) and Channel 2 (Right = Discord)
-    for each segment timestamp slice [start, end].
-    Tags segments with:
-      - '[Tu / {user_char_name}]' (or '[Tu]') when mic_rms > (discord_rms * 1.5).
-      - '[{character_name} ({player_name})]' when discord speaking user_id matches linked roster player.
-      - '[{discord_user}]' when discord speaking event matches interval but is unlinked.
-      - '[Discord]' otherwise.
-    For single-channel mono audio, formats lines cleanly without speaker tags:
-      - '[HH:MM:SS -> HH:MM:SS] Text...'
-    Adds 'speaker', 'mic_rms', 'discord_rms', and 'formatted_line' to each segment dictionary.
+    Tag segments for dual-channel audio without comparative volume competition.
+    Prioritizes Discord RPC timestamps for remote players, and local mic threshold for user.
     """
     p = Path(audio_path)
     if not p.is_file() or not segments:
@@ -162,14 +321,19 @@ def tag_dual_channel_speakers(
 
     # Build mapping from discord_user_id to official roster label
     discord_id_to_speaker: Dict[str, str] = {}
+    known_roster_names: set = set()
     if roster and isinstance(roster, list):
         for item in roster:
             if isinstance(item, dict):
+                c_name = str(item.get("character_name") or item.get("personaje") or "").strip()
+                p_name = str(item.get("player_name") or item.get("jugador") or "").strip()
+                r_name = str(item.get("role") or "").strip()
+                if c_name and c_name not in ("-", "(DM)", "DM"):
+                    known_roster_names.add(c_name.lower())
+                if p_name and p_name not in ("-", "(DM)", "DM"):
+                    known_roster_names.add(p_name.lower())
                 uid = str(item.get("discord_user_id") or "").strip()
                 if uid:
-                    c_name = str(item.get("character_name") or item.get("personaje") or "").strip()
-                    p_name = str(item.get("player_name") or item.get("jugador") or "").strip()
-                    r_name = str(item.get("role") or "").strip()
                     if c_name in ("(DM)", "DM") or r_name == "Dungeon Master (DM)":
                         label = f"DM ({p_name})" if p_name else "DM"
                     elif c_name and c_name not in ("-", "(DM)", "DM") and p_name:
@@ -189,13 +353,13 @@ def tag_dual_channel_speakers(
 
         with sf.SoundFile(str(p)) as sf_file:
             if sf_file.channels < 2:
-                # Single-channel mono audio (e.g. university lecture or single-channel): format without speaker tags
+                # Single-channel mono audio: format without speaker tags
                 for seg in segments:
                     start_sec = max(0.0, float(seg.get("start", 0.0)))
                     end_sec = max(start_sec, float(seg.get("end", start_sec)))
                     start_ts = _format_hhmmss(start_sec)
                     end_ts = _format_hhmmss(end_sec)
-                    text_clean = clean_whisper_hallucinations(str(seg.get("text", "")).strip())
+                    text_clean = clean_whisper_hallucinations(str(seg.get("text", "")).strip(), roster=roster)
                     seg["text"] = text_clean
                     seg["formatted_line"] = f"[{start_ts} -> {end_ts}] {text_clean}"
                 return segments
@@ -224,23 +388,33 @@ def tag_dual_channel_speakers(
                     mic_rms = 0.0
                     discord_rms = 0.0
 
-                if mic_rms > (discord_rms * 1.5):
-                    char_name_clean = user_char_name.strip() if user_char_name else ""
-                    speaker_tag = f"[Tu / {char_name_clean}]" if char_name_clean else "[Tu]"
-                else:
-                    matched_uid = None
-                    matched_user = None
-                    if DiscordRpcTracker:
-                        if hasattr(DiscordRpcTracker, "match_user_id_in_interval"):
-                            matched_uid = DiscordRpcTracker.match_user_id_in_interval(start_sec, end_sec, speaking_log)
-                        matched_user = DiscordRpcTracker.match_speaker_in_interval(start_sec, end_sec, speaking_log)
+                # Priority: Discord RPC timestamp matching first, then local Mic voice activity
+                matched_uid = None
+                matched_user = None
+                if DiscordRpcTracker:
+                    if hasattr(DiscordRpcTracker, "match_user_id_in_interval"):
+                        matched_uid = DiscordRpcTracker.match_user_id_in_interval(start_sec, end_sec, speaking_log)
+                    matched_user = DiscordRpcTracker.match_speaker_in_interval(start_sec, end_sec, speaking_log)
 
-                    if matched_uid and matched_uid in discord_id_to_speaker:
-                        speaker_tag = f"[{discord_id_to_speaker[matched_uid]}]"
-                    elif matched_user:
-                        speaker_tag = f"[{matched_user}]"
+                if matched_uid and matched_uid in discord_id_to_speaker:
+                    speaker_tag = f"[{discord_id_to_speaker[matched_uid]}]"
+                elif matched_user:
+                    m_lower = matched_user.strip().lower()
+                    if known_roster_names and not any(r in m_lower or m_lower in r for r in known_roster_names):
+                        speaker_tag = f"[Invitado / {matched_user}]"
                     else:
-                        speaker_tag = "[Discord]"
+                        speaker_tag = f"[{matched_user}]"
+                elif mic_rms > 0.012:
+                    char_name_clean = user_char_name.strip() if user_char_name else ""
+                    has_user_in_roster = any(p.get("is_user_character") or p.get("is_user") for p in (roster or []))
+                    if char_name_clean:
+                        speaker_tag = f"[Tu / {char_name_clean}]"
+                    elif has_user_in_roster:
+                        speaker_tag = "[Tu]"
+                    else:
+                        speaker_tag = "[Invitado]"
+                else:
+                    speaker_tag = "[Invitado]" if known_roster_names else "[Discord]"
 
                 seg["speaker"] = speaker_tag
                 seg["mic_rms"] = round(mic_rms, 5)
@@ -248,7 +422,7 @@ def tag_dual_channel_speakers(
 
                 start_ts = _format_hhmmss(start_sec)
                 end_ts = _format_hhmmss(end_sec)
-                text_clean = clean_whisper_hallucinations(str(seg.get("text", "")).strip())
+                text_clean = clean_whisper_hallucinations(str(seg.get("text", "")).strip(), roster=roster)
                 seg["text"] = text_clean
                 seg["formatted_line"] = f"[{start_ts} -> {end_ts}] {speaker_tag}: {text_clean}"
     except Exception as exc:
@@ -331,25 +505,129 @@ class GroqWhisperTranscriber:
 
         effective_lang = language if (language and str(language).strip().lower() != "auto") else None
 
-        file_size = path.stat().st_size
-        if file_size <= self.MAX_FILE_SIZE_BYTES:
-            min_pct = 30.0
-            max_pct = 80.0
-            single_kwargs = {"language": effective_lang, "timeout": 60.0}
-            if prompt is not None:
-                single_kwargs["prompt"] = prompt
-            res = self._transcribe_single_file(str(path), **single_kwargs)
-            if on_progress:
-                on_progress(max_pct, "Transcribiendo audio (Fragmento 1 de 1 - 80.0%)")
-        else:
-            # File is > 24 MB: slice using fast FFmpeg CLI
-            res = self._transcribe_chunked(
-                str(path),
-                language=effective_lang,
-                on_progress=on_progress,
-                source=source,
-                prompt=prompt,
-            )
+        # Check if audio has 2 channels for dual-channel isolated transcription
+        is_stereo = False
+        try:
+            import soundfile as sf
+            with sf.SoundFile(str(path)) as sf_chk:
+                if sf_chk.channels >= 2 and sf_chk.frames > 0:
+                    is_stereo = True
+        except Exception:
+            pass
+
+        if is_stereo and source in ("live", "local"):
+            try:
+                mic_rms, discord_rms = check_stereo_channels_rms(str(path))
+                print(f"[GroqTranscriber] Canal 0 (Mic) RMS: {mic_rms:.5f} | Canal 1 (Discord) RMS: {discord_rms:.5f}")
+                mic_file, discord_file = split_dual_channel_audio(str(path))
+                # Check if user is registered in this campaign
+                user_in_campaign = bool(
+                    (user_char_name and user_char_name.strip())
+                    or any(p.get("is_user_character") or p.get("is_user") for p in (roster or []))
+                )
+                user_label = f"[Tu / {user_char_name.strip()}]" if (user_char_name and user_char_name.strip()) else "[Tu]"
+
+                # Check if microphone was muted/silent OR user is not participating in this campaign
+                is_mic_silent = (mic_rms < 0.003)
+                skip_mic = is_mic_silent or (not user_in_campaign)
+                mic_segs = []
+                mic_res = {}
+
+                if skip_mic:
+                    if not user_in_campaign:
+                        print(f"[GroqTranscriber] El usuario no está en el roster de esta campaña (partida ajena / espectador). Omitiendo canal de micrófono local por completo.")
+                        if on_progress:
+                            on_progress(32.0, "Partida ajena detectada (sin usuario en roster). Omitiendo tu micrófono y transcribiendo Discord...")
+                    else:
+                        print(f"[GroqTranscriber] Pista 1 (Micrófono) en silencio total (RMS={mic_rms:.5f} < 0.003). Omitiendo transcripción de micrófono para evitar alucinaciones y timeouts.")
+                        if on_progress:
+                            on_progress(32.0, "Micrófono en silencio detectado. Transcribiendo Pista 2: Discord (Compañeros)...")
+                    def disc_prog(pct: float, msg: str):
+                        if on_progress:
+                            on_progress(pct, f"Discord: {msg}")
+                    discord_res = self._transcribe_audio_target(
+                        discord_file,
+                        language=effective_lang,
+                        prompt=prompt,
+                        on_progress=disc_prog,
+                        min_pct=32.0,
+                        max_pct=80.0,
+                    )
+                else:
+                    if on_progress:
+                        on_progress(30.0, "Transcribiendo Pista 1: Micrófono local (Tu voz)...")
+                    def mic_prog(pct: float, msg: str):
+                        if on_progress:
+                            # Map 30..80 to 30..55
+                            scaled = round(30.0 + ((pct - 30.0) / 50.0) * 25.0, 1)
+                            on_progress(scaled, f"Tu voz: {msg}")
+                    mic_res = self._transcribe_audio_target(
+                        mic_file,
+                        language=effective_lang,
+                        prompt=prompt,
+                        on_progress=mic_prog,
+                        min_pct=30.0,
+                        max_pct=55.0,
+                    )
+                    mic_segs = mic_res.get("segments", [])
+                    for s in mic_segs:
+                        s["speaker"] = user_label
+
+                    if on_progress:
+                        on_progress(55.0, "Transcribiendo Pista 2: Audio de Discord (Compañeros)...")
+                    def disc_prog(pct: float, msg: str):
+                        if on_progress:
+                            # Map 30..80 to 55..80
+                            scaled = round(55.0 + ((pct - 30.0) / 50.0) * 25.0, 1)
+                            on_progress(scaled, f"Discord: {msg}")
+                    discord_res = self._transcribe_audio_target(
+                        discord_file,
+                        language=effective_lang,
+                        prompt=prompt,
+                        on_progress=disc_prog,
+                        min_pct=55.0,
+                        max_pct=80.0,
+                    )
+
+                discord_segs = discord_res.get("segments", [])
+                discord_segs = tag_discord_channel_segments(discord_segs, speaking_log=speaking_log, roster=roster)
+
+                # Merge all segments chronologically
+                all_segs = sorted(mic_segs + discord_segs, key=lambda s: float(s.get("start", 0.0)))
+                formatted_lines = []
+                clean_texts = []
+                for s in all_segs:
+                    st = _format_hhmmss(s.get("start", 0.0))
+                    et = _format_hhmmss(s.get("end", 0.0))
+                    spk = s.get("speaker", "[Desconocido]")
+                    raw_t = s.get("text", "").strip()
+                    clean_t = clean_whisper_hallucinations(raw_t, roster=roster)
+                    s["text"] = clean_t
+                    line = f"[{st} -> {et}] {spk}: {clean_t}"
+                    s["formatted_line"] = line
+                    formatted_lines.append(line)
+                    clean_texts.append(clean_t)
+
+                full_text = " ".join(clean_texts)
+                return {
+                    "segments": all_segs,
+                    "text": full_text,
+                    "raw_text": full_text,
+                    "formatted_transcript": "\n".join(formatted_lines),
+                    "language": mic_res.get("language") or discord_res.get("language") or "es",
+                    "duration": max(mic_res.get("duration", 0.0), discord_res.get("duration", 0.0)),
+                }
+            except Exception as split_err:
+                print(f"[GroqTranscriber] Dual-channel split transcription notice: {split_err}. Falling back to single-pass.")
+
+        # Fallback / Single-channel path
+        res = self._transcribe_audio_target(
+            str(path),
+            language=effective_lang,
+            on_progress=on_progress,
+            source=source,
+            prompt=prompt,
+        )
 
         # Automatic speaker channel tagging for 2-channel audio (Left=Mic, Right=Discord)
         if res.get("segments"):
@@ -368,11 +646,43 @@ class GroqWhisperTranscriber:
                 for s in res["segments"]
             ]
             formatted_text = "\n".join(formatted_lines)
-            res["text"] = clean_whisper_hallucinations(res.get("text", "")).strip()
+            res["text"] = clean_whisper_hallucinations(res.get("text", ""), roster=roster).strip()
             res["raw_text"] = res["text"]
             res["formatted_transcript"] = formatted_text
 
         return res
+
+    def _transcribe_audio_target(
+        self,
+        file_path: str,
+        language: Optional[str] = None,
+        on_progress: Optional[Callable[[float, str], None]] = None,
+        source: str = "local",
+        prompt: Optional[str] = None,
+        min_pct: float = 30.0,
+        max_pct: float = 80.0,
+    ) -> Dict[str, Any]:
+        """Transcribe a single audio file or slice into chunks if exceeding 24 MB."""
+        p = Path(file_path).resolve()
+        file_size = p.stat().st_size
+        if file_size <= self.MAX_FILE_SIZE_BYTES:
+            single_kwargs = {"language": language, "timeout": 60.0}
+            if prompt is not None:
+                single_kwargs["prompt"] = prompt
+            res = self._transcribe_single_file(str(p), **single_kwargs)
+            if on_progress:
+                on_progress(max_pct, f"Transcribiendo audio ({max_pct:.1f}%)")
+            return res
+        else:
+            return self._transcribe_chunked(
+                str(p),
+                language=language,
+                on_progress=on_progress,
+                source=source,
+                prompt=prompt,
+                min_pct=min_pct,
+                max_pct=max_pct,
+            )
 
     def _transcribe_single_file(
         self,
@@ -382,22 +692,47 @@ class GroqWhisperTranscriber:
         timeout: float = 60.0,
         prompt: Optional[str] = None,
     ) -> Dict[str, Any]:
-        """Send a single audio file to Groq Whisper API and parse verbose_json response."""
+        """
+        Send a single audio file to Groq Whisper API and parse verbose_json response.
+        Includes automatic retry with backoff and graceful fallback to whisper-large-v3-turbo
+        if rate limits or transient errors occur on long sessions.
+        """
         p = Path(file_path)
-        with open(p, "rb") as f:
-            kwargs = {
-                "model": self.model,
-                "file": f,
-                "response_format": "verbose_json",
-                "timeout": timeout,
-            }
-            if language and str(language).strip().lower() != "auto":
-                kwargs["language"] = str(language).strip()
-            if prompt:
-                kwargs["prompt"] = prompt
-            response = self.client.audio.transcriptions.create(**kwargs)
+        last_exc = None
+        models_to_try = [self.model]
+        if self.model != "whisper-large-v3-turbo":
+            models_to_try.append("whisper-large-v3-turbo")
 
-        return self._parse_groq_response(response, time_offset=time_offset)
+        for cur_model in models_to_try:
+            for attempt in range(1, 3):
+                try:
+                    with open(p, "rb") as f:
+                        kwargs = {
+                            "model": cur_model,
+                            "file": f,
+                            "response_format": "verbose_json",
+                            "timeout": timeout,
+                        }
+                        if language and str(language).strip().lower() != "auto":
+                            kwargs["language"] = str(language).strip()
+                        if prompt:
+                            kwargs["prompt"] = prompt
+                        response = self.client.audio.transcriptions.create(**kwargs)
+                    return self._parse_groq_response(response, time_offset=time_offset)
+                except Exception as exc:
+                    last_exc = exc
+                    err_msg = str(exc).lower()
+                    print(f"[GroqTranscriber] Aviso en {p.name} con {cur_model} (intento {attempt}/2): {exc}")
+                    if "rate" in err_msg or "429" in err_msg or "too many" in err_msg:
+                        time.sleep(2.5)
+                    elif "timeout" in err_msg or "connection" in err_msg:
+                        time.sleep(1.0)
+                    else:
+                        break  # Fallo no recuperable con este modelo; probar siguiente si existe
+
+        if last_exc:
+            raise last_exc
+        raise RuntimeError(f"Fallo desconocido al transcribir archivo {p.name}")
 
     def _parse_groq_response(self, response: Any, time_offset: float = 0.0) -> Dict[str, Any]:
         """Parse Groq transcription response object or dict with robust hallucination filtering."""
@@ -442,12 +777,14 @@ class GroqWhisperTranscriber:
             s_avg_logprob = s.get("avg_logprob", 0.0) if isinstance(s, dict) else getattr(s, "avg_logprob", 0.0)
             s_compression = s.get("compression_ratio", 1.0) if isinstance(s, dict) else getattr(s, "compression_ratio", 1.0)
 
-            # 1. Skip high probability non-speech / silence
-            if s_no_speech and float(s_no_speech) > 0.8 and float(s_avg_logprob) < -0.8:
+            # 1. Skip high probability non-speech / silence (stricter VAD threshold)
+            if s_no_speech and float(s_no_speech) > 0.55:
+                continue
+            if s_avg_logprob and float(s_avg_logprob) < -1.1 and s_no_speech and float(s_no_speech) > 0.4:
                 continue
 
-            # 2. Skip extreme repetitive loops (high compression ratio)
-            if s_compression and float(s_compression) > 2.4:
+            # 2. Skip repetitive hallucination loops (stricter compression ratio: normal speech is <= 1.5)
+            if s_compression and float(s_compression) > 1.8:
                 continue
 
             s_text_clean = clean_whisper_hallucinations(s_text.strip())
@@ -504,20 +841,16 @@ class GroqWhisperTranscriber:
         self,
         audio_path: str,
         language: Optional[str] = None,
-        on_progress: Optional[Callable[[int, str], None]] = None,
+        on_progress: Optional[Callable[[float, str], None]] = None,
         source: str = "local",
         prompt: Optional[str] = None,
+        min_pct: float = 30.0,
+        max_pct: float = 80.0,
     ) -> Dict[str, Any]:
         """
         Slice audio file into 15-minute chunks with FFmpeg and transcribe each sequentially.
         If language is not specified, auto-detects on chunk 1 and pins that language for all remaining chunks.
         """
-        # Progress range calibration
-        # If source is YouTube: maps from 35% to 80%
-        # Fase 3: Transcripción con Whisper en Groq (30.0% a 80.0%)
-        min_pct = 30.0
-        max_pct = 80.0
-
         if on_progress:
             if source == "youtube":
                 on_progress(25.0, "Segmentando audio de YouTube...")
@@ -547,6 +880,14 @@ class GroqWhisperTranscriber:
                         estimated_chunk_dur = float(chunk_item[2])
                     except (ValueError, TypeError):
                         estimated_chunk_dur = 0.0
+
+                # Notificar progreso al INICIO del fragmento para que la interfaz refleje el fragmento ACTIVO
+                start_chunk_pct = round(min_pct + ((idx / max(1, num_chunks)) * (max_pct - min_pct)), 1)
+                if on_progress:
+                    on_progress(
+                        start_chunk_pct,
+                        f"Transcribiendo audio (Fragmento {idx + 1} de {num_chunks} - {start_chunk_pct:.1f}%)",
+                    )
 
                 try:
                     # Enviar chunk a Groq con timeout de 60s
@@ -586,12 +927,12 @@ class GroqWhisperTranscriber:
                 current_time_offset += chunk_dur
                 total_duration += chunk_dur
 
-                # Emitir progreso real (Fase 3: 30.0% + ((idx + 1) / len(chunks)) * 50.0)
-                chunk_pct = round(min_pct + (((idx + 1) / max(1, num_chunks)) * (max_pct - min_pct)), 1)
+                # Emitir progreso real al completar el fragmento
+                done_chunk_pct = round(min_pct + (((idx + 1) / max(1, num_chunks)) * (max_pct - min_pct)), 1)
                 if on_progress:
                     on_progress(
-                        chunk_pct,
-                        f"Transcribiendo audio (Fragmento {idx + 1} de {num_chunks} - {chunk_pct:.1f}%)",
+                        done_chunk_pct,
+                        f"Transcribiendo audio (Fragmento {idx + 1} de {num_chunks} completado - {done_chunk_pct:.1f}%)",
                     )
         finally:
             # Chunk Cleanup: Immediately after all chunks are transcribed, delete the chunks directory contents

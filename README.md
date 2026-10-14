@@ -8,7 +8,7 @@
 [![PWA Ready](https://img.shields.io/badge/PWA-Installable%20Mobile%20%26%20Desktop-success.svg)](https://web.dev/progressive-web-apps/)
 [![STT Groq](https://img.shields.io/badge/STT-Groq%20Whisper%20Large--v3-f55036.svg)](https://groq.com)
 [![LLM Gemini](https://img.shields.io/badge/LLM-Gemini%203.5%20%2F%203.8-8e75ff.svg)](https://ai.google.dev/)
-[![Tests](https://img.shields.io/badge/Tests-208%20passing-brightgreen.svg)](#-pruebas-automatizadas)
+[![Tests](https://img.shields.io/badge/Tests-234%20passing-brightgreen.svg)](#-pruebas-automatizadas)
 
 ---
 
@@ -44,11 +44,15 @@ El sistema cuenta con una **arquitectura de espacios de trabajo duales estrictam
 
 ---
 
-### 2. 👥 Deduplicación Inteligente de Entidades (Retroactiva & Proactiva)
+### 2. 👥 Deduplicación Inteligente de Entidades, Ítems y Ubicaciones
 - **Filtro Proactivo**: Previene la fragmentación de entidades cuando un personaje se menciona por nombre de pila o título.
 - **Deduplicación Retroactiva en Servidor**:
   - Al iniciar el servidor o cargar una campaña, el sistema analiza las entidades existentes.
   - Si detecta nombres que son subcadenas de otros más completos (ej. `"Octus"` y `"Octus Taconis"`), fusiona automáticamente su biografía, rol, notas y misiones en la ficha completa, añade el nombre corto a `aliases: ["Octus"]` y elimina de disco el fichero JSON duplicado huérfano.
+- **Deduplicación Bilingüe de Ítems y Lugares**:
+  - Algoritmo de equiparación cruzada español-inglés para inventario y localizaciones (ej. `"Healing Potion"` &harr; `"Poción de Curación"`, `"The Well"` &harr; `"El Pozo"`), preservando la versión más descriptiva y consolidando portadores y notas sin duplicar entradas.
+  - **Canonización de Reliquias Clave**: Unificación automática de artefactos centrales de campaña bajo nomenclaturas estandarizadas (ej. `"Collar / Rosario Sagrado de Zun (Medallón del Pozo)"`).
+  - **Depuración Estructural de Sesiones y Campañas**: Eliminación de bloques redundantes (`detected_party`, `detected_pcs`) tanto en los registros de sesión como en la raíz de los archivos JSON de campaña para optimizar la ventana de contexto de Gemini y garantizar una persistencia limpia.
 - **Botón Manual de Reparación**: Accesible con 1 clic en la cabecera de la Wiki de Campaña (`[ 🔄 Reparar y Fusionar Duplicados ]`).
 
 ---
@@ -90,20 +94,31 @@ La aplicación incluye soporte nativo para despliegue en contenedores sin estado
 
 ---
 
-### 6. 🎧 Integración Discord RPC (Local)
-- **Detección Local**: Cliente WebSocket que localiza la instancia de Discord abierta en los puertos `6463` a `6472`.
-- **Canal de Voz en Tiempo Real**: Detecta quién está en el canal, quién está hablando y vincula automáticamente sus identificadores al Roster de la partida.
-- **Captura Dual de Audio (PC Host)**:
-  - **Canal 1 (Izquierdo)**: Micrófono local.
-  - **Canal 2 (Derecho)**: Audio de retorno (Discord/auriculares) mediante `soundcard`.
-  - Etiquetado diferencial automático (`[Tu]` vs `[Discord]`).
+### 6. 🎧 Integración Discord RPC, Grabación Dual y Persistencia de Timeline
+- **Detección Local Discord RPC**: Cliente WebSocket que localiza la instancia de Discord abierta en los puertos `6463` a `6472`. Detecta en tiempo real quién está en el canal de voz y quién está hablando en cada instante.
+- **Captura Dual de Audio en Pistas Separadas (PC Host)**:
+  - **Canal 1 (Izquierdo / Mic)**: Entrada de micrófono local del usuario.
+  - **Canal 2 (Derecho / Discord)**: Audio de retorno (Discord/auriculares) mediante loopback de `soundcard`.
+- **Transcripción Aislada por Canales (Isolated Dual-Channel Transcription)**:
+  - El backend separa físicamente el audio estéreo en dos pistas monoaurales temporales independientes.
+  - Cada pista se procesa de forma aislada a través del motor de transcripción (Groq o Local).
+  - **Independencia Total de Volumen**: Evita que el micrófono del usuario tape o enmascare las voces más bajas de los compañeros de Discord.
+  - **Diálogo Simultáneo**: Si el usuario y otro jugador hablan al mismo tiempo, ambas intervenciones se transcriben nítidamente y se entrelazan en orden cronológico por marca de tiempo (`start`).
+- **Persistencia de Timeline (`.timeline.json`)**:
+  - Al detener la grabación, se genera automáticamente un archivo `session_<timestamp>.timeline.json` junto al archivo `.wav`.
+  - **Reprocesado Local sin Pérdida**: Si se re-transcribe o reprocesa una sesión desde un archivo local, el backend detecta y asocia automáticamente su `.timeline.json`, conservando la diarización de quién habló en cada momento sin requerir una conexión activa a Discord.
 
 ---
 
-### 7. 📄 Exportación & Sincronización en la Nube
-- **Formatos de Descarga**:
-  - **Markdown (`.md`)**: Tablas de misiones, directorio de PNJs y capítulos cronológicos.
-  - **Microsoft Word (`.docx`)**: Formateado profesional con estilos universitarios o de fantasía medieval, tablas estilizadas y márgenes normalizados.
+### 7. 📄 Exportación Granular & Sincronización en la Nube
+- **Formatos de Descarga y Modalidades de Crónica en Word (`.docx`)**:
+  - **`📄 Sesión Actual (.docx)`**: Formato completo para el Dungeon Master con transcripción de combate, notas de dirección y coaching narrativo personal.
+  - **`👥 Versión para Jugadores (.docx)`**: Crónica narrativa limpia de la sesión sin notas personales de DM ni reflexiones privadas, lista para compartir con la mesa.
+  - **`📚 Toda la Campaña (.docx)`**: Grimorio consolidado que compila el libro vivo de todas las sesiones de la aventura.
+  - **`⬇️ Transcripción (.txt)` & `📋 Copiar`**: Exportación rápida de texto plano y copiado directo de cualquier pestaña con marcas de tiempo.
+  - **Selector Dinámico en Wiki de Campaña**: Permite descargar cualquier sesión histórica individual (con o sin notas de rol) directamente desde el explorador wiki.
+  - **Barra de Acciones Segmentada y Menú de Herramientas IA (`✨ Herramientas IA ▾`)**: Interfaz ergonómica que agrupa las descargas en un pill de un solo renglón y aísla las funciones de reprocesado ("Regenerar con Gemini" y "Traducir") en un menú secundario con descripciones claras.
+  - **Pestañas Compactas Anti-Desbordamiento**: Visualización horizontal adaptativa de las 6 pestañas de rol sin partirse en múltiples renglones.
 - **Exportación e Importación Completa de Campañas (ZIP / JSON Bundle)**:
   - **Exportar Campaña (`GET /api/campaigns/{id}/export`)**: Empaqueta en un archivo comprimido descargable (`Campaña_[Nombre]_[Fecha].zip`) toda la configuración de la campaña (DM, jugadores, Discord, clases), las entidades de la Wiki (PNJs, lugares, misiones, protagonistas), crónicas de sesión y transcripciones (`.txt`, `.md`, `.docx`), junto a su `manifest.json`.
   - **Importar Campaña (`POST /api/campaigns/import`)**: Permite subir archivos `.zip` o `.json` para restaurar instantáneamente el estado completo de la campaña, regenerar el Grimorio vivo y, si Google Drive está conectado, generar una copia de respaldo automática en la nube.
@@ -129,10 +144,20 @@ La aplicación incluye soporte nativo para despliegue en contenedores sin estado
 
 ---
 
-### 9. 🧙‍♂️ Gestión de Personajes y Trasfondos Multi-Personaje
+### 9. 🧙‍♂️ Gestión de Personajes, Coaching Narrativo y Crónicas Vivas
 - **Vista Dedicada "Mi Personaje"**: Selector jerárquico **Campaña ➔ Personaje ➔ Trasfondo** con sincronización en tiempo real.
 - **Soporte Multi-Personaje por Campaña**: Múltiples personajes registrados en la misma campaña con historias y personalidades independientes (`character_backstories` y fichas de roster sin sobreescrituras).
-- **Coaching Narrativo de Gemini**: Marcado de personaje activo (⭐) para que el modelo evalúe la coherencia de decisiones de rol, estilo y código moral contra el trasfondo durante la sesión.
+- **Coaching Narrativo Exclusivo del Personaje Activo (⭐)**:
+  - El informe de *Roleplay Coaching* evalúa única y exclusivamente al personaje marcado con estrella (`is_user_character: true`), sin diluirse con otros jugadores o PNJs.
+  - La evaluación se fundamenta de forma estricta en las intervenciones y diálogos efectivamente pronunciados por el personaje durante la sesión, contrastándolos con su trasfondo y código moral.
+- **Separación Estricta de Lore vs. Acciones de Hoy**:
+  - Inyección de contexto histórico y recap que previene confusiones en el LLM entre antecedentes pasados y los acontecimientos reales de la sesión actual.
+  - Las intenciones y misiones del día se vinculan de forma nítida con los objetivos activos.
+- **Escenas Paralelas y Sobrecarga Mágica**:
+  - Instrucciones de crónica para capturar arcos divididos simultáneos (ej. combate exterior mientras otro grupo investiga en un ático) y registrar con fidelidad eventos de magia salvaje o sobrecarga de artefactos mágicos.
+- **Idempotencia de Sesión y Regeneración Multilingüe Segura**:
+  - Al alternar el idioma de la crónica (`English` &harr; `Español`) o solicitar el reprocesado de una sesión, el sistema preserva de forma estricta el `session_number` activo en lugar de autoincrementar el contador de campaña (`last_session + 1`), garantizando que la sesión en curso se actualice in-situ sin generar sesiones fantasma o duplicadas.
+  - Los endpoints de la API (`switch_summary_language` y `reprocess_campaign`) y el cliente web sincronizan bidireccionalmente el identificador de sesión y campaña en el payload `TranscribeResponse`.
 - **Creación en Caliente**: Botón `[ + Crear Nuevo Personaje ]` para incorporar nuevos personajes a cualquier campaña y persistirlos de inmediato en disco y en Google Drive.
 - **Diseño Ergonómico y Seguro**: Prevención estricta de selección accidental en áreas de texto (`user-select: none`) y guías de redacción separadas visualmente de la caja de edición.
 
@@ -142,6 +167,20 @@ La aplicación incluye soporte nativo para despliegue en contenedores sin estado
 - **Auto-Cierre por Baliza (Beacon)**: Detección instantánea de cierre de pestaña/ventana mediante `navigator.sendBeacon('/api/shutdown')` para liberar memoria y recursos del sistema sin procesos huérfanos.
 - **Lanzador Invisible (`WhisperDnD.vbs`)**: Ejecución en segundo plano sin ventana de consola CMD/Python intrusiva.
 - **Scripts de Control**: `iniciar_whisper_dnd.bat` para arranque automático del navegador y `detener_app.bat` para detención forzada limpia.
+
+---
+
+### 11. 🛡️ Motor Anti-Alucinaciones de Whisper y Normalizador Fonético de Roster
+- **Limpieza de Prefijos y Siglas Parasitarias**:
+  - Filtro estricto que elimina prefijos residuales de subtitulado (`E. `, `B. `, `T. `, `I. `) tanto al comienzo como intercalados tras puntuación en oraciones.
+  - Detección y supresión de secuencias de siglas en bucle infinito (`S.I.C.I.`, `S.T.A.A.R.`, etc.).
+  - Poda de bucles de repetición multi-palabra y cadenas cíclicas antes de la persistencia del texto.
+- **Calibración de Umbrales STT**:
+  - `no_speech_prob > 0.55` y `compression_ratio > 1.8` para descarte de segmentos fantasma.
+  - `condition_on_previous_text=False` en Whisper local para evitar que alucinaciones tempranas se propaguen recursivamente por toda la transcripción.
+- **Normalizador Fonético Universal de Roster**:
+  - Reemplazo y corrección fónica automática de nombres de personajes y entidades (ej. `Atou`, `Atú` &rarr; `Atou`).
+  - **Preservación Contextual Gramatical**: Análisis léxico y sintáctico que previene la corrupción de sustantivos comunes legítimos (ej. `"el ataúd"`, `"un ataúd"`, `"dentro del ataúd"` se mantienen intactos, mientras que `"ataúd atacó"` o vocativos se corrigen a `"Atou"`).
 
 ---
 
@@ -265,14 +304,14 @@ gcloud run deploy whisperdnd \
 
 ## 🧪 Pruebas Automatizadas
 
-El proyecto incluye una suite completa de **208 pruebas automatizadas** que validan endpoints REST, aislamiento de espacios, deduplicación de entidades, exportadores Word/Markdown, motor Groq, cliente Gemini y gestión multi-personaje:
+El proyecto incluye una suite completa de **234 pruebas automatizadas** que validan endpoints REST, aislamiento de espacios, normalización fonética, transcripción dual aislada, persistencia de timeline, deduplicación de entidades e ítems, exportadores Word/Markdown, motor Groq, cliente Gemini y gestión multi-personaje:
 
 ```bash
 # Ejecutar toda la suite de pruebas
 .\.venv\Scripts\python.exe -m pytest -q
 
 # Resultado esperado:
-# 208 passed in ~16s
+# 234 passed in ~12s
 ```
 
 ---
@@ -300,14 +339,14 @@ WhisperDnD/
 │   ├── exporters/              # Generadores de Word (.docx) y Markdown (.md)
 │   ├── storage/                # Gestor de campañas vivas y cliente Google Drive
 │   ├── summarizer/             # Cliente Gemini, directiva académica y prompts
-│   └── transcription/          # Groq Whisper, faster-whisper, YouTube y Discord RPC
+│   └── transcription/          # Groq Whisper, faster-whisper, YouTube, Discord RPC y Roster Normalizer
 ├── static/                     # Activos web estáticos y cliente PWA
 │   ├── icon-192.png            # Icono PWA (192x192 maskable)
 │   ├── icon-512.png            # Icono PWA (512x512 maskable)
 │   ├── manifest.json           # Manifiesto Web PWA oficial
 │   ├── sw.js                   # Service Worker PWA (Network-first / Offline shell)
 │   └── index.html              # Interfaz interactiva SPA (Dual Workspace)
-├── tests/                      # Suite de 152 pruebas automatizadas
+├── tests/                      # Suite de 234 pruebas automatizadas
 ├── .dockerignore               # Exclusiones de construcción Docker
 ├── Dockerfile                  # Contenedor optimizado para Google Cloud Run
 ├── requirements.txt            # Dependencias de Python

@@ -56,7 +56,7 @@ class TestLocalWhisperTranscriber(unittest.TestCase):
         current_file = str(Path(__file__).resolve())
         result = transcriber.transcribe(current_file)
 
-        mock_model.transcribe.assert_called_once_with(current_file, vad_filter=True)
+        mock_model.transcribe.assert_called_once_with(current_file, vad_filter=True, condition_on_previous_text=False)
         self.assertEqual(result["text"], "Hello world This is a test")
         self.assertEqual(result["duration"], 5.0)
         self.assertEqual(result["language"]["code"], "en")

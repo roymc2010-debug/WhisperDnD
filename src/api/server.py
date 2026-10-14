@@ -28,9 +28,13 @@ from starlette.background import BackgroundTask
 from src.exporters.docx_exporter import (
     export_chronicle_docx,
     export_living_journal_docx,
+    export_session_docx,
     export_academic_notes_docx,
 )
-from src.exporters.md_exporter import export_living_journal_md
+from src.exporters.md_exporter import (
+    export_living_journal_md,
+    export_session_md,
+)
 from src.storage.campaign_manager import CampaignManager
 from src.storage.drive_client import GoogleDriveStorage
 from src.summarizer.gemini_client import (
@@ -478,6 +482,7 @@ def process_session_for_campaign(
         is_youtube=is_youtube,
         prior_lore=active_ctx.get("prior_lore", ""),
         character_backstory=active_ctx.get("user_character_backstory", ""),
+        last_session_recap=active_ctx.get("last_session_recap", ""),
     )
 
     s_title = session_data.get("session_title") or session_data.get("session_chapter", {}).get("session_title") or session_data.get("session_chapter", {}).get("title")
@@ -1049,6 +1054,16 @@ def transcribe_audio_pipeline(
     whisper_lang = None
     if language and str(language).lower() not in ("auto", "none", ""):
         whisper_lang = str(language).lower().strip()
+
+    # Automatically load timeline speaking_log for local audio reprocessing
+    if speaking_log is None and audio_path:
+        try:
+            from src.transcription.audio_recorder import load_timeline_for_audio
+            speaking_log = load_timeline_for_audio(audio_path)
+            if speaking_log:
+                print(f"[transcribe_pipeline] Loaded {len(speaking_log)} events from timeline file for {audio_path}")
+        except Exception as tl_exc:
+            print(f"[transcribe_pipeline] Timeline load notice: {tl_exc}")
 
     whisper_prompt = prompt or build_whisper_prompt(
         campaign_name=campaign_name,

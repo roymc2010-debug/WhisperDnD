@@ -824,10 +824,14 @@ class GoogleDriveStorage:
                                 remote_sess = int(data.get("last_session", 0))
                                 local_updated = str(local_data.get("updated_at") or "")
                                 remote_updated = str(data.get("updated_at") or "")
-                                if local_sess > remote_sess:
-                                    should_write = False
-                                elif local_sess == remote_sess and local_updated >= remote_updated:
-                                    should_write = False
+                                if local_updated and remote_updated:
+                                    if local_updated >= remote_updated:
+                                        should_write = False
+                                    else:
+                                        should_write = True
+                                else:
+                                    if local_sess >= remote_sess:
+                                        should_write = False
                             except Exception:
                                 should_write = True
 

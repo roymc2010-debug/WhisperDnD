@@ -303,3 +303,144 @@ def export_living_journal_md(
     dest_file.parent.mkdir(parents=True, exist_ok=True)
     dest_file.write_text("\n".join(lines), encoding="utf-8")
     return str(dest_file)
+
+
+def export_session_md(
+    session_data: Dict[str, Any],
+    campaign_name: str = "Campaña Principal",
+    roster: Optional[Any] = None,
+    output_path: Optional[str] = None,
+    include_coaching: bool = True,
+) -> str:
+    """
+    Export a single session chronicle as a standalone Markdown document.
+    Allows generating player-ready chronicles by setting include_coaching=False.
+
+    :param session_data: Dict containing session chapter fields.
+    :param campaign_name: Name of the campaign.
+    :param roster: Optional roster or participant list.
+    :param output_path: Custom output path. Defaults to outputs/<campaign>_Sesion_<num>_Cronica.md.
+    :param include_coaching: Whether to include personal roleplay reflection / coaching.
+    :return: Absolute file path to the generated .md file.
+    """
+    safe_name = sanitize_filename(campaign_name)
+    num = session_data.get("session_number", 1)
+    suffix = "" if include_coaching else "_Jugadores"
+
+    if not output_path:
+        if os.environ.get("WHISPER_OUTPUT_DIR"):
+            out_dir = Path(os.environ["WHISPER_OUTPUT_DIR"]).resolve()
+        else:
+            root = Path(__file__).resolve().parent.parent.parent
+            if (root / "outputs").is_dir():
+                out_dir = (root / "outputs").resolve()
+            else:
+                out_dir = (root / "data" / "output").resolve()
+        out_dir.mkdir(parents=True, exist_ok=True)
+        output_path = str((out_dir / f"{safe_name}_Sesion_{num}_Cronica{suffix}.md").resolve())
+
+    raw_title = str(session_data.get("session_title") or session_data.get("title") or f"Sesión #{num}").strip()
+    clean_title = re.sub(r"^(?:sesi[oó]n|session)\s*#?\d+\s*[:\-]\s*", "", raw_title, flags=re.IGNORECASE).strip() or raw_title
+    full_title = f"{campaign_name} - Sesión #{num}: {clean_title}"
+
+    lines = []
+    lines.append(f"# 📜 {full_title}")
+    date_str = session_data.get("date", "")
+    if date_str:
+        lines.append(f"*Fecha de Juego: {date_str}*")
+    lines.append("")
+    lines.append("---")
+    lines.append("")
+
+    # Protagonistas Detectados
+    pcs_list = session_data.get("detected_pcs") or [
+        {
+            "personaje": p.get("character_name", "-"),
+            "jugador": p.get("player_name", "-"),
+            "clase": p.get("role", "-"),
+            "especie": p.get("species", "-"),
+            "rol_en_sesion": p.get("session_role", "-"),
+        }
+        for p in (session_data.get("detected_party") or [])
+    ]
+    if not pcs_list and roster:
+        pcs_list = [
+            {
+                "personaje": p.get("character_name", "-"),
+                "jugador": p.get("player_name", "-"),
+                "clase": p.get("role", "-"),
+                "especie": p.get("species", "-"),
+                "rol_en_sesion": "-",
+            }
+            for p in roster
+            if str(p.get("character_name", "")).strip() not in ("(DM)", "")
+        ]
+
+    if pcs_list:
+        lines.append("### 🎭 Compañía de Aventureros (Protagonistas)")
+        lines.append("| Personaje | Jugador / Rol | Clase / Especie | Rol en la Sesión |")
+        lines.append("|---|---|---|---|")
+        for pc in pcs_list:
+            char_p = pc.get("personaje") or pc.get("character_name") or "-"
+            jug_p = pc.get("jugador") or pc.get("player_name") or "-"
+            c_cls = pc.get("clase") or pc.get("role") or "-"
+            c_esp = pc.get("especie") or pc.get("species") or "-"
+            if c_cls != "-" and c_esp != "-":
+                c_desc = f"{c_cls} / {c_esp}"
+            elif c_cls != "-":
+                c_desc = c_cls
+            else:
+                c_desc = c_esp
+            s_rol = pc.get("rol_en_sesion", "-")
+            lines.append(f"| **{char_p}** | {jug_p} | {c_desc} | {s_rol} |")
+        lines.append("")
+        lines.append("---")
+        lines.append("")
+
+    sec_num = 1
+    # 1. Crónica Narrativa
+    if session_data.get("chronicle_text"):
+        lines.append(f"## {sec_num}. Crónica Narrativa y Desglose de Combates")
+        lines.append(session_data["chronicle_text"].strip())
+        lines.append("")
+        sec_num += 1
+
+    # 2. Cierre de Sesión
+    if session_data.get("closing_expectations"):
+        lines.append(f"## {sec_num}. Cierre de Sesión, Decisiones y Expectativas")
+        lines.append(session_data["closing_expectations"].strip())
+        lines.append("")
+        sec_num += 1
+
+    # 3. Reflexión de Rol (si include_coaching=True)
+    synopsis_text = (session_data.get("episode_synopsis") or "").strip()
+    coaching = (session_data.get("user_coaching") or session_data.get("markus_coaching") or "").strip()
+    user_char = session_data.get("user_character", {})
+    char_name = (user_char.get("character_name") or user_char.get("name") or "").strip() if isinstance(user_char, dict) else ""
+    if not char_name and session_data.get("markus_coaching") and not synopsis_text:
+        char_name = "Markus Veyl"
+
+    if include_coaching and coaching and char_name and not synopsis_text and char_name not in ("-", "(DM)", "Dungeon Master"):
+        lines.append(f"## {sec_num}. Reflexión de Rol y Compañerismo: {char_name}")
+        lines.append(coaching)
+        lines.append("")
+        sec_num += 1
+
+    # 4. Sinopsis o Guion
+    if synopsis_text:
+        lines.append(f"## {sec_num}. 📌 Sinopsis Ejecutiva del Episodio")
+        lines.append(synopsis_text)
+        lines.append("")
+    else:
+        script_text = session_data.get("next_session_script") or session_data.get("recap_text")
+        if script_text and script_text.strip():
+            next_num = num + 1
+            lines.append(f"## {sec_num}. 🎙️ Guion para abrir la Sesión #{next_num} (Para leer en voz alta)")
+            lines.append(script_text.strip())
+            lines.append("")
+
+    dest_file = Path(output_path).resolve()
+    dest_file.parent.mkdir(parents=True, exist_ok=True)
+    dest_file.write_text("\n".join(lines), encoding="utf-8")
+    return str(dest_file)
+

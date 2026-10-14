@@ -113,22 +113,45 @@ class ReprocessCampaignRequest(BaseModel):
 # ---------------------------------------------------------------------------
 @router.get("/api/audio/local-recordings")
 async def list_local_recordings():
-    """List audio recordings available in data/input directory."""
+    """List audio recordings available in data/input directory and campaign recordings folders."""
     input_dir = server.get_data_input_dir()
+    search_dirs = [input_dir]
+    camp_dir = server.get_data_campaigns_dir()
+    if camp_dir.is_dir():
+        for c in camp_dir.iterdir():
+            if c.is_dir() and (c / "recordings").is_dir():
+                search_dirs.append(c / "recordings")
+
     files = []
-    for ext in ("*.wav", "*.mp3", "*.m4a", "*.webm", "*.ogg", "*.flac"):
-        for f in input_dir.glob(ext):
-            try:
-                stat = f.stat()
-                if stat.st_size > 100:  # Skip empty or placeholder files
-                    files.append({
-                        "filename": f.name,
-                        "size_mb": round(stat.st_size / (1024 * 1024), 2),
-                        "created_at": datetime.datetime.fromtimestamp(stat.st_mtime).strftime("%d/%m/%Y %H:%M"),
-                        "timestamp": stat.st_mtime,
-                    })
-            except Exception:
-                pass
+    seen_stems = set()
+    for s_dir in search_dirs:
+        for ext in ("*.wav", "*.mp3", "*.m4a", "*.webm", "*.ogg", "*.flac"):
+            for f in s_dir.glob(ext):
+                try:
+                    if f.name.endswith(".norm_tmp.wav"):
+                        continue
+                    stat = f.stat()
+                    if stat.st_size > 100:  # Skip empty or placeholder files
+                        stem = f.stem
+                        if stem in seen_stems:
+                            continue
+                        seen_stems.add(stem)
+                        # Check timeline existence
+                        has_timeline = (
+                            f.with_suffix(".timeline.json").is_file()
+                            or (input_dir / f"{stem}.timeline.json").is_file()
+                        )
+                        files.append({
+                            "filename": f.name,
+                            "path": str(f.resolve()),
+                            "size_mb": round(stat.st_size / (1024 * 1024), 2),
+                            "created_at": datetime.datetime.fromtimestamp(stat.st_mtime).strftime("%d/%m/%Y %H:%M"),
+                            "timestamp": stat.st_mtime,
+                            "has_timeline": has_timeline,
+                            "folder": f.parent.name,
+                        })
+                except Exception:
+                    pass
     files.sort(key=lambda x: x["timestamp"], reverse=True)
     return {"files": files}
 
@@ -399,6 +422,7 @@ async def transcribe_youtube(payload: YouTubeTranscribeRequest, request: Request
 async def transcribe_file(
     file: Optional[UploadFile] = File(default=None),
     existing_filename: Optional[str] = Form(default=None),
+    timeline_file: Optional[UploadFile] = File(default=None),
     model_size: str = Form(default="base"),
     engine: str = Form(default="groq"),
     campaign_name: Optional[str] = Form(default=None),
@@ -422,26 +446,110 @@ async def transcribe_file(
 
     if existing_filename and existing_filename.strip():
         clean_filename = Path(existing_filename.strip()).name
-        save_dest = server.get_data_input_dir() / clean_filename
+        # Look in data/input and campaign recordings folders
+        cand_dest = server.get_data_input_dir() / clean_filename
+        if not cand_dest.is_file():
+            camp_dir = server.get_data_campaigns_dir()
+            for c in camp_dir.iterdir():
+                if c.is_dir() and (c / "recordings" / clean_filename).is_file():
+                    cand_dest = c / "recordings" / clean_filename
+                    break
+        save_dest = cand_dest
         if not save_dest.is_file():
-            raise HTTPException(status_code=404, detail=f"Archivo no encontrado en data/input: {clean_filename}")
+            raise HTTPException(status_code=404, detail=f"Archivo no encontrado: {clean_filename}")
         server.update_task_progress(task_id, 20.0, f"Cargando archivo local: {clean_filename}...", "Iniciando motor de audio...", stage="segmenting")
     elif file and getattr(file, "filename", None):
-        server.update_task_progress(task_id, 20.0, "Segmentando archivo en el servidor...", "Guardando en almacenamiento local...", stage="segmenting")
         clean_filename = Path(file.filename).name
-        save_dest = server.get_data_input_dir() / clean_filename
-        try:
-            with open(save_dest, "wb") as buffer:
-                shutil.copyfileobj(file.file, buffer)
-        except Exception as exc:
-            err_type, human_err, stage = server.diagnose_exception(exc)
-            import traceback
-            server.set_task_error(task_id, human_err, error_type=err_type, stage=stage, details=traceback.format_exc())
-            raise HTTPException(status_code=500, detail=human_err) from exc
-        finally:
-            await file.close()
+
+        # Safeguard: If user uploads a JSON timeline file as the primary file
+        if clean_filename.lower().endswith(".json"):
+            base_stem = clean_filename[:-5]
+            if base_stem.lower().endswith(".timeline"):
+                base_stem = base_stem[:-9]
+            
+            # Save the JSON as timeline file in data/input
+            timeline_dest = server.get_data_input_dir() / f"{base_stem}.timeline.json"
+            try:
+                with open(timeline_dest, "wb") as buffer:
+                    shutil.copyfileobj(file.file, buffer)
+            except Exception as j_err:
+                print(f"[transcribe_file] Notice saving json timeline: {j_err}")
+            finally:
+                await file.close()
+
+            # Search if audio with matching stem exists in data/input or campaign recordings
+            matched_audio = None
+            for ext in (".wav", ".mp3", ".m4a", ".aac", ".ogg", ".flac"):
+                cand = server.get_data_input_dir() / f"{base_stem}{ext}"
+                if cand.is_file():
+                    matched_audio = cand
+                    break
+            if not matched_audio and campaign_name:
+                try:
+                    from src.storage.campaign_manager import CampaignManager
+                    safe_c = CampaignManager.sanitize_name(campaign_name)
+                    camp_rec = server.project_root / "data" / "campaigns" / safe_c / "recordings"
+                    for ext in (".wav", ".mp3", ".m4a", ".aac", ".ogg", ".flac"):
+                        cand = camp_rec / f"{base_stem}{ext}"
+                        if cand.is_file():
+                            matched_audio = cand
+                            break
+                except Exception:
+                    pass
+
+            if matched_audio and matched_audio.is_file():
+                save_dest = matched_audio
+                clean_filename = matched_audio.name
+                server.update_task_progress(task_id, 20.0, f"Timeline recibido. Usando audio asociado: {clean_filename}...", "Iniciando motor de audio...", stage="segmenting")
+            else:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Has seleccionado un archivo de timeline ('{clean_filename}'), pero falta el archivo de audio (.wav o .mp3). Por favor selecciona el archivo de audio correspondiente."
+                )
+        else:
+            server.update_task_progress(task_id, 20.0, "Segmentando archivo en el servidor...", "Guardando en almacenamiento local...", stage="segmenting")
+            save_dest = server.get_data_input_dir() / clean_filename
+            try:
+                with open(save_dest, "wb") as buffer:
+                    shutil.copyfileobj(file.file, buffer)
+            except Exception as exc:
+                err_type, human_err, stage = server.diagnose_exception(exc)
+                import traceback
+                server.set_task_error(task_id, human_err, error_type=err_type, stage=stage, details=traceback.format_exc())
+                raise HTTPException(status_code=500, detail=human_err) from exc
+            finally:
+                await file.close()
     else:
         raise HTTPException(status_code=400, detail="Por favor selecciona un archivo o grabación local para procesar.")
+
+    # Save optional timeline file (.timeline.json) if uploaded
+    if timeline_file and getattr(timeline_file, "filename", None):
+        target_t_name = f"{save_dest.stem}.timeline.json" if save_dest else Path(timeline_file.filename).name
+        timeline_dest = server.get_data_input_dir() / target_t_name
+        try:
+            with open(timeline_dest, "wb") as t_buf:
+                shutil.copyfileobj(timeline_file.file, t_buf)
+            print(f"[transcribe_file] Timeline file uploaded and saved to: {timeline_dest}")
+        except Exception as t_exc:
+            print(f"[transcribe_file] Warning saving timeline_file: {t_exc}")
+        finally:
+            await timeline_file.close()
+
+    # Mirror audio and timeline to campaign recordings if campaign_name is present
+    if campaign_name and save_dest and save_dest.is_file():
+        try:
+            from src.storage.campaign_manager import CampaignManager
+            safe_c = CampaignManager.sanitize_name(campaign_name)
+            camp_rec = server.project_root / "data" / "campaigns" / safe_c / "recordings"
+            camp_rec.mkdir(parents=True, exist_ok=True)
+            camp_audio = camp_rec / save_dest.name
+            if not camp_audio.exists():
+                shutil.copyfile(save_dest, camp_audio)
+            t_cand = server.get_data_input_dir() / f"{save_dest.stem}.timeline.json"
+            if t_cand.is_file():
+                shutil.copyfile(t_cand, camp_rec / t_cand.name)
+        except Exception as mirror_err:
+            print(f"[transcribe_file] Notice mirroring audio to campaign: {mirror_err}")
 
     server.update_task_progress(task_id, 20.0, "Segmentando archivo en el servidor...", "Iniciando motor de audio...", stage="segmenting")
 
@@ -453,11 +561,23 @@ async def transcribe_file(
             roster_dicts = json.loads(roster_json)
             if isinstance(roster_dicts, list):
                 for p in roster_dicts:
-                    if isinstance(p, dict) and p.get("is_user_character"):
+                    if isinstance(p, dict) and (p.get("is_user_character") or p.get("is_user")):
                         user_char_name = (p.get("character_name") or "").strip()
                         break
         except Exception:
             roster_dicts = []
+
+    if not roster_dicts and campaign_name:
+        try:
+            from src.storage.campaign_manager import CampaignManager
+            c_data = CampaignManager().load_campaign(campaign_name)
+            roster_dicts = c_data.get("roster", []) or []
+            for p in roster_dicts:
+                if isinstance(p, dict) and (p.get("is_user_character") or p.get("is_user")):
+                    user_char_name = (p.get("character_name") or "").strip()
+                    break
+        except Exception as camp_roster_err:
+            print(f"[transcribe_file] Notice loading campaign roster: {camp_roster_err}")
 
     def progress_cb(pct: float, msg: str):
         server.update_task_progress(task_id, pct, msg, stage="transcribing")
@@ -648,6 +768,24 @@ async def transcribe_file(
             docx_filename = None
 
     server.update_task_progress(task_id, 100.0, "¡Completado!", "Sesión procesada exitosamente.", stage="done")
+
+    # Mirror exports to dedicated data/campaigns/<campaign>/exports/
+    if campaign_name:
+        try:
+            safe_c = re.sub(r'[\\/*?:"<>|]', "", campaign_name.strip())
+            safe_c = re.sub(r"\s+", "_", safe_c).lower() or "campana_principal"
+            camp_exports = server.project_root / "data" / "campaigns" / safe_c / "exports"
+            camp_exports.mkdir(parents=True, exist_ok=True)
+            if md_filename and (server.get_data_output_dir() / md_filename).is_file():
+                shutil.copyfile(server.get_data_output_dir() / md_filename, camp_exports / md_filename)
+            if docx_filename and (server.get_data_output_dir() / docx_filename).is_file():
+                shutil.copyfile(server.get_data_output_dir() / docx_filename, camp_exports / docx_filename)
+            elif file_path_str and Path(file_path_str).is_file():
+                shutil.copyfile(Path(file_path_str), camp_exports / Path(file_path_str).name)
+            if txt_filename and (server.get_data_output_dir() / txt_filename).is_file():
+                shutil.copyfile(server.get_data_output_dir() / txt_filename, camp_exports / txt_filename)
+        except Exception as camp_exp_err:
+            print(f"[transcribe_file] Notice mirroring campaign exports: {camp_exp_err}")
 
     # Background Drive Sync for campaign files and session documents
     try:
@@ -1129,14 +1267,18 @@ async def switch_summary_language(payload: SwitchLanguageRequest, request: Reque
         roster_dicts = [p.model_dump() for p in payload.roster] if payload.roster else []
         detected_pcs = None
         txt_filename = None
+        session_num = payload.session_number
         if payload.campaign_name:
+            manager = server.CampaignManager()
+            active_ctx = manager.get_active_context(payload.campaign_name)
+            session_num = payload.session_number or (active_ctx["last_session"] if active_ctx.get("last_session", 0) > 0 else 1)
             try:
                 camp_res = await run_in_threadpool(
                     server.process_session_for_campaign,
                     campaign_name=payload.campaign_name,
                     transcript_text=transcript_text,
                     roster_dicts=roster_dicts,
-                    session_number=payload.session_number,
+                    session_number=session_num,
                     target_language=target_lang,
                     gemini_api_key=gemini_key,
                 )
@@ -1222,6 +1364,8 @@ async def switch_summary_language(payload: SwitchLanguageRequest, request: Reque
         docx_filename=docx_filename,
         md_filename=md_filename,
         txt_filename=txt_filename,
+        campaign_name=payload.campaign_name,
+        session_number=session_num if payload.campaign_name else payload.session_number,
         campaign_state=campaign_state,
         session_chapter=session_chapter,
         updated_quests=updated_quests,
@@ -1381,6 +1525,8 @@ async def reprocess_campaign(payload: ReprocessCampaignRequest, request: Request
         docx_filename=docx_filename,
         md_filename=md_filename,
         txt_filename=txt_filename,
+        campaign_name=campaign_name if not is_class_mode else None,
+        session_number=session_num if not is_class_mode else None,
         campaign_state=campaign_state,
         session_chapter=session_chapter,
         updated_quests=updated_quests,

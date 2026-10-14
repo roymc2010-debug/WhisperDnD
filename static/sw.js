@@ -1,5 +1,5 @@
 // Service Worker para WhisperDnD & Study PWA
-const CACHE_NAME = 'whisper-dnd-study-v5';
+const CACHE_NAME = 'whisper-dnd-study-v6';
 const ASSETS_TO_CACHE = [
   '/',
   '/manifest.json',

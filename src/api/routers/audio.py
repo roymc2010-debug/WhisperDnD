@@ -146,6 +146,7 @@ async def start_recording(payload: Optional[StartRecordingRequest] = None):
             "mode": rec_mode,
             "mic_id": mic_id,
             "speaker_id": speaker_id,
+            "campaign_name": getattr(payload, "campaign_name", None) if payload else None,
         }
         if gain_mic is not None and gain_mic != 1.0:
             rec_kwargs["gain_mic"] = gain_mic
@@ -249,8 +250,16 @@ async def stop_and_process(payload: StopAndProcessRequest, request: Request = No
     engine = payload.engine or "groq"
     roster_dicts = [p.model_dump() for p in payload.roster] if payload.roster else []
     user_char_name = None
+    if not roster_dicts and payload.campaign_name:
+        try:
+            from src.storage.campaign_manager import CampaignManager
+            c_data = CampaignManager().load_campaign(payload.campaign_name)
+            roster_dicts = c_data.get("roster", []) or []
+        except Exception as camp_roster_err:
+            print(f"[audio.py] Notice loading campaign roster: {camp_roster_err}")
+
     for p in roster_dicts:
-        if p.get("is_user_character"):
+        if isinstance(p, dict) and (p.get("is_user_character") or p.get("is_user")):
             user_char_name = (p.get("character_name") or "").strip()
             break
 
@@ -466,12 +475,27 @@ async def stop_and_process(payload: StopAndProcessRequest, request: Request = No
 
     server.update_task_progress(task_id, 100.0, "¡Completado!", "Sesión procesada exitosamente.", stage="done")
 
-    # Background Drive Sync for campaign files and session documents
+    # Background Drive Sync and Campaign Folder Mirroring
     files_to_sync = []
     if payload.campaign_name:
         c_path = server.get_campaign_path(payload.campaign_name)
         if c_path and c_path.is_file():
             files_to_sync.append(c_path)
+        # Mirror exports to dedicated data/campaigns/<campaign>/exports/
+        try:
+            import shutil
+            safe_c = re.sub(r'[\\/*?:"<>|]', "", payload.campaign_name.strip())
+            safe_c = re.sub(r"\s+", "_", safe_c).lower() or "campana_principal"
+            camp_exports = server.project_root / "data" / "campaigns" / safe_c / "exports"
+            camp_exports.mkdir(parents=True, exist_ok=True)
+            if md_filename and (server.get_data_output_dir() / md_filename).is_file():
+                shutil.copyfile(server.get_data_output_dir() / md_filename, camp_exports / md_filename)
+            if docx_out_path and docx_out_path.is_file():
+                shutil.copyfile(docx_out_path, camp_exports / docx_out_path.name)
+            if txt_filename and (server.get_data_output_dir() / txt_filename).is_file():
+                shutil.copyfile(server.get_data_output_dir() / txt_filename, camp_exports / txt_filename)
+        except Exception as camp_exp_err:
+            print(f"[stop_and_process] Notice mirroring campaign exports: {camp_exp_err}")
     if md_filename:
         m_p = server.get_data_output_dir() / md_filename
         if m_p.is_file():

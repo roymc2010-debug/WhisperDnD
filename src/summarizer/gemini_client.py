@@ -277,6 +277,7 @@ class GeminiTTRPGSummarizer:
         is_youtube: bool = False,
         prior_lore: Optional[str] = None,
         character_backstory: Optional[str] = None,
+        last_session_recap: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         Generate structured session chapter and cumulative updates for Living Campaign Journal.
@@ -315,6 +316,7 @@ class GeminiTTRPGSummarizer:
             is_youtube=is_youtube,
             prior_lore=prior_lore,
             character_backstory=character_backstory,
+            last_session_recap=last_session_recap,
         )
 
         campaign_temperature = 0.1 if is_youtube else 0.2

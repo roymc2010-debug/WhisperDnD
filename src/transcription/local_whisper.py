@@ -99,8 +99,11 @@ class LocalWhisperTranscriber:
         if not path.is_file():
             raise FileNotFoundError(f"Audio file does not exist: {path.resolve()}")
 
-        # Run transcription with Voice Activity Detection enabled
-        transcribe_kwargs = {"vad_filter": True}
+        # Run transcription with Voice Activity Detection enabled and disable conditioning on previous text to stop hallucination loops
+        transcribe_kwargs = {
+            "vad_filter": True,
+            "condition_on_previous_text": False,
+        }
         if language:
             transcribe_kwargs["language"] = language
         if initial_prompt:
@@ -119,7 +122,7 @@ class LocalWhisperTranscriber:
 
         from .groq_whisper import clean_whisper_hallucinations
         for segment in segments_generator:
-            segment_text = clean_whisper_hallucinations(segment.text.strip())
+            segment_text = clean_whisper_hallucinations(segment.text.strip(), roster=roster)
             seg_data = {
                 "start": round(segment.start, 2),
                 "end": round(segment.end, 2),
@@ -131,7 +134,7 @@ class LocalWhisperTranscriber:
             if on_segment is not None:
                 on_segment(seg_data)
 
-        full_text = clean_whisper_hallucinations(" ".join(text_chunks)).strip()
+        full_text = clean_whisper_hallucinations(" ".join(text_chunks), roster=roster).strip()
         raw_text = full_text
         formatted_transcript = ""
 
