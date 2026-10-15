@@ -8,6 +8,15 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Set, Tuple
 
 
+GENERIC_TITLES: Set[str] = {
+    "lord", "lady", "sir", "dame", "king", "queen", "rey", "reina",
+    "captain", "capitán", "capitan", "guard", "guardia", "soldier", "soldado",
+    "master", "dm", "el", "la", "los", "las", "the", "de", "del", "of",
+    "don", "doña", "padre", "madre", "hermano", "hermana", "brother", "sister",
+}
+generic_titles = GENERIC_TITLES
+
+
 def is_npc_name_match(name1: str, name2: str) -> bool:
     """
     Smart NPC name matching with surname and full-name expansion detection.
@@ -51,17 +60,11 @@ def is_npc_name_match(name1: str, name2: str) -> bool:
     if set1 == set2:
         return True
 
-    generic_titles = {
-        "lord", "lady", "sir", "dame", "king", "queen", "rey", "reina",
-        "captain", "capitán", "capitan", "guard", "guardia", "soldier", "soldado",
-        "master", "dm", "el", "la", "los", "las", "the", "de", "del", "of"
-    }
-
     # If both have multi-word names and one is a subset of the other:
     # e.g. "Fothark Vanessa" is a subset of "Fothark Vanessa Halovar"
     if len(tokens1) >= 2 and len(tokens2) >= 2:
-        non_generic1 = set1 - generic_titles
-        non_generic2 = set2 - generic_titles
+        non_generic1 = set1 - GENERIC_TITLES
+        non_generic2 = set2 - GENERIC_TITLES
         if non_generic1 and non_generic2:
             if non_generic1.issubset(non_generic2) or non_generic2.issubset(non_generic1):
                 return True
@@ -70,7 +73,7 @@ def is_npc_name_match(name1: str, name2: str) -> bool:
     shorter_tokens, longer_tokens = (tokens1, tokens2) if len(tokens1) <= len(tokens2) else (tokens2, tokens1)
     if len(shorter_tokens) == 1:
         st = shorter_tokens[0]
-        if len(st) >= 4 and st not in generic_titles:
+        if len(st) >= 4 and st not in GENERIC_TITLES:
             if st in longer_tokens:
                 return True
 
@@ -102,13 +105,7 @@ def is_entity_substring_duplicate(
     if "[" in l1 or "sin nombre" in l1 or "unnamed" in l1:
         return False
 
-    generic_titles = {
-        "lord", "lady", "sir", "dame", "king", "queen", "rey", "reina",
-        "captain", "capitán", "capitan", "guard", "guardia", "soldier", "soldado",
-        "master", "dm", "el", "la", "los", "las", "the", "de", "del", "of",
-        "don", "doña", "padre", "madre", "hermano", "hermana", "brother", "sister"
-    }
-    if l1 in generic_titles:
+    if l1 in GENERIC_TITLES:
         return False
 
     # If both entities have player names specified and they match (and not empty / generic)
@@ -119,8 +116,8 @@ def is_entity_substring_duplicate(
             if pl1 == pl2:
                 c1 = re.sub(r"[^\w\s]", "", l1)
                 c2 = re.sub(r"[^\w\s]", "", l2)
-                t1 = {t for t in c1.split() if len(t) >= 3 and t not in generic_titles}
-                t2 = {t for t in c2.split() if len(t) >= 3 and t not in generic_titles}
+                t1 = {t for t in c1.split() if len(t) >= 3 and t not in GENERIC_TITLES}
+                t2 = {t for t in c2.split() if len(t) >= 3 and t not in GENERIC_TITLES}
                 shared_tokens = (t1 & t2)
                 e1_aliases = [str(a).strip().lower() for a in entity1.get("aliases", [])]
                 e2_aliases = [str(a).strip().lower() for a in entity2.get("aliases", [])]
@@ -151,8 +148,8 @@ def is_entity_substring_duplicate(
 
     c1 = re.sub(r"[^\w\s]", "", l1)
     c2 = re.sub(r"[^\w\s]", "", l2)
-    tokens1 = [t for t in c1.split() if t and t not in generic_titles]
-    tokens2 = [t for t in c2.split() if t and t not in generic_titles]
+    tokens1 = [t for t in c1.split() if t and t not in GENERIC_TITLES]
+    tokens2 = [t for t in c2.split() if t and t not in GENERIC_TITLES]
     if not tokens1 or not tokens2:
         return False
 
@@ -1499,8 +1496,8 @@ class CampaignManager:
                         p_char = str(p.get("personaje") or "").strip()
                         c1 = re.sub(r"[^\w\s]", "", p_char.lower())
                         c2 = re.sub(r"[^\w\s]", "", char_lower)
-                        t1 = {t for t in c1.split() if len(t) >= 3 and t not in generic_titles}
-                        t2 = {t for t in c2.split() if len(t) >= 3 and t not in generic_titles}
+                        t1 = {t for t in c1.split() if len(t) >= 3 and t not in GENERIC_TITLES}
+                        t2 = {t for t in c2.split() if len(t) >= 3 and t not in GENERIC_TITLES}
                         p_aliases = [str(a).strip().lower() for a in p.get("aliases", [])]
                         if (t1 and t2 and (t1 & t2)) or char_lower in p_aliases or is_npc_name_match(p_char, char_name):
                             matched_pc = p
@@ -1828,8 +1825,8 @@ class CampaignManager:
                     if ac_str.lower() == clean_old.lower():
                         if clean_new not in updated_assoc:
                             updated_assoc.append(clean_new)
-                    elif pattern.search(ac_str):
-                        subbed = pattern.sub(clean_new, ac_str)
+                    elif any(pat.search(ac_str) for pat in patterns):
+                        subbed = _sub_text(ac_str)
                         if subbed not in updated_assoc:
                             updated_assoc.append(subbed)
                     else:

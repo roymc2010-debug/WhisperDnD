@@ -1499,6 +1499,51 @@ class TestCampaignManager(unittest.TestCase):
         self.assertIn("Hetzi", merged["aliases"])
         self.assertEqual(len(merged["notes"]), 2)
 
+    def test_record_session_with_existing_universal_pc_player_matching_no_name_error(self):
+        """Verify that record_session matches PCs by player name without NameError on generic_titles."""
+        camp_name = "Candlekeep NameError Regression"
+        state = self.manager.load_campaign(camp_name)
+        state["universal_pcs"] = [
+            {
+                "personaje": "Markus Veyl",
+                "jugador": "Roy",
+                "clase": "Guerrero",
+                "especie": "Humano",
+                "subclase": "Battle Master",
+                "debut_sesion": 1,
+                "hitos_acumulados": ["Sesión #1: Llegó a Candlekeep."],
+            }
+        ]
+        self.manager.save_campaign(state)
+
+        # Record Session 2 with a short character variant ("Markus") under the same player "Roy"
+        s2_chapter = {
+            "title": "Las Puertas de la Gran Biblioteca",
+            "chronicle_text": "Markus investigó los libros antiguos.",
+        }
+        detected_pcs = [
+            {
+                "personaje": "Markus",
+                "jugador": "Roy",
+                "clase": "Guerrero",
+                "especie": "Humano",
+                "rol_en_sesion": "Defendió el patio de entrada.",
+            }
+        ]
+
+        # This should execute cleanly without raising NameError: name 'generic_titles' is not defined
+        updated_state = self.manager.record_session(
+            name=camp_name,
+            session_chapter=s2_chapter,
+            session_number=2,
+            detected_pcs=detected_pcs,
+        )
+
+        pcs = updated_state.get("universal_pcs", [])
+        self.assertEqual(len(pcs), 1)
+        self.assertEqual(pcs[0]["personaje"], "Markus Veyl")
+        self.assertTrue(any("Sesión #2" in h for h in pcs[0]["hitos_acumulados"]))
+
 
 if __name__ == "__main__":
     unittest.main()
