@@ -137,6 +137,24 @@
         <button onclick="setActiveView('settings')" class="w-full text-left px-3 py-2 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-400 text-xs font-medium hover:bg-amber-500/20">⚠️ Configuración Requerida</button>
       </div>
 
+      <!-- Indicador de Cuota de API (Tokens & Presupuesto) -->
+      <div id="apiQuotaContainer" class="p-2.5 rounded-xl bg-slate-900/80 border border-slate-800 text-xs space-y-1.5 transition-all" title="Consumo y estado estimado de cuotas API de Gemini y Groq">
+        <div class="flex items-center justify-between">
+          <span class="text-slate-400 flex items-center gap-1.5 text-[11px] font-medium">
+            <span id="quotaStatusDot" class="w-2 h-2 rounded-full bg-emerald-400"></span>
+            <span>Cuota APIs:</span>
+          </span>
+          <span id="quotaPercentDisplay" class="font-mono font-bold text-emerald-400 tabular-nums text-xs">100.0%</span>
+        </div>
+        <div class="w-full bg-slate-950 rounded-full h-1.5 overflow-hidden border border-slate-800/80">
+          <div id="quotaProgressBar" class="h-full bg-emerald-500 rounded-full transition-all duration-300" style="width: 100%;"></div>
+        </div>
+        <div class="flex items-center justify-between text-[10px] text-slate-500 font-mono">
+          <span id="quotaTokensSummary">Gemini + Groq</span>
+          <span id="quotaStatusSummary" class="text-emerald-400 font-semibold">Óptima</span>
+        </div>
+      </div>
+
       <!-- Botón de Ajustes -->
       <div>
         <button id="btnSettingsSidebar" onclick="setActiveView('settings')" type="button"
@@ -146,7 +164,6 @@
           <span>Ajustes & APIs</span>
         </button>
       </div>
-    </div>
     </div>
   </aside>
 
@@ -170,6 +187,10 @@
       <span id="mobileDriveSyncIndicator" class="hidden min-h-[36px] inline-flex items-center justify-center px-2 py-1 rounded-lg text-xs font-medium bg-slate-800 text-emerald-400 border border-white/10" title="Google Drive">
         ☁️
       </span>
+      <div id="mobileQuotaIndicator" class="min-h-[36px] inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-mono font-medium bg-slate-800 text-emerald-400 border border-white/10" title="Cuota de API disponible">
+        <span id="mobileQuotaDot" class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+        <span id="mobileQuotaPercent" class="tabular-nums">100%</span>
+      </div>
       <button id="btnMobileSettings" onclick="setActiveView('settings')" type="button" title="Ajustes de API y Audio"
         class="min-h-[36px] w-[36px] rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 flex items-center justify-center text-sm border border-white/10 active:scale-95 transition cursor-pointer">
         ⚙️
@@ -967,7 +988,7 @@
             <span class="stage-icon text-xs">⏳</span>
           </div>
           <p id="stageAudioTitle" class="text-xs font-semibold text-slate-300">Descarga YouTube</p>
-          <p id="stageAudioDesc" class="text-[10px] text-slate-400">0% &ndash; 30%</p>
+          <p id="stageAudioDesc" class="text-[10px] text-slate-400">0% &ndash; 25% (Extracción)</p>
         </div>
 
         <!-- Fase 2: Groq Whisper -->
@@ -977,7 +998,7 @@
             <span class="stage-icon text-xs">⏳</span>
           </div>
           <p id="stageTranscribeTitle" class="text-xs font-semibold text-slate-300">Transcripción Groq</p>
-          <p id="stageTranscribeDesc" class="text-[10px] text-slate-400">0% &ndash; 75% (Groq Whisper)</p>
+          <p id="stageTranscribeDesc" class="text-[10px] text-slate-400">0% &ndash; 70% (Whisper Large-v3)</p>
         </div>
 
         <!-- Fase 3: Gemini Analysis -->
@@ -987,7 +1008,7 @@
             <span class="stage-icon text-xs">⏳</span>
           </div>
           <p id="stageGeminiTitle" class="text-xs font-semibold text-slate-300">Análisis Gemini</p>
-          <p id="stageGeminiDesc" class="text-[10px] text-slate-400">75% &ndash; 95% (narrativa/NPCs)</p>
+          <p id="stageGeminiDesc" class="text-[10px] text-slate-400">70% &ndash; 95% (Crónica & Lore)</p>
         </div>
 
         <!-- Fase 4: Finalizado -->
@@ -2305,18 +2326,18 @@
 
   </main>
 
-  <!-- Modularized Application Scripts -->
-  <script src="/static/js/utils.js?v=20261011_2"></script>
-  <script src="/static/js/api.js?v=20261011_2"></script>
-  <script src="/static/js/progress.js?v=20261014_3"></script>
-  <script src="/static/js/audio.js?v=20261014_3"></script>
-  <script src="/static/js/drive.js?v=20261011_2"></script>
-  <script src="/static/js/roster.js?v=20261011_2"></script>
-  <script src="/static/js/wiki.js?v=20261014_4"></script>
-  <script src="/static/js/notes.js?v=20261011_2"></script>
-  <script src="/static/js/app.js?v=20261014_4"></script>
+  <!-- Contenedor Pop-Out Flotante de Alertas & Errores (Siempre visible sin importar el scroll) -->
+  <div id="floatingToastContainer" class="fixed top-5 right-5 z-[9999] flex flex-col gap-2.5 max-w-sm sm:max-w-md w-full pointer-events-none px-3 sm:px-0" aria-live="assertive"></div>
 
-  <!-- Legacy Code Purge Area -->
-  <script src="/static/app.js"></script>
+  <!-- Modularized Application Scripts -->
+  <script src="/static/js/utils.js?v=20261015_1"></script>
+  <script src="/static/js/api.js?v=20261015_1"></script>
+  <script src="/static/js/progress.js?v=20261015_1"></script>
+  <script src="/static/js/audio.js?v=20261015_1"></script>
+  <script src="/static/js/drive.js?v=20261015_1"></script>
+  <script src="/static/js/roster.js?v=20261015_1"></script>
+  <script src="/static/js/wiki.js?v=20261015_1"></script>
+  <script src="/static/js/notes.js?v=20261015_1"></script>
+  <script src="/static/js/app.js?v=20261015_1"></script>
 </body>
 </html>

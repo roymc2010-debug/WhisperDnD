@@ -45,13 +45,18 @@ function showErrorCard(errorMessage, retryCallback = null) {
   finishProgressTracking(false);
   const card = document.getElementById("errorCard");
   const msgEl = document.getElementById("errorCardMessage");
-  if (msgEl) msgEl.textContent = errorMessage || "Ocurrió un error inesperado durante el procesamiento.";
+  const finalMsg = errorMessage || "Ocurrió un error inesperado durante el procesamiento.";
+  if (msgEl) msgEl.textContent = finalMsg;
   if (retryCallback) {
     lastActionCallback = retryCallback;
   }
   if (card) {
     card.classList.remove("hidden");
     card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+  // Pop-Out Floating Notification: ensures error is seen immediately regardless of scroll
+  if (typeof showFloatingToast === "function") {
+    showFloatingToast(finalMsg, "error", 8000, retryCallback ? "Reintentar" : null, retryCallback ? () => retryLastAction() : null);
   }
 }
 
@@ -148,6 +153,16 @@ function startProgressTracking(taskId, initialTitle, initialDesc) {
           showErrorCard(data.error_message || data.message || "Error durante el procesamiento.");
           return;
         }
+        if (data && data.status === 'cancelled') {
+          if (progressPollInterval) {
+            clearInterval(progressPollInterval);
+            progressPollInterval = null;
+          }
+          finishProgressTracking(false);
+          hideProcessingCard();
+          if (typeof showAlert === "function") showAlert("Proceso cancelado.");
+          return;
+        }
         if (data && typeof data.percent === 'number') {
           updateProgressBar(data.percent, data.step, data.message, data.stage);
         }
@@ -207,10 +222,13 @@ function updateStepperMode(isYoutube) {
   const container = document.getElementById("stepperContainer");
   const stageAudio = document.getElementById("stageAudio");
   const stageAudioStep = document.getElementById("stageAudioStep");
+  const stageAudioDesc = document.getElementById("stageAudioDesc");
   const stageTranscribeStep = document.getElementById("stageTranscribeStep");
   const stageTranscribeDesc = document.getElementById("stageTranscribeDesc");
   const stageGeminiStep = document.getElementById("stageGeminiStep");
+  const stageGeminiDesc = document.getElementById("stageGeminiDesc");
   const stageDoneStep = document.getElementById("stageDoneStep");
+  const stageDoneDesc = document.getElementById("stageDoneDesc");
 
   if (isYoutubeStepper) {
     if (container) {
@@ -221,10 +239,13 @@ function updateStepperMode(isYoutube) {
       stageAudio.style.display = "";
     }
     if (stageAudioStep) stageAudioStep.textContent = "Paso 1";
+    if (stageAudioDesc) stageAudioDesc.textContent = "0% – 25% (Extracción)";
     if (stageTranscribeStep) stageTranscribeStep.textContent = "Paso 2";
-    if (stageTranscribeDesc) stageTranscribeDesc.textContent = "30% – 75% (Whisper)";
+    if (stageTranscribeDesc) stageTranscribeDesc.textContent = "25% – 70% (Whisper)";
     if (stageGeminiStep) stageGeminiStep.textContent = "Paso 3";
+    if (stageGeminiDesc) stageGeminiDesc.textContent = "70% – 95% (Gemini & Lore)";
     if (stageDoneStep) stageDoneStep.textContent = "Paso 4";
+    if (stageDoneDesc) stageDoneDesc.textContent = "100%";
   } else {
     if (container) {
       container.className = "grid grid-cols-1 md:grid-cols-3 gap-2 pt-1";
@@ -234,9 +255,11 @@ function updateStepperMode(isYoutube) {
       stageAudio.style.display = "none";
     }
     if (stageTranscribeStep) stageTranscribeStep.textContent = "Paso 1";
-    if (stageTranscribeDesc) stageTranscribeDesc.textContent = "0% – 75% (Whisper)";
+    if (stageTranscribeDesc) stageTranscribeDesc.textContent = "0% – 70% (Audio & Whisper)";
     if (stageGeminiStep) stageGeminiStep.textContent = "Paso 2";
+    if (stageGeminiDesc) stageGeminiDesc.textContent = "70% – 95% (Gemini & Lore)";
     if (stageDoneStep) stageDoneStep.textContent = "Paso 3";
+    if (stageDoneDesc) stageDoneDesc.textContent = "100%";
   }
 }
 
@@ -279,9 +302,9 @@ function updateStageHighlights(p, stage = null) {
         setStageElementState(elDone, "completed");
       }
     } else {
-      setStageElementState(elAudio, p >= 30.0 ? "completed" : (p > 0.0 ? "active" : "waiting"));
-      setStageElementState(elTranscribe, p >= 80.0 ? "completed" : (p >= 30.0 ? "active" : "waiting"));
-      setStageElementState(elGemini, p >= 98.0 ? "completed" : (p >= 80.0 ? "active" : "waiting"));
+      setStageElementState(elAudio, p >= 25.0 ? "completed" : (p > 0.0 ? "active" : "waiting"));
+      setStageElementState(elTranscribe, p >= 70.0 ? "completed" : (p >= 25.0 ? "active" : "waiting"));
+      setStageElementState(elGemini, p >= 95.0 ? "completed" : (p >= 70.0 ? "active" : "waiting"));
       setStageElementState(elDone, p >= 100.0 ? "completed" : "waiting");
     }
   } else {
@@ -309,8 +332,8 @@ function updateStageHighlights(p, stage = null) {
         setStageElementState(elDone, "completed");
       }
     } else {
-      setStageElementState(elTranscribe, p >= 80.0 ? "completed" : (p > 0.0 ? "active" : "waiting"));
-      setStageElementState(elGemini, p >= 98.0 ? "completed" : (p >= 80.0 ? "active" : "waiting"));
+      setStageElementState(elTranscribe, p >= 70.0 ? "completed" : (p > 0.0 ? "active" : "waiting"));
+      setStageElementState(elGemini, p >= 95.0 ? "completed" : (p >= 70.0 ? "active" : "waiting"));
       setStageElementState(elDone, p >= 100.0 ? "completed" : "waiting");
     }
   }
@@ -348,6 +371,68 @@ function finishProgressTracking(success = true) {
   }
 }
 
+async function cancelCurrentTask() {
+  const tid = currentTaskId;
+  const btn = document.getElementById("btnCancelProcess");
+  const btnText = document.getElementById("btnCancelProcessText");
+  if (btn) btn.disabled = true;
+  if (btnText) btnText.textContent = "Deteniendo...";
+
+  // 1. Immediately abort active client-side fetch request
+  if (window.currentActiveAbortController) {
+    try {
+      window.currentActiveAbortController.abort();
+    } catch (_) {}
+    window.currentActiveAbortController = null;
+  }
+
+  // 2. Notify backend to cancel pipeline execution
+  if (tid) {
+    try {
+      fetch('/api/task/cancel', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ task_id: tid })
+      }).catch(err => console.warn("Error calling cancel task:", err));
+    } catch (err) {
+      console.warn("Error calling cancel task:", err);
+    }
+  }
+
+  // 3. Reset progress & UI immediately (no hanging)
+  finishProgressTracking(false);
+  hideProcessingCard();
+
+  // 4. Restore UI buttons to clickable states
+  const btnFile = document.getElementById("btnFile");
+  if (btnFile) {
+    btnFile.disabled = false;
+    btnFile.innerHTML = `<span>✨</span> <span>Procesar Grabación</span>`;
+  }
+  const btnYt = document.getElementById("btnYoutube");
+  if (btnYt) {
+    btnYt.disabled = false;
+    btnYt.innerHTML = `<span>✨</span> <span>Descargar y Procesar</span>`;
+  }
+  const btnStop = document.getElementById("btnStopRecording");
+  const btnStart = document.getElementById("btnStartRecording");
+  if (btnStop) btnStop.disabled = true;
+  if (btnStart) {
+    btnStart.disabled = false;
+    btnStart.classList.remove("opacity-40", "cursor-not-allowed");
+  }
+
+  // 5. Show immediate pop-out confirmation
+  if (typeof showFloatingToast === "function") {
+    showFloatingToast("Proceso detenido inmediatamente por el usuario.", "info", 4500);
+  } else if (typeof showAlert === "function") {
+    showAlert("Proceso detenido por el usuario.");
+  }
+
+  if (btn) btn.disabled = false;
+  if (btnText) btnText.textContent = "Detener Proceso";
+}
+
 // Window bindings
 window.generateTaskId = generateTaskId;
 window.showProcessingCard = showProcessingCard;
@@ -361,3 +446,4 @@ window.updateProgressBar = updateProgressBar;
 window.updateStepperMode = updateStepperMode;
 window.updateStageHighlights = updateStageHighlights;
 window.finishProgressTracking = finishProgressTracking;
+window.cancelCurrentTask = cancelCurrentTask;

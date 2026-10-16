@@ -189,6 +189,104 @@ async function checkApiKeysStatus() {
   }
 }
 
+// =========================================================================
+// API TOKEN & QUOTA MONITORING
+// =========================================================================
+var currentApiQuotaData = null;
+
+async function fetchApiQuota() {
+  try {
+    const res = await fetch("/api/system/quota", {
+      headers: getUserApiHeaders()
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    currentApiQuotaData = data;
+    renderApiQuota(data);
+    return data;
+  } catch (err) {
+    console.warn("Could not fetch API quota:", err);
+    return null;
+  }
+}
+
+function renderApiQuota(data) {
+  if (!data) return;
+  const pct = typeof data.percent_remaining === "number" ? data.percent_remaining : 100.0;
+  const pctStr = `${pct.toFixed(1)}%`;
+
+  const percentDisplay = document.getElementById("quotaPercentDisplay");
+  const progressBar = document.getElementById("quotaProgressBar");
+  const statusDot = document.getElementById("quotaStatusDot");
+  const statusSummary = document.getElementById("quotaStatusSummary");
+  const tokensSummary = document.getElementById("quotaTokensSummary");
+  const mobilePercent = document.getElementById("mobileQuotaPercent");
+  const mobileDot = document.getElementById("mobileQuotaDot");
+
+  let colorClass = "emerald";
+  let statusText = "Óptima";
+  if (pct < 5.0) {
+    colorClass = "rose";
+    statusText = "Crítica (<5%)";
+  } else if (pct < 15.0) {
+    colorClass = "amber";
+    statusText = "Baja (<15%)";
+  } else if (pct < 50.0) {
+    colorClass = "yellow";
+    statusText = "Moderada";
+  }
+
+  if (percentDisplay) {
+    percentDisplay.textContent = pctStr;
+    percentDisplay.className = `font-mono font-bold tabular-nums text-xs text-${colorClass}-400`;
+  }
+  if (progressBar) {
+    progressBar.style.width = `${Math.max(3, Math.min(100, pct))}%`;
+    progressBar.className = `h-full rounded-full transition-all duration-300 bg-${colorClass}-500`;
+  }
+  if (statusDot) {
+    statusDot.className = `w-2 h-2 rounded-full bg-${colorClass}-400 ${pct < 5.0 ? 'animate-pulse' : ''}`;
+  }
+  if (statusSummary) {
+    statusSummary.textContent = statusText;
+    statusSummary.className = `font-semibold text-${colorClass}-400`;
+  }
+  if (tokensSummary && data.gemini) {
+    const geminiK = Math.round((data.gemini.tokens_remaining || 0) / 1000);
+    tokensSummary.textContent = `~${geminiK}k tok disp.`;
+  }
+
+  if (mobilePercent) {
+    mobilePercent.textContent = pctStr;
+    mobilePercent.className = `tabular-nums text-${colorClass}-400`;
+  }
+  if (mobileDot) {
+    mobileDot.className = `w-1.5 h-1.5 rounded-full bg-${colorClass}-400 ${pct < 5.0 ? 'animate-pulse' : ''}`;
+  }
+}
+
+async function checkQuotaBeforeAction(actionName = "este proceso") {
+  try {
+    const quota = await fetchApiQuota();
+    if (quota && quota.danger) {
+      const userWantsToProceed = confirm(
+        `⚠️ ADVERTENCIA DE CUOTA DE API CRÍTICA (${quota.percent_remaining}% restante)\n\n` +
+        `Te queda menos del 5% de tu cuota de tokens disponibles hoy. Si inicias ${actionName}, existe alto riesgo de que los tokens se agoten y el proceso se quede a la mitad.\n\n` +
+        `¿Deseas continuar de todas formas bajo tu propio riesgo?`
+      );
+      if (!userWantsToProceed) {
+        if (typeof showFloatingToast === "function") {
+          showFloatingToast(`Operación cancelada para preservar tu cuota de tokens restante (${quota.percent_remaining}%).`, "warning", 6000);
+        }
+        return false;
+      }
+    }
+  } catch (e) {
+    console.warn("Could not check quota guard:", e);
+  }
+  return true;
+}
+
 // Window bindings
 window.getUserApiHeaders = getUserApiHeaders;
 window.loadUserApiKeys = loadUserApiKeys;
@@ -200,3 +298,6 @@ window.checkAuthErrorAndRedirect = checkAuthErrorAndRedirect;
 window.updateSystemStatusIndicator = updateSystemStatusIndicator;
 window.updateKeyBadge = updateKeyBadge;
 window.checkApiKeysStatus = checkApiKeysStatus;
+window.fetchApiQuota = fetchApiQuota;
+window.renderApiQuota = renderApiQuota;
+window.checkQuotaBeforeAction = checkQuotaBeforeAction;

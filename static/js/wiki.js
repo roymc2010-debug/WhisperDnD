@@ -2455,7 +2455,17 @@ async function confirmNpcSpellcheck() {
               const regex = new RegExp(`\\b${tok.replace(/[.*+?^${}()|[\\]\\]/g, '\\$&')}\\b`, 'gi');
               if (currentResult.chronicle) currentResult.chronicle = currentResult.chronicle.replace(regex, newName);
               if (currentResult.chronicle_markdown) currentResult.chronicle_markdown = currentResult.chronicle_markdown.replace(regex, newName);
-              if (currentResult.session_chapter) currentResult.session_chapter = currentResult.session_chapter.replace(regex, newName);
+              if (currentResult.session_chapter) {
+                if (typeof currentResult.session_chapter === "object") {
+                  ["chronicle_text", "closing_expectations", "user_coaching", "markus_coaching", "next_session_script", "recap_text", "episode_synopsis", "title"].forEach(prop => {
+                    if (typeof currentResult.session_chapter[prop] === "string") {
+                      currentResult.session_chapter[prop] = currentResult.session_chapter[prop].replace(regex, newName);
+                    }
+                  });
+                } else if (typeof currentResult.session_chapter === "string") {
+                  currentResult.session_chapter = currentResult.session_chapter.replace(regex, newName);
+                }
+              }
               if (currentResult.recap_text) currentResult.recap_text = currentResult.recap_text.replace(regex, newName);
               if (currentResult.next_session_script) currentResult.next_session_script = currentResult.next_session_script.replace(regex, newName);
               if (Array.isArray(currentResult.detected_pcs)) {
@@ -2628,25 +2638,46 @@ window.saveCharacterBackstory = saveCharacterBackstory;
 // =========================================================================
 // WIKI SESSION WORD EXPORT (.DOCX)
 // =========================================================================
-function updateWikiSessionExportSelect(state) {
-  const select = document.getElementById("wikiSessionExportSelect");
-  if (!select) return;
-  const rawSessions = (state && (state.sessions || state.chronicles)) || [];
-  const sessions = Array.isArray(rawSessions) ? rawSessions : Object.values(rawSessions);
-  if (sessions.length === 0) {
-    select.innerHTML = '<option value="">Sin sesiones</option>';
+function populateWikiSessionExportDropdown(rawSessions, selectedNum = null) {
+  const selectEl = document.getElementById("wikiSessionExportSelect");
+  const containerEl = document.getElementById("wikiSessionExportContainer");
+  if (!selectEl) return;
+
+  const sessionsList = Array.isArray(rawSessions) ? rawSessions : Object.values(rawSessions || {});
+  if (!sessionsList || sessionsList.length === 0) {
+    if (containerEl) containerEl.classList.add("hidden");
+    selectEl.innerHTML = '<option value="">Sin sesiones</option>';
     return;
   }
-  select.innerHTML = "";
-  const sorted = [...sessions].sort((a, b) => (parseInt(b.session_number || b.number || 0)) - (parseInt(a.session_number || a.number || 0)));
-  sorted.forEach((s, idx) => {
-    const opt = document.createElement("option");
-    const num = s.session_number || s.number || (idx + 1);
-    opt.value = num;
-    const isLatest = idx === 0 ? " (Última)" : "";
-    opt.textContent = `Sesión #${num}${isLatest}`;
-    select.appendChild(opt);
+
+  if (containerEl) containerEl.classList.remove("hidden");
+
+  const sorted = [...sessionsList].sort((a, b) => {
+    const numA = parseInt(a.session_number || a.number || 0, 10);
+    const numB = parseInt(b.session_number || b.number || 0, 10);
+    return numB - numA;
   });
+
+  const maxNum = sorted.length > 0 ? (sorted[0].session_number || sorted[0].number || "1") : "1";
+  const targetVal = selectedNum ? String(selectedNum) : String(maxNum);
+
+  selectEl.innerHTML = sorted.map((s, idx) => {
+    const num = String(s.session_number || s.number || (sorted.length - idx));
+    const rawTitle = (s.session_title || s.title || "").trim();
+    const cleanTitle = rawTitle.replace(/^(?:sesi[oó]n|session)\s*#?\d+\s*[:\-]\s*/i, "").trim();
+    const isLatest = idx === 0;
+    const label = isLatest
+      ? `Sesión #${num} (Última)${cleanTitle ? `: ${cleanTitle}` : ""}`
+      : `Sesión #${num}${cleanTitle ? `: ${cleanTitle}` : ""}`;
+    return `<option value="${escapeHtml(num)}">${escapeHtml(label)}</option>`;
+  }).join("");
+
+  selectEl.value = targetVal;
+}
+
+function updateWikiSessionExportSelect(state) {
+  const rawSessions = (state && (state.sessions || state.chronicles)) || [];
+  populateWikiSessionExportDropdown(rawSessions);
 }
 
 function onWikiSessionExportSelectChanged(val) {
@@ -2685,9 +2716,15 @@ function downloadSelectedWikiSessionDocx(cleanMode = false) {
   if (!num) num = 1;
 
   const includeCoaching = !cleanMode;
-  window.location.href = `/api/campaigns/${encodeURIComponent(campName)}/session/${encodeURIComponent(num)}/download-docx?include_coaching=${includeCoaching}`;
+  const targetUrl = `/api/campaigns/${encodeURIComponent(campName)}/session/${encodeURIComponent(num)}/download-docx?include_coaching=${includeCoaching}`;
+  if (typeof navigateToDownload === "function") {
+    navigateToDownload(targetUrl);
+  } else {
+    window.location.href = targetUrl;
+  }
 }
 
+window.populateWikiSessionExportDropdown = populateWikiSessionExportDropdown;
 window.updateWikiSessionExportSelect = updateWikiSessionExportSelect;
 window.onWikiSessionExportSelectChanged = onWikiSessionExportSelectChanged;
 window.downloadSelectedWikiSessionDocx = downloadSelectedWikiSessionDocx;

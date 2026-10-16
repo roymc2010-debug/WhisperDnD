@@ -7,6 +7,7 @@ import json
 import os
 import re
 import shutil
+import sys
 import time
 import tempfile
 import urllib.parse
@@ -1001,6 +1002,12 @@ def build_whisper_prompt(
                         add_term(loc.get("name"))
                     elif isinstance(loc, str):
                         add_term(loc)
+                # Glossary and Lore terms
+                for g in state.get("glossary", []):
+                    if isinstance(g, dict):
+                        add_term(g.get("term") or g.get("name"))
+                    elif isinstance(g, str):
+                        add_term(g)
             except Exception as exc:
                 print(f"[build_whisper_prompt] Warning loading campaign '{campaign_name}': {exc}")
 

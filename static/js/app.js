@@ -16,6 +16,14 @@ var currentTargetLanguage = 'es'; // 'es' or 'en'
 var knownCampaigns = {};
 var deferredInstallPrompt = null;
 var _isPageNavigatingOrReloading = false;
+
+function navigateToDownload(url) {
+  _isPageNavigatingOrReloading = true;
+  setTimeout(() => { _isPageNavigatingOrReloading = false; }, 5000);
+  window.location.href = url;
+}
+window.navigateToDownload = navigateToDownload;
+
 var youtubeAbortController = null;
 var isYoutubeTranscribing = false;
 var selectedLocalRecordingFilename = null;
@@ -792,6 +800,9 @@ async function loadCurrentCampaign() {
           histSelect.disabled = true;
         }
       }
+      if (typeof populateWikiSessionExportDropdown === "function") {
+        populateWikiSessionExportDropdown((currentCampaignState && currentCampaignState.sessions) || []);
+      }
     } else {
       if (badge) badge.textContent = "Nueva Campaña (Sesión #1)";
       if (sessionInput && !isOverridden) sessionInput.value = 1;
@@ -803,6 +814,9 @@ async function loadCurrentCampaign() {
       if (histSelect) {
         histSelect.innerHTML = `<option value="">[ Seleccionar Sesión ▾ ]</option>`;
         histSelect.disabled = true;
+      }
+      if (typeof populateWikiSessionExportDropdown === "function") {
+        populateWikiSessionExportDropdown([]);
       }
     }
   } catch (err) {
@@ -1042,6 +1056,11 @@ async function transcribeYoutube() {
 
   if (!url) return showAlert("Introduce una URL de YouTube válida.");
 
+  if (typeof checkQuotaBeforeAction === "function") {
+    const quotaOk = await checkQuotaBeforeAction("el procesamiento del video de YouTube");
+    if (!quotaOk) return;
+  }
+
   if (isYoutubeTranscribing && youtubeAbortController) {
     try {
       youtubeAbortController.abort();
@@ -1050,6 +1069,7 @@ async function transcribeYoutube() {
   }
 
   youtubeAbortController = new AbortController();
+  window.currentActiveAbortController = youtubeAbortController;
   isYoutubeTranscribing = true;
 
   const btnYt = document.getElementById("btnYoutube");
@@ -1465,6 +1485,11 @@ async function transcribeFile() {
   const sessionNumber = (document.getElementById("sessionNumberInput") && parseInt(document.getElementById("sessionNumberInput").value)) || null;
   const roster = typeof getRosterFromTable === "function" ? getRosterFromTable(true) : [];
 
+  if (typeof checkQuotaBeforeAction === "function") {
+    const quotaOk = await checkQuotaBeforeAction("el procesamiento del archivo de audio");
+    if (!quotaOk) return;
+  }
+
   const taskId = generateTaskId();
   const engineName = (engine === "groq") ? "Groq Whisper Large-v3" : "faster-whisper local";
   if (typeof lastActionCallback !== "undefined") lastActionCallback = () => transcribeFile();
@@ -1494,6 +1519,11 @@ async function transcribeFile() {
     btnF.disabled = true;
     btnF.innerHTML = `<span class="inline-block animate-spin">⏳</span> Procesando...`;
   }
+
+  if (window.currentActiveAbortController) {
+    try { window.currentActiveAbortController.abort(); } catch (_) {}
+  }
+  window.currentActiveAbortController = new AbortController();
 
   try {
     const formData = new FormData();
@@ -1530,7 +1560,8 @@ async function transcribeFile() {
     const res = await fetch("/api/transcribe/file", {
       method: "POST",
       headers: getUserApiHeaders(),
-      body: formData
+      body: formData,
+      signal: window.currentActiveAbortController.signal
     });
     const data = await res.json();
     if (checkAuthErrorAndRedirect(res.status, data)) {
@@ -1540,6 +1571,10 @@ async function transcribeFile() {
     displayResults(data, { source: "file" });
     if (typeof finishProgressTracking === "function") finishProgressTracking(true);
   } catch (err) {
+    if (err.name === "AbortError") {
+      console.log("[transcribeFile] Petición cancelada por el usuario.");
+      return;
+    }
     if (typeof finishProgressTracking === "function") finishProgressTracking(false);
     showErrorCard(err.message, () => transcribeFile());
   } finally {
@@ -1676,6 +1711,9 @@ function displayResults(data, options = {}) {
 
     currentCampaignState = stateToUse;
     updateCampaignViewTabs(stateToUse);
+    if (typeof populateWikiSessionExportDropdown === "function") {
+      populateWikiSessionExportDropdown(stateToUse.sessions || [], data.session_number || stateToUse.last_session);
+    }
 
     const badgeEl = document.getElementById("campaignLastSessionBadge");
     if (badgeEl) badgeEl.textContent = `Sesión #${stateToUse.last_session || data.session_number || 1}`;
@@ -1883,6 +1921,7 @@ function displayResults(data, options = {}) {
     resultsCard.classList.remove("hidden");
     resultsCard.scrollIntoView({ behavior: "smooth" });
   }
+  if (typeof fetchApiQuota === "function") fetchApiQuota();
 }
 
 function showResults(data) {
@@ -2091,7 +2130,7 @@ function downloadSessionDocx(sessionNum = null, cleanMode = false) {
   }
 
   const includeCoaching = !cleanMode;
-  window.location.href = `/api/campaigns/${encodeURIComponent(campName)}/session/${encodeURIComponent(num)}/download-docx?include_coaching=${includeCoaching}`;
+  navigateToDownload(`/api/campaigns/${encodeURIComponent(campName)}/session/${encodeURIComponent(num)}/download-docx?include_coaching=${includeCoaching}`);
 }
 
 function downloadSessionMd(sessionNum = null, cleanMode = false) {
@@ -2121,7 +2160,7 @@ function downloadSessionMd(sessionNum = null, cleanMode = false) {
   }
 
   const includeCoaching = !cleanMode;
-  window.location.href = `/api/campaigns/${encodeURIComponent(campName)}/session/${encodeURIComponent(num)}/download-md?include_coaching=${includeCoaching}`;
+  navigateToDownload(`/api/campaigns/${encodeURIComponent(campName)}/session/${encodeURIComponent(num)}/download-md?include_coaching=${includeCoaching}`);
 }
 
 function toggleAiToolsMenu() {
@@ -2151,7 +2190,7 @@ function downloadCampaignDocx() {
   if (currentWorkspace === "work_and_study" || (currentResult && currentResult.recording_mode === "class")) {
     const file = (currentResult && (currentResult.docx_filename || currentResult.md_filename)) || "apuntes.docx";
     const docxName = file.endsWith(".docx") ? file : file.replace(/\.md$/, ".docx");
-    window.location.href = `/api/academic-notes/download/${encodeURIComponent(docxName)}`;
+    navigateToDownload(`/api/academic-notes/download/${encodeURIComponent(docxName)}`);
     return;
   }
   const wikiSel = document.getElementById("wikiCampaignSelect");
@@ -2161,7 +2200,7 @@ function downloadCampaignDocx() {
     showAlert("⚠️ Selecciona o abre una campaña para descargar el documento.");
     return;
   }
-  window.location.href = `/api/campaigns/${encodeURIComponent(campName)}/download-docx`;
+  navigateToDownload(`/api/campaigns/${encodeURIComponent(campName)}/download-docx`);
 }
 
 function downloadCampaignMd() {
@@ -2172,7 +2211,7 @@ function downloadCampaignMd() {
     showAlert("⚠️ Selecciona o abre una campaña para descargar el documento.");
     return;
   }
-  window.location.href = `/api/campaigns/${encodeURIComponent(campName)}/download-md`;
+  navigateToDownload(`/api/campaigns/${encodeURIComponent(campName)}/download-md`);
 }
 
 function exportCampaignByName(campName) {
@@ -2295,7 +2334,7 @@ async function handleCampaignImportFile(event) {
 
 function downloadTranscriptTxt() {
   if (currentResult && currentResult.txt_filename) {
-    window.location.href = `/api/download/transcript/${encodeURIComponent(currentResult.txt_filename)}`;
+    navigateToDownload(`/api/download/transcript/${encodeURIComponent(currentResult.txt_filename)}`);
     return;
   }
   const campName = (currentResult && currentResult.campaign_name) || (document.getElementById("campaignNameInput")?.value || "").trim();
@@ -2306,12 +2345,12 @@ function downloadTranscriptTxt() {
   const sessNum = (currentResult && currentResult.session_number) ? currentResult.session_number : (parseInt(document.getElementById("sessionNumberInput")?.value) || 1);
   const safeCamp = campName.toLowerCase().replace(/[^a-z0-9_]/g, "_");
   const defaultName = `${safeCamp}_sesion_${sessNum}_transcripcion.txt`;
-  window.location.href = `/api/download/transcript/${encodeURIComponent(defaultName)}`;
+  navigateToDownload(`/api/download/transcript/${encodeURIComponent(defaultName)}`);
 }
 
 function downloadAudioFile() {
   if (currentResult && currentResult.wav_filename) {
-    window.location.href = `/api/download/audio/${encodeURIComponent(currentResult.wav_filename)}`;
+    navigateToDownload(`/api/download/audio/${encodeURIComponent(currentResult.wav_filename)}`);
     return;
   }
   showAlert("No hay archivo de audio original disponible para descargar.");
@@ -2539,6 +2578,11 @@ async function reprocessCampaignChronicle() {
     return;
   }
 
+  if (typeof checkQuotaBeforeAction === "function") {
+    const quotaOk = await checkQuotaBeforeAction("la regeneración de la crónica con Gemini");
+    if (!quotaOk) return;
+  }
+
   const isClass = (currentResult.recording_mode === "class" || currentLiveMode === "class" || currentWorkspace === "work_and_study");
   if (typeof updateStepperMode === "function") updateStepperMode(false);
   const btn = document.getElementById("btnReprocessCampaign");
@@ -2566,13 +2610,19 @@ async function reprocessCampaignChronicle() {
       topic: isClass ? (currentResult.topic || document.getElementById("lectureTopicInput")?.value.trim() || "") : "",
     };
 
+    if (window.currentActiveAbortController) {
+      try { window.currentActiveAbortController.abort(); } catch (_) {}
+    }
+    window.currentActiveAbortController = new AbortController();
+
     const res = await fetch("/api/campaign/reprocess", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         ...getUserApiHeaders()
       },
-      body: JSON.stringify(payload)
+      body: JSON.stringify(payload),
+      signal: window.currentActiveAbortController.signal
     });
     const data = await res.json();
     if (checkAuthErrorAndRedirect(res.status, data)) {
@@ -2597,6 +2647,10 @@ async function reprocessCampaignChronicle() {
 
     displayResults(currentResult);
   } catch (err) {
+    if (err.name === "AbortError") {
+      console.log("[reprocessCampaignChronicle] Proceso detenido por el usuario.");
+      return;
+    }
     showAlert("Error al regenerar crónica: " + err.message);
   } finally {
     if (btn) btn.disabled = false;
@@ -2873,6 +2927,7 @@ window.addEventListener("click", (e) => {
 
 function triggerServerShutdownBeacon() {
   if (_isPageNavigatingOrReloading) return;
+  if (typeof isMobileUser === "function" && isMobileUser()) return;
   try {
     if (navigator.sendBeacon) {
       navigator.sendBeacon("/api/shutdown");
@@ -2913,6 +2968,7 @@ document.addEventListener("DOMContentLoaded", () => {
   if (typeof updateStepperMode === "function") updateStepperMode(false);
   if (typeof loadUserApiKeys === "function") loadUserApiKeys();
   if (typeof checkApiKeysStatus === "function") checkApiKeysStatus();
+  if (typeof fetchApiQuota === "function") fetchApiQuota();
   if (typeof checkDriveStatus === "function") checkDriveStatus();
   loadCampaignList();
   if (typeof refreshWikiCampaigns === "function") refreshWikiCampaigns();
@@ -3028,7 +3084,8 @@ window.transcribeYoutube = transcribeYoutube;
 window.handleDragOver = handleDragOver;
 window.handleDragLeave = handleDragLeave;
 window.handleDrop = handleDrop;
-window.handleFileSelect = handleFileSelect;
+window.handleIncomingFiles = handleIncomingFiles;
+window.handleFileSelect = handleIncomingFiles;
 window.selectExistingRecording = selectExistingRecording;
 window.loadLocalRecordingsList = loadLocalRecordingsList;
 window.transcribeFile = transcribeFile;

@@ -136,19 +136,19 @@ class TestGroqWhisperTranscriber(unittest.TestCase):
                 dummy_file = Path(__file__).resolve()
                 transcriber._transcribe_chunked(str(dummy_file), on_progress=progress_cb, source="local")
 
-        # For local/live sources, slicing is 25.0% and chunks range from 30.0% to 80.0%
-        self.assertEqual(progress_calls[0], 25.0)
+        # For local/live sources, slicing notification is 15.0% and chunks range from 30.0% to 80.0%
+        self.assertEqual(progress_calls[0], 15.0)
         self.assertEqual(progress_calls[-2], 77.4)
         self.assertEqual(progress_calls[-1], 80.0)
 
-        # For youtube sources, slicing is 25.0% and chunks range from 30.0% to 80.0%
+        # For youtube sources, slicing notification is 26.0% and chunks range from 30.0% to 80.0%
         progress_calls_yt = []
         with patch.object(transcriber, "_slice_audio", return_value=fake_chunks):
             with patch.object(transcriber, "_transcribe_single_file", return_value={
                 "segments": [], "text": "test", "language_code": "es", "duration": 60.0,
             }):
                 transcriber._transcribe_chunked(str(dummy_file), on_progress=lambda pct, msg: progress_calls_yt.append(pct), source="youtube")
-        self.assertEqual(progress_calls_yt[0], 25.0)
+        self.assertEqual(progress_calls_yt[0], 26.0)
         self.assertEqual(progress_calls_yt[-2], 77.4)
         self.assertEqual(progress_calls_yt[-1], 80.0)
 

@@ -240,7 +240,7 @@ async def stop_and_process(payload: StopAndProcessRequest, request: Request = No
         server.set_task_error(task_id, "El archivo de audio grabado no se encontró en disco.", error_type="AudioFileError", stage="Grabación en Vivo")
         raise HTTPException(status_code=500, detail="El archivo de audio grabado no se encontró en disco.")
 
-    server.update_task_progress(task_id, 20.0, "Preparando grabación en el servidor...", "Iniciando motor de audio...", stage="transcribing")
+    server.update_task_progress(task_id, 10.0, "Preparando audio en el servidor...", "Verificando canales estéreo y niveles RMS...", stage="audio")
 
     def progress_cb(pct: float, msg: str):
         server.update_task_progress(task_id, pct, msg, stage="transcribing")
@@ -293,12 +293,12 @@ async def stop_and_process(payload: StopAndProcessRequest, request: Request = No
             detail=human_err,
         ) from exc
 
-    transcript_text = transcription_result.get("text", "").strip()
+    transcript_text = (transcription_result.get("formatted_transcript") or transcription_result.get("text") or "").strip()
 
     # 3. Check Mode: In-Person University Lecture vs D&D Roleplay
     is_class_mode = (payload.recording_mode == "class") or (getattr(server.active_recorder, "mode", "roleplay") == "class")
     if is_class_mode:
-        server.update_task_progress(task_id, 82.0, "Generando crónica / apuntes explicativos con IA...", "Sintetizando conceptos teóricos y fórmulas...", stage="analyzing")
+        server.update_task_progress(task_id, 72.0, "Generando guía académica con Gemini...", "Sintetizando conceptos teóricos y fórmulas...", stage="analyzing")
         subj = (payload.subject or "").strip() or "Materia Universitaria"
         top = (payload.topic or "").strip() or "Tema de Clase"
         now_str = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -320,7 +320,7 @@ async def stop_and_process(payload: StopAndProcessRequest, request: Request = No
                 f"**Transcripción obtenida:**\n\n{transcript_text}"
             )
 
-        server.update_task_progress(task_id, 95.0, "Generando documentos (.docx y .md)...", "Creando archivos de apuntes...", stage="analyzing")
+        server.update_task_progress(task_id, 94.0, "Generando documentos (.docx y .md)...", "Creando archivos de apuntes...", stage="analyzing")
         clean_subj = re.sub(r'[\\/*?:"<>|]', "", subj.strip()) or "Materia"
         safe_subj = re.sub(r"\s+", "_", clean_subj)
         docx_filename = f"apuntes_{safe_subj}_{now_str}.docx"
@@ -382,7 +382,7 @@ async def stop_and_process(payload: StopAndProcessRequest, request: Request = No
         }
 
     # 4. Roleplay Mode: Living Campaign Journal or Single Session Chronicle
-    server.update_task_progress(task_id, 82.0, "Generando crónica / apuntes explicativos con IA...", "Extrayendo hechos e inventario...", stage="analyzing")
+    server.update_task_progress(task_id, 72.0, "Generando crónica / apuntes explicativos con IA...", "Extrayendo hechos e inventario...", stage="analyzing")
     if not roster_dicts and payload.roster:
         roster_dicts = [p.model_dump() for p in payload.roster]
     chronicle_md = ""
@@ -399,7 +399,7 @@ async def stop_and_process(payload: StopAndProcessRequest, request: Request = No
 
     if payload.campaign_name:
         try:
-            server.update_task_progress(task_id, 85.0, "Actualizando Quest Tracker y Directorio Universal de NPCs...", stage="analyzing")
+            server.update_task_progress(task_id, 80.0, "Actualizando Quest Tracker y Directorio Universal de NPCs...", stage="analyzing")
             camp_res = await run_in_threadpool(
                 server.process_session_for_campaign,
                 campaign_name=payload.campaign_name,
@@ -455,7 +455,7 @@ async def stop_and_process(payload: StopAndProcessRequest, request: Request = No
         except Exception as exc:
             print(f"[!] Warning: docx export failed: {exc}")
 
-    server.update_task_progress(task_id, 95.0, "Generando documentos (.docx y .md)...", "Creando archivos del Grimorio (.docx y .md)...", stage="analyzing")
+    server.update_task_progress(task_id, 94.0, "Generando documentos (.docx y .md)...", "Creando archivos del Grimorio (.docx y .md)...", stage="analyzing")
     elapsed_time = round(time.time() - start_time, 2)
     language_code = transcription_result.get("language_code") or (
         transcription_result["language"]["code"]
@@ -534,6 +534,48 @@ async def download_docx(filename: str = Query(..., description="Name of the docx
     """Download a generated session chronicle or academic study notes Word document."""
     safe_filename = Path(filename).name
     file_path = server.get_data_output_dir() / safe_filename
+
+    # If direct path does not exist, check alternative output directories
+    if not file_path.is_file():
+        alt_dirs = [
+            server.project_root / "outputs",
+            server.project_root / "data" / "output",
+        ]
+        for ad in alt_dirs:
+            cand = ad / safe_filename
+            if cand.is_file():
+                file_path = cand
+                break
+
+    # If still not found, check if a corresponding .md file exists to compile on demand
+    if not file_path.is_file():
+        md_candidates = [
+            file_path.with_suffix(".md"),
+            (server.project_root / "outputs" / safe_filename).with_suffix(".md"),
+            (server.project_root / "data" / "output" / safe_filename).with_suffix(".md"),
+        ]
+        found_md = next((p for p in md_candidates if p.is_file()), None)
+        if found_md:
+            try:
+                md_content = found_md.read_text(encoding="utf-8")
+                if safe_filename.startswith("apuntes_"):
+                    clean_subj = safe_filename.replace("apuntes_", "").replace(".docx", "")
+                    clean_subj = re.sub(r"_\d{8}_\d{6}$", "", clean_subj)
+                    subj = clean_subj.replace("_", " ").strip() or "Materia Universitaria"
+                    server.export_academic_notes_docx(
+                        notes_md=md_content,
+                        subject=subj,
+                        topic="Apuntes de Clase",
+                        output_path=str(file_path),
+                    )
+                else:
+                    server.export_chronicle_docx(
+                        chronicle_md=md_content,
+                        output_path=str(file_path),
+                    )
+            except Exception as exc:
+                print(f"[download_docx] Warning compiling docx on demand from {found_md.name}: {exc}")
+
     if not file_path.is_file():
         raise HTTPException(status_code=404, detail="Archivo docx no encontrado.")
 
@@ -549,6 +591,18 @@ async def download_md(filename: str = Query(..., description="Name of the md fil
     """Download a generated session chronicle or academic study notes markdown document."""
     safe_filename = Path(filename).name
     file_path = server.get_data_output_dir() / safe_filename
+
+    if not file_path.is_file():
+        alt_dirs = [
+            server.project_root / "outputs",
+            server.project_root / "data" / "output",
+        ]
+        for ad in alt_dirs:
+            cand = ad / safe_filename
+            if cand.is_file():
+                file_path = cand
+                break
+
     if not file_path.is_file():
         raise HTTPException(status_code=404, detail="Archivo markdown no encontrado.")
 

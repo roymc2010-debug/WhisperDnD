@@ -286,6 +286,7 @@ def check_stereo_channels_rms(audio_path: str) -> tuple[float, float]:
     """
     Compute average RMS audio energy for Channel 0 (Mic) and Channel 1 (Discord/Speaker loopback).
     Reads in low-memory blocks (64k frames) directly from the multi-channel file.
+    Tracks peak block activity to ensure occasional speakers are not falsely flagged as silent.
     Returns (rms_mic, rms_discord).
     """
     try:
@@ -296,16 +297,29 @@ def check_stereo_channels_rms(audio_path: str) -> tuple[float, float]:
                 block_size = 65536
                 sq_mic = 0.0
                 sq_spk = 0.0
+                max_block_mic = 0.0
+                max_block_spk = 0.0
                 total_frames = 0
                 while total_frames < sf_chk.frames:
                     block = sf_chk.read(block_size, dtype="float32")
                     if len(block) == 0:
                         break
+                    b_mic_rms = float(np.sqrt(np.mean(block[:, 0] ** 2)))
+                    b_spk_rms = float(np.sqrt(np.mean(block[:, 1] ** 2)))
+                    if b_mic_rms > max_block_mic:
+                        max_block_mic = b_mic_rms
+                    if b_spk_rms > max_block_spk:
+                        max_block_spk = b_spk_rms
                     sq_mic += float(np.sum(block[:, 0] ** 2))
                     sq_spk += float(np.sum(block[:, 1] ** 2))
                     total_frames += len(block)
                 if total_frames > 0:
-                    return float(np.sqrt(sq_mic / total_frames)), float(np.sqrt(sq_spk / total_frames))
+                    overall_mic = float(np.sqrt(sq_mic / total_frames))
+                    overall_spk = float(np.sqrt(sq_spk / total_frames))
+                    # If any block had clear speech activity (>= 0.0035), ensure effective RMS avoids false silence cutoff
+                    eff_mic = max(overall_mic, 0.005) if max_block_mic >= 0.0035 else overall_mic
+                    eff_spk = max(overall_spk, 0.005) if max_block_spk >= 0.0035 else overall_spk
+                    return eff_mic, eff_spk
     except Exception as exc:
         print(f"[check_stereo_channels_rms] Notice: {exc}")
     return 0.05, 0.05
@@ -601,6 +615,8 @@ class GroqWhisperTranscriber:
             pass
 
         if is_stereo and source in ("live", "local"):
+            mic_file = None
+            discord_file = None
             try:
                 mic_rms, discord_rms = check_stereo_channels_rms(str(path))
                 print(f"[GroqTranscriber] Canal 0 (Mic) RMS: {mic_rms:.5f} | Canal 1 (Discord) RMS: {discord_rms:.5f}")
@@ -622,11 +638,11 @@ class GroqWhisperTranscriber:
                     if not user_in_campaign:
                         print(f"[GroqTranscriber] El usuario no está en el roster de esta campaña (partida ajena / espectador). Omitiendo canal de micrófono local por completo.")
                         if on_progress:
-                            on_progress(32.0, "Partida ajena detectada (sin usuario en roster). Omitiendo tu micrófono y transcribiendo Discord...")
+                            on_progress(25.0, "Partida ajena detectada (sin usuario en roster). Omitiendo tu micrófono y transcribiendo Discord...")
                     else:
                         print(f"[GroqTranscriber] Pista 1 (Micrófono) en silencio total (RMS={mic_rms:.5f} < 0.003). Omitiendo transcripción de micrófono para evitar alucinaciones y timeouts.")
                         if on_progress:
-                            on_progress(32.0, "Micrófono en silencio detectado. Transcribiendo Pista 2: Discord (Compañeros)...")
+                            on_progress(25.0, "Micrófono en silencio detectado. Transcribiendo Pista 2: Discord (Compañeros)...")
                     def disc_prog(pct: float, msg: str):
                         if on_progress:
                             on_progress(pct, f"Discord: {msg}")
@@ -635,43 +651,39 @@ class GroqWhisperTranscriber:
                         language=effective_lang,
                         prompt=prompt,
                         on_progress=disc_prog,
-                        min_pct=32.0,
-                        max_pct=80.0,
+                        min_pct=25.0,
+                        max_pct=70.0,
                     )
                 else:
                     if on_progress:
-                        on_progress(30.0, "Transcribiendo Pista 1: Micrófono local (Tu voz)...")
+                        on_progress(25.0, "Transcribiendo Pista 1: Micrófono local (Tu voz)...")
                     def mic_prog(pct: float, msg: str):
                         if on_progress:
-                            # Map 30..80 to 30..55
-                            scaled = round(30.0 + ((pct - 30.0) / 50.0) * 25.0, 1)
-                            on_progress(scaled, f"Tu voz: {msg}")
+                            on_progress(pct, f"Tu voz: {msg}")
                     mic_res = self._transcribe_audio_target(
                         mic_file,
                         language=effective_lang,
                         prompt=prompt,
                         on_progress=mic_prog,
-                        min_pct=30.0,
-                        max_pct=55.0,
+                        min_pct=25.0,
+                        max_pct=47.0,
                     )
                     mic_segs = mic_res.get("segments", [])
                     for s in mic_segs:
                         s["speaker"] = user_label
 
                     if on_progress:
-                        on_progress(55.0, "Transcribiendo Pista 2: Audio de Discord (Compañeros)...")
+                        on_progress(48.0, "Transcribiendo Pista 2: Audio de Discord (Compañeros)...")
                     def disc_prog(pct: float, msg: str):
                         if on_progress:
-                            # Map 30..80 to 55..80
-                            scaled = round(55.0 + ((pct - 30.0) / 50.0) * 25.0, 1)
-                            on_progress(scaled, f"Discord: {msg}")
+                            on_progress(pct, f"Discord: {msg}")
                     discord_res = self._transcribe_audio_target(
                         discord_file,
                         language=effective_lang,
                         prompt=prompt,
                         on_progress=disc_prog,
-                        min_pct=55.0,
-                        max_pct=80.0,
+                        min_pct=48.0,
+                        max_pct=70.0,
                     )
 
                 discord_segs = discord_res.get("segments", [])
@@ -704,6 +716,20 @@ class GroqWhisperTranscriber:
                 }
             except Exception as split_err:
                 print(f"[GroqTranscriber] Dual-channel split transcription notice: {split_err}. Falling back to single-pass.")
+            finally:
+                for tmp_f in (mic_file, discord_file):
+                    try:
+                        if tmp_f and Path(tmp_f).is_file():
+                            Path(tmp_f).unlink(missing_ok=True)
+                    except Exception:
+                        pass
+                try:
+                    if mic_file:
+                        d_dir = Path(mic_file).parent
+                        if d_dir.name == "dual_channels" and not any(d_dir.iterdir()):
+                            d_dir.rmdir()
+                except Exception:
+                    pass
 
         # Fallback / Single-channel path
         res = self._transcribe_audio_target(
@@ -750,13 +776,18 @@ class GroqWhisperTranscriber:
         """Transcribe a single audio file or slice into chunks if exceeding 24 MB."""
         p = Path(file_path).resolve()
         file_size = p.stat().st_size
+        target_min = 35.0 if source == "youtube" else 25.0
+        target_max = 70.0
+        effective_min = min_pct if min_pct != 30.0 else target_min
+        effective_max = max_pct if max_pct != 80.0 else target_max
+
         if file_size <= self.MAX_FILE_SIZE_BYTES:
             single_kwargs = {"language": language, "timeout": 60.0}
             if prompt is not None:
                 single_kwargs["prompt"] = prompt
             res = self._transcribe_single_file(str(p), **single_kwargs)
             if on_progress:
-                on_progress(max_pct, f"Transcribiendo audio ({max_pct:.1f}%)")
+                on_progress(effective_max, f"Transcribiendo audio ({effective_max:.1f}%)")
             return res
         else:
             return self._transcribe_chunked(
@@ -765,8 +796,8 @@ class GroqWhisperTranscriber:
                 on_progress=on_progress,
                 source=source,
                 prompt=prompt,
-                min_pct=min_pct,
-                max_pct=max_pct,
+                min_pct=effective_min,
+                max_pct=effective_max,
             )
 
     def _transcribe_single_file(
@@ -851,6 +882,12 @@ class GroqWhisperTranscriber:
             or (response.get("duration") if isinstance(response, dict) else 0.0)
             or 0.0
         )
+        if duration and duration > 0:
+            try:
+                from src.storage.quota_tracker import record_groq_audio_seconds
+                record_groq_audio_seconds(float(duration))
+            except Exception as q_err:
+                print(f"[GroqWhisper] Notice recording audio quota: {q_err}")
 
         segments = []
         last_clean_text = ""
@@ -938,9 +975,9 @@ class GroqWhisperTranscriber:
         """
         if on_progress:
             if source == "youtube":
-                on_progress(25.0, "Segmentando audio de YouTube...")
+                on_progress(26.0, "Segmentando audio de YouTube en fragmentos de alta fidelidad...")
             else:
-                on_progress(25.0, "Segmentando archivo en el servidor...")
+                on_progress(15.0, "Segmentando archivo de audio para inferencia por lotes...")
 
         chunks_list = self._slice_audio(audio_path, chunk_minutes=self.DEFAULT_CHUNK_MINUTES)
         num_chunks = len(chunks_list)

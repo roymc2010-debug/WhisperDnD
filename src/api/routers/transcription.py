@@ -186,7 +186,7 @@ async def transcribe_youtube(payload: YouTubeTranscribeRequest, request: Request
         server.update_task_progress(task_id, 0, f"Error descargando YouTube: {exc}", stage="error")
         raise HTTPException(status_code=500, detail=f"Error descargando audio de YouTube: {exc}") from exc
 
-    server.update_task_progress(task_id, 30, "Descarga completada. Iniciando transcripción...", "Iniciando motor de audio...", stage="transcribing")
+    server.update_task_progress(task_id, 25.0, "Descarga completada. Iniciando transcripción...", "Iniciando motor de audio...", stage="transcribing")
 
     def progress_cb(pct: int, msg: str):
         server.update_task_progress(task_id, pct, msg, stage="transcribing")
@@ -245,7 +245,7 @@ async def transcribe_youtube(payload: YouTubeTranscribeRequest, request: Request
     top = (payload.topic or "").strip() or "Tema de Clase"
 
     if is_academic:
-        server.update_task_progress(task_id, 80, "Analizando clase universitaria con Gemini...", "Sintetizando conceptos teóricos y fórmulas...", stage="analyzing")
+        server.update_task_progress(task_id, 72.0, "Analizando clase universitaria con Gemini...", "Sintetizando conceptos teóricos y fórmulas...", stage="analyzing")
         subj = (payload.subject or "").strip() or "Materia Universitaria"
         top = (payload.topic or "").strip() or "Tema de Clase"
         now_str = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -282,15 +282,15 @@ async def transcribe_youtube(payload: YouTubeTranscribeRequest, request: Request
             chronicle_md = f"# ⚠️ Error generando guía académica con Gemini:\n\n> {exc}\n\n**Texto:**\n\n{transcript_text}"
             print(f"[transcribe_youtube] Warning: academic notes export failed: {exc}")
 
-        server.update_task_progress(task_id, 95.0, "Generando documentos (.docx y .md)...", "Creando archivos de apuntes...", stage="analyzing")
+        server.update_task_progress(task_id, 94.0, "Generando documentos (.docx y .md)...", "Creando archivos de apuntes...", stage="analyzing")
         server.update_task_progress(task_id, 100.0, "¡Completado!", "Guía de estudio generada exitosamente.", stage="done")
     else:
-        server.update_task_progress(task_id, 82.0, "Generando crónica / apuntes explicativos con IA...", "Extrayendo hechos e inventario...", stage="analyzing")
+        server.update_task_progress(task_id, 72.0, "Generando crónica / apuntes explicativos con IA...", "Extrayendo hechos e inventario...", stage="analyzing")
 
         campaign_name = (payload.campaign_name or payload.campaign_id or "").strip()
         if campaign_name:
             try:
-                server.update_task_progress(task_id, 85.0, "Actualizando Quest Tracker y Directorio Universal de NPCs...", stage="analyzing")
+                server.update_task_progress(task_id, 80.0, "Actualizando Quest Tracker y Directorio Universal de NPCs...", stage="analyzing")
                 camp_res = await run_in_threadpool(
                     server.process_session_for_campaign,
                     campaign_name=campaign_name,
@@ -342,7 +342,7 @@ async def transcribe_youtube(payload: YouTubeTranscribeRequest, request: Request
                 docx_filename = None
                 md_filename = Path(out_md_path).name
 
-        server.update_task_progress(task_id, 95.0, "Generando documentos (.docx y .md)...", "Creando archivos del Grimorio (.docx y .md)...", stage="analyzing")
+        server.update_task_progress(task_id, 94.0, "Generando documentos (.docx y .md)...", "Creando archivos del Grimorio (.docx y .md)...", stage="analyzing")
         server.update_task_progress(task_id, 100.0, "¡Completado!", "Sesión procesada exitosamente.", stage="done")
 
     # Auto-Delete YouTube Audio:
@@ -625,7 +625,7 @@ async def transcribe_file(
     chronicle_md = None
 
     if recording_mode == "class":
-        server.update_task_progress(task_id, 82.0, "Generando crónica / apuntes explicativos con IA...", "Sintetizando conceptos teóricos y fórmulas...", stage="analyzing")
+        server.update_task_progress(task_id, 72.0, "Generando crónica / apuntes explicativos con IA...", "Sintetizando conceptos teóricos y fórmulas...", stage="analyzing")
         subj = (subject or "").strip() or "Materia Universitaria"
         top = (topic or "").strip() or "Tema de Clase"
         now_str = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -644,7 +644,7 @@ async def transcribe_file(
         except Exception as exc:
             chronicle_md = f"# ⚠️ Error generando guía académica con Gemini:\n\n> {exc}\n\n**Texto:**\n\n{transcript_text}"
 
-        server.update_task_progress(task_id, 95.0, "Generando documentos (.docx y .md)...", "Creando archivos de apuntes...", stage="analyzing")
+        server.update_task_progress(task_id, 94.0, "Generando documentos (.docx y .md)...", "Creando archivos de apuntes...", stage="analyzing")
         clean_subj = re.sub(r'[\\/*?:"<>|]', "", subj.strip()) or "Materia"
         safe_subj = re.sub(r"\s+", "_", clean_subj)
         docx_filename = f"apuntes_file_{safe_subj}_{now_str}.docx"
@@ -697,12 +697,12 @@ async def transcribe_file(
             key_points=key_points,
         )
 
-    server.update_task_progress(task_id, 82.0, "Generando crónica / apuntes explicativos con IA...", "Extrayendo hechos e inventario...", stage="analyzing")
+    server.update_task_progress(task_id, 72.0, "Generando crónica / apuntes explicativos con IA...", "Extrayendo hechos e inventario...", stage="analyzing")
 
     detected_pcs = None
     if campaign_name:
         try:
-            server.update_task_progress(task_id, 85.0, "Actualizando Quest Tracker y Directorio Universal de NPCs...", stage="analyzing")
+            server.update_task_progress(task_id, 80.0, "Actualizando Quest Tracker y Directorio Universal de NPCs...", stage="analyzing")
             camp_res = await run_in_threadpool(
                 server.process_session_for_campaign,
                 campaign_name=campaign_name,
@@ -729,7 +729,7 @@ async def transcribe_file(
             chronicle_md = f"# ⚠️ Error generando crónica con Gemini:\n\n> {exc}\n\n**Texto de Transcripción:**\n\n{transcript_text}"
     else:
         try:
-            server.update_task_progress(task_id, 85.0, "Generando crónica narrativa con Gemini...", stage="analyzing")
+            server.update_task_progress(task_id, 80.0, "Generando crónica narrativa con Gemini...", stage="analyzing")
             summarizer = server.GeminiTTRPGSummarizer(api_key=gemini_key)
             chronicle_md = await run_in_threadpool(
                 summarizer.generate_chronicle,
@@ -1024,7 +1024,7 @@ async def upload_session_with_telemetry(
     session_title = None
 
     if recording_mode == "class":
-        server.update_task_progress(task_id, 82.0, "Generando apuntes académicos con IA...", "Sintetizando conceptos teóricos...", stage="analyzing")
+        server.update_task_progress(task_id, 72.0, "Generando apuntes académicos con IA...", "Sintetizando conceptos teóricos...", stage="analyzing")
         subj = (subject or "").strip() or "Materia Universitaria"
         top = (topic or "").strip() or "Tema de Clase"
         now_str = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -1043,7 +1043,7 @@ async def upload_session_with_telemetry(
         except Exception as exc:
             chronicle_md = f"# ⚠️ Error generando guía académica con Gemini:\n\n> {exc}\n\n**Texto:**\n\n{transcript_text}"
 
-        server.update_task_progress(task_id, 95.0, "Generando documentos (.docx y .md)...", "Creando archivos de apuntes...", stage="analyzing")
+        server.update_task_progress(task_id, 94.0, "Generando documentos (.docx y .md)...", "Creando archivos de apuntes...", stage="analyzing")
         clean_subj = re.sub(r'[\\/*?:"<>|]', "", subj.strip()) or "Materia"
         safe_subj = re.sub(r"\s+", "_", clean_subj)
         docx_filename = f"apuntes_telemetria_{safe_subj}_{now_str}.docx"
@@ -1096,11 +1096,11 @@ async def upload_session_with_telemetry(
         )
 
     # Roleplay Mode: Living Campaign Journal or single session chronicle
-    server.update_task_progress(task_id, 82.0, "Generando crónica con IA y atribución exacta...", "Extrayendo hechos e inventario...", stage="analyzing")
+    server.update_task_progress(task_id, 72.0, "Generando crónica con IA y atribución exacta...", "Extrayendo hechos e inventario...", stage="analyzing")
 
     if campaign_name:
         try:
-            server.update_task_progress(task_id, 85.0, "Actualizando Quest Tracker y Directorio Universal de NPCs...", stage="analyzing")
+            server.update_task_progress(task_id, 80.0, "Actualizando Quest Tracker y Directorio Universal de NPCs...", stage="analyzing")
             camp_res = await run_in_threadpool(
                 server.process_session_for_campaign,
                 campaign_name=campaign_name,

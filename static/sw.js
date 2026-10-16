@@ -1,12 +1,19 @@
 // Service Worker para WhisperDnD & Study PWA
-const CACHE_NAME = 'whisper-dnd-study-v11';
+const CACHE_NAME = 'whisper-dnd-study-v13';
 const ASSETS_TO_CACHE = [
   '/',
   '/manifest.json',
   '/static/manifest.json',
   '/static/styles.css',
-  '/static/app.js',
+  '/static/js/utils.js',
+  '/static/js/api.js',
+  '/static/js/progress.js',
+  '/static/js/audio.js',
+  '/static/js/drive.js',
+  '/static/js/roster.js',
   '/static/js/wiki.js',
+  '/static/js/notes.js',
+  '/static/js/app.js',
   '/static/icon-192.png',
   '/static/icon-512.png',
   '/icon-192.png',

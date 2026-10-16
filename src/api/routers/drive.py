@@ -84,6 +84,14 @@ async def cancel_task_endpoint(payload: Optional[CancelTaskRequest] = None, task
     return {"success": True, "message": "Proceso detenido exitosamente."}
 
 
+@router.get("/api/system/quota")
+@router.get("/api/quota")
+async def get_system_quota_endpoint():
+    """Retrieve current daily API token and audio quota usage and remaining percentage."""
+    from src.storage.quota_tracker import get_quota_status
+    return get_quota_status()
+
+
 @router.get("/api/status/keys")
 async def check_api_keys(request: Request = None):
     """

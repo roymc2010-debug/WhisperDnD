@@ -33,6 +33,7 @@ def normalize_transcript_roster(
     has_minipeko = False
     has_selen = False
     has_velith = False
+    has_meglax = False
 
     if roster and isinstance(roster, list):
         for member in roster:
@@ -52,6 +53,8 @@ def normalize_transcript_roster(
                     has_selen = True
                 if "velith" in c_low:
                     has_velith = True
+                if "meg'lax" in c_low or "meglax" in c_low:
+                    has_meglax = True
 
                 # Include configured aliases
                 for alias in member.get("aliases", []):
@@ -65,6 +68,7 @@ def normalize_transcript_roster(
         has_minipeko = True
         has_selen = True
         has_velith = True
+        has_meglax = True
 
     # -------------------------------------------------------------------------
     # 1. Atou vs. "ataúd" (Physical Coffin Context Discrimination)
@@ -101,6 +105,8 @@ def normalize_transcript_roster(
         normalized = re.sub(r'(?i)\b(?:el\s+)?ata[úu]d\s+(?:se\s+dirigi[oó]|fue|tir[oó]|lanz[oó]|salt[oó]|cay[oó]|dijo|pregunt[oó]|ataca|dispara|corre|decide|apoya|est[aá])\b', r'Atou \g<0>', normalized)
         # Clean potential duplicate "Atou el ataúd se dirigió" -> "Atou se dirigió"
         normalized = re.sub(r'(?i)\bAtou\s+(?:el\s+)?ata[úu]d\s+', 'Atou ', normalized)
+        # Clean spaced A tau or Atau
+        normalized = re.sub(r'(?i)\bA\s+tau\b', 'Atou', normalized)
 
     # -------------------------------------------------------------------------
     # 2. Markus Veyl
@@ -120,13 +126,19 @@ def normalize_transcript_roster(
     # 4. Selen
     # -------------------------------------------------------------------------
     if has_selen:
-        normalized = re.sub(r'(?i)\b(?:Sellen|Scyllene|Selene)\b(?!\s+(?:de\s+la\s+luna|lunar))', 'Selen', normalized)
+        normalized = re.sub(r'(?i)\b(?:Sellen|Scyllene|Selene|Seren)\b(?!\s+(?:de\s+la\s+luna|lunar))', 'Selen', normalized)
 
     # -------------------------------------------------------------------------
     # 5. Velith
     # -------------------------------------------------------------------------
     if has_velith:
         normalized = re.sub(r'(?i)\b(?:Belith|Velit|Belit)\b', 'Velith', normalized)
+
+    # -------------------------------------------------------------------------
+    # 6. Meg'lax
+    # -------------------------------------------------------------------------
+    if has_meglax:
+        normalized = re.sub(r'(?i)\b(?:Meglax|Meg\s+lax|Meg-lax)\b', "Meg'lax", normalized)
 
     # -------------------------------------------------------------------------
     # 6. Universal Roster Sweep for any custom campaign names

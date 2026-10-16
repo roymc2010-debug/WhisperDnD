@@ -595,6 +595,11 @@ async function startSessionRecording() {
     }
   }
 
+  if (typeof checkQuotaBeforeAction === "function") {
+    const quotaOk = await checkQuotaBeforeAction("una nueva grabación de sesión");
+    if (!quotaOk) return;
+  }
+
   // MODO 1: GRABACIÓN DIRECTA EN NAVEGADOR / MÓVIL (MediaRecorder API)
   if (audioSourceMode === "browser_mic") {
     try {
@@ -766,10 +771,16 @@ async function stopSessionAndProcess() {
           formData.append("roster_json", JSON.stringify(roster));
         }
 
+        if (window.currentActiveAbortController) {
+          try { window.currentActiveAbortController.abort(); } catch (_) {}
+        }
+        window.currentActiveAbortController = new AbortController();
+
         const res = await fetch("/api/transcribe/file", {
           method: "POST",
           headers: typeof getUserApiHeaders === "function" ? getUserApiHeaders() : {},
-          body: formData
+          body: formData,
+          signal: window.currentActiveAbortController.signal
         });
 
         const data = await res.json();
@@ -785,6 +796,10 @@ async function stopSessionAndProcess() {
           finishProgressTracking(true);
         }
       } catch (err) {
+        if (err.name === "AbortError") {
+          console.log("[stopSessionAndProcess:browser_mic] Proceso detenido por el usuario.");
+          return;
+        }
         if (typeof finishProgressTracking === "function") finishProgressTracking(false);
         if (typeof showErrorCard === "function") {
           showErrorCard(err.message, () => stopSessionAndProcess());
@@ -864,6 +879,11 @@ async function stopSessionAndProcess() {
     }
   }
 
+  if (window.currentActiveAbortController) {
+    try { window.currentActiveAbortController.abort(); } catch (_) {}
+  }
+  window.currentActiveAbortController = new AbortController();
+
   try {
     const res = await fetch("/api/record/stop-and-process", {
       method: "POST",
@@ -871,7 +891,8 @@ async function stopSessionAndProcess() {
         "Content-Type": "application/json",
         ...(typeof getUserApiHeaders === "function" ? getUserApiHeaders() : {})
       },
-      body: JSON.stringify(bodyPayload)
+      body: JSON.stringify(bodyPayload),
+      signal: window.currentActiveAbortController.signal
     });
 
     const data = await res.json();
@@ -887,6 +908,10 @@ async function stopSessionAndProcess() {
       finishProgressTracking(true);
     }
   } catch (err) {
+    if (err.name === "AbortError") {
+      console.log("[stopSessionAndProcess:pcHost] Proceso detenido por el usuario.");
+      return;
+    }
     if (typeof finishProgressTracking === "function") finishProgressTracking(false);
     if (typeof showErrorCard === "function") {
       showErrorCard(err.message, () => stopSessionAndProcess());

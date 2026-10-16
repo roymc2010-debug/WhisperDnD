@@ -76,7 +76,7 @@ def main():
     print("=" * 60)
 
     uvicorn.run(
-        "src.api.app:app",
+        "src.api.server:app",
         host=host,
         port=port,
         reload=False,

@@ -234,6 +234,21 @@ class GeminiTTRPGSummarizer:
                         kwargs["config"] = call_config
                     response = self.client.models.generate_content(**kwargs)
                     if response and response.text:
+                        try:
+                            from src.storage.quota_tracker import record_gemini_tokens
+                            tokens_used = 0
+                            if hasattr(response, "usage_metadata") and response.usage_metadata:
+                                tokens_used = getattr(response.usage_metadata, "total_token_count", 0) or (
+                                    getattr(response.usage_metadata, "prompt_token_count", 0) +
+                                    getattr(response.usage_metadata, "candidates_token_count", 0)
+                                )
+                            if not tokens_used:
+                                prompt_len = len(str(contents))
+                                resp_len = len(response.text)
+                                tokens_used = max(10, (prompt_len + resp_len) // 4)
+                            record_gemini_tokens(tokens_used)
+                        except Exception as quota_err:
+                            print(f"[GeminiClient] Notice recording token quota: {quota_err}")
                         return response.text
                 except Exception as exc:
                     last_error = exc
