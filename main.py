@@ -14,12 +14,18 @@ venv_python = project_root / ".venv" / "Scripts" / "python.exe"
 if sys.platform == "win32" and venv_python.is_file() and not os.environ.get("WHISPER_REEXEC"):
     current_exe = Path(sys.executable).resolve()
     target_exe = venv_python.resolve()
+    is_silent = current_exe.stem.lower() == "pythonw"
+    if is_silent:
+        venv_pythonw = project_root / ".venv" / "Scripts" / "pythonw.exe"
+        if venv_pythonw.is_file():
+            target_exe = venv_pythonw.resolve()
     if current_exe != target_exe:
         import subprocess
         env = dict(os.environ)
         env["WHISPER_REEXEC"] = "1"
+        creationflags = subprocess.CREATE_NO_WINDOW if is_silent else 0
         try:
-            res = subprocess.call([str(target_exe)] + sys.argv, env=env)
+            res = subprocess.call([str(target_exe)] + sys.argv, env=env, creationflags=creationflags)
             sys.exit(res)
         except Exception as _reexec_err:
             print(f"[Launcher] Warning: Could not auto-switch to venv: {_reexec_err}")
@@ -88,6 +94,21 @@ def main():
     print(f" Accessible on LAN:  http://127.0.0.1:{port}")
     print(" Press Ctrl+C to stop the server.")
     print("=" * 60)
+
+    # Automatically open the browser to http://localhost:port after launching
+    if not os.environ.get("NO_BROWSER"):
+        import threading
+        import time
+        import webbrowser
+
+        def _open_browser():
+            time.sleep(1.2)
+            try:
+                webbrowser.open(f"http://localhost:{port}")
+            except Exception:
+                pass
+
+        threading.Thread(target=_open_browser, daemon=True, name="BrowserLauncher").start()
 
     uvicorn.run(
         "src.api.server:app",

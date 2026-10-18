@@ -101,6 +101,8 @@ def download_youtube_audio(
         "format": "bestaudio[ext=m4a]/bestaudio/best",
         "outtmpl": out_template,
         "restrictfilenames": True,  # Sanitizes filenames to ASCII safe chars
+        "windowsfilenames": True,
+        "concurrent_fragment_downloads": 4,
         "progress_hooks": [ytdl_hook],
         "quiet": True,
         "no_warnings": True,

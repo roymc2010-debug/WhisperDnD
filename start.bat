@@ -5,8 +5,13 @@ echo ========================================================
 echo   Iniciando WhisperDnD Server en http://localhost:8080
 echo ========================================================
 if exist ".venv\Scripts\python.exe" (
-    ".venv\Scripts\python.exe" main.py
+    ".venv\Scripts\python.exe" main.py %*
 ) else (
-    python main.py
+    python main.py %*
 )
-pause
+if errorlevel 1 (
+    echo.
+    echo [!] El servidor finalizo con un error.
+    pause
+)
+
