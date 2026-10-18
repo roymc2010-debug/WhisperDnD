@@ -3,7 +3,11 @@
 
 import os
 import sys
+import warnings
 from pathlib import Path
+
+# Suppress harmless WASAPI buffer boundary warnings from live audio meter polling
+warnings.filterwarnings("ignore", message=".*discontinuity.*")
 
 # Add project root to sys.path
 project_root = Path(__file__).resolve().parent
