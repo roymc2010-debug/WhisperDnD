@@ -379,51 +379,46 @@
         </details>
 
         <!-- Tabla Completa del Roster (Vista Predeterminada Integrada en el Hub de Sesión) -->
-        <div id="rosterFullCard" class="border-t border-slate-800/80 pt-4 space-y-4">
-          <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border-b border-slate-800 pb-3">
-            <h3 class="text-xs font-bold text-amber-300/90 font-fantasy tracking-wider uppercase flex items-center gap-2">
+        <div id="rosterFullCard" class="border-t border-[#1f1f1f] pt-4 space-y-4">
+          <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border-b border-[#1f1f1f] pb-3">
+            <h3 class="text-xs font-bold text-neutral-200 font-mono tracking-wider uppercase flex items-center gap-2">
+              <span class="w-2.5 h-2.5 rounded-full bg-emerald-400"></span>
               <span>ROSTER DE LA MESA & VINCULACIÓN DISCORD</span>
             </h3>
             <div class="flex flex-wrap items-center gap-2">
-              <button type="button" onclick="refreshDiscordParticipants(true)" id="btn-refresh-discord" title="Escanear participantes activos en canal de voz de Discord" class="btn-subtle min-h-[36px] px-3 py-1.5 text-xs font-medium flex items-center gap-1.5 cursor-pointer">
-                <svg class="w-3.5 h-3.5 text-sky-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 18v-6a9 9 0 0 1 18 0v6"/><path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"/></svg>
-                <span class="text-slate-300">Refrescar Discord</span>
+              <button type="button" onclick="refreshDiscordParticipants(true)" id="btn-refresh-discord" title="Escanear participantes activos en canal de voz de Discord" 
+                class="px-3 py-1.5 rounded-xl bg-[#121212] hover:bg-[#1a1a1a] active:scale-95 border border-[#262626] hover:border-sky-500/50 text-xs font-semibold text-neutral-200 hover:text-white transition flex items-center gap-2 cursor-pointer shadow-sm">
+                <span class="text-sky-400 text-sm">🎧</span>
+                <span>Refrescar Discord</span>
               </button>
-              <button type="button" onclick="addRosterRow()" class="btn-subtle min-h-[36px] px-3 py-1.5 text-xs font-medium flex items-center gap-1.5 cursor-pointer">
-                <svg class="w-3.5 h-3.5 text-amber-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" x2="12" y1="5" y2="19"/><line x1="5" x2="19" y1="12" y2="12"/></svg>
-                <span class="text-slate-300">+ Agregar Jugador</span>
+              <button type="button" onclick="addPlayerRow()" 
+                class="px-3 py-1.5 rounded-xl bg-[#121212] hover:bg-[#1a1a1a] active:scale-95 border border-[#262626] hover:border-amber-500/50 text-xs font-semibold text-neutral-200 hover:text-white transition flex items-center gap-1.5 cursor-pointer shadow-sm">
+                <span class="text-amber-400 font-bold text-sm leading-none">+</span>
+                <span>Agregar Jugador</span>
               </button>
-              <button type="button" onclick="manualSaveRoster()" class="btn-subtle min-h-[36px] px-3.5 py-1.5 text-xs font-semibold flex items-center gap-1.5 cursor-pointer border-emerald-500/30 hover:border-emerald-500/50">
-                <svg class="w-3.5 h-3.5 text-emerald-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
-                <span class="text-emerald-300">Guardar Grupo</span>
+              <button type="button" onclick="manualSaveRoster()" 
+                class="px-3 py-1.5 rounded-xl bg-[#121212] hover:bg-[#1a1a1a] active:scale-95 border border-[#262626] hover:border-emerald-500/50 text-xs font-semibold text-neutral-200 hover:text-white transition flex items-center gap-2 cursor-pointer shadow-sm">
+                <span class="text-emerald-400 text-sm">💾</span>
+                <span>Guardar Grupo</span>
               </button>
               <span id="saveStatusBadge" class="hidden text-emerald-400 text-xs font-semibold animate-pulse">✓ Guardado</span>
             </div>
           </div>
 
           <div id="rosterSection" class="space-y-3">
-            <div class="border border-slate-800/80 rounded-xl overflow-x-auto bg-slate-950/70 shadow-inner">
-              <table id="roster-table" class="w-full text-left text-xs border-collapse min-w-[700px]">
+            <div class="border border-[#222222] rounded-2xl overflow-hidden bg-black shadow-2xl">
+              <table id="roster-table" class="w-full text-left text-xs border-collapse table-fixed">
                 <thead>
-                  <tr class="bg-slate-900/90 text-slate-400 border-b border-slate-800 font-semibold font-mono text-[11px] uppercase tracking-wider">
-                    <th class="py-3 px-2 w-[6%] text-center" title="⭐ Mi Personaje: Selecciona cuál es tu personaje en esta campaña para recibir reflexión personal">⭐ Mi PJ</th>
-                    <th class="py-3 px-3 w-[15%]">Jugador</th>
-                    <th class="py-3 px-3 w-[15%]">Personaje</th>
-                    <th class="py-3 px-2.5 w-[13%]">Especie</th>
-                    <th class="py-3 px-2.5 w-[14%]">Clase</th>
-                    <th class="py-3 px-2.5 w-[13%]">Subclase</th>
-                    <th id="rosterDiscordTh" class="roster-discord-col py-3 px-2.5 w-[16%]">
-                      <div class="flex items-center justify-between">
-                        <span title="Vincular a cuenta de Discord para atribución automática e inmutable de voz" class="text-sky-300 flex items-center gap-1 font-semibold">
-                          <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 18v-6a9 9 0 0 1 18 0v6"/><path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"/></svg>
-                          <span>Discord</span>
-                        </span>
-                      </div>
-                    </th>
-                    <th class="py-3 px-2 w-[8%] text-center" title="Estado de asistencia en la sesión (Presente / Ausente)">Estado</th>
+                  <tr class="bg-black border-b border-[#222222] text-neutral-400 font-mono uppercase text-[11px]">
+                    <th class="py-3 px-2 w-[5%] text-center" title="⭐ Tu personaje principal en la mesa (sin recuadro cuadrado)">Tú</th>
+                    <th class="py-3 px-4 w-[24%]">Personaje & Discord</th>
+                    <th class="py-3 px-4 w-[19%]">Especie / Raza</th>
+                    <th class="py-3 px-4 w-[36%]">Clase(s) & Subclase(s)</th>
+                    <th class="py-3 px-2 w-[11%] text-center">Asistencia</th>
+                    <th class="py-3 px-2 w-[5%] text-center"></th>
                   </tr>
                 </thead>
-                <tbody id="rosterTableBody" class="divide-y divide-slate-900/80 text-slate-200">
+                <tbody id="rosterTableBody" class="divide-y divide-[#1e1e1e]">
                   <!-- Filas renderizadas dinámicamente -->
                 </tbody>
               </table>
@@ -2417,18 +2412,142 @@
 
   </main>
 
+  <!-- =================================================================== -->
+  <!-- MODAL FLOTANTE DE ESPECIES (85 OPCIONES OFICIALES)                 -->
+  <!-- =================================================================== -->
+  <div id="speciesModal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-sm p-4">
+    <div class="bg-black border border-[#262626] rounded-2xl w-full max-w-2xl overflow-hidden shadow-2xl flex flex-col max-h-[85vh] animate-in fade-in zoom-in-95 duration-150">
+      
+      <!-- Header -->
+      <div class="p-4 border-b border-[#222222] flex items-center justify-between bg-[#0a0a0a]">
+        <div class="flex items-center gap-2.5">
+          <span class="text-xl">🧬</span>
+          <div>
+            <h3 id="speciesModalTitle" class="text-sm font-bold text-neutral-100 font-fantasy">Seleccionar Especie de D&D</h3>
+            <p id="speciesModalSubtitle" class="text-[11px] text-neutral-400">85 opciones oficiales organizadas en 6 familias lógicas</p>
+          </div>
+        </div>
+        <button onclick="closeSpeciesModal()" class="w-8 h-8 rounded-lg bg-[#141414] hover:bg-[#222222] text-neutral-400 hover:text-white flex items-center justify-center text-sm font-bold cursor-pointer">
+          ✕
+        </button>
+      </div>
+
+      <!-- Buscador -->
+      <div class="p-3 bg-black border-b border-[#222222]">
+        <div class="relative">
+          <input type="text" id="speciesSearchInput" oninput="onSpeciesSearch(this.value)" placeholder="Buscar en español o inglés (ej: 'Elfo', 'Dwarf', 'Dragonborn', 'Tabaxi')..."
+            class="w-full bg-[#0a0a0a] border border-[#2e2e2e] focus:border-neutral-400 rounded-xl pl-9 pr-3 py-2 text-xs text-neutral-200 outline-none placeholder-neutral-500 font-medium">
+          <span class="absolute left-3 top-2.5 text-neutral-500 text-xs">🔍</span>
+        </div>
+      </div>
+
+      <!-- Contenedor 2 Columnas -->
+      <div class="grid grid-cols-1 sm:grid-cols-12 flex-1 overflow-hidden min-h-[360px]">
+        <div id="speciesCategoryList" class="sm:col-span-5 bg-black border-r border-[#222222] p-2 space-y-1 overflow-y-auto custom-scrollbar"></div>
+        <div id="speciesItemsList" class="sm:col-span-7 bg-[#0a0a0a] p-3 space-y-1.5 overflow-y-auto custom-scrollbar"></div>
+      </div>
+
+      <!-- Footer -->
+      <div class="p-3.5 border-t border-[#222222] bg-black flex flex-wrap items-center justify-between gap-3">
+        <div class="flex items-center gap-2">
+          <span class="text-xs text-neutral-400">¿Especie no oficial?</span>
+          <button type="button" onclick="selectCustomSpeciesFromModal()" class="px-2.5 py-1 rounded-lg bg-indigo-500/15 hover:bg-indigo-500/25 text-indigo-300 border border-indigo-500/30 text-xs font-semibold transition cursor-pointer">
+            ✨ Escribir Homebrew / Otra
+          </button>
+        </div>
+        <button onclick="closeSpeciesModal()" class="px-4 py-1.5 rounded-xl bg-[#1a1a1a] hover:bg-[#252525] text-neutral-300 text-xs font-semibold transition cursor-pointer">
+          Cancelar
+        </button>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- =================================================================== -->
+  <!-- MODAL DE CLASE & MULTICLASE (GESTIÓN DENTRO DEL MODAL)              -->
+  <!-- =================================================================== -->
+  <div id="classModal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-sm p-4">
+    <div class="bg-black border border-[#262626] rounded-2xl w-full max-w-2xl overflow-hidden shadow-2xl flex flex-col max-h-[85vh] animate-in fade-in zoom-in-95 duration-150">
+      
+      <!-- Header -->
+      <div class="p-4 border-b border-[#222222] flex items-center justify-between bg-[#0a0a0a]">
+        <div class="flex items-center gap-2.5">
+          <span class="text-xl">⚔️</span>
+          <div>
+            <h3 id="classModalTitle" class="text-sm font-bold text-neutral-100 font-fantasy">Configuración de Clase & Multiclase</h3>
+            <p id="classModalSubtitle" class="text-[11px] text-neutral-400">Elige la clase para desplegar únicamente sus subclases oficiales</p>
+          </div>
+        </div>
+        <button onclick="closeClassModal()" class="w-8 h-8 rounded-lg bg-[#141414] hover:bg-[#222222] text-neutral-400 hover:text-white flex items-center justify-center text-sm font-bold cursor-pointer">
+          ✕
+        </button>
+      </div>
+
+      <!-- Selector de Pestañas de Multiclase ADENTRO del Modal -->
+      <div class="px-4 py-2.5 bg-black border-b border-[#222222] flex items-center justify-between gap-3 flex-wrap">
+        <div class="flex items-center gap-2">
+          <!-- Pestaña Clase Primaria -->
+          <button id="modalTabPrimary" onclick="switchClassModalTab('primary')"
+            class="px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-2 bg-white text-black shadow-md cursor-pointer">
+            <span id="modalTabPrimaryIcon" class="w-4 h-4 shrink-0 flex items-center justify-center"></span>
+            <span id="modalTabPrimaryLabel">Clase Principal</span>
+          </button>
+
+          <!-- Pestaña Multiclase (si activa) -->
+          <button id="modalTabSecondary" onclick="switchClassModalTab('secondary')"
+            class="hidden px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-2 bg-[#141414] text-neutral-400 hover:text-neutral-200 border border-[#262626] cursor-pointer">
+            <span id="modalTabSecondaryIcon" class="w-4 h-4 shrink-0 flex items-center justify-center"></span>
+            <span id="modalTabSecondaryLabel">Multiclase</span>
+          </button>
+        </div>
+
+        <!-- Botón para Activar / Desactivar Multiclase Adentro del Modal -->
+        <div id="modalMulticlassToggleContainer"></div>
+      </div>
+
+      <!-- Buscador -->
+      <div class="p-3 bg-black border-b border-[#222222]">
+        <div class="relative">
+          <input type="text" id="classSearchInput" oninput="onClassSearch(this.value)" placeholder="Buscar clase o subclase (ej: 'Paladin', 'Battle Master', 'Hexblade', 'Assassin')..."
+            class="w-full bg-[#0a0a0a] border border-[#2e2e2e] focus:border-neutral-400 rounded-xl pl-9 pr-3 py-2 text-xs text-neutral-200 outline-none placeholder-neutral-500 font-medium">
+          <span class="absolute left-3 top-2.5 text-neutral-500 text-xs">🔍</span>
+        </div>
+      </div>
+
+      <!-- Contenedor 2 Columnas -->
+      <div class="grid grid-cols-1 sm:grid-cols-12 flex-1 overflow-hidden min-h-[360px]">
+        <div id="classCategoryList" class="sm:col-span-5 bg-black border-r border-[#222222] p-2 space-y-1 overflow-y-auto custom-scrollbar"></div>
+        <div id="classItemsList" class="sm:col-span-7 bg-[#0a0a0a] p-3 space-y-1.5 overflow-y-auto custom-scrollbar"></div>
+      </div>
+
+      <!-- Footer -->
+      <div class="p-3.5 border-t border-[#222222] bg-black flex flex-wrap items-center justify-between gap-3">
+        <div class="flex items-center gap-2">
+          <span class="text-xs text-neutral-400">¿Subclase personalizada?</span>
+          <button type="button" onclick="selectCustomClassFromModal()" class="px-2.5 py-1 rounded-lg bg-indigo-500/15 hover:bg-indigo-500/25 text-indigo-300 border border-indigo-500/30 text-xs font-semibold transition cursor-pointer">
+            ✨ Escribir Homebrew / Otra
+          </button>
+        </div>
+        <button onclick="closeClassModal()" class="px-4 py-1.5 rounded-xl bg-[#1a1a1a] hover:bg-[#252525] text-neutral-300 text-xs font-semibold transition cursor-pointer">
+          Cerrar
+        </button>
+      </div>
+
+    </div>
+  </div>
+
   <!-- Contenedor Pop-Out Flotante de Alertas & Errores (Siempre visible sin importar el scroll) -->
   <div id="floatingToastContainer" class="fixed top-5 right-5 z-[9999] flex flex-col gap-2.5 max-w-sm sm:max-w-md w-full pointer-events-none px-3 sm:px-0" aria-live="assertive"></div>
 
   <!-- Modularized Application Scripts -->
-  <script src="/static/js/utils.js?v=20261018_1"></script>
-  <script src="/static/js/api.js?v=20261018_1"></script>
-  <script src="/static/js/progress.js?v=20261018_1"></script>
-  <script src="/static/js/audio.js?v=20261018_1"></script>
-  <script src="/static/js/drive.js?v=20261018_1"></script>
-  <script src="/static/js/roster.js?v=20261018_1"></script>
-  <script src="/static/js/wiki.js?v=20261018_1"></script>
-  <script src="/static/js/notes.js?v=20261018_1"></script>
-  <script src="/static/js/app.js?v=20261018_1"></script>
+  <script src="/static/js/utils.js?v=20261018_roster2"></script>
+  <script src="/static/js/api.js?v=20261018_roster2"></script>
+  <script src="/static/js/progress.js?v=20261018_roster2"></script>
+  <script src="/static/js/audio.js?v=20261018_roster2"></script>
+  <script src="/static/js/drive.js?v=20261018_roster2"></script>
+  <script src="/static/js/roster.js?v=20261018_roster2"></script>
+  <script src="/static/js/wiki.js?v=20261018_roster2"></script>
+  <script src="/static/js/notes.js?v=20261018_roster2"></script>
+  <script src="/static/js/app.js?v=20261018_roster2"></script>
 </body>
 </html>
