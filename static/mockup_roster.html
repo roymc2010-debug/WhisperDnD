@@ -1,0 +1,1949 @@
+<!DOCTYPE html>
+<html lang="es" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>WhisperDnD - Mockup de Especies & Multiclases</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap');
+    
+    body {
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      background-color: #000000;
+      color: #f4f4f5;
+    }
+    .font-fantasy { font-family: 'Cinzel', serif; }
+    .font-mono { font-family: 'JetBrains Mono', monospace; }
+    
+    .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
+    .custom-scrollbar::-webkit-scrollbar-track { background: #000000; }
+    .custom-scrollbar::-webkit-scrollbar-thumb { background: #262626; border-radius: 9999px; }
+    .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #404040; }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col p-4 sm:p-8 bg-black text-neutral-100">
+
+  <!-- Header -->
+  <header class="max-w-[1380px] w-full mx-auto mb-6 px-3 sm:px-6">
+    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-[#1f1f1f]">
+      <div>
+        <div class="flex items-center gap-2.5">
+          <span class="text-xl">⚔️</span>
+          <h1 class="text-xl sm:text-2xl font-bold font-fantasy text-white tracking-wide">
+            WhisperDnD — Sistema de Roster & Multiclases
+          </h1>
+        </div>
+        <p class="text-xs text-neutral-400 mt-1">
+          Tema oscuro neutral (#000000). Logos con la <strong>paleta oficial de D&D Beyond</strong> superpuestos libremente.
+        </p>
+      </div>
+
+      <!-- Control de Idioma -->
+      <div class="flex items-center gap-2 self-start sm:self-auto">
+        <div class="inline-flex rounded-lg bg-[#111111] p-0.5 border border-[#222222]">
+          <button id="langEsBtn" onclick="setDemoLanguage('es')" class="px-2.5 py-1 text-xs font-semibold rounded-md bg-[#242424] text-white transition">
+            🇪🇸 Español
+          </button>
+          <button id="langEnBtn" onclick="setDemoLanguage('en')" class="px-2.5 py-1 text-xs font-semibold rounded-md text-neutral-400 hover:text-white transition">
+            🇺🇸 English
+          </button>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- Contenedor Principal (Agrandado para máxima legibilidad sin barras de desplazamiento) -->
+  <main class="max-w-[1380px] w-full mx-auto space-y-6 flex-1 px-3 sm:px-6">
+
+    <!-- Tarjeta del Roster -->
+    <div class="bg-[#0a0a0a] border border-[#222222] rounded-2xl overflow-hidden shadow-2xl">
+      <div class="p-4 bg-black border-b border-[#222222] flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div class="flex items-center gap-2.5">
+          <span class="w-2.5 h-2.5 rounded-full bg-emerald-400"></span>
+          <span class="text-xs font-bold text-neutral-200 uppercase tracking-wider font-mono">
+            Roster Oficial de Campaña
+          </span>
+        </div>
+        <div class="flex items-center gap-2.5 flex-wrap">
+          <button type="button" onclick="refreshDiscord()" title="Sincronizar y actualizar lista de miembros de Discord"
+            class="px-3 py-1.5 rounded-xl bg-[#121212] hover:bg-[#1a1a1a] active:scale-95 border border-[#262626] hover:border-sky-500/50 text-xs font-semibold text-neutral-200 hover:text-white transition flex items-center gap-2 cursor-pointer shadow-sm">
+            <span class="text-sky-400 text-sm">🎧</span>
+            <span>Refrescar Discord</span>
+          </button>
+          <button type="button" onclick="addPlayer()" title="Añadir una nueva fila de jugador al grupo"
+            class="px-3 py-1.5 rounded-xl bg-[#121212] hover:bg-[#1a1a1a] active:scale-95 border border-[#262626] hover:border-amber-500/50 text-xs font-semibold text-neutral-200 hover:text-white transition flex items-center gap-1.5 cursor-pointer shadow-sm">
+            <span class="text-amber-400 font-bold text-sm leading-none">+</span>
+            <span>Agregar Jugador</span>
+          </button>
+          <button type="button" onclick="saveGroup()" title="Guardar los cambios del roster actual"
+            class="px-3 py-1.5 rounded-xl bg-[#121212] hover:bg-[#1a1a1a] active:scale-95 border border-[#262626] hover:border-emerald-500/50 text-xs font-semibold text-neutral-200 hover:text-white transition flex items-center gap-2 cursor-pointer shadow-sm">
+            <span class="text-emerald-400 text-sm">💾</span>
+            <span>Guardar Grupo</span>
+          </button>
+        </div>
+      </div>
+
+      <div class="w-full">
+        <table class="w-full text-left text-xs border-collapse table-fixed">
+          <thead>
+            <tr class="bg-black border-b border-[#222222] text-neutral-400 font-mono uppercase text-[11px]">
+              <th class="py-3 px-2 w-[5%] text-center">Tú</th>
+              <th class="py-3 px-4 w-[24%]">Personaje & Discord</th>
+              <th class="py-3 px-4 w-[19%]">Especie / Raza</th>
+              <th class="py-3 px-4 w-[36%]">Clase(s) & Subclase(s)</th>
+              <th class="py-3 px-2 w-[11%] text-center">Asistencia</th>
+              <th class="py-3 px-2 w-[5%] text-center"></th>
+            </tr>
+          </thead>
+          <tbody id="partyTableBody" class="divide-y divide-[#1e1e1e]">
+            <!-- Renderizado dinámicamente -->
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Probador Interactivo de Logos Vectoriales -->
+    <div class="bg-[#0a0a0a] border border-[#1f1f1f] rounded-2xl p-4 sm:p-5 space-y-4 shadow-xl">
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-[#1f1f1f]">
+        <div class="flex items-center gap-2.5">
+          <span class="text-xl">🎨</span>
+          <div>
+            <h2 class="text-sm font-bold text-white font-fantasy">Probador de Logo Vectorial en Vivo</h2>
+            <p class="text-xs text-neutral-400">Prueba cómo se ve tu logo personalizado (.SVG o .PNG) superponiéndose en la tabla.</p>
+          </div>
+        </div>
+        <div class="flex items-center gap-2">
+          <span class="text-[11px] text-neutral-400 font-mono">Aplicar a:</span>
+          <select id="testerTargetClass" class="bg-black border border-[#262626] text-xs text-neutral-200 rounded-lg px-2.5 py-1.5 outline-none font-semibold">
+            <option value="sorcerer" selected>Hechicero / Sorcerer (Velith — Multiclase)</option>
+            <option value="cleric">Clérigo (Hermana Alyssa — Tu Logo SVG Oficial)</option>
+            <option value="paladin">Paladín (Markus Veyl)</option>
+            <option value="fighter">Guerrero (Selen)</option>
+            <option value="warlock">Brujo (Multiclase Markus)</option>
+            <option value="rogue">Pícaro (Selen)</option>
+            <option value="monk">Monje (Atou)</option>
+            <option value="bard">Bardo (Velith)</option>
+            <option value="wizard">Mago / Wizard</option>
+            <option value="barbarian">Bárbaro / Barbarian</option>
+            <option value="druid">Druida / Druid</option>
+            <option value="ranger">Explorador / Ranger</option>
+            <option value="artificer">Artífice / Artificer</option>
+            <option value="blood_hunter">Cazador de Sangre / Blood Hunter</option>
+            <option value="mystic">Místico (Psion)</option>
+            <option value="pugilist">Pugilista</option>
+            <option value="illrigger">Illrigger</option>
+            <option value="sidekick">Acompañante (Sidekick)</option>
+            <option value="dm">Dungeon Master (Emblema D20)</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <!-- Cargar Archivo -->
+        <div class="p-4 rounded-xl bg-black border border-dashed border-[#282828] hover:border-neutral-500 transition flex flex-col items-center justify-center text-center space-y-2 cursor-pointer group"
+             onclick="document.getElementById('vectorFileInput').click()">
+          <input type="file" id="vectorFileInput" accept=".svg,.png,.webp,.jpg,.jpeg" class="hidden" onchange="handleUserVectorFileUpload(event)">
+          <div class="w-10 h-10 rounded-full bg-[#181818] border border-[#2a2a2a] group-hover:border-neutral-500 flex items-center justify-center text-neutral-200 transition">
+            <svg viewBox="0 0 24 24" class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+          </div>
+          <div>
+            <div class="text-xs font-bold text-neutral-200 group-hover:text-white">Haz clic para cargar tu archivo de logo</div>
+            <div class="text-[11px] text-neutral-500">Formatos web directos: <span class="text-neutral-300 font-semibold">.svg</span> (vector puro) o <span class="text-neutral-300 font-semibold">.png</span> transparente</div>
+          </div>
+        </div>
+
+        <!-- Opciones de Demostración -->
+        <div class="p-4 rounded-xl bg-black border border-[#1f1f1f] space-y-2.5 flex flex-col justify-center">
+          <div class="text-xs font-bold text-neutral-300">O prueba con ejemplos vectoriales precargados:</div>
+          <div class="flex flex-wrap gap-2">
+            <button type="button" onclick="loadSampleVector('heraldic_crest')" class="px-3 py-1.5 rounded-lg bg-[#141414] hover:bg-[#1e1e1e] text-neutral-200 border border-[#262626] text-xs font-semibold transition cursor-pointer flex items-center gap-1.5 shadow-sm">
+              <span>🛡️ Escudo Heráldico Paladín</span>
+            </button>
+            <button type="button" onclick="loadSampleVector('dragon_crest')" class="px-3 py-1.5 rounded-lg bg-[#141414] hover:bg-[#1e1e1e] text-neutral-200 border border-[#262626] text-xs font-semibold transition cursor-pointer flex items-center gap-1.5 shadow-sm">
+              <span>⚔️ Espadas de Maestro Guerrero</span>
+            </button>
+            <button type="button" onclick="resetVectorLogos()" class="px-3 py-1.5 rounded-lg bg-[#141414] hover:bg-[#202020] text-neutral-400 text-xs font-semibold transition cursor-pointer">
+              <span>Restablecer</span>
+            </button>
+          </div>
+          <p id="vectorUploadStatus" class="text-[11px] text-emerald-400 font-mono hidden flex items-center gap-1">
+            <span>✓</span> <span id="vectorStatusText">Logo cargado y aplicado a la clase.</span>
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Guía Informativa Neutral -->
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 text-xs text-neutral-300">
+      <div class="p-4 rounded-xl bg-[#0a0a0a] border border-[#1f1f1f] space-y-1.5">
+        <div class="font-bold text-white flex items-center gap-1.5 font-mono">
+          <span>1.</span> <span>Colores D&D Beyond</span>
+        </div>
+        <p class="text-neutral-400">
+          Cada clase utiliza su color oficial (Brujo <span class="text-[#7B469B] font-bold">#7B469B</span>, Paladín <span class="text-[#B59E54] font-bold">#B59E54</span>, Clérigo <span class="text-[#91A1B2] font-bold">#91A1B2</span>, etc.).
+        </p>
+      </div>
+
+      <div class="p-4 rounded-xl bg-[#0a0a0a] border border-[#1f1f1f] space-y-1.5">
+        <div class="font-bold text-white flex items-center gap-1.5 font-mono">
+          <span>2.</span> <span>Logos Superpuestos</span>
+        </div>
+        <p class="text-neutral-400">
+          Principal en grande (<code class="text-neutral-200">48px</code>) y secundario en la esquina (<code class="text-neutral-200">24px</code>) flotando libremente sin burbujas.
+        </p>
+      </div>
+
+      <div class="p-4 rounded-xl bg-[#0a0a0a] border border-[#1f1f1f] space-y-1.5">
+        <div class="font-bold text-white flex items-center gap-1.5 font-mono">
+          <span>3.</span> <span>Fondo Negro Puro</span>
+        </div>
+        <p class="text-neutral-400">
+          Negro neutral estándar (#000000) con superficies oscuras y cero tonos dorados decorativos innecesarios.
+        </p>
+      </div>
+
+      <div class="p-4 rounded-xl bg-[#0a0a0a] border border-[#1f1f1f] space-y-1.5">
+        <div class="font-bold text-white flex items-center gap-1.5 font-mono">
+          <span>4.</span> <span>Nombres & Discord Dinámicos</span>
+        </div>
+        <p class="text-neutral-400">
+          Nombres editables en vivo. Al asignar un usuario de Discord, se quita automáticamente de la lista de los demás.
+        </p>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- =================================================================== -->
+  <!-- MODAL FLOTANTE DE ESPECIES                                          -->
+  <!-- =================================================================== -->
+  <div id="speciesModal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-sm p-4">
+    <div class="bg-black border border-[#262626] rounded-2xl w-full max-w-2xl overflow-hidden shadow-2xl flex flex-col max-h-[85vh] animate-in fade-in zoom-in-95 duration-150">
+      
+      <!-- Header -->
+      <div class="p-4 border-b border-[#222222] flex items-center justify-between bg-[#0a0a0a]">
+        <div class="flex items-center gap-2.5">
+          <span class="text-xl">🧬</span>
+          <div>
+            <h3 id="speciesModalTitle" class="text-sm font-bold text-neutral-100 font-fantasy">Seleccionar Especie de D&D</h3>
+            <p id="speciesModalSubtitle" class="text-[11px] text-neutral-400">85 opciones oficiales organizadas en 6 familias lógicas</p>
+          </div>
+        </div>
+        <button onclick="closeSpeciesModal()" class="w-8 h-8 rounded-lg bg-[#141414] hover:bg-[#222222] text-neutral-400 hover:text-white flex items-center justify-center text-sm font-bold cursor-pointer">
+          ✕
+        </button>
+      </div>
+
+      <!-- Buscador -->
+      <div class="p-3 bg-black border-b border-[#222222]">
+        <div class="relative">
+          <input type="text" id="speciesSearchInput" oninput="onSpeciesSearch(this.value)" placeholder="Buscar en español o inglés (ej: 'Elfo', 'Dwarf', 'Dragonborn', 'Tabaxi')..."
+            class="w-full bg-[#0a0a0a] border border-[#2e2e2e] focus:border-neutral-400 rounded-xl pl-9 pr-3 py-2 text-xs text-neutral-200 outline-none placeholder-neutral-500 font-medium">
+          <span class="absolute left-3 top-2.5 text-neutral-500 text-xs">🔍</span>
+        </div>
+      </div>
+
+      <!-- Contenedor 2 Columnas -->
+      <div class="grid grid-cols-1 sm:grid-cols-12 flex-1 overflow-hidden min-h-[360px]">
+        <div id="speciesCategoryList" class="sm:col-span-5 bg-black border-r border-[#222222] p-2 space-y-1 overflow-y-auto custom-scrollbar"></div>
+        <div id="speciesItemsList" class="sm:col-span-7 bg-[#0a0a0a] p-3 space-y-1.5 overflow-y-auto custom-scrollbar"></div>
+      </div>
+
+      <!-- Footer -->
+      <div class="p-3.5 border-t border-[#222222] bg-black flex flex-wrap items-center justify-between gap-3">
+        <div class="flex items-center gap-2">
+          <span class="text-xs text-neutral-400">¿Especie no oficial?</span>
+          <button type="button" onclick="selectCustomSpeciesFromModal()" class="px-2.5 py-1 rounded-lg bg-indigo-500/15 hover:bg-indigo-500/25 text-indigo-300 border border-indigo-500/30 text-xs font-semibold transition cursor-pointer">
+            ✨ Escribir Homebrew / Otra
+          </button>
+        </div>
+        <button onclick="closeSpeciesModal()" class="px-4 py-1.5 rounded-xl bg-[#1a1a1a] hover:bg-[#252525] text-neutral-300 text-xs font-semibold transition cursor-pointer">
+          Cancelar
+        </button>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- =================================================================== -->
+  <!-- MODAL DE CLASE & MULTICLASE (TODO ADENTRO DEL MODAL)                -->
+  <!-- =================================================================== -->
+  <div id="classModal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-sm p-4">
+    <div class="bg-black border border-[#262626] rounded-2xl w-full max-w-2xl overflow-hidden shadow-2xl flex flex-col max-h-[85vh] animate-in fade-in zoom-in-95 duration-150">
+      
+      <!-- Header -->
+      <div class="p-4 border-b border-[#222222] flex items-center justify-between bg-[#0a0a0a]">
+        <div class="flex items-center gap-2.5">
+          <span class="text-xl">⚔️</span>
+          <div>
+            <h3 id="classModalTitle" class="text-sm font-bold text-neutral-100 font-fantasy">Configuración de Clase & Multiclase</h3>
+            <p id="classModalSubtitle" class="text-[11px] text-neutral-400">Elige la clase para desplegar únicamente sus subclases oficiales</p>
+          </div>
+        </div>
+        <button onclick="closeClassModal()" class="w-8 h-8 rounded-lg bg-[#141414] hover:bg-[#222222] text-neutral-400 hover:text-white flex items-center justify-center text-sm font-bold cursor-pointer">
+          ✕
+        </button>
+      </div>
+
+      <!-- Selector de Pestañas de Multiclase ADENTRO del Modal (Sin 1º ni 2º) -->
+      <div class="px-4 py-2.5 bg-black border-b border-[#222222] flex items-center justify-between gap-3 flex-wrap">
+        <div class="flex items-center gap-2">
+          <!-- Pestaña Clase Primaria -->
+          <button id="modalTabPrimary" onclick="switchClassModalTab('primary')"
+            class="px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-2 bg-white text-black shadow-md cursor-pointer">
+            <span id="modalTabPrimaryIcon" class="w-4 h-4 shrink-0 flex items-center justify-center"></span>
+            <span id="modalTabPrimaryLabel">Clase Principal</span>
+          </button>
+
+          <!-- Pestaña Multiclase (si activa) -->
+          <button id="modalTabSecondary" onclick="switchClassModalTab('secondary')"
+            class="hidden px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-2 bg-[#141414] text-neutral-400 hover:text-neutral-200 border border-[#262626] cursor-pointer">
+            <span id="modalTabSecondaryIcon" class="w-4 h-4 shrink-0 flex items-center justify-center"></span>
+            <span id="modalTabSecondaryLabel">Multiclase</span>
+          </button>
+        </div>
+
+        <!-- Botón para Activar / Desactivar Multiclase Adentro del Modal -->
+        <div id="modalMulticlassToggleContainer">
+          <!-- Inyectado dinámicamente: botón para añadir o quitar multiclase -->
+        </div>
+      </div>
+
+      <!-- Buscador -->
+      <div class="p-3 bg-black border-b border-[#222222]">
+        <div class="relative">
+          <input type="text" id="classSearchInput" oninput="onClassSearch(this.value)" placeholder="Buscar clase o subclase (ej: 'Paladin', 'Battle Master', 'Hexblade', 'Assassin')..."
+            class="w-full bg-[#0a0a0a] border border-[#2e2e2e] focus:border-neutral-400 rounded-xl pl-9 pr-3 py-2 text-xs text-neutral-200 outline-none placeholder-neutral-500 font-medium">
+          <span class="absolute left-3 top-2.5 text-neutral-500 text-xs">🔍</span>
+        </div>
+      </div>
+
+      <!-- Contenedor 2 Columnas -->
+      <div class="grid grid-cols-1 sm:grid-cols-12 flex-1 overflow-hidden min-h-[360px]">
+        <div id="classCategoryList" class="sm:col-span-5 bg-black border-r border-[#222222] p-2 space-y-1 overflow-y-auto custom-scrollbar"></div>
+        <div id="classItemsList" class="sm:col-span-7 bg-[#0a0a0a] p-3 space-y-1.5 overflow-y-auto custom-scrollbar"></div>
+      </div>
+
+      <!-- Footer -->
+      <div class="p-3.5 border-t border-[#222222] bg-black flex flex-wrap items-center justify-between gap-3">
+        <div class="flex items-center gap-2">
+          <span class="text-xs text-neutral-400">¿Subclase personalizada?</span>
+          <button type="button" onclick="selectCustomClassFromModal()" class="px-2.5 py-1 rounded-lg bg-indigo-500/15 hover:bg-indigo-500/25 text-indigo-300 border border-indigo-500/30 text-xs font-semibold transition cursor-pointer">
+            ✨ Escribir Homebrew / Otra
+          </button>
+        </div>
+        <button onclick="closeClassModal()" class="px-4 py-1.5 rounded-xl bg-[#1a1a1a] hover:bg-[#252525] text-neutral-300 text-xs font-semibold transition cursor-pointer">
+          Cerrar
+        </button>
+      </div>
+
+    </div>
+  </div>
+
+  <script>
+    let currentLang = 'es';
+
+    // Paleta de Colores Oficiales de D&D Beyond
+    const DND_BEYOND_COLORS = {
+      barbarian: '#E7623E',
+      bard: '#AB6DAC',
+      cleric: '#91A1B2',
+      druid: '#7A9958',
+      fighter: '#7F513E',
+      monk: '#51A5C5',
+      paladin: '#B59E54',
+      ranger: '#507F62',
+      rogue: '#555752',
+      sorcerer: '#992E2E',
+      warlock: '#7B469B',
+      wizard: '#2A50A1',
+      artificer: '#C56E32',
+      blood_hunter: '#801C1C',
+      dm: '#D4AF37'
+    };
+
+    // =======================================================================
+    // BASE DE DATOS D&D: TODAS LAS 85 ESPECIES Y SUBRAZAS OFICIALES
+    // =======================================================================
+    const DND_DATABASE = {
+      species_families: [
+        {
+          id: 'classic',
+          name: { es: 'Especies Clásicas (PHB)', en: 'Classic Species (PHB)' },
+          icon: '🛡️',
+          items: [
+            { id: 'human', name: { es: 'Humano', en: 'Human' } },
+            { id: 'elf_high', name: { es: 'Alto Elfo', en: 'High Elf' } },
+            { id: 'elf_wood', name: { es: 'Elfo de los Bosques', en: 'Wood Elf' } },
+            { id: 'elf_drow', name: { es: 'Drow (Elfo Oscuro)', en: 'Dark Elf (Drow)' } },
+            { id: 'elf_sea', name: { es: 'Elfo Marino', en: 'Sea Elf' } },
+            { id: 'elf_shadarkai', name: { es: 'Shadar-kai (Sombrío)', en: 'Shadar-kai' } },
+            { id: 'elf_eladrin', name: { es: 'Eladrin (Feérico)', en: 'Eladrin' } },
+            { id: 'elf_astral', name: { es: 'Elfo Astral', en: 'Astral Elf' } },
+            { id: 'elf_pallid', name: { es: 'Elfo Pálido', en: 'Pallid Elf' } },
+            { id: 'dwarf_hill', name: { es: 'Enano de las Colinas', en: 'Hill Dwarf' } },
+            { id: 'dwarf_mountain', name: { es: 'Enano de la Montaña', en: 'Mountain Dwarf' } },
+            { id: 'dwarf_duergar', name: { es: 'Duérgar (Enano Gris)', en: 'Duergar' } },
+            { id: 'halfling_lightfoot', name: { es: 'Mediano Piesligeros', en: 'Lightfoot Halfling' } },
+            { id: 'halfling_stout', name: { es: 'Mediano Fornido', en: 'Stout Halfling' } },
+            { id: 'halfling_ghostwise', name: { es: 'Mediano Fantasmal', en: 'Ghostwise Halfling' } },
+            { id: 'halfling_lotusden', name: { es: 'Mediano Lotusden', en: 'Lotusden Halfling' } },
+            { id: 'gnome_rock', name: { es: 'Gnomo de las Rocas', en: 'Rock Gnome' } },
+            { id: 'gnome_forest', name: { es: 'Gnomo de los Bosques', en: 'Forest Gnome' } },
+            { id: 'gnome_deep', name: { es: 'Gnomo Profundo (Svirfneblin)', en: 'Deep Gnome' } },
+            { id: 'autognome', name: { es: 'Autognomo (Constructo)', en: 'Autognome' } },
+            { id: 'half_elf', name: { es: 'Semielfo', en: 'Half-Elf' } },
+            { id: 'half_orc', name: { es: 'Semiorco', en: 'Half-Orc' } },
+            { id: 'goliath', name: { es: 'Goliat', en: 'Goliath' } },
+          ]
+        },
+        {
+          id: 'beast',
+          name: { es: 'Bestiales & Antropomórficas', en: 'Beastfolk & Anthropomorphic' },
+          icon: '🐾',
+          items: [
+            { id: 'tabaxi', name: { es: 'Tabaxi (Felino)', en: 'Tabaxi' } },
+            { id: 'leonin', name: { es: 'Leonin (León de Theros)', en: 'Leonin' } },
+            { id: 'aarakocra', name: { es: 'Aarakocra (Ave Rapaz)', en: 'Aarakocra' } },
+            { id: 'kenku', name: { es: 'Kenku (Cuervo)', en: 'Kenku' } },
+            { id: 'owlin', name: { es: 'Owlin (Hombre Búho)', en: 'Owlin' } },
+            { id: 'lizardfolk', name: { es: 'Hombre Lagarto (Lizardfolk)', en: 'Lizardfolk' } },
+            { id: 'tortle', name: { es: 'Tortuga (Tortle)', en: 'Tortle' } },
+            { id: 'kobold', name: { es: 'Kobold', en: 'Kobold' } },
+            { id: 'grung', name: { es: 'Grung (Rana Venenosa)', en: 'Grung' } },
+            { id: 'harengon', name: { es: 'Harengon (Hombre Liebre)', en: 'Harengon' } },
+            { id: 'loxodon', name: { es: 'Loxodon (Elefante)', en: 'Loxodon' } },
+            { id: 'minotaur', name: { es: 'Minotauro', en: 'Minotaur' } },
+            { id: 'centaur', name: { es: 'Centauro', en: 'Centaur' } },
+            { id: 'satyr', name: { es: 'Sátiro', en: 'Satyr' } },
+            { id: 'shifter_beasthide', name: { es: 'Cambiante: Piel de Bestia (Beasthide)', en: 'Beasthide Shifter' } },
+            { id: 'shifter_longtooth', name: { es: 'Cambiante: Diente Largo (Longtooth)', en: 'Longtooth Shifter' } },
+            { id: 'shifter_swiftstride', name: { es: 'Cambiante: Paso Rápido (Swiftstride)', en: 'Swiftstride Shifter' } },
+            { id: 'shifter_wildhunt', name: { es: 'Cambiante: Caza Salvaje (Wildhunt)', en: 'Wildhunt Shifter' } },
+            { id: 'locathah', name: { es: 'Locathah (Hombre Pez)', en: 'Locathah' } },
+          ]
+        },
+        {
+          id: 'planar',
+          name: { es: 'Planares, Celestiales & Fiends', en: 'Planar, Celestials & Fiends' },
+          icon: '🔥',
+          items: [
+            { id: 'tiefling_infernal', name: { es: 'Tiefling Infernal', en: 'Infernal Tiefling' } },
+            { id: 'tiefling_abyssal', name: { es: 'Tiefling Abisal', en: 'Abyssal Tiefling' } },
+            { id: 'tiefling_chthonic', name: { es: 'Tiefling Ctónico', en: 'Chthonic Tiefling' } },
+            { id: 'tiefling_mephistopheles', name: { es: 'Tiefling de Mefistófeles', en: 'Mephistopheles Tiefling' } },
+            { id: 'tiefling_zariel', name: { es: 'Tiefling de Zariel', en: 'Zariel Tiefling' } },
+            { id: 'aasimar_protector', name: { es: 'Aasimar Protector', en: 'Protector Aasimar' } },
+            { id: 'aasimar_scourge', name: { es: 'Aasimar Azote (Scourge)', en: 'Scourge Aasimar' } },
+            { id: 'aasimar_fallen', name: { es: 'Aasimar Caído', en: 'Fallen Aasimar' } },
+            { id: 'genasi_air', name: { es: 'Genasi de Aire', en: 'Air Genasi' } },
+            { id: 'genasi_fire', name: { es: 'Genasi de Fuego', en: 'Fire Genasi' } },
+            { id: 'genasi_earth', name: { es: 'Genasi de Tierra', en: 'Earth Genasi' } },
+            { id: 'genasi_water', name: { es: 'Genasi de Agua', en: 'Water Genasi' } },
+            { id: 'githyanki', name: { es: 'Githyanki (Plano Astral)', en: 'Githyanki' } },
+            { id: 'githzerai', name: { es: 'Githzerai (Plano del Limbo)', en: 'Githzerai' } },
+            { id: 'fairy', name: { es: 'Hada (Fairy / Pixie)', en: 'Fairy' } },
+            { id: 'firbolg', name: { es: 'Firbolg', en: 'Firbolg' } },
+          ]
+        },
+        {
+          id: 'monstrous',
+          name: { es: 'Monstruosas & Goblinoides', en: 'Monstrous & Goblinoids' },
+          icon: '👺',
+          items: [
+            { id: 'goblin', name: { es: 'Goblin', en: 'Goblin' } },
+            { id: 'hobgoblin', name: { es: 'Hobgoblin', en: 'Hobgoblin' } },
+            { id: 'bugbear', name: { es: 'Bugbear', en: 'Bugbear' } },
+            { id: 'orc', name: { es: 'Orco', en: 'Orc' } },
+            { id: 'yuanti', name: { es: 'Yuan-ti (Purasangre)', en: 'Yuan-ti' } },
+            { id: 'gnoll', name: { es: 'Gnoll', en: 'Gnoll' } },
+          ]
+        },
+        {
+          id: 'exotic',
+          name: { es: 'Constructos & Configuraciones Espaciales', en: 'Constructs & Space Settings' },
+          icon: '⚙️',
+          items: [
+            { id: 'warforged', name: { es: 'Forjado (Warforged de Eberron)', en: 'Warforged' } },
+            { id: 'plasmoid', name: { es: 'Plasmoide (Limo Viviente)', en: 'Plasmoid' } },
+            { id: 'thrikreen', name: { es: 'Thri-kreen (Insectoide Psiónico)', en: 'Thri-kreen' } },
+            { id: 'giff', name: { es: 'Giff (Hipopótamo Espacial)', en: 'Giff' } },
+            { id: 'hadozee', name: { es: 'Hadozee (Simio Planeador)', en: 'Hadozee' } },
+            { id: 'glitchling', name: { es: 'Glitchling (Constructo de Mechanus)', en: 'Glitchling' } },
+            { id: 'changeling', name: { es: 'Cambiante (Changeling de Eberron)', en: 'Changeling' } },
+            { id: 'kalashtar', name: { es: 'Kalashtar', en: 'Kalashtar' } },
+            { id: 'simic', name: { es: 'Híbrido Simic (Ravnica)', en: 'Simic Hybrid' } },
+            { id: 'vedalken', name: { es: 'Vedalken (Ravnica)', en: 'Vedalken' } },
+            { id: 'kender', name: { es: 'Kender (Dragonlance)', en: 'Kender' } },
+            { id: 'verdan', name: { es: 'Verdan', en: 'Verdan' } },
+          ]
+        },
+        {
+          id: 'lineages',
+          name: { es: 'Dracónidos & Linajes Sobrenaturales', en: 'Dragonborn & Supernatural Lineages' },
+          icon: '🐉',
+          items: [
+            { id: 'dragonborn_chromatic', name: { es: 'Dracónido Cromático (Fuego, Frío, Rayo...)', en: 'Chromatic Dragonborn' } },
+            { id: 'dragonborn_metallic', name: { es: 'Dracónido Metálico (Oro, Plata, Bronce...)', en: 'Metallic Dragonborn' } },
+            { id: 'dragonborn_gem', name: { es: 'Dracónido Gemario (Amatista, Zafiro...)', en: 'Gem Dragonborn' } },
+            { id: 'dragonborn_ravenite', name: { es: 'Dracónido Ravenite (Wildemount)', en: 'Ravenite Dragonborn' } },
+            { id: 'dhampir', name: { es: 'Dhampir (Semivampiro)', en: 'Dhampir' } },
+            { id: 'hexblood', name: { es: 'Hexblood (Sangre de Bruja)', en: 'Hexblood' } },
+            { id: 'reborn', name: { es: 'Reborn (Renacido / Alma Retornada)', en: 'Reborn' } },
+            { id: 'hollow_one', name: { es: 'Hollow One (El Hueco / No-Muerto Consciente)', en: 'Hollow One' } },
+            { id: 'custom_lineage', name: { es: 'Linaje Personalizado (Tasha)', en: 'Custom Lineage' } },
+          ]
+        }
+      ],
+
+      classes: [
+        {
+          id: 'fighter',
+          name: { es: 'Guerrero', en: 'Fighter' },
+          icon: '⚔️',
+          subclasses: [
+            { id: 'bm', name: { es: 'Battle Master (Maestro de Batalla)', en: 'Battle Master' } },
+            { id: 'champ', name: { es: 'Campeón (Champion)', en: 'Champion' } },
+            { id: 'ek', name: { es: 'Caballero Sobrenatural (Eldritch Knight)', en: 'Eldritch Knight' } },
+            { id: 'psi', name: { es: 'Guerrero Psiónico (Psi Warrior)', en: 'Psi Warrior' } },
+            { id: 'rune', name: { es: 'Caballero Rúnico (Rune Knight)', en: 'Rune Knight' } },
+            { id: 'samurai', name: { es: 'Samurái', en: 'Samurai' } },
+            { id: 'echo', name: { es: 'Caballero Eco (Echo Knight)', en: 'Echo Knight' } },
+          ]
+        },
+        {
+          id: 'paladin',
+          name: { es: 'Paladín', en: 'Paladin' },
+          icon: '🛡️',
+          subclasses: [
+            { id: 'devot', name: { es: 'Juramento de Devoción', en: 'Oath of Devotion' } },
+            { id: 'veng', name: { es: 'Juramento de Venganza', en: 'Oath of Vengeance' } },
+            { id: 'ancients', name: { es: 'Juramento de los Antiguos', en: 'Oath of the Ancients' } },
+            { id: 'conquest', name: { es: 'Juramento de Conquista', en: 'Oath of Conquest' } },
+            { id: 'glory', name: { es: 'Juramento de la Gloria', en: 'Oath of Glory' } },
+            { id: 'redemption', name: { es: 'Juramento de Redención', en: 'Oath of Redemption' } },
+            { id: 'watcher', name: { es: 'Juramento de los Vigilantes', en: 'Oath of the Watchers' } },
+          ]
+        },
+        {
+          id: 'warlock',
+          name: { es: 'Brujo', en: 'Warlock' },
+          icon: '👁️',
+          subclasses: [
+            { id: 'hexblade', name: { es: 'Filo Maldito (The Hexblade)', en: 'The Hexblade' } },
+            { id: 'fiend', name: { es: 'El Infernal (The Fiend)', en: 'The Fiend' } },
+            { id: 'archfey', name: { es: 'El Archihada (The Archfey)', en: 'The Archfey' } },
+            { id: 'genie', name: { es: 'El Genio (The Genie)', en: 'The Genie' } },
+            { id: 'celestial', name: { es: 'El Celestial', en: 'The Celestial' } },
+            { id: 'great_old_one', name: { es: 'El Primigenio (Great Old One)', en: 'Great Old One' } },
+            { id: 'undead', name: { es: 'El No-Muerto (The Undead)', en: 'The Undead' } },
+          ]
+        },
+        {
+          id: 'rogue',
+          name: { es: 'Pícaro', en: 'Rogue' },
+          icon: '🗡️',
+          subclasses: [
+            { id: 'at', name: { es: 'Bribón Arcano (Arcane Trickster)', en: 'Arcane Trickster' } },
+            { id: 'assassin', name: { es: 'Asesino (Assassin)', en: 'Assassin' } },
+            { id: 'thief', name: { es: 'Ladrón (Thief)', en: 'Thief' } },
+            { id: 'soulknife', name: { es: 'Cuchilla del Alma (Soulknife)', en: 'Soulknife' } },
+            { id: 'phantom', name: { es: 'Fantasma (Phantom)', en: 'Phantom' } },
+            { id: 'swashbuckler', name: { es: 'Espadachín (Swashbuckler)', en: 'Swashbuckler' } },
+            { id: 'inquisitive', name: { es: 'Inquisitivo (Inquisitive)', en: 'Inquisitive' } },
+          ]
+        },
+        {
+          id: 'wizard',
+          name: { es: 'Mago', en: 'Wizard' },
+          icon: '📜',
+          subclasses: [
+            { id: 'evoc', name: { es: 'Escuela de Evocación', en: 'School of Evocation' } },
+            { id: 'abjur', name: { es: 'Escuela de Abjuración', en: 'School of Abjuration' } },
+            { id: 'necro', name: { es: 'Escuela de Nigromancia', en: 'School of Necromancy' } },
+            { id: 'divin', name: { es: 'Escuela de Adivinación', en: 'School of Divination' } },
+            { id: 'bladesing', name: { es: 'Canto de las Espadas (Bladesinging)', en: 'Bladesinging' } },
+            { id: 'chrono', name: { es: 'Cronurgia (Chronurgy)', en: 'Chronurgy Magic' } },
+            { id: 'illusion', name: { es: 'Escuela de Ilusión', en: 'School of Illusion' } },
+          ]
+        },
+        {
+          id: 'cleric',
+          name: { es: 'Clérigo', en: 'Cleric' },
+          icon: '✨',
+          subclasses: [
+            { id: 'life', name: { es: 'Dominio de la Vida', en: 'Life Domain' } },
+            { id: 'light', name: { es: 'Dominio de la Luz', en: 'Light Domain' } },
+            { id: 'war', name: { es: 'Dominio de la Guerra', en: 'War Domain' } },
+            { id: 'tempest', name: { es: 'Dominio de la Tempestad', en: 'Tempest Domain' } },
+            { id: 'twilight', name: { es: 'Dominio del Crepúsculo (Twilight)', en: 'Twilight Domain' } },
+            { id: 'peace', name: { es: 'Dominio de la Paz', en: 'Peace Domain' } },
+          ]
+        },
+        {
+          id: 'bard',
+          name: { es: 'Bardo', en: 'Bard' },
+          icon: '🪕',
+          subclasses: [
+            { id: 'lore', name: { es: 'Colegio del Saber (Lore)', en: 'College of Lore' } },
+            { id: 'valor', name: { es: 'Colegio del Valor', en: 'College of Valor' } },
+            { id: 'swords', name: { es: 'Colegio de las Espadas (Swords)', en: 'College of Swords' } },
+            { id: 'eloquence', name: { es: 'Colegio de la Elocuencia', en: 'College of Eloquence' } },
+          ]
+        },
+        {
+          id: 'monk',
+          name: { es: 'Monje', en: 'Monk' },
+          icon: '👊',
+          subclasses: [
+            { id: 'open_hand', name: { es: 'Camino de la Mano Abierta', en: 'Way of the Open Hand' } },
+            { id: 'shadow', name: { es: 'Camino de las Sombras', en: 'Way of Shadow' } },
+            { id: 'mercy', name: { es: 'Camino de la Piedad (Mercy)', en: 'Way of Mercy' } },
+            { id: 'kensei', name: { es: 'Camino del Kensei', en: 'Way of the Kensei' } },
+          ]
+        },
+        {
+          id: 'sorcerer',
+          name: { es: 'Hechicero', en: 'Sorcerer' },
+          icon: '🔮',
+          subclasses: [
+            { id: 'draconic', name: { es: 'Linaje Dracónico', en: 'Draconic Bloodline' } },
+            { id: 'wild_magic', name: { es: 'Magia Salvaje', en: 'Wild Magic' } },
+            { id: 'divine_soul', name: { es: 'Alma Divina (Divine Soul)', en: 'Divine Soul' } },
+            { id: 'aberrant', name: { es: 'Mente Aberrante', en: 'Aberrant Mind' } },
+          ]
+        },
+        {
+          id: 'barbarian',
+          name: { es: 'Bárbaro', en: 'Barbarian' },
+          icon: '🪓',
+          subclasses: [
+            { id: 'berserker', name: { es: 'Camino del Berserker', en: 'Path of the Berserker' } },
+            { id: 'totem', name: { es: 'Camino del Guerrero Totémico', en: 'Path of the Totem Warrior' } },
+            { id: 'zealot', name: { es: 'Camino del Zelote', en: 'Path of the Zealot' } },
+          ]
+        },
+        {
+          id: 'druid',
+          name: { es: 'Druida', en: 'Druid' },
+          icon: '🌿',
+          subclasses: [
+            { id: 'moon', name: { es: 'Círculo de la Luna', en: 'Circle of the Moon' } },
+            { id: 'stars', name: { es: 'Círculo de las Estrellas', en: 'Circle of Stars' } },
+            { id: 'spores', name: { es: 'Círculo de las Esporas', en: 'Circle of Spores' } },
+          ]
+        },
+        {
+          id: 'ranger',
+          name: { es: 'Explorador', en: 'Ranger' },
+          icon: '🏹',
+          subclasses: [
+            { id: 'gloom', name: { es: 'Acechador Sombrío (Gloom Stalker)', en: 'Gloom Stalker' } },
+            { id: 'hunter', name: { es: 'Cazador (Hunter)', en: 'Hunter' } },
+            { id: 'beast', name: { es: 'Maestro de Bestias (Beast Master)', en: 'Beast Master' } },
+            { id: 'fey', name: { es: 'Caminante Feérico (Fey Wanderer)', en: 'Fey Wanderer' } },
+          ]
+        },
+        {
+          id: 'artificer',
+          name: { es: 'Artífice', en: 'Artificer' },
+          icon: '🔧',
+          subclasses: [
+            { id: 'armorer', name: { es: 'Armero (Armorer)', en: 'Armorer' } },
+            { id: 'artillerist', name: { es: 'Artillero (Artillerist)', en: 'Artillerist' } },
+            { id: 'battlesmith', name: { es: 'Herrero de Batalla', en: 'Battle Smith' } },
+          ]
+        },
+        {
+          id: 'blood_hunter',
+          name: { es: 'Cazador de Sangre', en: 'Blood Hunter' },
+          icon: '🩸',
+          subclasses: [
+            { id: 'ghostslayer', name: { es: 'Orden del Cazador Fantasma (Ghostslayer)', en: 'Order of the Ghostslayer' } },
+            { id: 'profane_soul', name: { es: 'Orden del Alma Profana (Profane Soul)', en: 'Order of the Profane Soul' } },
+            { id: 'mutant', name: { es: 'Orden del Mutante (Mutant)', en: 'Order of the Mutant' } },
+            { id: 'lycan', name: { es: 'Orden del Licántropo (Lycanthrope)', en: 'Order of the Lycanthrope' } },
+          ]
+        },
+        {
+          id: 'mystic',
+          name: { es: 'Místico (Psion)', en: 'Mystic (Psion)' },
+          icon: '👁️',
+          subclasses: [
+            { id: 'avatar', name: { es: 'Orden del Avatar (Avatar)', en: 'Order of the Avatar' } },
+            { id: 'awakened', name: { es: 'Orden del Despertado (Awakened)', en: 'Order of the Awakened' } },
+            { id: 'immortal', name: { es: 'Orden del Inmortal (Immortal)', en: 'Order of the Immortal' } },
+            { id: 'nomad', name: { es: 'Orden del Nómada (Nomad)', en: 'Order of the Nomad' } },
+            { id: 'soulknife', name: { es: 'Orden del Alma Cuchilla (Soul Knife)', en: 'Order of the Soul Knife' } },
+            { id: 'wujen', name: { es: 'Orden del Wu Jen (Wu Jen)', en: 'Order of the Wu Jen' } },
+          ]
+        },
+        {
+          id: 'pugilist',
+          name: { es: 'Pugilista', en: 'Pugilist' },
+          icon: '🥊',
+          subclasses: [
+            { id: 'boxing', name: { es: 'Rey del Cuadrilátero (Squared Circle)', en: 'Squared Circle' } },
+            { id: 'street', name: { es: 'Luchador Callejero (Sweet Science)', en: 'Sweet Science' } },
+            { id: 'iron_chin', name: { es: 'Mano de Hierro (Iron Chin)', en: 'Iron Chin' } },
+            { id: 'prowess', name: { es: 'Peleador de Taberna (Prowess)', en: 'Prowess' } },
+          ]
+        },
+        {
+          id: 'illrigger',
+          name: { es: 'Illrigger (Caballero Diabólico)', en: 'Illrigger' },
+          icon: '🔱',
+          subclasses: [
+            { id: 'shadowmaster', name: { es: 'Sombra de Dispater (Shadowmaster)', en: 'Shadowmaster' } },
+            { id: 'painkiller', name: { es: 'Caballero de Hierro (Painkiller)', en: 'Painkiller' } },
+            { id: 'architect', name: { es: 'Arquitecto de Ruina (Architect of Ruin)', en: 'Architect of Ruin' } },
+            { id: 'blood_knight', name: { es: 'Heraldo de Sangre (Blood Knight)', en: 'Blood Knight' } },
+          ]
+        },
+        {
+          id: 'sidekick',
+          name: { es: 'Acompañante (Sidekick)', en: 'Sidekick' },
+          icon: '🛡️',
+          subclasses: [
+            { id: 'warrior', name: { es: 'Guerrero / Protector (Warrior)', en: 'Warrior' } },
+            { id: 'expert', name: { es: 'Experto / Rastreador (Expert)', en: 'Expert' } },
+            { id: 'spellcaster', name: { es: 'Lanzador de Conjuros (Spellcaster)', en: 'Spellcaster' } },
+          ]
+        }
+      ]
+    };
+
+    // =======================================================================
+    // COLECCIÓN DE LOGOS VECTORIALES (SVG) NATIVOS DE D&D
+    // =======================================================================
+    const CLASS_VECTOR_LOGOS = {
+      dm: `
+        <svg viewBox="0 0 24 24" class="w-full h-full" fill="none" stroke="#f59e0b" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <polygon points="12 2 22 8.5 22 15.5 12 22 2 15.5 2 8.5 12 2" fill="rgba(245, 158, 11, 0.15)"/>
+          <polyline points="2 8.5 12 15.5 22 8.5" />
+          <polyline points="12 2 12 15.5" />
+          <polyline points="2 15.5 12 8.5 22 15.5" />
+          <polyline points="12 8.5 12 22" />
+        </svg>
+      `,
+      paladin: `
+        <svg viewBox="0 0 24 24" class="w-full h-full" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+          <path d="M12 7v10"/>
+          <path d="M8 11h8"/>
+        </svg>
+      `,
+      fighter: `
+        <svg viewBox="0 0 24 24" class="w-full h-full" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M14.5 17.5L3 6V3h3l11.5 11.5"/>
+          <path d="m13 19 6-6"/>
+          <path d="M16 16l4 4"/>
+          <path d="M19 21l2-2"/>
+          <path d="m10 4.5 9.5 9.5"/>
+          <path d="m21 3-3 3-1.5-1.5"/>
+        </svg>
+      `,
+      warlock: `
+        <svg viewBox="0 0 24 24" class="w-full h-full" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="3"/>
+          <path d="M2.5 12c2.5-5 5.5-7 9.5-7s7 2 9.5 7c-2.5 5-5.5 7-9.5 7s-7-2-9.5-7z"/>
+          <path d="M12 4V2"/>
+          <path d="M12 22v-2"/>
+          <path d="m18 6 1.5-1.5"/>
+          <path d="m4.5 19.5 1.5-1.5"/>
+        </svg>
+      `,
+      rogue: `
+        <svg viewBox="0 0 24 24" class="w-full h-full" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="m14 9.5-8 8L3 21l3.5-3 8-8.5"/>
+          <path d="M18 5.5l2-2a1.5 1.5 0 0 0-2.1-2.1l-2 2"/>
+          <path d="m13.5 7.5 3 3"/>
+          <path d="m11 5 4 4"/>
+        </svg>
+      `,
+      wizard: `
+        <svg viewBox="0 0 24 24" class="w-full h-full" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1-2.5-2.5z"/>
+          <path d="M6 6h10"/>
+          <path d="M6 10h10"/>
+          <path d="M10 14h6"/>
+          <circle cx="13" cy="10" r="1.5" fill="currentColor"/>
+        </svg>
+      `,
+      cleric: `
+        <svg viewBox="0 0 330.7 320.04" class="w-full h-full" fill="currentColor">
+          <g>
+            <path d="M293.5,186.58l-12.46,2.41c2.51-1.93,5.09-2.96,7.81-4.34,13.32-6.78,26.53-14.36,34.4-27.48,4.64-7.75,7.12-16.3,7.45-25.54-1.86,1.03-2.81,2.62-4.19,3.96l-11.74,11.39c-8.29,6.75-17.42,12-27.15,16.34-1.53.68-2.71,1.58-4.52,1.74l14.53-11.76c13.85-12.45,24.34-26.72,26.74-45.67.97-7.63.62-15.14-1.7-22.44-.22-.68-2.1.16-2.12.9-9.36,22.83-21.84,42.67-42.77,56.69,16.49-19.44,28.67-39.86,29.53-65.74.38-11.55-2.11-26.53-9.67-35.16-.37-.43-2.23-.89-2.27,0-.59,12.77-3.06,25.08-7.32,37.2-5.61,15.97-13.64,30.83-24.46,43.93,3.35,6.9,2.68,17.04-.11,24.02l-3.35,8.38,7.31-5.46c.93-.7,2.25-1.77,3.46-1.64,1.12.12,1.76,1.74,1.94,2.78.96,5.63-.08,11.22-2.58,16.35l-5.08,8.64c3.4-1.77,7.94-4.5,10.41-2.47.22,6.77-1.89,13.33-6.05,18.6l-6.08,5.98c3.94-1.06,9.78-2.16,9.43.31-.92,6.4-4.28,12.31-9.53,16.08l-4.69,2.73,5.95,2.23c2.03.76-3.62,8.88-11.64,11.93l-5.53,2.1,4.52,2.63c.64.37.28,1.49-.12,1.95-2.28,2.61-5.15,4.15-8.4,5.25-6.47,2.18-13.25,1.23-18.85-2.72,7.59,1.4,15.78,2.06,21.17-3.3l-4.15-2.39c-2.86-1.65-5.94-2.7-8.59-4.94,7.3.99,14.15.15,20.3-3.31,2.04-1.15,3.8-2.48,5.1-4.43l-7.41-1.52c-3.59-.73-7.16-1.06-10.46-2.49,11.25-1.54,22.44-5.3,26.17-16.49l-13.76,1.46-8.29.56,9.56-4.81c7.42-3.73,14.86-11.27,15.16-20.13l-23.76,8.42c8.3-6.32,16.76-12.24,20.4-22.07,1.29-3.48,2.11-7.01,1.62-10.79-9.03,7.07-18.21,13.07-28.45,18.37l7.93-8.47c9.41-9.66,15.69-22.27,13.36-36.22l-13.91,14.59-14.56,12.94c-11.63,10.73-16.88,26.02-14.29,41.57,2.43,14.6,0,27.41-11.61,37.06-4.46,3.71-9.09,6.37-14.23,9.44-13.93,8.34-19.77,24.86-11.63,39.84,1.4-7.53,4.57-13.94,10.63-18.2,11.66-8.19,21.9-.36,34.59,1.03l-7.51-5.74c-1.52-1.16-3.04-2.14-4.27-3.69,4.73.6,8.84,2.09,13.1,3.72,6.48,2.48,14.33,4.96,20.83,2.9.61-.19.88-.88.88-1.32,0-.68-.56-.76-1.13-1.1-4.73-2.85-9.02-6.32-12.7-10.62l11.87,3.32c7.45,2.08,15.22,1.73,22.31-1.33.52-.23.76-.86.83-1.2.05-.28-.06-.94-.57-1.05-6.37-1.41-12.42-4.48-16.99-9.23.25-.81,1.12-.87,1.83-.86l15.4.27c4.28.07,8.39-.67,12.46-1.89,2.72-.81,4.94-2.03,7.29-3.66.57-.4,1.21-2.26.16-2.38-5.68-.61-11.11-1.73-16.38-3.99-1.81-.78-3.68-1.15-5.2-2.53l10.93-1.17c11.6-1.25,23.97-6.03,29.64-17.03-5.05,1.61-9.73,2.66-14.81,2.79-5.88.14-11.5.09-17.61-1.01l15.96-4.96c14.02-5.27,27.62-14,32.57-28.65.29-.85.65-1.65-.03-2.64-9.43,6.53-19.68,11.06-30.86,13.22Z"/>
+            <path d="M112.15,228.72c-2.31-1.99-4.54-3.24-5.68-1.16l-15.37,28.09-4.32,8.74c1.47-.69,2.34-1.9,3.42-3.36l22.01-29.76c.63-.85.71-1.88-.06-2.55Z"/>
+            <path d="M84.78,201.64c-.9-.69-1.76.2-2.46.75l-25.55,19.97c-2.42,1.89-5.09,3.57-6.49,6.28l36.66-21.02c2.25-1.24.04-4.3-2.16-5.97Z"/>
+            <path d="M112.82,85.45l-21.65-28.6c-1.45-1.91-2.69-3.59-4.52-5.12.31,1.72,1.08,2.89,1.89,4.34l18.01,32.23c.47.85,1.47,1.87,2.35,1.51,2.44-.98,5.13-2.77,3.92-4.36Z"/>
+            <path d="M87.22,109l-22.99-13c-4.89-2.54-9.22-5.4-14.6-7.55,2.3,2.76,5.06,4.44,7.82,6.53l26.14,19.73c.62.47,1.53.04,1.83-.4l2.17-3.21c.39-.58.31-1.71-.38-2.1Z"/>
+            <path d="M255.33,93l-28.21,15.57c-.51.28-.85.71-.95,1.02-.14.45-.02,1,.27,1.44l2.04,3.08c.49.75,1.39,1.07,2.21.44l30.23-22.74c1.21-.91,2.24-1.65,3.04-3.05l-8.63,4.24Z"/>
+            <path d="M183.18,33.49l-2.43,7.71-8.73,33.06c-.61,2.33,3.19,3.13,6.44,2.59l4.89-39.46c.17-1.35.56-2.5-.17-3.89Z"/>
+            <path d="M220.91,59.26l-19.12,25.36c-.61.81-.76,2.06.11,2.66,1.13.78,2.43,2.02,3.98,2.21,1.03.12,1.7-1.33,2.11-2.06l16.76-30.12c.86-1.83,2.13-3.13,2.38-5.4l-6.21,7.36Z"/>
+            <path d="M139.44,64.65l-7.82-29.25c-.22-.84-.4-1.56-1.17-2.06-.1,2.84.32,5.23.66,7.98l4.24,34.15c.32,2.58,3.7,1.74,6.75,0l-2.67-10.84Z"/>
+            <path d="M73.93,174.07c-.36-.92-1.23-1.31-2.19-1.04l-24.87,7.12c-4.91,1.41-9.6,2.51-14.47,4.69,3.49.4,6.38-.44,9.66-.71l31.65-4.45c1.88-.26,1.26-2.99.23-5.62Z"/>
+            <path d="M73.7,136.77l-38.75-5.29c-.89-.12-1.62-.13-2.55.15l6.73,2.42,33.46,9.43c.74.21,1.46-.52,1.56-.99l.87-4.1c.17-.83-.53-1.51-1.33-1.62Z"/>
+            <g>
+              <path d="M202.21,132.21c-1.15.08-2.19-2.35-1.51-3.33,3.99-5.66,8.04-10.87,12.54-16.14l46.77-54.84,8.76-10.86c-2.27,1.19-3.9,2.74-5.74,4.3l-14.88,12.67-19.95,17.14-25.93,22.01c-5.1,4.33-10.02,8.4-15.75,11.85-1.1.02-2.49-.96-3.06-1.87l4.91-14.37,26.03-75.58c1.16-3.38,2.26-6.33,2.85-9.95-1.83,1.95-2.65,4.28-3.75,6.6l-5.71,12.05-25.6,54.9-5.15,11.23-4.43,8.87c-.3.6-1.34,1.85-2.06,1.17-1.4-3.7-2.08-7.5-2.82-11.49-2.78-15-4.58-29.8-5.94-45.08l-4.16-46.87c-.15-1.71-.22-3.12-.77-4.61-.63,1.02-.63,1.88-.73,2.97l-5.08,56.81c-1.28,14.29-3.34,28.16-6.13,42.16l-1.45,5.76c-.12.48-.86.55-1.18.49-.96-.18-3.17-5.28-4.43-7.99l-23.82-51.29-13.04-27.77c-1.26-2.68-2.32-5.2-4.34-7.67.43,3.7,1.87,6.88,3.03,10.32l5.41,16.04,20.24,58.61,4.81,14.04c.39,1.14-.69,1.9-1.46,2.36-.92.55-1.88.1-2.82-.57-6.12-4.3-11.81-8.86-17.55-13.77l-51.11-43.71c-4.05-3.47-7.65-6.9-12.11-9.93,1.72,3.12,3.81,5.31,6,7.88l30.23,35.37,26.04,31.06c2.35,2.8,4.33,5.49,6.2,8.64-.15,1.03-1.2,2.08-2.21,2.66l-76.22-27.05-14.04-4.76c-2.8-.95-5.28-2.34-8.55-2.52,2.36,1.67,4.63,2.99,7.27,4.24l54.47,25.7,27.45,13.05,4.88,2.68c.39.21.18,1-.1,1.2-1.84,1.4-16.42,3.6-21.6,4.19l-31.7,3.58-46.87,4.1c-2.22.19-4.17.29-6.35,1.26,6.03,1.24,11.76,1.54,17.91,2.13l45.01,4.35c8.03.78,43,4.8,44.05,7.53.14.35.18.87-.35,1.12l-54.93,25.97-31.83,15.11c-2.63,1.25-4.95,2.33-7.28,4.23l7.43-2.12,88.59-30.99c1.32-.46,2.59-.84,3.77-.78.54.32,1.35,1.74,1.08,2.41-4.15,6.37-8.71,12.03-13.62,17.78l-18.52,21.64-27.38,32.44-9.02,11.37c1.71-.76,2.84-1.78,4.2-2.97l55.13-48.16,17.08-13.91,6.08-3.98c1.24.56,2.23,1.29,3.03,2.28l-9.33,26.65-20.34,58.87c-1.59,4.61-3.4,8.88-4.05,13.83l12.55-25.71,25.27-54.27,6.72-14.11c.24-.51,1.54-.71,1.68-.11,4.6,19.15,7.43,39.03,5.41,58.61-.73,7.04-2.28,13.57-4.64,20.19l-3.53,7.22,6.88,8.94,9.42,15.39c.21.35.32.53.57.33.11-.09.26-.31.37-.5l8.68-14.43,6.14-8.15c.49-.65,1.07-1.05,1.11-1.8.04-.7-.49-1.07-.84-1.74-12.23-23.74-7.89-57.64-1.98-83.16.12-.54.38-.94.65-1.06.36-.16.94-.11,1.33.3l14.42,29.64,7-4.55-10.56-30.4c.23-1.14,2.12-2.45,3.07-2.24,3.91,2.09,7.15,4.77,10.56,7.49l12.56,10.01c1.74-6,3.68-14.95-.07-19.12l-9.18-12.69c-.2-1.02,1.54-2.66,2.58-2.36l7.11,2.07c-.04-3.93.54-7.59,1.57-11.5l-3.79-2.02c-.48-.26-.66-.68-.63-1.09.02-.28.16-.78.55-.9l6.07-1.82c1.87-4.95,4.52-9.4,8.22-13.17l6.8-6.91-20.96-4.02c-.53-.1-.76-.52-.84-.79-.11-.34-.02-.69.35-.87l12.97-6.46,30.43-14.42c2.06-.98,4.36-1.71,6.06-3.17,2.82-2.43,4.79-5.56,7.13-8.65l-39.04,13.5-22.69,7.75ZM112.99,158.39c0-24.25,19.66-43.92,43.92-43.92s43.92,19.66,43.92,43.92-19.66,43.92-43.92,43.92-43.92-19.66-43.92-43.92Z"/>
+              <circle cx="156.91" cy="158.4" r="36.23" transform="translate(-49.48 242.75) rotate(-67.5)"/>
+            </g>
+          </g>
+        </svg>
+      `,
+      bard: `
+        <svg viewBox="0 0 24 24" class="w-full h-full" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M9 18V5l12-2v13"/>
+          <circle cx="6" cy="18" r="3"/>
+          <circle cx="18" cy="16" r="3"/>
+        </svg>
+      `,
+      monk: `
+        <svg viewBox="0 0 24 24" class="w-full h-full" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="9"/>
+          <path d="M12 3a9 9 0 0 1 0 18 4.5 4.5 0 0 1 0-9 4.5 4.5 0 0 0 0-9z"/>
+          <circle cx="12" cy="7.5" r="1.5" fill="currentColor"/>
+          <circle cx="12" cy="16.5" r="1.5" fill="currentColor"/>
+        </svg>
+      `,
+      sorcerer: `
+        <svg viewBox="0 0 24 24" class="w-full h-full" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
+        </svg>
+      `,
+      barbarian: `
+        <svg viewBox="0 0 24 24" class="w-full h-full" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="m14 12-8.5 8.5a2.12 2.12 0 1 1-3-3L11 9"/>
+          <path d="M15 13 9 7l3-3 8 2-2 8-3-1z"/>
+        </svg>
+      `,
+      druid: `
+        <svg viewBox="0 0 24 24" class="w-full h-full" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10Z"/>
+          <path d="M2 21c0-3 1.85-5.36 5.08-6C9.5 14.52 12 13 13 12"/>
+        </svg>
+      `,
+      ranger: `
+        <svg viewBox="0 0 24 24" class="w-full h-full" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M18 3c3 3 3 8 0 11l-3 3-8-8 3-3c3-3 8-3 11 0z"/>
+          <path d="m8 14-5 5"/>
+          <path d="m7 21 2-2"/>
+          <path d="m3 17 2-2"/>
+          <path d="m15 9 6-6"/>
+        </svg>
+      `,
+      artificer: `
+        <svg viewBox="0 0 24 24" class="w-full h-full" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 2v4"/>
+          <path d="M12 18v4"/>
+          <path d="M4.93 4.93l2.83 2.83"/>
+          <path d="M16.24 16.24l2.83 2.83"/>
+          <path d="M2 12h4"/>
+          <path d="M18 12h4"/>
+          <path d="M4.93 19.07l2.83-2.83"/>
+          <path d="M16.24 7.76l2.83-2.83"/>
+          <circle cx="12" cy="12" r="3"/>
+        </svg>
+      `,
+      blood_hunter: `
+        <svg viewBox="0 0 24 24" class="w-full h-full" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 2v14"/>
+          <path d="M8 6h8"/>
+          <path d="M12 22s-4-3-4-6a4 4 0 0 1 8 0c0 3-4 6-4 6z" fill="currentColor"/>
+        </svg>
+      `,
+      mystic: `
+        <svg viewBox="0 0 24 24" class="w-full h-full" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7z"/>
+          <circle cx="12" cy="12" r="3" fill="currentColor" fill-opacity="0.25"/>
+          <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/>
+        </svg>
+      `,
+      pugilist: `
+        <svg viewBox="0 0 24 24" class="w-full h-full" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M18 11V6a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v0"/>
+          <path d="M14 10V4a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v2"/>
+          <path d="M10 10.5V6a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v8"/>
+          <path d="M18 8a2 2 0 1 1 4 0v6a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-5.99-2.34l-3.6-3.6a2 2 0 0 1 2.83-2.82L7 15"/>
+        </svg>
+      `,
+      illrigger: `
+        <svg viewBox="0 0 24 24" class="w-full h-full" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 22V2M8 5h8M7 9h10"/>
+          <path d="M5 4c0 4 2 8 7 10 5-2 7-6 7-10"/>
+          <path d="M3 2c1 5 4 9 9 11 5-2 8-6 9-11"/>
+        </svg>
+      `,
+      sidekick: `
+        <svg viewBox="0 0 24 24" class="w-full h-full" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+          <path d="m9 12 2 2 4-4"/>
+        </svg>
+      `
+    };
+
+    // Logos personalizados dinámicos (cargados por el usuario mediante el tester o archivos locales)
+    const customUserLogos = {};
+
+    function getClassVectorLogo(classId) {
+      if (customUserLogos[classId]) {
+        return customUserLogos[classId];
+      }
+      return CLASS_VECTOR_LOGOS[classId] || `
+        <svg viewBox="0 0 24 24" class="w-full h-full" fill="none" stroke="currentColor" stroke-width="2">
+          <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+        </svg>
+      `;
+    }
+
+    // Funciones del Probador de Logos
+    function handleUserVectorFileUpload(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+
+      const targetClass = document.getElementById('testerTargetClass').value;
+      const reader = new FileReader();
+
+      if (file.name.endsWith('.svg') || file.type === 'image/svg+xml') {
+        reader.onload = function(e) {
+          const svgContent = e.target.result;
+          customUserLogos[targetClass] = svgContent;
+          showVectorUploadSuccess(`Vector SVG "${file.name}" aplicado a ${targetClass}.`);
+          renderTable();
+        };
+        reader.readAsText(file);
+      } else {
+        // Imágenes rasterizadas o dataURL
+        reader.onload = function(e) {
+          customUserLogos[targetClass] = `<img src="${e.target.result}" alt="${targetClass}" class="w-full h-full object-contain filter drop-shadow">`;
+          showVectorUploadSuccess(`Imagen "${file.name}" aplicada a ${targetClass}.`);
+          renderTable();
+        };
+        reader.readAsDataURL(file);
+      }
+    }
+
+    function loadSampleVector(sampleType) {
+      const targetClass = document.getElementById('testerTargetClass').value;
+      if (sampleType === 'heraldic_crest') {
+        // Escudo heráldico dorado con filigrana
+        customUserLogos[targetClass] = `
+          <svg viewBox="0 0 32 32" class="w-full h-full" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M16 2L5 6v10c0 7.5 4.7 12.3 11 14 6.3-1.7 11-6.5 11-14V6L16 2z" fill="#0284c7" stroke="#38bdf8" stroke-width="1.8"/>
+            <path d="M16 6v19M9 13h14" stroke="#ffffff" stroke-width="2" stroke-linecap="round"/>
+            <circle cx="16" cy="13" r="2.5" fill="#facc15"/>
+          </svg>
+        `;
+        showVectorUploadSuccess(`Escudo heráldico vectorial aplicado a ${targetClass}.`);
+      } else if (sampleType === 'dragon_crest') {
+        // Emblema de combate draconiano
+        customUserLogos[targetClass] = `
+          <svg viewBox="0 0 32 32" class="w-full h-full" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M16 3l3.5 7.5L28 12l-6 6 1.5 8.5L16 22.5 8.5 26.5 10 18 4 12l8.5-1.5L16 3z" fill="#f59e0b" stroke="#fbbf24" stroke-width="1.5"/>
+            <circle cx="16" cy="15" r="3" fill="#1e1b4b"/>
+          </svg>
+        `;
+        showVectorUploadSuccess(`Emblema de batalla aplicado a ${targetClass}.`);
+      }
+      renderTable();
+    }
+
+    function resetVectorLogos() {
+      for (const k in customUserLogos) delete customUserLogos[k];
+      const statusEl = document.getElementById('vectorUploadStatus');
+      if (statusEl) statusEl.classList.add('hidden');
+      renderTable();
+    }
+
+    function showVectorUploadSuccess(msg) {
+      const statusEl = document.getElementById('vectorUploadStatus');
+      const textEl = document.getElementById('vectorStatusText');
+      if (statusEl && textEl) {
+        textEl.textContent = msg;
+        statusEl.classList.remove('hidden');
+        setTimeout(() => statusEl.classList.add('hidden'), 5000);
+      }
+    }
+
+    // Datos del Grupo
+    const mockParty = [
+      {
+        id: 0,
+        isDM: true,
+        player: 'Beta',
+        char: 'Dungeon Master',
+        discord: '@Beta_DM',
+        speciesId: 'dm',
+        speciesText: '(N/A - DM)',
+        isCustomSpecies: false,
+        isUserChar: false,
+        primaryClass: { classId: 'dm', subclassId: 'dm', isCustom: false, customText: 'Árbitro & Narrador' },
+        secondaryClass: { active: false },
+        isAbsent: false
+      },
+      {
+        id: 1,
+        isDM: false,
+        player: '',
+        char: 'Markus Veyl',
+        discord: '',
+        speciesId: 'human',
+        speciesText: 'Humano',
+        isCustomSpecies: false,
+        isUserChar: true,
+        primaryClass: { classId: 'paladin', subclassId: 'veng', isCustom: false, customText: '' },
+        secondaryClass: { active: true, classId: 'warlock', subclassId: 'hexblade', isCustom: false, customText: '' },
+        isAbsent: false
+      },
+      {
+        id: 2,
+        isDM: false,
+        player: 'IDarkLink',
+        char: 'Atou Shadowgrace',
+        discord: '@IDarkLink',
+        speciesId: 'elf_wood',
+        speciesText: 'Elfo de los Bosques',
+        isCustomSpecies: false,
+        isUserChar: false,
+        primaryClass: { classId: 'monk', subclassId: 'shadow', isCustom: false, customText: '' },
+        secondaryClass: { active: false, classId: 'rogue', subclassId: 'assassin', isCustom: false, customText: '' },
+        isAbsent: false
+      },
+      {
+        id: 3,
+        isDM: false,
+        player: '',
+        char: 'Velith',
+        discord: '',
+        speciesId: 'tiefling_infernal',
+        speciesText: 'Tiefling Infernal',
+        isCustomSpecies: false,
+        isUserChar: false,
+        primaryClass: { classId: 'bard', subclassId: 'lore', isCustom: false, customText: '' },
+        secondaryClass: { active: true, classId: 'sorcerer', subclassId: 'wild_magic', isCustom: false, customText: '' },
+        isAbsent: false
+      },
+      {
+        id: 4,
+        isDM: false,
+        player: 'Acher08',
+        char: 'Selen',
+        discord: '@Acher08',
+        speciesId: 'shifter_beasthide',
+        speciesText: 'Cambiante: Piel de Bestia (Beasthide)',
+        isCustomSpecies: false,
+        isUserChar: false,
+        primaryClass: { classId: 'rogue', subclassId: 'phantom', isCustom: false, customText: '' },
+        secondaryClass: { active: true, classId: 'fighter', subclassId: 'bm', isCustom: false, customText: '' },
+        isAbsent: true // Ejemplo visual de jugador Ausente
+      },
+      {
+        id: 5,
+        isDM: false,
+        player: '',
+        char: 'Hermana Alyssa',
+        discord: '',
+        speciesId: 'aasimar',
+        speciesText: 'Aasimar',
+        isCustomSpecies: false,
+        isUserChar: false,
+        primaryClass: { classId: 'cleric', subclassId: 'life', isCustom: false, customText: '' },
+        secondaryClass: { active: true, classId: 'paladin', subclassId: 'devot', isCustom: false, customText: '' },
+        isAbsent: false
+      }
+    ];
+
+    // Variables de control del modal y presentación
+    let activeSpeciesRowId = null;
+    let activeSpeciesCatIndex = 0;
+
+    let activeClassRowId = null;
+    let activeClassSlot = 'primary'; // 'primary' | 'secondary'
+    let activeClassCatIndex = 0;
+
+    // =======================================================================
+    // PALETA OFICIAL D&D BEYOND (HEX CODES OFICIALES)
+    // =======================================================================
+    const DND_BEYOND_COLORS = {
+      barbarian: '#E7623E',
+      bard: '#AB6DAC',
+      cleric: '#91A1B2',
+      druid: '#7A9958',
+      fighter: '#7F513E',
+      monk: '#51A5C5',
+      paladin: '#B59E54',
+      ranger: '#507F62',
+      rogue: '#555752',
+      sorcerer: '#CC4343',
+      warlock: '#7B469B',
+      wizard: '#2A52BE',
+      artificer: '#E07936',
+      blood_hunter: '#801C1C',
+      mystic: '#4A6984',
+      pugilist: '#9C4124',
+      illrigger: '#5A1827',
+      sidekick: '#6B7280',
+      dm: '#D4AF37'
+    };
+
+    // =======================================================================
+    // POOL DE USUARIOS DE DISCORD (SE FILTRAN LOS YA ASIGNADOS)
+    // =======================================================================
+    const DISCORD_MEMBERS_POOL = [
+      { discord: '@Beta_DM', player: 'Beta' },
+      { discord: '@Roymc89', player: 'Roymc89' },
+      { discord: '@IDarkLink', player: 'IDarkLink' },
+      { discord: '@moonixb', player: 'moonixb' },
+      { discord: '@Acher08', player: 'Acher08' },
+      { discord: '@Elandor', player: 'Elandor' },
+      { discord: '@Kaelen', player: 'Kael' },
+      { discord: '@Valen_D', player: 'Valentina' },
+      { discord: '@Sora_DnD', player: 'Sora' },
+      { discord: '@Zephyr', player: 'Zephyr' },
+      { discord: '@Lyra_M', player: 'Lyra' },
+      { discord: '@Drakon', player: 'Drakon' }
+    ];
+
+    function init() {
+      renderTable();
+    }
+
+    function toggleUserChar(rowId) {
+      mockParty.forEach(p => {
+        if (!p.isDM) {
+          p.isUserChar = (p.id === rowId) ? !p.isUserChar : false;
+        }
+      });
+      renderTable();
+    }
+
+    function toggleAbsence(rowId) {
+      const p = mockParty.find(x => x.id === rowId);
+      if (p && !p.isDM) {
+        p.isAbsent = !p.isAbsent;
+        renderTable();
+      }
+    }
+
+    function updateCharName(rowId, newName) {
+      const p = mockParty.find(x => x.id === rowId);
+      if (p) {
+        p.char = newName;
+      }
+    }
+
+    function updatePlayerName(rowId, newPlayer) {
+      const p = mockParty.find(x => x.id === rowId);
+      if (p) {
+        p.player = newPlayer;
+      }
+    }
+
+    function handleDiscordSelect(rowId, selectedValue) {
+      const p = mockParty.find(x => x.id === rowId);
+      if (!p) return;
+
+      if (selectedValue === '__custom__') {
+        p.isCustomDiscord = true;
+        renderTable();
+        return;
+      }
+
+      p.isCustomDiscord = false;
+      p.discord = selectedValue;
+      const foundInPool = DISCORD_MEMBERS_POOL.find(u => u.discord === selectedValue);
+      if (foundInPool) {
+        p.player = foundInPool.player;
+      } else if (!selectedValue) {
+        p.player = '';
+      }
+      renderTable();
+    }
+
+    function updateCustomDiscord(rowId, val) {
+      const p = mockParty.find(x => x.id === rowId);
+      if (p) {
+        p.discord = val;
+      }
+    }
+
+    function cancelCustomDiscord(rowId) {
+      const p = mockParty.find(x => x.id === rowId);
+      if (p) {
+        p.isCustomDiscord = false;
+        renderTable();
+      }
+    }
+
+    function addPlayer() {
+      const maxId = mockParty.reduce((acc, curr) => Math.max(acc, curr.id || 0), 0);
+      const newPlayer = {
+        id: maxId + 1,
+        isDM: false,
+        player: '',
+        char: 'Nuevo Aventurero',
+        discord: '',
+        speciesId: 'human',
+        speciesText: 'Humano',
+        isCustomSpecies: false,
+        isUserChar: false,
+        primaryClass: { classId: 'fighter', subclassId: 'champ', isCustom: false, customText: '' },
+        secondaryClass: { active: false, classId: '', subclassId: '', isCustom: false, customText: '' },
+        isAbsent: false
+      };
+      mockParty.push(newPlayer);
+      renderTable();
+      showToast('Nuevo jugador añadido al grupo', 'success', '➕');
+    }
+
+    function deletePlayer(rowId) {
+      const p = mockParty.find(x => x.id === rowId);
+      if (!p || p.isDM) return;
+      
+      const charName = p.char || 'Aventurero';
+      mockParty = mockParty.filter(x => x.id !== rowId);
+      renderTable();
+      showToast(`Personaje "${charName}" eliminado`, 'info', '🗑️');
+    }
+
+    function refreshDiscord() {
+      // Simula sincronización con Discord y refresca la vista
+      renderTable();
+      showToast('Lista de miembros de Discord actualizada', 'info', '🎧');
+    }
+
+    function saveGroup() {
+      // Simula guardado del roster del grupo
+      showToast('Roster oficial de campaña guardado con éxito', 'success', '💾');
+    }
+
+    function showToast(message, type = 'info', icon = '✨') {
+      let container = document.getElementById('toastNotificationContainer');
+      if (!container) {
+        container = document.createElement('div');
+        container.id = 'toastNotificationContainer';
+        container.className = 'fixed bottom-5 right-5 z-50 flex flex-col gap-2 pointer-events-none';
+        document.body.appendChild(container);
+      }
+
+      const toast = document.createElement('div');
+      const borderCol = type === 'success' ? 'border-emerald-500/40' : 'border-[#333333]';
+      const textCol = type === 'success' ? 'text-emerald-300' : 'text-neutral-200';
+      
+      toast.className = `pointer-events-auto bg-[#111111] border ${borderCol} px-4 py-2.5 rounded-xl shadow-2xl flex items-center gap-2.5 text-xs font-medium ${textCol} transition-all duration-200 opacity-0 translate-y-2 backdrop-blur-md`;
+      toast.innerHTML = `<span class="text-sm shrink-0">${icon}</span><span class="truncate">${escapeHtml(message)}</span>`;
+      
+      container.appendChild(toast);
+      
+      requestAnimationFrame(() => {
+        toast.classList.remove('opacity-0', 'translate-y-2');
+        toast.classList.add('opacity-100', 'translate-y-0');
+      });
+
+      setTimeout(() => {
+        toast.classList.remove('opacity-100', 'translate-y-0');
+        toast.classList.add('opacity-0', 'translate-y-2');
+        setTimeout(() => toast.remove(), 250);
+      }, 3000);
+    }
+
+    function setDemoLanguage(lang) {
+      currentLang = lang;
+      const esBtn = document.getElementById('langEsBtn');
+      const enBtn = document.getElementById('langEnBtn');
+      if (esBtn) esBtn.className = lang === 'es' ? 'px-2.5 py-1 text-xs font-semibold rounded-md bg-[#242424] text-white transition' : 'px-2.5 py-1 text-xs font-semibold rounded-md text-neutral-400 hover:text-white transition';
+      if (enBtn) enBtn.className = lang === 'en' ? 'px-2.5 py-1 text-xs font-semibold rounded-md bg-[#242424] text-white transition' : 'px-2.5 py-1 text-xs font-semibold rounded-md text-neutral-400 hover:text-white transition';
+      renderTable();
+    }
+
+    // =======================================================================
+    // RENDERIZADO DE LA TABLA (FONDO NEGRO NEUTRO #000000 & LOGOS OFICIALES)
+    // =======================================================================
+    function renderTable() {
+      const tbody = document.getElementById('partyTableBody');
+      if (!tbody) return;
+
+      tbody.innerHTML = mockParty.map(p => {
+        // Usuarios de Discord tomados por otros miembros (se van quitando de la lista de selección)
+        const takenDiscords = new Set(
+          mockParty
+            .filter(m => m.id !== p.id && m.discord)
+            .map(m => m.discord)
+        );
+        const availableForThisRow = DISCORD_MEMBERS_POOL.filter(u => !takenDiscords.has(u.discord));
+
+        // RENDERIZADO PARA LA FILA DEL DUNGEON MASTER
+        if (p.isDM) {
+          const dmColor = DND_BEYOND_COLORS.dm;
+          return `
+            <tr class="bg-[#0a0a0a] border-b border-[#1f1f1f] hover:bg-[#121212] transition">
+              <!-- Marca de Personaje: Icono sutil de DM (sin caja cuadrada) -->
+              <td class="py-3 px-2 text-center align-middle">
+                <div class="flex items-center justify-center mx-auto select-none" title="Dungeon Master">
+                  <svg class="w-5 h-5 text-neutral-500" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24">
+                    <path d="M2 4l3 12h14l3-12-6 7-4-7-4 7-6-7zm3 16h14v2H5v-2z"/>
+                  </svg>
+                </div>
+              </td>
+
+              <!-- Personaje & Discord (2 renglones interactivos) -->
+              <td class="py-3 px-4 align-middle">
+                <div class="space-y-1">
+                  <div class="text-sm font-bold text-neutral-100 font-fantasy flex items-center gap-1.5">
+                    <input type="text" value="${escapeHtml(p.char)}" 
+                      oninput="updateCharName(${p.id}, this.value)"
+                      placeholder="Dungeon Master"
+                      title="Título del DM (editable)"
+                      class="bg-transparent hover:bg-[#141414] focus:bg-black border border-transparent hover:border-[#2a2a2a] focus:border-neutral-500 rounded-md px-1.5 py-0.5 text-sm font-bold text-neutral-100 outline-none w-full transition placeholder-neutral-600 truncate font-fantasy tracking-wide">
+                  </div>
+                  <div class="flex items-center gap-1.5 whitespace-nowrap min-w-0">
+                    ${p.isCustomDiscord ? `
+                      <div class="flex items-center gap-1">
+                        <input type="text" value="${escapeHtml(p.discord)}" oninput="updateCustomDiscord(${p.id}, this.value)" placeholder="@usuario" class="bg-black border border-neutral-600 rounded px-1.5 py-0.5 text-xs text-neutral-200 font-mono outline-none w-28">
+                        <button type="button" onclick="cancelCustomDiscord(${p.id})" title="Volver a la lista de Discord" class="text-xs text-neutral-400 hover:text-white px-1 cursor-pointer">↩️</button>
+                      </div>
+                    ` : `
+                      <select onchange="handleDiscordSelect(${p.id}, this.value)" title="Seleccionar usuario de Discord del DM" class="bg-[#111111] hover:bg-[#1a1a1a] focus:bg-black border border-[#2a2a2a] hover:border-[#444] ${!p.discord ? 'text-neutral-400' : 'text-neutral-200'} font-mono text-xs rounded-lg px-2 py-0.5 outline-none cursor-pointer transition shrink-0">
+                        <option value="" ${!p.discord ? 'selected' : ''}>Discord User</option>
+                        ${!availableForThisRow.some(u => u.discord === p.discord) && p.discord ? `<option value="${escapeHtml(p.discord)}" selected class="bg-[#121212] text-neutral-200">${escapeHtml(p.discord)}</option>` : ''}
+                        ${availableForThisRow.map(u => `
+                          <option value="${escapeHtml(u.discord)}" ${u.discord === p.discord ? 'selected' : ''} class="bg-[#121212] text-neutral-200">
+                            ${escapeHtml(u.discord)} (${escapeHtml(u.player)})
+                          </option>
+                        `).join('')}
+                        <option value="__custom__" class="bg-[#181818] text-neutral-400 font-sans">✍️ Escribir otro...</option>
+                      </select>
+                    `}
+                    ${p.player ? `
+                      <span class="text-neutral-500 text-[11px] select-none">(</span>
+                      <input type="text" value="${escapeHtml(p.player)}" oninput="updatePlayerName(${p.id}, this.value)" placeholder="DM" class="bg-transparent hover:bg-[#141414] focus:bg-black border border-transparent hover:border-[#2a2a2a] focus:border-neutral-500 rounded px-1 py-0 text-xs text-neutral-400 hover:text-neutral-200 focus:text-neutral-100 font-sans outline-none w-20 transition placeholder-neutral-600 truncate" title="Clic para editar el nombre del DM">
+                      <span class="text-neutral-500 text-[11px] select-none">)</span>
+                    ` : ''}
+                  </div>
+                </div>
+              </td>
+
+              <!-- Especie / Raza del DM (No Aplica) -->
+              <td class="py-3 px-4 align-middle">
+                <div class="text-xs text-neutral-500 font-mono bg-black px-3 py-2 rounded-xl border border-[#222222] text-center select-none">
+                  —
+                </div>
+              </td>
+
+              <!-- Rol / Clase del DM: Logo D20 Flotante Libre en Oro D&D Beyond -->
+              <td class="py-3 px-4 align-middle">
+                <div class="flex items-center gap-3">
+                  <div class="w-11 h-11 flex items-center justify-center shrink-0 select-none my-0.5" style="color: ${dmColor};" title="Dungeon Master">
+                    ${getClassVectorLogo('dm')}
+                  </div>
+                  <div class="flex-1 space-y-1.5 min-w-0">
+                    <div class="px-3 py-1.5 rounded-xl bg-black border border-[#262626] text-neutral-100 font-bold text-xs shadow-sm">
+                      Dungeon Master (DM)
+                    </div>
+                    <div class="px-3 py-0.5 text-[11px] text-neutral-400 font-mono">
+                      Narrador & Árbitro de Campaña
+                    </div>
+                  </div>
+                </div>
+              </td>
+
+              <!-- Asistencia del DM: Presente (Estilo unificado con el resto de la interfaz) -->
+              <td class="py-3 px-2 text-center align-middle">
+                <div class="w-full max-w-[100px] mx-auto px-2.5 py-1.5 rounded-xl bg-black border border-[#262626] flex items-center justify-center gap-2 select-none" title="El Dungeon Master coordina la mesa de juego">
+                  <span class="w-2 h-2 rounded-full bg-emerald-400"></span>
+                  <span class="text-xs font-semibold text-neutral-300">Presente</span>
+                </div>
+              </td>
+
+              <!-- Acción: No borrable para el DM -->
+              <td class="py-3 px-2 text-center align-middle">
+                <span class="text-neutral-700 text-xs select-none" title="El Dungeon Master no se puede eliminar">—</span>
+              </td>
+            </tr>
+          `;
+        }
+
+        // RENDERIZADO PARA JUGADORES NORMALES
+        const pCls = DND_DATABASE.classes.find(c => c.id === p.primaryClass.classId) || DND_DATABASE.classes[0];
+        const pSub = pCls.subclasses.find(s => s.id === p.primaryClass.subclassId);
+        const pSubLabel = p.primaryClass.isCustom ? p.primaryClass.customText : (pSub ? pSub.name[currentLang] : 'Subclase');
+        const pColor = DND_BEYOND_COLORS[pCls.id] || '#EDEDED';
+
+        const sActive = p.secondaryClass && p.secondaryClass.active;
+        const sCls = sActive ? (DND_DATABASE.classes.find(c => c.id === p.secondaryClass.classId) || DND_DATABASE.classes[1]) : null;
+        const sSub = sCls ? sCls.subclasses.find(s => s.id === p.secondaryClass.subclassId) : null;
+        const sSubLabel = sActive ? (p.secondaryClass.isCustom ? p.secondaryClass.customText : (sSub ? sSub.name[currentLang] : 'Subclase')) : '';
+        const sColor = sCls ? (DND_BEYOND_COLORS[sCls.id] || '#EDEDED') : '';
+
+        const specLabel = p.isCustomSpecies ? p.customSpeciesText : p.speciesText;
+
+        const rowHighlight = p.isUserChar ? 'bg-[#0f0f0f] border-l-2 border-l-neutral-200' : 'hover:bg-[#0d0d0d]';
+        const rowDim = p.isAbsent ? 'opacity-40 grayscale-[40%]' : '';
+
+        return `
+          <tr class="${rowHighlight} ${rowDim} border-b border-[#1f1f1f] transition duration-150">
+            
+            <!-- Marca de Tu Personaje: Estrella Vectorial Flotante Libre (sin caja cuadrada, más grande) -->
+            <td class="py-3 px-2 text-center align-middle">
+              <button type="button" onclick="toggleUserChar(${p.id})"
+                class="p-1 transition duration-150 flex items-center justify-center mx-auto active:scale-90 cursor-pointer ${p.isUserChar ? 'text-amber-400 drop-shadow-[0_0_8px_rgba(245,158,11,0.5)]' : 'text-neutral-600 hover:text-amber-400/80'}"
+                title="${p.isUserChar ? 'Tu personaje en esta campaña (clic para desmarcar)' : 'Clic para marcar como tu personaje'}">
+                <svg class="w-5 h-5 transition-transform" fill="${p.isUserChar ? 'currentColor' : 'none'}" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24">
+                  <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
+                </svg>
+              </button>
+            </td>
+
+            <!-- Personaje & Discord (2 renglones interactivos y editables) -->
+            <td class="py-3 px-4 align-middle">
+              <div class="space-y-1">
+                <!-- Renglón 1: Nombre del Personaje (Editable) + Marca Tú -->
+                <div class="flex items-center gap-1.5">
+                  <input type="text" value="${escapeHtml(p.char)}" 
+                    oninput="updateCharName(${p.id}, this.value)"
+                    placeholder="Nombre del personaje..."
+                    title="Clic para editar el nombre del personaje"
+                    class="bg-transparent hover:bg-[#141414] focus:bg-black border border-transparent hover:border-[#2a2a2a] focus:border-neutral-500 rounded-md px-1.5 py-0.5 text-sm font-bold text-neutral-100 outline-none w-full transition placeholder-neutral-600 truncate">
+                  ${p.isUserChar ? '<span class="text-[9px] font-mono font-bold text-neutral-300 bg-[#1e1e1e] px-1.5 py-0.5 rounded-full border border-[#333333] shrink-0 select-none">Tú</span>' : ''}
+                </div>
+
+                <!-- Renglón 2: Selector de Discord (un solo renglón, sin audífonos, default: Discord User) -->
+                <div class="flex items-center gap-1.5 whitespace-nowrap min-w-0">
+                  ${p.isCustomDiscord ? `
+                    <div class="flex items-center gap-1">
+                      <input type="text" value="${escapeHtml(p.discord)}" oninput="updateCustomDiscord(${p.id}, this.value)" placeholder="@usuario" class="bg-black border border-neutral-600 rounded px-1.5 py-0.5 text-xs text-neutral-200 font-mono outline-none w-28">
+                      <button type="button" onclick="cancelCustomDiscord(${p.id})" title="Volver a la lista de Discord" class="text-xs text-neutral-400 hover:text-white px-1 cursor-pointer">↩️</button>
+                    </div>
+                  ` : `
+                    <select onchange="handleDiscordSelect(${p.id}, this.value)" title="Seleccionar usuario de Discord" class="bg-[#111111] hover:bg-[#1a1a1a] focus:bg-black border border-[#2a2a2a] hover:border-[#444] ${!p.discord ? 'text-neutral-400' : 'text-neutral-200'} font-mono text-xs rounded-lg px-2 py-0.5 outline-none cursor-pointer transition shrink-0">
+                      <option value="" ${!p.discord ? 'selected' : ''}>Discord User</option>
+                      ${!availableForThisRow.some(u => u.discord === p.discord) && p.discord ? `<option value="${escapeHtml(p.discord)}" selected class="bg-[#121212] text-neutral-200">${escapeHtml(p.discord)}</option>` : ''}
+                      ${availableForThisRow.map(u => `
+                        <option value="${escapeHtml(u.discord)}" ${u.discord === p.discord ? 'selected' : ''} class="bg-[#121212] text-neutral-200">
+                          ${escapeHtml(u.discord)} (${escapeHtml(u.player)})
+                        </option>
+                      `).join('')}
+                      <option value="__custom__" class="bg-[#181818] text-neutral-400 font-sans">✍️ Escribir otro...</option>
+                    </select>
+                  `}
+                  ${p.player ? `
+                    <span class="text-neutral-500 text-[11px] select-none">(</span>
+                    <input type="text" value="${escapeHtml(p.player)}" oninput="updatePlayerName(${p.id}, this.value)" placeholder="Jugador" class="bg-transparent hover:bg-[#141414] focus:bg-black border border-transparent hover:border-[#2a2a2a] focus:border-neutral-500 rounded px-1 py-0 text-xs text-neutral-400 hover:text-neutral-200 focus:text-neutral-100 font-sans outline-none w-20 transition placeholder-neutral-600 truncate" title="Clic para editar el nombre del jugador">
+                    <span class="text-neutral-500 text-[11px] select-none">)</span>
+                  ` : ''}
+                </div>
+              </div>
+            </td>
+
+            <!-- Especie / Raza -->
+            <td class="py-3 px-4 align-middle">
+              ${p.isCustomSpecies ? `
+                <div class="flex items-center gap-1.5">
+                  <input type="text" value="${escapeHtml(p.customSpeciesText || '')}" 
+                    onchange="updateCustomSpecies(${p.id}, this.value)"
+                    placeholder="Escribe tu especie homebrew..."
+                    class="bg-black border border-neutral-600 rounded-xl px-2.5 py-2 text-xs text-neutral-200 outline-none w-full font-medium focus:ring-1 focus:ring-neutral-400">
+                  <button type="button" onclick="cancelCustomSpecies(${p.id})" title="Volver a la lista oficial"
+                    class="p-1.5 rounded-lg bg-[#181818] hover:bg-[#252525] text-neutral-400 text-xs cursor-pointer">↩️</button>
+                </div>
+              ` : `
+                <button type="button" onclick="openSpeciesModal(${p.id})"
+                  class="w-full text-left px-3 py-2 rounded-xl bg-black hover:bg-[#141414] border border-[#262626] hover:border-[#444444] transition flex items-center justify-between group cursor-pointer shadow-sm">
+                  <span class="text-xs font-semibold text-neutral-200 group-hover:text-white truncate">${escapeHtml(specLabel)}</span>
+                  <span class="text-[10px] text-neutral-500 group-hover:text-neutral-300 font-mono">▼</span>
+                </button>
+              `}
+            </td>
+
+            <!-- Clases: Logos Oficiales D&D Beyond Flotantes Uno Sobre el Otro -->
+            <td class="py-3 px-4 align-middle">
+              ${sActive ? `
+                <!-- MULTICLASE: Logo grande + Logo pequeño en esquina sobrepuesto libremente -->
+                <div class="flex items-center gap-3">
+                  <div class="relative shrink-0 flex items-center justify-center my-0.5 select-none" style="width: 48px; height: 48px;">
+                    <!-- Logo Principal (48px) con Color Oficial D&D Beyond -->
+                    <div class="w-12 h-12 flex items-center justify-center select-none" style="color: ${pColor};" title="Clase Principal: ${pCls.name[currentLang]}">
+                      ${getClassVectorLogo(pCls.id)}
+                    </div>
+                    <!-- Logo Secundario (24px) en la esquina sobrepuesto libremente sin burbuja -->
+                    <div class="absolute -bottom-0.5 -right-0.5 w-6 h-6 flex items-center justify-center select-none drop-shadow-[0_2px_4px_rgba(0,0,0,0.95)]" style="color: ${sColor};" title="Multiclase: ${sCls.name[currentLang]}">
+                      ${getClassVectorLogo(sCls.id)}
+                    </div>
+                  </div>
+
+                  <!-- 2 Renglones Separados para los Botones de Clase & Subclase -->
+                  <div class="flex-1 space-y-1.5 min-w-0">
+                    <button type="button" onclick="openClassModal(${p.id}, 'primary')"
+                      class="w-full text-left px-3 py-1.5 rounded-xl bg-black hover:bg-[#141414] border border-[#262626] hover:border-[#444444] transition flex items-center justify-between group cursor-pointer shadow-sm">
+                      <div class="truncate">
+                        <span class="text-xs font-bold text-neutral-100 group-hover:text-white">${pCls.name[currentLang]}</span>
+                        <span class="text-[11px] font-medium" style="color: ${pColor};">(${escapeHtml(pSubLabel)})</span>
+                      </div>
+                      <span class="text-[10px] text-neutral-500 group-hover:text-neutral-300 font-mono">⚙️</span>
+                    </button>
+
+                    <button type="button" onclick="openClassModal(${p.id}, 'secondary')"
+                      class="w-full text-left px-3 py-1.5 rounded-xl bg-black hover:bg-[#141414] border border-[#262626] hover:border-[#444444] transition flex items-center justify-between group cursor-pointer shadow-sm">
+                      <div class="truncate">
+                        <span class="text-xs font-bold text-neutral-100 group-hover:text-white">${sCls.name[currentLang]}</span>
+                        <span class="text-[11px] font-medium" style="color: ${sColor};">(${escapeHtml(sSubLabel)})</span>
+                      </div>
+                      <span class="text-[10px] text-neutral-500 group-hover:text-neutral-300 font-mono">⚙️</span>
+                    </button>
+                  </div>
+                </div>
+              ` : `
+                <!-- CLASE PURA: Logo único (44px) + 2 renglones armónicos -->
+                <div class="flex items-center gap-3">
+                  <div class="w-11 h-11 flex items-center justify-center shrink-0 select-none my-0.5" style="color: ${pColor};" title="Clase: ${pCls.name[currentLang]}">
+                    ${getClassVectorLogo(pCls.id)}
+                  </div>
+                  <div class="flex-1 space-y-1.5 min-w-0">
+                    <button type="button" onclick="openClassModal(${p.id}, 'primary')"
+                      class="w-full text-left px-3 py-1.5 rounded-xl bg-black hover:bg-[#141414] border border-[#262626] hover:border-[#444444] transition flex items-center justify-between group cursor-pointer shadow-sm">
+                      <div class="truncate">
+                        <span class="text-xs font-bold text-neutral-100 group-hover:text-white">${pCls.name[currentLang]}</span>
+                        <span class="text-[11px] font-medium" style="color: ${pColor};">(${escapeHtml(pSubLabel)})</span>
+                      </div>
+                      <span class="text-[10px] text-neutral-500 group-hover:text-neutral-300 font-mono">⚙️</span>
+                    </button>
+                    
+                    <div class="px-3 py-1 text-[11px] text-neutral-500 font-mono flex items-center justify-between">
+                      <span>Clase única</span>
+                      <button type="button" onclick="openClassModal(${p.id}, 'primary')" class="text-[10px] text-neutral-400 hover:text-white cursor-pointer underline decoration-neutral-600 underline-offset-2">
+                        + Multiclase
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              `}
+            </td>
+
+            <!-- Asistencia: Presente / Ausente (Estilo unificado con el resto de la interfaz) -->
+            <td class="py-3 px-2 text-center align-middle">
+              <button type="button" onclick="toggleAbsence(${p.id})"
+                class="w-full max-w-[100px] mx-auto px-2.5 py-1.5 rounded-xl bg-black hover:bg-[#141414] border ${p.isAbsent ? 'border-[#222222] text-neutral-500 hover:border-[#333333]' : 'border-[#262626] hover:border-[#3a3a3a] text-neutral-200 hover:text-white'} transition flex items-center justify-center gap-2 cursor-pointer shadow-sm active:scale-95"
+                title="${p.isAbsent ? 'Jugador Ausente (clic para marcar como Presente)' : 'Jugador Presente (clic para marcar como Ausente)'}">
+                <span class="w-2 h-2 rounded-full ${p.isAbsent ? 'bg-neutral-600' : 'bg-emerald-400'}"></span>
+                <span class="text-xs font-semibold">${p.isAbsent ? 'Ausente' : 'Presente'}</span>
+              </button>
+            </td>
+
+            <!-- Botón de Borrar Jugador (Icono SVG Minimalista) -->
+            <td class="py-3 px-2 text-center align-middle">
+              <button type="button" onclick="deletePlayer(${p.id})" title="Eliminar este jugador de la mesa"
+                class="w-7 h-7 rounded-lg bg-black hover:bg-rose-950/30 text-neutral-500 hover:text-rose-400 border border-[#222222] hover:border-rose-500/40 flex items-center justify-center transition active:scale-90 cursor-pointer mx-auto group shadow-sm">
+                <svg class="w-3.5 h-3.5 group-hover:scale-110 transition" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24">
+                  <polyline points="3 6 5 6 21 6"></polyline>
+                  <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                </svg>
+              </button>
+            </td>
+
+          </tr>
+        `;
+      }).join('');
+    }
+
+    // =======================================================================
+    // MODAL DE ESPECIES (CON NUMEROS DINAMICOS EXACTOS)
+    // =======================================================================
+    function openSpeciesModal(rowId) {
+      activeSpeciesRowId = rowId;
+      activeSpeciesCatIndex = 0;
+      document.getElementById('speciesSearchInput').value = '';
+      renderSpeciesCategories();
+      renderSpeciesItems();
+      document.getElementById('speciesModal').classList.remove('hidden');
+    }
+
+    function closeSpeciesModal() {
+      document.getElementById('speciesModal').classList.add('hidden');
+    }
+
+    function renderSpeciesCategories() {
+      const col = document.getElementById('speciesCategoryList');
+      col.innerHTML = DND_DATABASE.species_families.map((fam, idx) => `
+        <button type="button" onclick="selectSpeciesCategory(${idx})"
+          class="w-full text-left p-2.5 rounded-xl transition flex items-center justify-between cursor-pointer ${idx === activeSpeciesCatIndex ? 'bg-[#1c1c1c] text-white border border-[#333333] font-bold' : 'text-neutral-400 hover:text-white hover:bg-[#121212] border border-transparent'}">
+          <div class="flex items-center gap-2 truncate">
+            <span>${fam.icon}</span>
+            <span class="text-xs truncate">${fam.name[currentLang]}</span>
+          </div>
+          <!-- Calculado exactamente en base al array real de items -->
+          <span class="text-[10px] text-neutral-500 font-mono font-semibold">${fam.items.length}</span>
+        </button>
+      `).join('');
+    }
+
+    function renderSpeciesItems(filterQuery = '') {
+      const col = document.getElementById('speciesItemsList');
+      const q = filterQuery.toLowerCase().trim();
+
+      if (q) {
+        let matches = [];
+        DND_DATABASE.species_families.forEach(fam => {
+          fam.items.forEach(it => {
+            const esName = it.name.es.toLowerCase();
+            const enName = it.name.en.toLowerCase();
+            if (esName.includes(q) || enName.includes(q)) {
+              matches.push({ item: it, familyName: fam.name[currentLang] });
+            }
+          });
+        });
+
+        if (matches.length === 0) {
+          col.innerHTML = `
+            <div class="p-6 text-center text-neutral-500 space-y-2">
+              <p class="text-xs">No se encontraron especies que coincidan con "<strong>${escapeHtml(q)}</strong>".</p>
+              <button type="button" onclick="selectCustomSpeciesFromModal('${escapeHtml(q)}')"
+                class="px-3 py-1.5 rounded-lg bg-[#181818] text-neutral-200 border border-[#333333] text-xs font-semibold hover:bg-[#222222] cursor-pointer">
+                ✨ Usar "${escapeHtml(q)}" como especie Homebrew
+              </button>
+            </div>
+          `;
+          return;
+        }
+
+        col.innerHTML = `
+          <div class="px-2 py-1 text-[11px] font-bold text-neutral-400 uppercase tracking-wider font-mono border-b border-[#222222] mb-2 flex items-center justify-between">
+            <span>Resultados de búsqueda</span>
+            <span class="text-neutral-200 font-bold">${matches.length} coincidencia(s)</span>
+          </div>
+          ${matches.map(m => `
+            <button type="button" onclick="applySpeciesSelection('${m.item.id}', '${escapeHtml(m.item.name[currentLang])}')"
+              class="w-full text-left p-3 rounded-xl bg-black hover:bg-[#141414] border border-[#262626] hover:border-neutral-500 transition flex items-center justify-between group cursor-pointer">
+              <div>
+                <div class="text-xs font-bold text-neutral-200 group-hover:text-white">${m.item.name[currentLang]}</div>
+                <div class="text-[10px] text-neutral-500">${m.familyName} • ${currentLang === 'es' ? m.item.name.en : m.item.name.es}</div>
+              </div>
+              <span class="text-xs text-white opacity-0 group-hover:opacity-100 font-bold">Seleccionar →</span>
+            </button>
+          `).join('')}
+        `;
+        return;
+      }
+
+      const activeFam = DND_DATABASE.species_families[activeSpeciesCatIndex] || DND_DATABASE.species_families[0];
+      col.innerHTML = `
+        <div class="px-2 py-1 text-[11px] font-bold text-neutral-400 uppercase tracking-wider font-mono border-b border-[#222222] mb-2 flex items-center justify-between">
+          <span>${activeFam.name[currentLang]}</span>
+          <span class="text-neutral-400 font-mono font-bold">${activeFam.items.length} opciones mostradas</span>
+        </div>
+        ${activeFam.items.map(it => `
+          <button type="button" onclick="applySpeciesSelection('${it.id}', '${escapeHtml(it.name[currentLang])}')"
+            class="w-full text-left p-2.5 rounded-xl bg-black hover:bg-[#141414] border border-[#262626] hover:border-neutral-500 transition flex items-center justify-between group cursor-pointer">
+            <div>
+              <div class="text-xs font-semibold text-neutral-200 group-hover:text-white">${it.name[currentLang]}</div>
+              <div class="text-[10px] text-neutral-500 font-mono">${currentLang === 'es' ? it.name.en : it.name.es}</div>
+            </div>
+            <span class="text-xs text-white opacity-0 group-hover:opacity-100 font-bold">✓</span>
+          </button>
+        `).join('')}
+      `;
+    }
+
+    function selectSpeciesCategory(idx) {
+      activeSpeciesCatIndex = idx;
+      renderSpeciesCategories();
+      renderSpeciesItems();
+    }
+
+    function onSpeciesSearch(val) {
+      renderSpeciesItems(val);
+    }
+
+    function applySpeciesSelection(speciesId, speciesText) {
+      const p = mockParty.find(x => x.id === activeSpeciesRowId);
+      if (p) {
+        p.speciesId = speciesId;
+        p.speciesText = speciesText;
+        p.isCustomSpecies = false;
+        renderTable();
+      }
+      closeSpeciesModal();
+    }
+
+    function selectCustomSpeciesFromModal(initialValue = '') {
+      const p = mockParty.find(x => x.id === activeSpeciesRowId);
+      if (!p) return;
+      p.isCustomSpecies = true;
+      p.customSpeciesText = initialValue || 'Lanzahechizos Solar';
+      closeSpeciesModal();
+      renderTable();
+    }
+
+    function updateCustomSpecies(rowId, val) {
+      const p = mockParty.find(x => x.id === rowId);
+      if (p) p.customSpeciesText = val;
+    }
+
+    function cancelCustomSpecies(rowId) {
+      const p = mockParty.find(x => x.id === rowId);
+      if (p) {
+        p.isCustomSpecies = false;
+        renderTable();
+      }
+    }
+
+    // =======================================================================
+    // MODAL DE CLASE & MULTICLASE (GESTIÓN DENTRO DEL MODAL)
+    // =======================================================================
+    function openClassModal(rowId, initialSlot = 'primary') {
+      activeClassRowId = rowId;
+      activeClassSlot = initialSlot;
+      activeClassCatIndex = 0;
+      document.getElementById('classSearchInput').value = '';
+
+      const p = mockParty.find(x => x.id === rowId);
+      if (!p) return;
+
+      // Actualizar pestañas del modal según si tiene multiclase activa
+      updateClassModalHeaderTabs(p);
+      renderClassCategories();
+      renderSubclassItems();
+      document.getElementById('classModal').classList.remove('hidden');
+    }
+
+    function closeClassModal() {
+      document.getElementById('classModal').classList.add('hidden');
+    }
+
+    function updateClassModalHeaderTabs(p) {
+      const tabPrim = document.getElementById('modalTabPrimary');
+      const tabSec = document.getElementById('modalTabSecondary');
+      const primLabel = document.getElementById('modalTabPrimaryLabel');
+      const secLabel = document.getElementById('modalTabSecondaryLabel');
+      const primIcon = document.getElementById('modalTabPrimaryIcon');
+      const secIcon = document.getElementById('modalTabSecondaryIcon');
+      const toggleContainer = document.getElementById('modalMulticlassToggleContainer');
+
+      const pCls = DND_DATABASE.classes.find(c => c.id === p.primaryClass.classId) || DND_DATABASE.classes[0];
+      primLabel.textContent = pCls.name[currentLang];
+      if (primIcon) primIcon.innerHTML = getClassVectorLogo(pCls.id);
+
+      const sActive = p.secondaryClass && p.secondaryClass.active;
+
+      if (sActive) {
+        tabSec.classList.remove('hidden');
+        const sCls = DND_DATABASE.classes.find(c => c.id === p.secondaryClass.classId) || DND_DATABASE.classes[1];
+        secLabel.textContent = sCls.name[currentLang];
+        if (secIcon) secIcon.innerHTML = getClassVectorLogo(sCls.id);
+
+        // Estilos de la pestaña activa
+        if (activeClassSlot === 'secondary') {
+          tabSec.className = 'px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-2 bg-white text-black shadow-md cursor-pointer';
+          tabPrim.className = 'px-3 py-1.5 rounded-xl text-xs font-semibold transition flex items-center gap-2 bg-[#141414] text-neutral-400 hover:text-white border border-[#262626] cursor-pointer';
+        } else {
+          tabPrim.className = 'px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-2 bg-white text-black shadow-md cursor-pointer';
+          tabSec.className = 'px-3 py-1.5 rounded-xl text-xs font-semibold transition flex items-center gap-2 bg-[#141414] text-neutral-400 hover:text-white border border-[#262626] cursor-pointer';
+        }
+
+        // Botón interior para desactivar multiclase
+        toggleContainer.innerHTML = `
+          <button type="button" onclick="disableMulticlassFromModal()"
+            class="px-2.5 py-1.5 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 border border-rose-500/30 text-xs font-semibold transition flex items-center gap-1.5 cursor-pointer"
+            title="Quitar la multiclase y regresar a clase única">
+            <span>✕</span>
+            <span>Quitar Multiclase</span>
+          </button>
+        `;
+      } else {
+        tabSec.classList.add('hidden');
+        activeClassSlot = 'primary';
+        tabPrim.className = 'px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-2 bg-white text-black shadow-md cursor-pointer';
+
+        // Botón interior para activar multiclase
+        toggleContainer.innerHTML = `
+          <button type="button" onclick="enableMulticlassFromModal()"
+            class="px-3 py-1.5 rounded-xl bg-[#1c1c1c] hover:bg-[#252525] text-white border border-[#333333] text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-sm">
+            <span>⚡ + Habilitar Multiclase</span>
+          </button>
+        `;
+      }
+    }
+
+    function switchClassModalTab(slot) {
+      activeClassSlot = slot;
+      const p = mockParty.find(x => x.id === activeClassRowId);
+      if (!p) return;
+
+      // Sincronizar índice activo de categoría con la clase actual de ese slot
+      const targetSlotData = slot === 'secondary' ? p.secondaryClass : p.primaryClass;
+      const foundIdx = DND_DATABASE.classes.findIndex(c => c.id === targetSlotData.classId);
+      activeClassCatIndex = foundIdx >= 0 ? foundIdx : 0;
+
+      updateClassModalHeaderTabs(p);
+      renderClassCategories();
+      renderSubclassItems();
+    }
+
+    function enableMulticlassFromModal() {
+      const p = mockParty.find(x => x.id === activeClassRowId);
+      if (!p) return;
+      p.secondaryClass = {
+        active: true,
+        classId: p.primaryClass.classId === 'warlock' ? 'paladin' : 'warlock',
+        subclassId: 'hexblade',
+        isCustom: false,
+        customText: ''
+      };
+      activeClassSlot = 'secondary';
+      const foundIdx = DND_DATABASE.classes.findIndex(c => c.id === p.secondaryClass.classId);
+      activeClassCatIndex = foundIdx >= 0 ? foundIdx : 0;
+
+      updateClassModalHeaderTabs(p);
+      renderClassCategories();
+      renderSubclassItems();
+      renderTable();
+    }
+
+    function disableMulticlassFromModal() {
+      const p = mockParty.find(x => x.id === activeClassRowId);
+      if (!p) return;
+      if (p.secondaryClass) {
+        p.secondaryClass.active = false;
+      }
+      activeClassSlot = 'primary';
+      const foundIdx = DND_DATABASE.classes.findIndex(c => c.id === p.primaryClass.classId);
+      activeClassCatIndex = foundIdx >= 0 ? foundIdx : 0;
+
+      updateClassModalHeaderTabs(p);
+      renderClassCategories();
+      renderSubclassItems();
+      renderTable();
+    }
+
+    function renderClassCategories() {
+      const col = document.getElementById('classCategoryList');
+      col.innerHTML = DND_DATABASE.classes.map((cls, idx) => `
+        <button type="button" onclick="selectClassCategory(${idx})"
+          class="w-full text-left p-2.5 rounded-xl transition flex items-center justify-between cursor-pointer ${idx === activeClassCatIndex ? 'bg-[#1c1c1c] text-white border border-[#333333] font-bold' : 'text-neutral-400 hover:text-white hover:bg-[#121212] border border-transparent'}">
+          <div class="flex items-center gap-2.5 truncate">
+            <span class="w-4 h-4 shrink-0 flex items-center justify-center" style="color: ${DND_BEYOND_COLORS[cls.id] || '#ffffff'};">
+              ${getClassVectorLogo(cls.id)}
+            </span>
+            <span class="text-xs truncate">${cls.name[currentLang]}</span>
+          </div>
+          <span class="text-[10px] text-neutral-500 font-mono font-semibold">${cls.subclasses.length}</span>
+        </button>
+      `).join('');
+    }
+
+    function renderSubclassItems(filterQuery = '') {
+      const col = document.getElementById('classItemsList');
+      const q = filterQuery.toLowerCase().trim();
+
+      if (q) {
+        let matches = [];
+        DND_DATABASE.classes.forEach(cls => {
+          cls.subclasses.forEach(sub => {
+            const esName = sub.name.es.toLowerCase();
+            const enName = sub.name.en.toLowerCase();
+            if (esName.includes(q) || enName.includes(q)) {
+              matches.push({ sub, classId: cls.id, className: cls.name[currentLang] });
+            }
+          });
+        });
+
+        if (matches.length === 0) {
+          col.innerHTML = `
+            <div class="p-6 text-center text-neutral-500 space-y-2">
+              <p class="text-xs">No se encontraron subclases para "<strong>${escapeHtml(q)}</strong>".</p>
+              <button type="button" onclick="selectCustomClassFromModal('${escapeHtml(q)}')"
+                class="px-3 py-1.5 rounded-lg bg-[#181818] text-neutral-200 border border-[#333333] text-xs font-semibold hover:bg-[#222222] cursor-pointer">
+                ✨ Usar "${escapeHtml(q)}" como subclase Homebrew
+              </button>
+            </div>
+          `;
+          return;
+        }
+
+        col.innerHTML = `
+          <div class="px-2 py-1 text-[11px] font-bold text-neutral-400 uppercase tracking-wider font-mono border-b border-[#222222] mb-2 flex items-center justify-between">
+            <span>Resultados de búsqueda</span>
+            <span class="text-neutral-200 font-bold">${matches.length} coincidencia(s)</span>
+          </div>
+          ${matches.map(m => `
+            <button type="button" onclick="applySubclassSelection('${m.classId}', '${m.sub.id}')"
+              class="w-full text-left p-3 rounded-xl bg-black hover:bg-[#141414] border border-[#262626] hover:border-neutral-500 transition flex items-center justify-between group cursor-pointer">
+              <div>
+                <div class="text-xs font-bold text-neutral-200 flex items-center gap-2 group-hover:text-white">
+                  <span class="w-3.5 h-3.5 shrink-0 flex items-center justify-center" style="color: ${DND_BEYOND_COLORS[m.classId] || '#ffffff'};">${getClassVectorLogo(m.classId)}</span>
+                  <span>${m.sub.name[currentLang]}</span>
+                </div>
+                <div class="text-[10px] text-neutral-500">${m.className} • ${currentLang === 'es' ? m.sub.name.en : m.sub.name.es}</div>
+              </div>
+              <span class="text-xs text-white opacity-0 group-hover:opacity-100 font-bold">Seleccionar →</span>
+            </button>
+          `).join('')}
+        `;
+        return;
+      }
+
+      const activeCls = DND_DATABASE.classes[activeClassCatIndex] || DND_DATABASE.classes[0];
+      col.innerHTML = `
+        <div class="px-2 py-1 text-[11px] font-bold text-neutral-400 uppercase tracking-wider font-mono border-b border-[#222222] mb-2 flex items-center justify-between">
+          <div class="flex items-center gap-2">
+            <span class="w-4 h-4 shrink-0 flex items-center justify-center" style="color: ${DND_BEYOND_COLORS[activeCls.id] || '#ffffff'};">${getClassVectorLogo(activeCls.id)}</span>
+            <span>Subclases de ${activeCls.name[currentLang]}</span>
+          </div>
+          <span class="text-neutral-400 font-mono font-bold">${activeCls.subclasses.length} mostradas</span>
+        </div>
+        ${activeCls.subclasses.map(sub => `
+          <button type="button" onclick="applySubclassSelection('${activeCls.id}', '${sub.id}')"
+            class="w-full text-left p-2.5 rounded-xl bg-black hover:bg-[#141414] border border-[#262626] hover:border-neutral-500 transition flex items-center justify-between group cursor-pointer">
+            <div>
+              <div class="text-xs font-semibold text-neutral-200 group-hover:text-white">${sub.name[currentLang]}</div>
+              <div class="text-[10px] text-neutral-500 font-mono">${currentLang === 'es' ? sub.name.en : sub.name.es}</div>
+            </div>
+            <span class="text-xs text-white opacity-0 group-hover:opacity-100 font-bold">✓</span>
+          </button>
+        `).join('')}
+      `;
+    }
+
+    function selectClassCategory(idx) {
+      activeClassCatIndex = idx;
+      renderClassCategories();
+      renderSubclassItems();
+    }
+
+    function onClassSearch(val) {
+      renderSubclassItems(val);
+    }
+
+    function applySubclassSelection(classId, subclassId) {
+      const p = mockParty.find(x => x.id === activeClassRowId);
+      if (p) {
+        const slotKey = activeClassSlot === 'secondary' ? 'secondaryClass' : 'primaryClass';
+        p[slotKey].classId = classId;
+        p[slotKey].subclassId = subclassId;
+        p[slotKey].isCustom = false;
+        updateClassModalHeaderTabs(p);
+        renderTable();
+      }
+      closeClassModal();
+    }
+
+    function selectCustomClassFromModal(initialValue = '') {
+      const p = mockParty.find(x => x.id === activeClassRowId);
+      if (!p) return;
+      const slotKey = activeClassSlot === 'secondary' ? 'secondaryClass' : 'primaryClass';
+      p[slotKey].isCustom = true;
+      p[slotKey].customText = initialValue || 'Iniciador del Éter';
+      closeClassModal();
+      renderTable();
+    }
+
+    function escapeHtml(str) {
+      return (str || '').replace(/[&<>'"]/g, tag => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;'
+      }[tag] || tag));
+    }
+
+    window.onload = init;
+  </script>
+</body>
+</html>

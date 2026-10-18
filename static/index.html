@@ -241,6 +241,44 @@
     <!-- VISTA A: INGESTA / GRABAR (#viewIngest) -->
     <!-- ================================================================= -->
     <section id="viewIngest" class="w-full max-w-5xl mx-auto space-y-6">
+      <!-- Banner de Bienvenida / Configuración Rápida de API Keys (se muestra cuando no hay llaves locales) -->
+      <div id="apiOnboardingBanner" class="hidden rounded-2xl border border-amber-500/30 bg-amber-500/10 p-4 sm:p-5 shadow-lg transition-all duration-200">
+        <div class="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+          <div class="flex items-start gap-3.5">
+            <div class="w-10 h-10 rounded-xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-amber-300 shrink-0 text-lg">
+              🔑
+            </div>
+            <div class="space-y-1">
+              <div class="flex items-center gap-2 flex-wrap">
+                <h3 class="text-xs sm:text-sm font-bold text-amber-300">Configura tus API Keys gratuitas en este dispositivo</h3>
+                <span id="apiOnboardingBadge" class="px-2 py-0.5 rounded-full text-[10px] font-mono font-semibold bg-amber-500/20 text-amber-200 border border-amber-500/30">Paso requerido</span>
+              </div>
+              <p class="text-xs text-slate-300 leading-relaxed max-w-2xl">
+                Tus llaves se guardan de forma privada en este navegador (<code class="text-amber-300 font-mono">localStorage</code>). Obtén tus llaves gratuitas en 30 segundos y pégalas en <strong>Ajustes</strong> para transcribir archivos, descargar videos de YouTube y generar apuntes o crónicas.
+              </p>
+              <div class="flex flex-wrap items-center gap-2 pt-1.5">
+                <a href="https://console.groq.com/keys" target="_blank" rel="noopener noreferrer"
+                  class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-900/90 hover:bg-slate-800 text-amber-300 hover:text-amber-200 text-xs font-semibold border border-amber-500/30 transition active:scale-95">
+                  <span>⚡ Obtener GROQ_API_KEY (Gratis)</span>
+                  <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+                </a>
+                <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener noreferrer"
+                  class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-900/90 hover:bg-slate-800 text-sky-300 hover:text-sky-200 text-xs font-semibold border border-sky-500/30 transition active:scale-95">
+                  <span>✨ Obtener GEMINI_API_KEY (Gratis)</span>
+                  <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+                </a>
+              </div>
+            </div>
+          </div>
+          <div class="flex items-center gap-2 shrink-0 w-full md:w-auto justify-end">
+            <button type="button" onclick="setActiveView('settings'); setTimeout(() => document.getElementById('userGroqKeyInput')?.focus(), 100);"
+              class="min-h-[40px] px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 active:scale-95 text-slate-950 font-bold text-xs shadow-lg shadow-amber-500/20 transition flex items-center gap-1.5 cursor-pointer">
+              <span>⚙️ Ir a Ajustes y Pegar Llaves</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
     <div id="dndWorkspaceContainer" class="space-y-4 transition-all duration-200">
       
       <!-- Card de Campaña Activa: Diario Vivo de Campaña -->
@@ -533,7 +571,7 @@
               <svg class="w-3.5 h-3.5 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="4" rx="2" ry="2"/><line x1="16" x2="16" y1="2" y2="6"/><line x1="8" x2="8" y1="2" y2="6"/><line x1="3" x2="21" y1="10" y2="10"/></svg>
               <span>Fecha & Hora:</span>
             </label>
-            <input type="text" id="workStudyDateInput"
+            <input type="text" id="workStudyDateInput" placeholder="DD/MM/AAAA HH:mm"
               class="w-full min-h-[44px] bg-slate-950 border border-slate-700 focus:border-sky-400 focus:ring-2 focus:ring-sky-500/25 rounded-xl px-3.5 py-2.5 text-xs text-slate-300 font-mono outline-none">
           </div>
 
@@ -988,7 +1026,7 @@
             <span class="stage-icon text-xs">⏳</span>
           </div>
           <p id="stageAudioTitle" class="text-xs font-semibold text-slate-300">Descarga YouTube</p>
-          <p id="stageAudioDesc" class="text-[10px] text-slate-400">0% &ndash; 25% (Extracción)</p>
+          <p id="stageAudioDesc" class="text-[10px] text-slate-400">0% &ndash; 25% (Descarga &amp; FFmpeg)</p>
         </div>
 
         <!-- Fase 2: Groq Whisper -->
@@ -998,7 +1036,7 @@
             <span class="stage-icon text-xs">⏳</span>
           </div>
           <p id="stageTranscribeTitle" class="text-xs font-semibold text-slate-300">Transcripción Groq</p>
-          <p id="stageTranscribeDesc" class="text-[10px] text-slate-400">0% &ndash; 70% (Whisper Large-v3)</p>
+          <p id="stageTranscribeDesc" class="text-[10px] text-slate-400">0% &ndash; 55% (FFmpeg &amp; Whisper)</p>
         </div>
 
         <!-- Fase 3: Gemini Analysis -->
@@ -1008,7 +1046,7 @@
             <span class="stage-icon text-xs">⏳</span>
           </div>
           <p id="stageGeminiTitle" class="text-xs font-semibold text-slate-300">Análisis Gemini</p>
-          <p id="stageGeminiDesc" class="text-[10px] text-slate-400">70% &ndash; 95% (Crónica & Lore)</p>
+          <p id="stageGeminiDesc" class="text-[10px] text-slate-400">55% &ndash; 95% (Gemini &amp; Lore)</p>
         </div>
 
         <!-- Fase 4: Finalizado -->
@@ -1018,7 +1056,7 @@
             <span class="stage-icon text-xs">⏳</span>
           </div>
           <p id="stageDoneTitle" class="text-xs font-semibold text-slate-300">Grimorio Listo</p>
-          <p id="stageDoneDesc" class="text-[10px] text-slate-400">100%</p>
+          <p id="stageDoneDesc" class="text-[10px] text-slate-400">95% &ndash; 100% (Word &amp; Cierre)</p>
         </div>
       </div>
     </div>
@@ -1050,47 +1088,53 @@
       </div>
     </div>
 
-    <div id="errorCard" class="hidden bg-rose-950/90 border-2 border-rose-500 rounded-2xl p-6 shadow-2xl space-y-4 text-left transition-all">
-      <div class="flex items-start gap-4">
-        <div class="w-12 h-12 rounded-xl bg-rose-900/70 border border-rose-600 flex items-center justify-center text-2xl flex-shrink-0 text-rose-300">
-          ❌
-        </div>
-        <div class="space-y-3 flex-1 min-w-0">
-          <div class="flex flex-wrap items-center justify-between gap-2">
-            <h3 id="errorCardStageTitle" class="text-base font-bold text-rose-100 flex items-center gap-2">
-              <span>❌</span> <span id="errorCardStageText">Error durante el procesamiento</span>
-            </h3>
-            <span id="errorCardTypeBadge" class="px-2.5 py-0.5 rounded-full text-[11px] font-mono font-bold bg-rose-900/80 text-rose-300 border border-rose-700">FALLO</span>
+    <!-- Modal Emergente de Error / Ventana de Alerta Centrada (#errorCard) -->
+    <div id="errorCard" class="hidden fixed inset-0 z-[9999] items-center justify-center bg-black/80 backdrop-blur-md p-4 transition-all duration-150 ease-out opacity-0 pointer-events-none" role="dialog" aria-modal="true" onclick="if(event.target === this) hideErrorCard()">
+      <div id="errorModalBox" class="bg-slate-900 border-2 border-rose-500 rounded-2xl w-full max-w-lg p-5 sm:p-6 shadow-2xl space-y-4 text-left transform scale-95 transition-transform duration-150 ease-out origin-center pointer-events-auto">
+        <div class="flex items-start gap-3.5">
+          <div class="w-11 h-11 rounded-xl bg-rose-900/70 border border-rose-600 flex items-center justify-center text-xl flex-shrink-0 text-rose-300">
+            ❌
           </div>
-          <!-- Explicación amigable en español -->
-          <div id="errorCardMessage" class="text-xs sm:text-sm text-rose-200 leading-relaxed font-sans bg-rose-900/40 border border-rose-800/80 rounded-xl p-3.5 whitespace-pre-wrap break-words"></div>
-          
-          <!-- Sección colapsable con detalles técnicos y botón de copiar -->
-          <details id="errorTechDetails" class="group bg-slate-950/90 border border-rose-800/60 rounded-xl overflow-hidden text-xs">
-            <summary class="cursor-pointer list-none flex items-center justify-between p-3 text-slate-300 hover:text-white font-mono select-none">
-              <span class="flex items-center gap-2">
-                <span>🔍</span> Detalles técnicos de depuración (Stacktrace)
-              </span>
-              <span class="text-[10px] text-slate-400 group-open:rotate-180 transition-transform">▼</span>
-            </summary>
-            <div class="p-3 pt-0 space-y-2 border-t border-rose-900/40">
-              <pre id="errorCardTechnicalDetails" class="p-3 bg-black/70 rounded-lg text-slate-400 font-mono text-[11px] overflow-x-auto whitespace-pre-wrap max-h-48 select-all"></pre>
-              <div class="flex justify-end">
-                <button type="button" onclick="copyErrorDetails()" id="btnCopyErrorDetails" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-medium border border-slate-700 transition flex items-center gap-1.5 cursor-pointer">
-                  <span>📋</span> <span id="btnCopyErrorDetailsText">Copiar Detalles</span>
-                </button>
+          <div class="space-y-3 flex-1 min-w-0">
+            <div class="flex flex-wrap items-center justify-between gap-2">
+              <h3 id="errorCardStageTitle" class="text-sm sm:text-base font-bold text-rose-100 flex items-center gap-2">
+                <span>❌</span> <span id="errorCardStageText">Error en el sistema</span>
+              </h3>
+              <div class="flex items-center gap-2">
+                <span id="errorCardTypeBadge" class="px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold bg-rose-900/80 text-rose-300 border border-rose-700">AVISO</span>
+                <button type="button" onclick="hideErrorCard()" class="text-slate-400 hover:text-white text-lg font-bold px-2 py-0.5 rounded-lg hover:bg-slate-800 transition cursor-pointer" title="Cerrar ventana">&times;</button>
               </div>
             </div>
-          </details>
+            <!-- Explicación amigable en español -->
+            <div id="errorCardMessage" class="text-xs sm:text-sm text-rose-200 leading-relaxed font-sans bg-rose-900/40 border border-rose-800/80 rounded-xl p-3.5 whitespace-pre-wrap break-words"></div>
+            
+            <!-- Sección colapsable con detalles técnicos y botón de copiar -->
+            <details id="errorTechDetails" class="hidden group bg-slate-950/90 border border-rose-800/60 rounded-xl overflow-hidden text-xs">
+              <summary class="cursor-pointer list-none flex items-center justify-between p-3 text-slate-300 hover:text-white font-mono select-none">
+                <span class="flex items-center gap-2">
+                  <span>🔍</span> Detalles técnicos de depuración (Stacktrace)
+                </span>
+                <span class="text-[10px] text-slate-400 group-open:rotate-180 transition-transform">▼</span>
+              </summary>
+              <div class="p-3 pt-0 space-y-2 border-t border-rose-900/40">
+                <pre id="errorCardTechnicalDetails" class="p-3 bg-black/70 rounded-lg text-slate-400 font-mono text-[11px] overflow-x-auto whitespace-pre-wrap max-h-48 select-all"></pre>
+                <div class="flex justify-end">
+                  <button type="button" onclick="copyErrorDetails()" id="btnCopyErrorDetails" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-medium border border-slate-700 transition flex items-center gap-1.5 cursor-pointer">
+                    <span>📋</span> <span id="btnCopyErrorDetailsText">Copiar Detalles</span>
+                  </button>
+                </div>
+              </div>
+            </details>
+          </div>
         </div>
-      </div>
-      <div class="flex flex-wrap items-center justify-end gap-3 pt-2 border-t border-rose-800/60">
-        <button onclick="hideErrorCard()" type="button" class="px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-700 text-xs font-medium text-slate-300 transition cursor-pointer">
-          Cerrar
-        </button>
-        <button id="btnRetryAction" onclick="retryLastAction()" type="button" class="px-5 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-xs font-bold text-white shadow-lg shadow-rose-900/40 transition flex items-center gap-2 cursor-pointer">
-          <span>🔄</span> <span>Reintentar</span>
-        </button>
+        <div class="flex flex-wrap items-center justify-end gap-2.5 pt-2 border-t border-rose-800/60">
+          <button onclick="hideErrorCard()" type="button" class="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 active:scale-[0.98] border border-slate-700 text-xs font-semibold text-slate-200 transition cursor-pointer">
+            Entendido, Cerrar
+          </button>
+          <button id="btnRetryAction" onclick="retryLastAction()" type="button" class="hidden px-5 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 active:scale-[0.98] text-xs font-bold text-white shadow-lg shadow-rose-900/40 transition flex items-center gap-2 cursor-pointer">
+            <span>🔄</span> <span>Reintentar</span>
+          </button>
+        </div>
       </div>
     </div>
 
@@ -1823,50 +1867,80 @@
 
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <!-- Groq Key -->
-            <div class="bg-slate-950/80 border border-slate-800 rounded-xl p-3.5 space-y-2">
-              <div class="flex items-center justify-between">
-                <label for="userGroqKeyInput" class="text-xs text-slate-300 font-semibold flex items-center gap-1.5">
-                  <span>⚡ Tu GROQ_API_KEY</span>
-                  <span class="text-[10px] text-slate-500 font-normal">(Whisper)</span>
-                </label>
-                <span id="groqKeySavedIndicator" class="text-[11px] text-slate-500 font-mono">No configurada</span>
+            <div class="bg-slate-950/80 border border-slate-800 rounded-xl p-3.5 space-y-2.5 flex flex-col justify-between">
+              <div class="space-y-2">
+                <div class="flex items-center justify-between gap-2">
+                  <label for="userGroqKeyInput" class="text-xs text-slate-300 font-semibold flex items-center gap-1.5">
+                    <span>⚡ Tu GROQ_API_KEY</span>
+                    <span class="text-[10px] text-slate-500 font-normal">(Whisper)</span>
+                  </label>
+                  <span id="groqKeySavedIndicator" class="text-[11px] text-slate-500 font-mono">No configurada</span>
+                </div>
+                <div class="relative flex items-center">
+                  <input id="userGroqKeyInput" type="password" placeholder="gsk_..." autocomplete="off"
+                    class="w-full min-h-[42px] bg-slate-900 border border-slate-700 focus:border-amber-500 rounded-xl pl-3 pr-10 py-2 text-xs text-slate-200 font-mono outline-none" />
+                  <button type="button" onclick="togglePasswordVisibility('userGroqKeyInput', this)" class="absolute right-2 px-1.5 py-1 text-xs text-slate-400 hover:text-white cursor-pointer" title="Mostrar/Ocultar">
+                    👁️
+                  </button>
+                </div>
+                <p class="text-[11px] text-slate-500">Requerida para la transcripción ultrarrápida con Whisper Large-v3.</p>
               </div>
-              <div class="relative flex items-center">
-                <input id="userGroqKeyInput" type="password" placeholder="gsk_..." autocomplete="off"
-                  class="w-full min-h-[42px] bg-slate-900 border border-slate-700 focus:border-amber-500 rounded-xl pl-3 pr-10 py-2 text-xs text-slate-200 font-mono outline-none" />
-                <button type="button" onclick="togglePasswordVisibility('userGroqKeyInput', this)" class="absolute right-2 px-1.5 py-1 text-xs text-slate-400 hover:text-white cursor-pointer" title="Mostrar/Ocultar">
-                  👁️
-                </button>
+              <div class="pt-1 border-t border-slate-800/80 flex items-center justify-between gap-2">
+                <span class="text-[10px] text-slate-400">¿No tienes una llave?</span>
+                <a href="https://console.groq.com/keys" target="_blank" rel="noopener noreferrer"
+                  class="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 hover:text-amber-200 text-[11px] font-semibold border border-amber-500/30 transition active:scale-95">
+                  <span>🔑 Obtener API Key en Groq Console</span>
+                  <svg class="w-3 h-3 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+                </a>
               </div>
-              <p class="text-[11px] text-slate-500">Requerida para la transcripción con Whisper Large-v3.</p>
             </div>
 
             <!-- Gemini Key -->
-            <div class="bg-slate-950/80 border border-slate-800 rounded-xl p-3.5 space-y-2">
-              <div class="flex items-center justify-between">
-                <label for="userGeminiKeyInput" class="text-xs text-slate-300 font-semibold flex items-center gap-1.5">
-                  <span>✨ Tu GEMINI_API_KEY</span>
-                  <span class="text-[10px] text-slate-500 font-normal">(Modelos de lenguaje)</span>
-                </label>
-                <span id="geminiKeySavedIndicator" class="text-[11px] text-slate-500 font-mono">No configurada</span>
+            <div class="bg-slate-950/80 border border-slate-800 rounded-xl p-3.5 space-y-2.5 flex flex-col justify-between">
+              <div class="space-y-2">
+                <div class="flex items-center justify-between gap-2">
+                  <label for="userGeminiKeyInput" class="text-xs text-slate-300 font-semibold flex items-center gap-1.5">
+                    <span>✨ Tu GEMINI_API_KEY</span>
+                    <span class="text-[10px] text-slate-500 font-normal">(Modelos de lenguaje)</span>
+                  </label>
+                  <span id="geminiKeySavedIndicator" class="text-[11px] text-slate-500 font-mono">No configurada</span>
+                </div>
+                <div class="relative flex items-center">
+                  <input id="userGeminiKeyInput" type="password" placeholder="AIzaSy..." autocomplete="off"
+                    class="w-full min-h-[42px] bg-slate-900 border border-slate-700 focus:border-amber-500 rounded-xl pl-3 pr-10 py-2 text-xs text-slate-200 font-mono outline-none" />
+                  <button type="button" onclick="togglePasswordVisibility('userGeminiKeyInput', this)" class="absolute right-2 px-1.5 py-1 text-xs text-slate-400 hover:text-white cursor-pointer" title="Mostrar/Ocultar">
+                    👁️
+                  </button>
+                </div>
+                <p class="text-[11px] text-slate-500">Requerida para crónicas de rol, apuntes universitarios y glosarios.</p>
               </div>
-              <div class="relative flex items-center">
-                <input id="userGeminiKeyInput" type="password" placeholder="AIzaSy..." autocomplete="off"
-                  class="w-full min-h-[42px] bg-slate-900 border border-slate-700 focus:border-amber-500 rounded-xl pl-3 pr-10 py-2 text-xs text-slate-200 font-mono outline-none" />
-                <button type="button" onclick="togglePasswordVisibility('userGeminiKeyInput', this)" class="absolute right-2 px-1.5 py-1 text-xs text-slate-400 hover:text-white cursor-pointer" title="Mostrar/Ocultar">
-                  👁️
-                </button>
+              <div class="pt-1 border-t border-slate-800/80 flex items-center justify-between gap-2">
+                <span class="text-[10px] text-slate-400">¿No tienes una llave?</span>
+                <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener noreferrer"
+                  class="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-sky-500/10 hover:bg-sky-500/20 text-sky-300 hover:text-sky-200 text-[11px] font-semibold border border-sky-500/30 transition active:scale-95">
+                  <span>🔑 Obtener API Key en Google AI Studio</span>
+                  <svg class="w-3 h-3 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+                </a>
               </div>
-              <p class="text-[11px] text-slate-500">Requerida para crónicas de rol, apuntes universitarios y glosarios.</p>
             </div>
           </div>
 
           <div class="flex flex-wrap items-center justify-between gap-3 pt-1">
             <span id="apiKeySaveFeedback" class="hidden text-xs text-emerald-400 font-medium"></span>
-            <button onclick="saveUserApiKeys()" type="button" class="min-h-[44px] px-5 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 active:scale-[0.98] text-slate-950 font-bold text-xs shadow-lg shadow-amber-500/20 transition flex items-center gap-2 cursor-pointer ml-auto">
-              <span>💾</span>
-              <span>Guardar Llaves</span>
-            </button>
+            <div class="flex flex-wrap items-center gap-2 ml-auto">
+              <button onclick="resetToServerDefaultKeys()" type="button" class="min-h-[44px] px-3.5 py-2 rounded-xl bg-slate-800/90 hover:bg-slate-700 active:scale-[0.98] text-amber-300 font-semibold text-xs border border-amber-500/30 transition flex items-center gap-1.5 cursor-pointer" title="Usar las llaves predeterminadas del archivo .env del servidor">
+                <span>⚡</span>
+                <span>Usar Llaves por Defecto (.env)</span>
+              </button>
+              <button onclick="checkApiKeysStatus(true)" type="button" class="min-h-[44px] px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 active:scale-[0.98] text-slate-200 font-semibold text-xs border border-slate-700 transition flex items-center gap-1.5 cursor-pointer" title="Comprobar conexión real con Groq y Gemini">
+                <span>🔍</span>
+                <span>Probar Conexión</span>
+              </button>
+              <button onclick="saveUserApiKeys()" type="button" class="min-h-[44px] px-5 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 active:scale-[0.98] text-slate-950 font-bold text-xs shadow-lg shadow-amber-500/20 transition flex items-center gap-2 cursor-pointer">
+                <span>💾</span>
+                <span>Guardar Llaves</span>
+              </button>
+            </div>
           </div>
         </div>
 
@@ -1874,23 +1948,40 @@
         <div class="space-y-3 pt-3 border-t border-slate-800">
           <h3 class="text-xs font-semibold text-slate-200 uppercase tracking-wider font-mono">Estado de Motores & Nube</h3>
           <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <div class="p-3 rounded-xl bg-slate-950 border border-slate-800 space-y-1">
-              <span class="text-[11px] text-slate-400 block">Transcripción</span>
-              <span class="text-xs font-semibold text-emerald-400 flex items-center gap-1.5">
-                <span class="w-2 h-2 rounded-full bg-emerald-400"></span>
-                <span>Groq Whisper Large-v3</span>
+            <!-- Groq Status -->
+            <div class="p-3 rounded-xl bg-slate-950 border border-slate-800 space-y-1.5">
+              <div class="flex items-center justify-between">
+                <span class="text-[11px] text-slate-400 block font-medium">Transcripción</span>
+                <span id="badgeGroqStatus" class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-slate-800 text-slate-400 border border-slate-700">
+                  <span class="w-1.5 h-1.5 rounded-full bg-slate-500"></span>
+                  <span>Verificando...</span>
+                </span>
+              </div>
+              <span class="text-xs font-semibold text-slate-200 flex items-center gap-1.5">
+                <span>⚡ Groq Whisper Large-v3</span>
               </span>
+              <p id="groqStatusMsg" class="text-[10px] text-slate-500 font-mono truncate">Esperando comprobación...</p>
             </div>
-            <div class="p-3 rounded-xl bg-slate-950 border border-slate-800 space-y-1">
-              <span class="text-[11px] text-slate-400 block">Síntesis / Crónicas</span>
-              <span class="text-xs font-semibold text-emerald-400 flex items-center gap-1.5">
-                <span class="w-2 h-2 rounded-full bg-emerald-400"></span>
-                <span>Gemini 2.5 Flash</span>
+
+            <!-- Gemini Status -->
+            <div class="p-3 rounded-xl bg-slate-950 border border-slate-800 space-y-1.5">
+              <div class="flex items-center justify-between">
+                <span class="text-[11px] text-slate-400 block font-medium">Síntesis / Crónicas</span>
+                <span id="badgeGeminiStatus" class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-slate-800 text-slate-400 border border-slate-700">
+                  <span class="w-1.5 h-1.5 rounded-full bg-slate-500"></span>
+                  <span>Verificando...</span>
+                </span>
+              </div>
+              <span class="text-xs font-semibold text-slate-200 flex items-center gap-1.5">
+                <span>✨ Gemini 2.5 Flash</span>
               </span>
+              <p id="geminiStatusMsg" class="text-[10px] text-slate-500 font-mono truncate">Esperando comprobación...</p>
             </div>
+
+            <!-- Google Drive Status -->
             <div class="p-3 rounded-xl bg-slate-950 border border-slate-800 space-y-2">
               <div class="flex items-center justify-between">
-                <span class="text-[11px] text-slate-400 block">Google Drive</span>
+                <span class="text-[11px] text-slate-400 block font-medium">Google Drive</span>
                 <span id="settingsDriveBadge" class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-slate-800 text-slate-400 border border-slate-700">
                   <span class="w-1.5 h-1.5 rounded-full bg-slate-500"></span>
                   <span id="settingsDriveBadgeText">No conectado</span>
@@ -2330,14 +2421,14 @@
   <div id="floatingToastContainer" class="fixed top-5 right-5 z-[9999] flex flex-col gap-2.5 max-w-sm sm:max-w-md w-full pointer-events-none px-3 sm:px-0" aria-live="assertive"></div>
 
   <!-- Modularized Application Scripts -->
-  <script src="/static/js/utils.js?v=20261015_1"></script>
-  <script src="/static/js/api.js?v=20261015_1"></script>
-  <script src="/static/js/progress.js?v=20261015_1"></script>
-  <script src="/static/js/audio.js?v=20261015_1"></script>
-  <script src="/static/js/drive.js?v=20261015_1"></script>
-  <script src="/static/js/roster.js?v=20261015_1"></script>
-  <script src="/static/js/wiki.js?v=20261015_1"></script>
-  <script src="/static/js/notes.js?v=20261015_1"></script>
-  <script src="/static/js/app.js?v=20261015_1"></script>
+  <script src="/static/js/utils.js?v=20261018_1"></script>
+  <script src="/static/js/api.js?v=20261018_1"></script>
+  <script src="/static/js/progress.js?v=20261018_1"></script>
+  <script src="/static/js/audio.js?v=20261018_1"></script>
+  <script src="/static/js/drive.js?v=20261018_1"></script>
+  <script src="/static/js/roster.js?v=20261018_1"></script>
+  <script src="/static/js/wiki.js?v=20261018_1"></script>
+  <script src="/static/js/notes.js?v=20261018_1"></script>
+  <script src="/static/js/app.js?v=20261018_1"></script>
 </body>
 </html>

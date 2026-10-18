@@ -2,6 +2,7 @@
 
 import os
 import re
+import shutil
 import sys
 import time
 import subprocess
@@ -23,6 +24,12 @@ def slice_audio_for_groq(input_audio_path: str, chunk_minutes: int = 15) -> List
     for instant slicing in ~1.5s with zero CPU re-encoding overhead.
     Falls back to '-c:a libmp3lame -b:a 64k' only if stream copy fails or for raw audio formats.
     """
+    if not shutil.which("ffmpeg"):
+        raise RuntimeError(
+            "FFmpeg no está instalado en este sistema o no se encuentra en el PATH. "
+            "Para transcribir archivos de audio grandes (> 24 MB) o videos de YouTube con Groq, FFmpeg es necesario. "
+            "Descarga FFmpeg y añádelo al PATH del sistema."
+        )
     env_input = os.environ.get("WHISPER_INPUT_DIR")
     if env_input:
         input_dir = Path(env_input).resolve()
@@ -618,9 +625,13 @@ class GroqWhisperTranscriber:
             mic_file = None
             discord_file = None
             try:
+                if on_progress:
+                    on_progress(1.5, "Analizando niveles y separando canales con FFmpeg (1.5%)...")
                 mic_rms, discord_rms = check_stereo_channels_rms(str(path))
                 print(f"[GroqTranscriber] Canal 0 (Mic) RMS: {mic_rms:.5f} | Canal 1 (Discord) RMS: {discord_rms:.5f}")
                 mic_file, discord_file = split_dual_channel_audio(str(path))
+                if on_progress:
+                    on_progress(5.0, "Corte y separación de canales FFmpeg completado (5.0%)")
                 # Check if user is registered in this campaign
                 user_in_campaign = bool(
                     (user_char_name and user_char_name.strip())
@@ -638,11 +649,11 @@ class GroqWhisperTranscriber:
                     if not user_in_campaign:
                         print(f"[GroqTranscriber] El usuario no está en el roster de esta campaña (partida ajena / espectador). Omitiendo canal de micrófono local por completo.")
                         if on_progress:
-                            on_progress(25.0, "Partida ajena detectada (sin usuario en roster). Omitiendo tu micrófono y transcribiendo Discord...")
+                            on_progress(5.0, "Partida ajena detectada (sin usuario en roster). Omitiendo tu micrófono y transcribiendo Discord...")
                     else:
                         print(f"[GroqTranscriber] Pista 1 (Micrófono) en silencio total (RMS={mic_rms:.5f} < 0.003). Omitiendo transcripción de micrófono para evitar alucinaciones y timeouts.")
                         if on_progress:
-                            on_progress(25.0, "Micrófono en silencio detectado. Transcribiendo Pista 2: Discord (Compañeros)...")
+                            on_progress(5.0, "Micrófono en silencio detectado. Transcribiendo Pista 2: Discord (Compañeros)...")
                     def disc_prog(pct: float, msg: str):
                         if on_progress:
                             on_progress(pct, f"Discord: {msg}")
@@ -651,12 +662,12 @@ class GroqWhisperTranscriber:
                         language=effective_lang,
                         prompt=prompt,
                         on_progress=disc_prog,
-                        min_pct=25.0,
-                        max_pct=70.0,
+                        min_pct=5.0,
+                        max_pct=55.0,
                     )
                 else:
                     if on_progress:
-                        on_progress(25.0, "Transcribiendo Pista 1: Micrófono local (Tu voz)...")
+                        on_progress(5.0, "Transcribiendo Pista 1: Micrófono local (Tu voz)...")
                     def mic_prog(pct: float, msg: str):
                         if on_progress:
                             on_progress(pct, f"Tu voz: {msg}")
@@ -665,15 +676,15 @@ class GroqWhisperTranscriber:
                         language=effective_lang,
                         prompt=prompt,
                         on_progress=mic_prog,
-                        min_pct=25.0,
-                        max_pct=47.0,
+                        min_pct=5.0,
+                        max_pct=30.0,
                     )
                     mic_segs = mic_res.get("segments", [])
                     for s in mic_segs:
                         s["speaker"] = user_label
 
                     if on_progress:
-                        on_progress(48.0, "Transcribiendo Pista 2: Audio de Discord (Compañeros)...")
+                        on_progress(30.0, "Transcribiendo Pista 2: Audio de Discord (Compañeros)...")
                     def disc_prog(pct: float, msg: str):
                         if on_progress:
                             on_progress(pct, f"Discord: {msg}")
@@ -682,8 +693,8 @@ class GroqWhisperTranscriber:
                         language=effective_lang,
                         prompt=prompt,
                         on_progress=disc_prog,
-                        min_pct=48.0,
-                        max_pct=70.0,
+                        min_pct=30.0,
+                        max_pct=55.0,
                     )
 
                 discord_segs = discord_res.get("segments", [])
@@ -770,24 +781,27 @@ class GroqWhisperTranscriber:
         on_progress: Optional[Callable[[float, str], None]] = None,
         source: str = "local",
         prompt: Optional[str] = None,
-        min_pct: float = 30.0,
-        max_pct: float = 80.0,
+        min_pct: Optional[float] = None,
+        max_pct: Optional[float] = None,
     ) -> Dict[str, Any]:
         """Transcribe a single audio file or slice into chunks if exceeding 24 MB."""
         p = Path(file_path).resolve()
         file_size = p.stat().st_size
-        target_min = 35.0 if source == "youtube" else 25.0
-        target_max = 70.0
-        effective_min = min_pct if min_pct != 30.0 else target_min
-        effective_max = max_pct if max_pct != 80.0 else target_max
+        # YouTube: FFmpeg 20-25%, Groq 25-70% | Local/Live: FFmpeg 0-5%, Groq 5-55%
+        target_min = 25.0 if source == "youtube" else 5.0
+        target_max = 70.0 if source == "youtube" else 55.0
+        effective_min = min_pct if min_pct is not None else target_min
+        effective_max = max_pct if max_pct is not None else target_max
 
         if file_size <= self.MAX_FILE_SIZE_BYTES:
+            if on_progress:
+                on_progress(effective_min, f"Iniciando transcripción con Groq Whisper ({effective_min:.1f}%)...")
             single_kwargs = {"language": language, "timeout": 60.0}
             if prompt is not None:
                 single_kwargs["prompt"] = prompt
             res = self._transcribe_single_file(str(p), **single_kwargs)
             if on_progress:
-                on_progress(effective_max, f"Transcribiendo audio ({effective_max:.1f}%)")
+                on_progress(effective_max, f"Transcripción de audio completada ({effective_max:.1f}%)")
             return res
         else:
             return self._transcribe_chunked(
@@ -966,8 +980,8 @@ class GroqWhisperTranscriber:
         on_progress: Optional[Callable[[float, str], None]] = None,
         source: str = "local",
         prompt: Optional[str] = None,
-        min_pct: float = 30.0,
-        max_pct: float = 80.0,
+        min_pct: float = 5.0,
+        max_pct: float = 55.0,
     ) -> Dict[str, Any]:
         """
         Slice audio file into 15-minute chunks with FFmpeg and transcribe each sequentially.
@@ -975,15 +989,27 @@ class GroqWhisperTranscriber:
         """
         if on_progress:
             if source == "youtube":
-                on_progress(26.0, "Segmentando audio de YouTube en fragmentos de alta fidelidad...")
+                on_progress(21.0, "Segmentando audio de YouTube en bloques de 24 MB con FFmpeg...")
+            elif min_pct <= 5.0:
+                on_progress(2.0, "Cortando archivo de audio en bloques de 24 MB con FFmpeg...")
             else:
-                on_progress(15.0, "Segmentando archivo de audio para inferencia por lotes...")
+                on_progress(min_pct, "Segmentando pista de audio para transcripción por bloques...")
 
         chunks_list = self._slice_audio(audio_path, chunk_minutes=self.DEFAULT_CHUNK_MINUTES)
         num_chunks = len(chunks_list)
 
         if num_chunks == 0:
             raise RuntimeError(f"FFmpeg no generó fragmentos de audio para: {audio_path}")
+
+        if on_progress:
+            if source == "youtube":
+                for c_idx in range(1, num_chunks + 1):
+                    cut_pct = round(20.0 + ((c_idx / num_chunks) * 5.0), 1)
+                    on_progress(cut_pct, f"FFmpeg: bloque {c_idx}/{num_chunks} preparado ({cut_pct:.1f}%)")
+            elif min_pct <= 5.0:
+                for c_idx in range(1, num_chunks + 1):
+                    cut_pct = round((c_idx / num_chunks) * 5.0, 1)
+                    on_progress(cut_pct, f"FFmpeg: bloque {c_idx}/{num_chunks} preparado ({cut_pct:.1f}%)")
 
         all_segments: List[Dict[str, Any]] = []
         text_parts: List[str] = []

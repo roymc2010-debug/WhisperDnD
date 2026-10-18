@@ -4,6 +4,7 @@ import datetime
 import json
 import os
 import re
+import shutil
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set, Tuple
 
@@ -427,29 +428,150 @@ def deduplicate_campaign_entities(campaign_id: str, campaigns_dir: Optional[str]
 
 def purge_session_data(campaign_data: dict, session_num: int) -> dict:
     """
-    Explicitly purge session records, milestones, and quest completion tags
-    for a specific session number before recording new data.
-    Uses bilingual regex matching for both Spanish and English milestones.
+    Explicitly purge session records, milestones, NPCs, quests, locations, and items
+    for a specific session number before recording new data or when re-recording a session.
+    Uses bilingual regex matching for both Spanish and English milestones and notes.
     """
-    # 1. Purge from sessions list (handling int or str)
-    campaign_data["sessions"] = [
-        s for s in campaign_data.get("sessions", []) 
+    purged_sessions = [
+        s for s in campaign_data.get("sessions", [])
+        if str(s.get("session_number")) == str(session_num)
+    ]
+    remaining_sessions = [
+        s for s in campaign_data.get("sessions", [])
         if str(s.get("session_number")) != str(session_num)
     ]
-    
-    # 2. Purge milestones for that specific session (bilingual: Sesión #N, Session #N, etc.)
-    milestone_regex = re.compile(rf"^(sesi[oó]n|session)\s*#?{session_num}\s*:", re.IGNORECASE)
-    for pc in campaign_data.get("universal_pcs", []):
-        pc["hitos_acumulados"] = [
-            h for h in pc.get("hitos_acumulados", []) 
-            if not milestone_regex.match(str(h).strip())
+    campaign_data["sessions"] = remaining_sessions
+
+    # Case A: If no other sessions remain, completely reset cumulative entities
+    if not remaining_sessions:
+        campaign_data["npcs"] = []
+        campaign_data["quests"] = []
+        campaign_data["locations"] = []
+        campaign_data["items"] = []
+        roster_names = {
+            str(r.get("character_name", "")).strip().lower()
+            for r in campaign_data.get("roster", [])
+            if str(r.get("character_name", "")).strip() not in ("", "(DM)", "-")
+        }
+        campaign_data["universal_pcs"] = [
+            pc for pc in campaign_data.get("universal_pcs", [])
+            if str(pc.get("personaje", "")).strip().lower() in roster_names
         ]
-        
-    # 3. Purge quest milestone tags matching this session
+        for pc in campaign_data.get("universal_pcs", []):
+            pc["hitos_acumulados"] = []
+        campaign_data["last_session"] = 0
+        return campaign_data
+
+    # Case B: Other sessions exist. Clean entities introduced in or belonging only to session_num.
+    sess_regex = re.compile(rf"\b(sesi[oó]n|session)\s*#?{session_num}\b", re.IGNORECASE)
+    milestone_regex = re.compile(rf"^(sesi[oó]n|session)\s*#?{session_num}\s*:", re.IGNORECASE)
+
+    # 1. Collect all detected NPC names and text from remaining sessions
+    other_detected_npcs = set()
+    other_text_blob = (campaign_data.get("prior_lore") or "").lower()
+    for rs in remaining_sessions:
+        for dn in (rs.get("detected_npc_names") or []):
+            if dn and str(dn).strip():
+                other_detected_npcs.add(str(dn).strip().lower())
+        for field in ("chronicle_text", "recap_text", "closing_expectations", "episode_synopsis", "chronicle_markdown", "title", "session_title", "raw_transcript"):
+            val = rs.get(field)
+            if isinstance(val, str) and val:
+                other_text_blob += "\n" + val.lower()
+
+    # 2. Filter NPCs: drop NPCs from session_num that do not appear in remaining sessions
+    cleaned_npcs = []
+    for npc in campaign_data.get("npcs", []):
+        n_name = str(npc.get("name") or "").strip().lower()
+        aliases = [str(a).strip().lower() for a in npc.get("aliases", []) if str(a).strip()]
+        all_tokens = [n_name] + aliases
+
+        # Strip notes specifically referencing session_num
+        existing_notes = npc.get("notes", [])
+        npc["notes"] = [note for note in existing_notes if not sess_regex.search(str(note))]
+
+        # Check if NPC appears in any remaining session
+        appears_in_other = False
+        for tok in all_tokens:
+            if not tok or tok in ("-", "pnj", "desconocido", "n/a"):
+                continue
+            if tok in other_detected_npcs or any(is_npc_name_match(tok, od) for od in other_detected_npcs):
+                appears_in_other = True
+                break
+            words = [w for w in re.split(r'\W+', tok) if len(w) >= 3 and w not in GENERIC_TITLES]
+            if len(words) >= 2 and all(w in other_text_blob for w in words):
+                appears_in_other = True
+                break
+            elif len(words) == 1 and words[0] in other_text_blob and len(words[0]) >= 4:
+                appears_in_other = True
+                break
+
+        if not appears_in_other:
+            # Drop NPC introduced in the purged session that does not belong to any remaining session
+            continue
+
+        # If it appeared in other sessions but first_seen_session was session_num, update first_seen_session
+        if str(npc.get("first_seen_session")) == str(session_num):
+            earliest_sess = min(
+                (int(s.get("session_number", 9999)) for s in remaining_sessions
+                 if any(str(dn).strip().lower() in all_tokens for dn in (s.get("detected_npc_names") or []))),
+                default=None
+            )
+            if earliest_sess and earliest_sess != 9999:
+                npc["first_seen_session"] = earliest_sess
+
+        cleaned_npcs.append(npc)
+    campaign_data["npcs"] = cleaned_npcs
+
+    # 3. Purge quests started in this session or reset completion tags
+    cleaned_quests = []
     for q in campaign_data.get("quests", []):
+        started = str(q.get("started_session", "")).strip()
+        lifecycle = str(q.get("lifecycle_notes", "")).strip()
+        if started == str(session_num) or f"Iniciada en Sesión {session_num}" in lifecycle:
+            continue
         if str(q.get("completed_session")) == str(session_num):
             q["completed_session"] = None
             q["status"] = "in_progress"
+        # Clean lifecycle notes referencing this session
+        parts = [p.strip() for p in lifecycle.split("|") if not sess_regex.search(p.strip())]
+        q["lifecycle_notes"] = " | ".join(parts)
+        cleaned_quests.append(q)
+    campaign_data["quests"] = cleaned_quests
+
+    # 4. Purge milestones for universal_pcs and remove PCs that debuted only in this session
+    cleaned_pcs = []
+    roster_chars = {
+        str(r.get("character_name", "")).strip().lower()
+        for r in campaign_data.get("roster", [])
+        if str(r.get("character_name", "")).strip() not in ("", "(DM)", "-")
+    }
+    for pc in campaign_data.get("universal_pcs", []):
+        pc["hitos_acumulados"] = [
+            h for h in pc.get("hitos_acumulados", [])
+            if not milestone_regex.match(str(h).strip())
+        ]
+        char_name = str(pc.get("personaje") or "").strip().lower()
+        debut = str(pc.get("debut_sesion", "")).strip()
+        if debut == str(session_num) and not pc["hitos_acumulados"] and char_name not in roster_chars:
+            continue
+        cleaned_pcs.append(pc)
+    campaign_data["universal_pcs"] = cleaned_pcs
+
+    # 5. Purge locations and items introduced in this session
+    campaign_data["locations"] = [
+        loc for loc in campaign_data.get("locations", [])
+        if str(loc.get("first_seen_session")) != str(session_num)
+    ]
+    campaign_data["items"] = [
+        it for it in campaign_data.get("items", [])
+        if str(it.get("first_seen_session")) != str(session_num)
+    ]
+
+    # 6. Recalculate last_session
+    campaign_data["last_session"] = max(
+        (int(s.get("session_number", 0)) for s in remaining_sessions if str(s.get("session_number", 0)).isdigit()),
+        default=0
+    )
 
     return campaign_data
 
@@ -495,11 +617,13 @@ class CampaignManager:
         return self.campaigns_dir / filename
 
     def get_campaign_dir(self, name: str) -> Path:
-        """Return dedicated campaign directory data/campaigns/<safe_name>/ with recordings and exports subfolders."""
+        """Return dedicated campaign directory data/campaigns/<safe_name>/ with recordings, exports, sessions, and entities subfolders."""
         safe_name = self.sanitize_name(name)
         cdir = self.campaigns_dir / safe_name
         (cdir / "recordings").mkdir(parents=True, exist_ok=True)
         (cdir / "exports").mkdir(parents=True, exist_ok=True)
+        (cdir / "sessions").mkdir(parents=True, exist_ok=True)
+        (cdir / "entities").mkdir(parents=True, exist_ok=True)
         return cdir
 
     def list_campaigns(self) -> List[Dict[str, Any]]:
@@ -596,11 +720,217 @@ class CampaignManager:
 
         return deleted
 
+    def get_modular_paths(self, name: str) -> Dict[str, Path]:
+        """Return path dictionary for modular campaign directory hierarchy."""
+        cdir = self.get_campaign_dir(name)
+        return {
+            "campaign_dir": cdir,
+            "campaign_meta": cdir / "campaign.json",
+            "sessions_dir": cdir / "sessions",
+            "entities_dir": cdir / "entities",
+            "npcs": cdir / "entities" / "npcs.json",
+            "quests": cdir / "entities" / "quests.json",
+            "locations": cdir / "entities" / "locations.json",
+            "items": cdir / "entities" / "items.json",
+        }
+
+    def is_modular(self, name: str) -> bool:
+        """Check if campaign is stored in modular directory format."""
+        paths = self.get_modular_paths(name)
+        if paths["campaign_meta"].is_file() and paths["npcs"].is_file():
+            try:
+                meta = json.loads(paths["campaign_meta"].read_text(encoding="utf-8"))
+                last_sess = int(meta.get("last_session", 0))
+                sess_files = list(paths["sessions_dir"].glob("session_*.json"))
+                if meta.get("storage_version") == 2 and len(sess_files) >= last_sess:
+                    return True
+            except Exception:
+                pass
+        return False
+
+    def load_modular(self, name: str) -> Optional[Dict[str, Any]]:
+        """Load campaign state from modular directory hierarchy."""
+        if not self.is_modular(name):
+            return None
+        paths = self.get_modular_paths(name)
+        try:
+            meta = json.loads(paths["campaign_meta"].read_text(encoding="utf-8"))
+            state = dict(meta)
+
+            state["npcs"] = json.loads(paths["npcs"].read_text(encoding="utf-8")) if paths["npcs"].is_file() else []
+            state["quests"] = json.loads(paths["quests"].read_text(encoding="utf-8")) if paths["quests"].is_file() else []
+            state["locations"] = json.loads(paths["locations"].read_text(encoding="utf-8")) if paths["locations"].is_file() else []
+            state["items"] = json.loads(paths["items"].read_text(encoding="utf-8")) if paths["items"].is_file() else []
+
+            sessions = []
+            session_files = sorted(
+                paths["sessions_dir"].glob("session_*.json"),
+                key=lambda f: int(re.search(r'\d+', f.stem).group(0)) if re.search(r'\d+', f.stem) else 0
+            )
+            for sf in session_files:
+                try:
+                    s_data = json.loads(sf.read_text(encoding="utf-8"))
+                    sessions.append(s_data)
+                except Exception as err:
+                    print(f"[CampaignManager] Error reading session file {sf}: {err}")
+
+            state["sessions"] = sessions
+            if sessions:
+                state["last_session"] = max(
+                    int(s.get("session_number", 0)) for s in sessions if str(s.get("session_number", 0)).isdigit()
+                )
+            return state
+        except Exception as exc:
+            print(f"[CampaignManager] Error loading modular campaign for {name}: {exc}")
+            return None
+
+    def save_modular(self, state: Dict[str, Any]) -> None:
+        """Persist campaign state into isolated modular JSON files."""
+        name = state.get("campaign_name", "Campaña Principal")
+        paths = self.get_modular_paths(name)
+        now_iso = datetime.datetime.now().isoformat()
+        state["updated_at"] = now_iso
+
+        meta_keys = [
+            "campaign_name", "campaign_id", "created_at", "updated_at",
+            "last_session", "prior_lore", "user_character_backstory",
+            "character_backstories", "dm", "dungeon_master", "dm_name",
+            "dm_discord", "dm_discord_id", "dm_discord_user_id",
+            "roster", "universal_pcs"
+        ]
+        meta_dict = {k: state[k] for k in meta_keys if k in state}
+        meta_dict["storage_version"] = 2
+        meta_dict["sessions_count"] = len(state.get("sessions", []))
+        paths["campaign_meta"].write_text(json.dumps(meta_dict, indent=2, ensure_ascii=False), encoding="utf-8")
+
+        paths["npcs"].write_text(json.dumps(state.get("npcs", []), indent=2, ensure_ascii=False), encoding="utf-8")
+        paths["quests"].write_text(json.dumps(state.get("quests", []), indent=2, ensure_ascii=False), encoding="utf-8")
+        paths["locations"].write_text(json.dumps(state.get("locations", []), indent=2, ensure_ascii=False), encoding="utf-8")
+        paths["items"].write_text(json.dumps(state.get("items", []), indent=2, ensure_ascii=False), encoding="utf-8")
+
+        sessions = state.get("sessions", [])
+        active_session_nums = set()
+        for sess in sessions:
+            if not isinstance(sess, dict):
+                continue
+            s_num = sess.get("session_number")
+            if s_num is not None:
+                active_session_nums.add(int(s_num))
+                s_file = paths["sessions_dir"] / f"session_{s_num}.json"
+                s_file.write_text(json.dumps(sess, indent=2, ensure_ascii=False), encoding="utf-8")
+
+        for old_s_file in paths["sessions_dir"].glob("session_*.json"):
+            m = re.match(r"^session_(\d+)\.json$", old_s_file.name)
+            if m:
+                s_val = int(m.group(1))
+                if s_val not in active_session_nums:
+                    try:
+                        old_s_file.unlink()
+                    except Exception:
+                        pass
+
+    def _backfill_dm_fields(self, data: Dict[str, Any]) -> None:
+        """Helper to ensure DM names and Discord IDs are synced across roster and metadata."""
+        dm_val = data.get("dm") or data.get("dungeon_master") or data.get("dm_name") or ""
+        if not dm_val and data.get("roster") and len(data["roster"]) > 0:
+            r0 = data["roster"][0]
+            if r0.get("character_name") == "(DM)" or r0.get("role") == "Dungeon Master (DM)":
+                dm_val = (r0.get("player_name") or "").strip()
+        data["dm"] = dm_val
+        data["dungeon_master"] = dm_val
+        data["dm_name"] = dm_val
+
+        dm_disc = data.get("dm_discord_id") or data.get("dm_discord_user_id") or data.get("dm_discord") or ""
+        if not dm_disc and data.get("roster") and len(data["roster"]) > 0:
+            r0 = data["roster"][0]
+            if r0.get("character_name") == "(DM)" or r0.get("role") == "Dungeon Master (DM)":
+                dm_disc = (r0.get("discord_id") or r0.get("discord_user_id") or "").strip()
+        data["dm_discord_id"] = dm_disc
+        data["dm_discord_user_id"] = dm_disc
+        data["dm_discord"] = dm_disc
+
+        if data.get("roster") and len(data["roster"]) > 0:
+            r0 = data["roster"][0]
+            if r0.get("character_name") == "(DM)" or r0.get("role") == "Dungeon Master (DM)":
+                if dm_val and not (r0.get("player_name") or "").strip():
+                    r0["player_name"] = dm_val
+                if dm_disc and not (r0.get("discord_user_id") or r0.get("discord_id") or "").strip():
+                    r0["discord_user_id"] = dm_disc
+                    r0["discord_id"] = dm_disc
+
+    def _clean_candlekeep_taint(self, data: Dict[str, Any]) -> None:
+        """Specifically cleans orphan entities from the wrong audio in Candlekeep and removes duplicate session 4."""
+        c_id = str(data.get("campaign_id") or "").strip().lower()
+        c_name = str(data.get("campaign_name") or "").strip().lower()
+        if "candlekeep" not in c_id and "candlekeep" not in c_name:
+            return
+
+        sessions = [s for s in data.get("sessions", []) if s.get("session_number") != 4]
+        data["sessions"] = sessions
+        if sessions:
+            data["last_session"] = max((int(s.get("session_number", 0)) for s in sessions if str(s.get("session_number", 0)).isdigit()), default=0)
+        else:
+            data["last_session"] = 0
+        data.pop("detected_party", None)
+
+        fake_npc_names = {
+            "bundru (el grell)", "bundru", "hermana lenure / garael", "hermana lenure",
+            "garael", "halsey", "quirrel", "gwyn", "[sin nombre] dragón del trueno",
+            "dragón del trueno", "dragon del trueno"
+        }
+        data["npcs"] = [
+            n for n in data.get("npcs", [])
+            if str(n.get("name") or "").strip().lower() not in fake_npc_names
+        ]
+
+        fake_loc_names = {
+            "laboratorio subterráneo de carne", "laboratorio subterraneo de carne",
+            "cámara del pilar del dragón", "camara del pilar del dragon"
+        }
+        data["locations"] = [
+            l for l in data.get("locations", [])
+            if str(l.get("name") or "").strip().lower() not in fake_loc_names
+        ]
+
+        data["quests"] = [
+            q for q in data.get("quests", [])
+            if q.get("id") != "q8" and "infraoscuridad" not in str(q.get("title", "")).lower()
+        ]
+
+        for pc in data.get("universal_pcs", []):
+            pc["hitos_acumulados"] = [
+                h for h in pc.get("hitos_acumulados", [])
+                if not str(h).strip().startswith("Sesión #4") and not str(h).strip().startswith("Sesion #4")
+            ]
+        for npc in data.get("npcs", []):
+            npc["notes"] = [
+                note for note in npc.get("notes", [])
+                if not str(note).strip().startswith("Sesión #4") and not str(note).strip().startswith("Sesion #4")
+            ]
+        for q in data.get("quests", []):
+            lc = q.get("lifecycle_notes", "")
+            if lc:
+                parts = [p.strip() for p in lc.split("|") if "Sesión 4" not in p and "Sesion 4" not in p]
+                q["lifecycle_notes"] = " | ".join(parts)
+
     def load_campaign(self, name: str) -> Dict[str, Any]:
         """
-        Load campaign state from disk.
+        Load campaign state from disk, prioritizing modular JSON structure
+        (campaign.json, entities/*.json, sessions/session_*.json).
+        If campaign is in legacy monolithic format, automatically migrates it to modular.
         If it does not exist, initialize a clean default state.
         """
+        # 1. Try loading from modular format first
+        modular_state = self.load_modular(name)
+        if modular_state is not None:
+            self._backfill_dm_fields(modular_state)
+            self._clean_candlekeep_taint(modular_state)
+            merged = self._deduplicate_state(modular_state, campaign_name=modular_state.get("campaign_name", name))
+            if merged:
+                self.save_campaign(modular_state)
+            return modular_state
+
+        # 2. Try loading legacy monolithic format
         file_path = self.get_campaign_path(name)
         if file_path.is_file():
             try:
@@ -611,43 +941,24 @@ class CampaignManager:
                     data["prior_lore"] = ""
                 if "user_character_backstory" not in data:
                     data["user_character_backstory"] = ""
-                # Backfill DM fields
-                dm_val = data.get("dm") or data.get("dungeon_master") or data.get("dm_name") or ""
-                if not dm_val and data.get("roster") and len(data["roster"]) > 0:
-                    r0 = data["roster"][0]
-                    if r0.get("character_name") == "(DM)" or r0.get("role") == "Dungeon Master (DM)":
-                        dm_val = (r0.get("player_name") or "").strip()
-                data["dm"] = dm_val
-                data["dungeon_master"] = dm_val
-                data["dm_name"] = dm_val
+                self._backfill_dm_fields(data)
 
-                dm_disc = data.get("dm_discord_id") or data.get("dm_discord_user_id") or data.get("dm_discord") or ""
-                if not dm_disc and data.get("roster") and len(data["roster"]) > 0:
-                    r0 = data["roster"][0]
-                    if r0.get("character_name") == "(DM)" or r0.get("role") == "Dungeon Master (DM)":
-                        dm_disc = (r0.get("discord_id") or r0.get("discord_user_id") or "").strip()
-                data["dm_discord_id"] = dm_disc
-                data["dm_discord_user_id"] = dm_disc
-                data["dm_discord"] = dm_disc
+                # Special auto-clean for candlekeep if tainted by error audio
+                self._clean_candlekeep_taint(data)
 
-                # Ensure roster[0] reflects dm_val and dm_disc if it's the DM
-                if data.get("roster") and len(data["roster"]) > 0:
-                    r0 = data["roster"][0]
-                    if r0.get("character_name") == "(DM)" or r0.get("role") == "Dungeon Master (DM)":
-                        if dm_val and not (r0.get("player_name") or "").strip():
-                            r0["player_name"] = dm_val
-                        if dm_disc and not (r0.get("discord_user_id") or r0.get("discord_id") or "").strip():
-                            r0["discord_user_id"] = dm_disc
-                            r0["discord_id"] = dm_disc
-
-                # Auto-deduplicate entities on campaign load (e.g. Octus -> Octus Taconis)
                 merged = self._deduplicate_state(data, campaign_name=data.get("campaign_name", name))
-                if merged:
-                    data["updated_at"] = datetime.datetime.now().isoformat()
+
+                # Auto-migrate to modular architecture!
+                bak_path = file_path.with_suffix(".json.bak")
+                if not bak_path.is_file():
                     try:
-                        file_path.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
-                    except Exception as e:
-                        print(f"[CampaignManager] Could not save deduplicated state to {file_path}: {e}")
+                        shutil.copyfile(file_path, bak_path)
+                    except Exception as b_err:
+                        print(f"[CampaignManager] Notice creating backup: {b_err}")
+
+                self.save_modular(data)
+                # Keep mirror file updated
+                file_path.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
                 return data
             except Exception as exc:
                 print(f"[CampaignManager] Error loading {file_path}: {exc}. Initializing fallback.")
@@ -676,7 +987,7 @@ class CampaignManager:
         return initial_state
 
     def save_campaign(self, state: Dict[str, Any]) -> Path:
-        """Save campaign state to disk and ensure campaign folder hierarchy exists."""
+        """Save campaign state to modular disk hierarchy and keep mirror JSON synchronized."""
         name = state.get("campaign_name", "Campaña Principal")
         state["updated_at"] = datetime.datetime.now().isoformat()
         if "campaign_id" not in state:
@@ -693,20 +1004,16 @@ class CampaignManager:
                     m.pop("is_absent", None)
                     m.pop("absent", None)
 
-        # Ensure campaign directory hierarchy:
-        # data/campaigns/<safe_name>/recordings/
-        # data/campaigns/<safe_name>/exports/
-        cdir = self.get_campaign_dir(name)
+        # 1. Save modular directory structure
+        self.save_modular(state)
 
+        # 2. Maintain monolithic mirror for legacy compatibility
         file_path = self.get_campaign_path(name)
         state_json = json.dumps(state, indent=2, ensure_ascii=False)
-        file_path.write_text(state_json, encoding="utf-8")
-
-        # Mirror inside campaign folder as campaign.json
         try:
-            (cdir / "campaign.json").write_text(state_json, encoding="utf-8")
-        except Exception:
-            pass
+            file_path.write_text(state_json, encoding="utf-8")
+        except Exception as f_err:
+            print(f"[CampaignManager] Notice updating mirror JSON: {f_err}")
 
         return file_path
 
@@ -1184,9 +1491,15 @@ class CampaignManager:
         raw_title = str(session_chapter.get("session_title") or session_chapter.get("title") or f"Sesión {actual_session_num}").strip()
         clean_title = re.sub(r"^(?:sesi[oó]n|session)\s*#?\d+\s*[:\-]\s*", "", raw_title, flags=re.IGNORECASE).strip() or raw_title
 
+        session_detected_npc_names = list(detected_npc_names or [])
+        for un in (updated_npcs or []):
+            un_name = str(un.get("name", "")).strip()
+            if un_name and un_name not in session_detected_npc_names:
+                session_detected_npc_names.append(un_name)
+
         chapter_record = {
             "session_number": actual_session_num,
-            "date": datetime.datetime.now().strftime("%d/%m/%Y"),
+            "date": session_chapter.get("date") or datetime.datetime.now().strftime("%d/%m/%Y"),
             "session_title": clean_title,
             "title": clean_title,
             "recap_text": recap_text,
@@ -1197,7 +1510,7 @@ class CampaignManager:
             "user_coaching": coaching,
             "markus_coaching": coaching,
             "user_character": user_char or {},
-            "detected_npc_names": detected_npc_names or [],
+            "detected_npc_names": session_detected_npc_names,
             "detected_party": [] if detected_pcs else (detected_party or []),
             "detected_pcs": detected_pcs or [],
             "chronicle_markdown": (chronicle_markdown or session_chapter.get("chronicle_markdown") or "").strip(),
@@ -1612,6 +1925,7 @@ class CampaignManager:
                         "description": loc.get("description", ""),
                         "status": loc.get("status", "explorado"),
                         "associated_characters": raw_assoc,
+                        "first_seen_session": actual_session_num,
                     })
 
         # 6. Merge Items
@@ -1634,6 +1948,7 @@ class CampaignManager:
                         "description": it.get("description", ""),
                         "holder": it.get("holder", "-"),
                         "status": it.get("status", "en_posesion"),
+                        "first_seen_session": actual_session_num,
                     })
 
         self._deduplicate_state(state, campaign_name=name)
@@ -2124,6 +2439,55 @@ class CampaignManager:
                     "session_number": s.get("session_number"),
                 })
 
+        # --- 6. Clean orphaned NPCs from overwritten/purged sessions ---
+        sessions = state.get("sessions", [])
+        if sessions and len(sessions) > 0:
+            all_sess_npcs = set()
+            for s in sessions:
+                for n in (s.get("detected_npc_names") or []):
+                    if n and str(n).strip():
+                        all_sess_npcs.add(str(n).strip().lower())
+
+            all_sess_text = (state.get("prior_lore") or "").lower()
+            for s in sessions:
+                for field in ("chronicle_text", "recap_text", "closing_expectations", "episode_synopsis", "chronicle_markdown", "title", "session_title", "raw_transcript"):
+                    val = s.get(field)
+                    if isinstance(val, str) and val:
+                        all_sess_text += "\n" + val.lower()
+
+            kept_npcs = []
+            for npc in state.get("npcs", []):
+                n_name = str(npc.get("name") or "").strip().lower()
+                aliases = [str(a).strip().lower() for a in npc.get("aliases", []) if str(a).strip()]
+                all_tokens = [n_name] + aliases
+
+                is_verified = False
+                for tok in all_tokens:
+                    if not tok or tok in ("-", "pnj", "desconocido", "n/a"):
+                        continue
+                    if tok in all_sess_npcs or any(is_npc_name_match(tok, on) for on in all_sess_npcs):
+                        is_verified = True
+                        break
+                    words = [w for w in re.split(r'\W+', tok) if len(w) >= 3 and w not in GENERIC_TITLES]
+                    if len(words) >= 2 and all(w in all_sess_text for w in words):
+                        is_verified = True
+                        break
+                    elif len(words) == 1 and words[0] in all_sess_text and len(words[0]) >= 4:
+                        is_verified = True
+                        break
+
+                if is_verified:
+                    kept_npcs.append(npc)
+                else:
+                    self._clean_entity_disk_files(npc.get("name", ""), camp_name)
+                    merged_events.append({
+                        "type": "orphan_npc_removed",
+                        "source": npc.get("name", ""),
+                    })
+
+            if len(kept_npcs) != len(state.get("npcs", [])):
+                state["npcs"] = kept_npcs
+
         return merged_events
 
     def deduplicate_campaign_entities(self, campaign_id: str) -> Dict[str, Any]:
@@ -2135,24 +2499,11 @@ class CampaignManager:
         3. Removes old duplicate 'Octus' and deletes orphaned files.
         4. Saves and returns the clean campaign state.
         """
-        file_path = self.get_campaign_path(campaign_id)
-        if not file_path.is_file():
-            matched = None
-            for f in self.campaigns_dir.glob("*.json"):
-                if f.stem.lower() == self.sanitize_name(campaign_id).lower():
-                    matched = f
-                    break
-            if matched:
-                file_path = matched
-            else:
-                raise ValueError(f"Campaña con ID/Nombre '{campaign_id}' no encontrada.")
-
-        data = json.loads(file_path.read_text(encoding="utf-8"))
+        data = self.load_campaign(campaign_id)
         merged_events = self._deduplicate_state(data, campaign_name=data.get("campaign_name", campaign_id))
 
         if merged_events:
-            data["updated_at"] = datetime.datetime.now().isoformat()
-            file_path.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
+            self.save_campaign(data)
             print(f"[CampaignManager] Deduplicated {len(merged_events)} entities in '{campaign_id}': {merged_events}")
 
         return {

@@ -745,10 +745,15 @@ async function stopSessionAndProcess() {
                         "Reunión / Clase";
           const subject = (document.getElementById("lectureSubjectInput") ? document.getElementById("lectureSubjectInput").value.trim() : "") ||
                           topic;
+          const dateEl = document.getElementById("workStudyDateInput");
+          const customDate = (dateEl && dateEl.value.trim()) ? dateEl.value.trim() : (typeof getLocalFormattedDateTime === "function" ? getLocalFormattedDateTime() : "");
           formData.append("recording_mode", "class");
           formData.append("subject", subject);
           formData.append("topic", topic);
+          if (customDate) formData.append("custom_date", customDate);
+          formData.append("client_timezone_offset", String(new Date().getTimezoneOffset()));
         } else {
+          formData.append("client_timezone_offset", String(new Date().getTimezoneOffset()));
           const campaignName = (document.getElementById("campaignNameInput")?.value || "").trim();
           if (!campaignName) {
             if (typeof showAlert === "function") showAlert("⚠️ Debes seleccionar o crear una campaña para procesar la sesión.");
@@ -825,11 +830,15 @@ async function stopSessionAndProcess() {
                   "Reunión / Clase";
     const subject = (document.getElementById("lectureSubjectInput") ? document.getElementById("lectureSubjectInput").value.trim() : "") ||
                     topic;
+    const dateEl = document.getElementById("workStudyDateInput");
+    const customDate = (dateEl && dateEl.value.trim()) ? dateEl.value.trim() : (typeof getLocalFormattedDateTime === "function" ? getLocalFormattedDateTime() : "");
     bodyPayload = {
       task_id: taskId,
       recording_mode: "class",
       subject: subject,
       topic: topic,
+      custom_date: customDate || null,
+      client_timezone_offset: new Date().getTimezoneOffset(),
       model_size: modelSize,
       engine: engine,
       target_language: window.currentTargetLanguage || "es"
@@ -867,6 +876,7 @@ async function stopSessionAndProcess() {
       engine: engine,
       campaign_name: campaignName,
       session_number: sessionNumber,
+      client_timezone_offset: new Date().getTimezoneOffset(),
       target_language: window.currentTargetLanguage || "es"
     };
     if (typeof updateStepperMode === "function") updateStepperMode(false);
@@ -966,7 +976,12 @@ async function deleteOriginalAudio() {
 
 function downloadAudioFile() {
   if (window.currentResult && window.currentResult.wav_filename) {
-    window.location.href = `/api/download/audio/${encodeURIComponent(window.currentResult.wav_filename)}`;
+    const url = `/api/download/audio/${encodeURIComponent(window.currentResult.wav_filename)}`;
+    if (typeof navigateToDownload === "function") {
+      navigateToDownload(url);
+    } else {
+      window.location.href = url;
+    }
     return;
   }
   if (typeof showAlert === "function") showAlert("No hay archivo de audio original disponible para descargar.");

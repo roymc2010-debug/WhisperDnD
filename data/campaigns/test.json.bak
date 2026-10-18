@@ -1,0 +1,543 @@
+{
+  "campaign_name": "Test",
+  "campaign_id": "test",
+  "created_at": "2026-10-02T21:14:49.580969",
+  "updated_at": "2026-10-13T13:20:05.242342",
+  "last_session": 2,
+  "prior_lore": "",
+  "user_character_backstory": "",
+  "dm": "",
+  "dungeon_master": "",
+  "dm_name": "",
+  "dm_discord": "",
+  "dm_discord_id": "",
+  "dm_discord_user_id": "",
+  "roster": [
+    {
+      "player_name": "",
+      "character_name": "(DM)",
+      "species": "(N/A - DM)",
+      "role": "Dungeon Master (DM)",
+      "subclass": "N/A",
+      "is_user_character": false,
+      "discord_user_id": "",
+      "discord_id": "",
+      "discord_username": null,
+      "discord_tag": null,
+      "is_user": false
+    },
+    {
+      "player_name": "Rodrigo",
+      "character_name": "Roy",
+      "species": "Humano",
+      "role": "Otro / Personalizado",
+      "subclass": "-",
+      "is_user_character": false,
+      "discord_user_id": "590641756039806995",
+      "discord_id": "590641756039806995",
+      "discord_username": null,
+      "discord_tag": null,
+      "is_user": false
+    },
+    {
+      "player_name": "Fabiruchis",
+      "character_name": "Acher",
+      "species": "Humano",
+      "role": "Otro / Personalizado",
+      "subclass": "-",
+      "is_user_character": false,
+      "discord_user_id": "888073358762209330",
+      "discord_id": "888073358762209330",
+      "discord_username": null,
+      "discord_tag": null,
+      "is_user": false
+    },
+    {
+      "player_name": "Ximena",
+      "character_name": "Moni",
+      "species": "Humano",
+      "role": "Otro / Personalizado",
+      "subclass": "-",
+      "is_user_character": false,
+      "discord_user_id": "414968569273516054",
+      "discord_id": "414968569273516054",
+      "discord_username": null,
+      "discord_tag": null,
+      "is_user": false
+    },
+    {
+      "player_name": "Alexandria",
+      "character_name": "Wyan",
+      "species": "Humano",
+      "role": "Otro / Personalizado",
+      "subclass": "-",
+      "is_user_character": false,
+      "discord_user_id": "721864017005772842",
+      "discord_id": "721864017005772842",
+      "discord_username": null,
+      "discord_tag": null,
+      "is_user": false
+    },
+    {
+      "player_name": "Nallely",
+      "character_name": "Lupe",
+      "species": "Humano",
+      "role": "Otro / Personalizado",
+      "subclass": "",
+      "is_user_character": false,
+      "discord_user_id": "870132370383175770",
+      "discord_id": "870132370383175770",
+      "discord_username": null,
+      "discord_tag": null,
+      "is_user": false
+    }
+  ],
+  "universal_pcs": [
+    {
+      "personaje": "Roy",
+      "aliases": [],
+      "jugador": "Rodrigo",
+      "especie": "Humano",
+      "clase": "Otro / Personalizado",
+      "subclase": "-",
+      "debut_sesion": 1,
+      "hitos_acumulados": [
+        "Sesión #1: Rodrigo coordinó las pruebas de pantalla y compartió sus avances académicos antes de iniciar la sesión de juego.",
+        "Sesión #2: Asumió el riesgo de liderar la vanguardia del grupo a pesar de estar gravemente herido y sin curas disponibles."
+      ]
+    },
+    {
+      "personaje": "Acher",
+      "aliases": [],
+      "jugador": "Fabiruchis",
+      "especie": "Humano",
+      "clase": "Otro / Personalizado",
+      "subclase": "-",
+      "debut_sesion": 1,
+      "hitos_acumulados": [
+        "Sesión #1: Fabiruchis participó activamente en las pruebas de audio y en la charla preparatoria sobre la universidad.",
+        "Sesión #2: Ayudó a establecer el plan de acción táctico para el inminente combate de la party."
+      ]
+    },
+    {
+      "personaje": "Moni",
+      "aliases": [],
+      "jugador": "Ximena",
+      "especie": "Humano",
+      "clase": "Otro / Personalizado",
+      "subclase": "-",
+      "debut_sesion": 1,
+      "hitos_acumulados": [
+        "Sesión #1: Ximena ayudó a regular los volúmenes de la mesa para garantizar que todos los jugadores se escucharan correctamente.",
+        "Sesión #2: Se mantuvo lista para el combate apoyando la ofensiva rápida del grupo."
+      ]
+    },
+    {
+      "personaje": "Wyan",
+      "aliases": [],
+      "jugador": "Alexandria",
+      "especie": "Humano",
+      "clase": "Otro / Personalizado",
+      "subclase": "-",
+      "debut_sesion": 1,
+      "hitos_acumulados": [
+        "Sesión #1: Alexandria solucionó sus inconvenientes técnicos de audio y conexión antes del inicio de la aventura.",
+        "Sesión #2: Analizó la viabilidad táctica de avanzar al combate con los recursos actuales del grupo."
+      ]
+    }
+  ],
+  "quests": [
+    {
+      "id": "q1",
+      "title": "Sintonizar los Canales del Éter",
+      "tipo": "secundaria",
+      "context": "Ajustar los niveles de audio y conexión de los jugadores en Discord antes de comenzar.",
+      "status": "completed",
+      "started_session": 1,
+      "completed_session": 1,
+      "lifecycle_notes": "Iniciada en Sesión 1 | Completada en Sesión 1 | Completada en Sesión 2",
+      "subobjectives": [
+        {
+          "id": "s1",
+          "text": "Ajustar el volumen de Acher al 200%",
+          "completed": true
+        },
+        {
+          "id": "s2",
+          "text": "Resolver la conexión duplicada de Wyan",
+          "completed": true
+        },
+        {
+          "id": "s3",
+          "text": "Silenciar la música de fondo y ruidos externos",
+          "completed": true
+        }
+      ]
+    },
+    {
+      "id": "q2",
+      "title": "Iniciar la Travesía",
+      "tipo": "principal",
+      "context": "Completar los preparativos iniciales y presentar formalmente a los personajes en el plano de juego.",
+      "status": "completed",
+      "started_session": 1,
+      "completed_session": 2,
+      "lifecycle_notes": "Iniciada en Sesión 1 | Completada en Sesión 2",
+      "subobjectives": [
+        {
+          "id": "s1",
+          "text": "Completar la cuenta regresiva de cuatro minutos",
+          "completed": true
+        },
+        {
+          "id": "s2",
+          "text": "Presentar formalmente a los personajes en el plano de juego",
+          "completed": true
+        }
+      ]
+    },
+    {
+      "id": "q3",
+      "title": "Sobrevivir al Encuentro en el Cerro",
+      "tipo": "secundaria",
+      "context": "La party decidió avanzar sin tomar un Short rest y debe enfrentar las amenazas del cerro con recursos limitados.",
+      "status": "in_progress",
+      "started_session": 2,
+      "completed_session": null,
+      "lifecycle_notes": "Iniciada en Sesión 2",
+      "subobjectives": [
+        {
+          "id": "s1",
+          "text": "Derrotar a las amenazas del cerro sin sufrir bajas en el grupo",
+          "completed": false
+        }
+      ]
+    }
+  ],
+  "npcs": [
+    {
+      "name": "Mini Peko",
+      "aliases": [
+        "Peko"
+      ],
+      "role": "Compañero Kenku de la party",
+      "tipo": "interaccion_contexto",
+      "first_seen_session": 2,
+      "notes": [
+        "Sesión #2: Se confirmó que se encuentra a full HP (30/30) y listo para el combate."
+      ]
+    },
+    {
+      "name": "Velith",
+      "aliases": [],
+      "role": "Barda aliada",
+      "tipo": "interaccion_contexto",
+      "first_seen_session": 2,
+      "notes": [
+        "Sesión #2: No participó en el combate anterior contra el fantasma y se mantiene a 35/35 HP."
+      ]
+    },
+    {
+      "name": "Marcus",
+      "aliases": [],
+      "role": "Ex-miembro de la party [Mencionado]",
+      "tipo": "mencionados",
+      "first_seen_session": 2,
+      "notes": [
+        "Sesión #2: Se mencionó que abandonó el grupo recientemente antes de que iniciara el conflicto actual."
+      ]
+    },
+    {
+      "name": "Selen",
+      "aliases": [],
+      "role": "Guerrero del machete [Mencionado]",
+      "tipo": "mencionados",
+      "first_seen_session": 2,
+      "notes": [
+        "Sesión #2: Mencionado por los jugadores en relación con las leyendas del cerro y el diablo."
+      ]
+    }
+  ],
+  "sessions": [
+    {
+      "session_number": 1,
+      "date": "02/10/2026",
+      "session_title": "Sintonía en el éter: El preludio de las voces y el boss de Honkai",
+      "title": "Sintonía en el éter: El preludio de las voces y el boss de Honkai",
+      "recap_text": "A ver gente, para acordarnos: la sesión pasada estuvimos acomodando los bártulos en Discord, ajustando los micros porque a Acher lo teníamos que subir al 200% y a Wyan casi ni se la escuchaba con su doble conexión de 5e y 6e. Entre risas sobre si vivimos en el futuro con las clases virtuales o si nos jodemos si no vamos a la universidad, Rodrigo nos presumió su wallpaper que parecía un boss de Honkai y celebramos ese 18 que se sacó en su primer avance del proyecto.\n\nFue una sesión de pura calibración técnica y calentamiento de motores, pero ya dejamos el canal de audio fino y limpio de ruidos molestos. Ahora que todos nos escuchamos clarito y las fichas están listas, es momento de dejar atrás la vida universitaria por unas horas y meternos de lleno en el juego.\n\nAsí que, preparen sus dados y acomódense. La partida se cortó justo cuando terminábamos de configurar el Discord y el DM daba la señal de inicio. ¿Están listos para ver qué peligros nos esperan al cruzar el portal? ¡Tiren iniciativa, que esto arranca ya!",
+      "next_session_script": "A ver gente, para acordarnos: la sesión pasada estuvimos acomodando los bártulos en Discord, ajustando los micros porque a Acher lo teníamos que subir al 200% y a Wyan casi ni se la escuchaba con su doble conexión de 5e y 6e. Entre risas sobre si vivimos en el futuro con las clases virtuales o si nos jodemos si no vamos a la universidad, Rodrigo nos presumió su wallpaper que parecía un boss de Honkai y celebramos ese 18 que se sacó en su primer avance del proyecto.\n\nFue una sesión de pura calibración técnica y calentamiento de motores, pero ya dejamos el canal de audio fino y limpio de ruidos molestos. Ahora que todos nos escuchamos clarito y las fichas están listas, es momento de dejar atrás la vida universitaria por unas horas y meternos de lleno en el juego.\n\nAsí que, preparen sus dados y acomódense. La partida se cortó justo cuando terminábamos de configurar el Discord y el DM daba la señal de inicio. ¿Están listos para ver qué peligros nos esperan al cruzar el portal? ¡Tiren iniciativa, que esto arranca ya!",
+      "episode_synopsis": "",
+      "chronicle_text": "### Acto I: Escena 1: El Cónclave de las Calificaciones y el Futuro Universitario\n\nEl cónclave de esta noche comienza no con espadas desenvainadas ni conjuros de alto nivel, sino con los aventureros reuniéndose en el éter digital de Discord para ajustar sus herramientas de comunicación. Rodrigo (Roy) comparte con alivio sus notas académicas, comentando que obtuvo un 18 en el primer avance de su proyecto final. Con este buen inicio, el grupo debate de manera distendida sobre sus responsabilidades en el mundo real, calculando que si mantiene ese ritmo no tendrá de qué preocuparse en las entregas posteriores.\n\nLa conversación se torna rápidamente hacia las diferencias entre sus universidades. Fabiruchis (Acher) es señalado como el que 'vive en el futuro' debido a las facilidades tecnológicas de su casa de estudios, mientras que otros miembros de la mesa sufren el rigor de la presencialidad sin grabaciones de respaldo, bajo la estricta regla de 'si no vas, te jodes'. Este intercambio de anécdotas estudiantiles sirve como un calentamiento relajado, permitiendo que los jugadores se asienten en sus lugares y preparen mentalmente sus hojas de personaje para la sesión.\n\nMientras tanto, el Dungeon Master y los jugadores inician las pruebas operativas del canal de audio. Se escuchan ruidos repentinos que sobresaltan a algunos miembros, lo que lleva a coordinar la desactivación de la música de fondo y a pedir a todos que se acerquen a sus respectivos micrófonos. Este proceso técnico, aunque ajeno a la fantasía del juego, es el ritual necesario para asegurar que cada descripción, tirada de dados y declaración de intenciones se escuche con total claridad en el plano de juego.\n\n### Escena 2: La Calibración de las Voces del Destino\n\nCon la sesión a punto de comenzar, la mesa se enfoca en resolver los desequilibrios de volumen entre los participantes. Alexandria (Wyan) presenta problemas de ganancia, apareciendo con múltiples conexiones en el servidor ('Wyan 5e' y 'Wyan 6e'). Los jugadores intentan ajustar sus configuraciones individuales en Discord; algunos suben el volumen de Acher al 200% para compensar, mientras que Ximena (Moni) y Wyan requieren ajustes manuales constantes para no perderse en el ruido de fondo.\n\nEn medio de la calibración, Rodrigo comparte su pantalla, revelando un fondo de pantalla que llama la atención de todos los presentes. El grupo compara la imagen con un nuevo jefe de 'Honkai', bromeando sobre el cambio estético de última hora y llamándolo cariñosamente 'loquito' por su obsesión visual. Estos momentos de camaradería refuerzan la química del grupo antes de que el telón de la campaña se levante de forma definitiva.\n\nFinalmente, con los niveles de audio estabilizados, las conexiones duplicadas resueltas y el ambiente perfectamente preparado, el grupo inicia una cuenta regresiva de cuatro minutos. Los dados virtuales están listos, las fichas de personaje en orden y la mesa se declara dispuesta para abandonar por unas horas la rutina universitaria y sumergirse de lleno en los peligros y maravillas que el Dungeon Master tiene preparados para esta primera gran aventura.",
+      "closing_expectations": "La sesión concluyó con la exitosa calibración técnica de todos los participantes en Discord. No se obtuvo botín ni oro en esta fase preparatoria, pero los jugadores dejaron sus canales listos y manifestaron su total disposición para iniciar la campaña formalmente en la próxima sesión sin retrasos técnicos.",
+      "user_coaching": "",
+      "markus_coaching": "",
+      "user_character": {},
+      "detected_npc_names": [],
+      "detected_party": [],
+      "detected_pcs": [
+        {
+          "jugador": "Rodrigo",
+          "personaje": "Roy",
+          "aliases": [],
+          "especie": "Humano",
+          "clase": "Otro / Personalizado",
+          "subclase": "-",
+          "debut_sesion": 1,
+          "hitos_acumulados": [
+            "Sesión #1: Participó en la calibración técnica de la mesa y compartió su pantalla mostrando su nuevo fondo de pantalla estilo Honkai."
+          ],
+          "rol_en_sesion": "Rodrigo coordinó las pruebas de pantalla y compartió sus avances académicos antes de iniciar la sesión de juego."
+        },
+        {
+          "jugador": "Fabiruchis",
+          "personaje": "Acher",
+          "aliases": [],
+          "especie": "Humano",
+          "clase": "Otro / Personalizado",
+          "subclase": "-",
+          "debut_sesion": 1,
+          "hitos_acumulados": [
+            "Sesión #1: Ajustó su nivel de audio en el canal de Discord y debatió sobre las clases virtuales de su universidad."
+          ],
+          "rol_en_sesion": "Fabiruchis participó activamente en las pruebas de audio y en la charla preparatoria sobre la universidad."
+        },
+        {
+          "jugador": "Ximena",
+          "personaje": "Moni",
+          "aliases": [],
+          "especie": "Humano",
+          "clase": "Otro / Personalizado",
+          "subclase": "-",
+          "debut_sesion": 1,
+          "hitos_acumulados": [
+            "Sesión #1: Calibró su micrófono para asegurar una comunicación fluida durante la campaña."
+          ],
+          "rol_en_sesion": "Ximena ayudó a regular los volúmenes de la mesa para garantizar que todos los jugadores se escucharan correctamente."
+        },
+        {
+          "jugador": "Alexandria",
+          "personaje": "Wyan",
+          "aliases": [],
+          "especie": "Humano",
+          "clase": "Otro / Personalizado",
+          "subclase": "-",
+          "debut_sesion": 1,
+          "hitos_acumulados": [
+            "Sesión #1: Resolvió sus problemas de conexión duplicada en el servidor de Discord para la sesión de juego."
+          ],
+          "rol_en_sesion": "Alexandria solucionó sus inconvenientes técnicos de audio y conexión antes del inicio de la aventura."
+        }
+      ],
+      "chronicle_markdown": "### 🎭 Compañía de Aventureros (Protagonistas Detectados)\n\n| Personaje | Jugador / Rol | Clase / Especie | Rol en la Sesión |\n|---|---|---|---|\n| **Roy** | Rodrigo | Otro / Personalizado / Humano | Rodrigo coordinó las pruebas de pantalla y compartió sus avances académicos antes de iniciar la sesión de juego. |\n| **Acher** | Fabiruchis | Otro / Personalizado / Humano | Fabiruchis participó activamente en las pruebas de audio y en la charla preparatoria sobre la universidad. |\n| **Moni** | Ximena | Otro / Personalizado / Humano | Ximena ayudó a regular los volúmenes de la mesa para garantizar que todos los jugadores se escucharan correctamente. |\n| **Wyan** | Alexandria | Otro / Personalizado / Humano | Alexandria solucionó sus inconvenientes técnicos de audio y conexión antes del inicio de la aventura. |\n\n---\n\n\n## 1. Crónica Narrativa y Combates\n### Acto I: Escena 1: El Cónclave de las Calificaciones y el Futuro Universitario\n\nEl cónclave de esta noche comienza no con espadas desenvainadas ni conjuros de alto nivel, sino con los aventureros reuniéndose en el éter digital de Discord para ajustar sus herramientas de comunicación. Rodrigo (Roy) comparte con alivio sus notas académicas, comentando que obtuvo un 18 en el primer avance de su proyecto final. Con este buen inicio, el grupo debate de manera distendida sobre sus responsabilidades en el mundo real, calculando que si mantiene ese ritmo no tendrá de qué preocuparse en las entregas posteriores.\n\nLa conversación se torna rápidamente hacia las diferencias entre sus universidades. Fabiruchis (Acher) es señalado como el que 'vive en el futuro' debido a las facilidades tecnológicas de su casa de estudios, mientras que otros miembros de la mesa sufren el rigor de la presencialidad sin grabaciones de respaldo, bajo la estricta regla de 'si no vas, te jodes'. Este intercambio de anécdotas estudiantiles sirve como un calentamiento relajado, permitiendo que los jugadores se asienten en sus lugares y preparen mentalmente sus hojas de personaje para la sesión.\n\nMientras tanto, el Dungeon Master y los jugadores inician las pruebas operativas del canal de audio. Se escuchan ruidos repentinos que sobresaltan a algunos miembros, lo que lleva a coordinar la desactivación de la música de fondo y a pedir a todos que se acerquen a sus respectivos micrófonos. Este proceso técnico, aunque ajeno a la fantasía del juego, es el ritual necesario para asegurar que cada descripción, tirada de dados y declaración de intenciones se escuche con total claridad en el plano de juego.\n\n### Escena 2: La Calibración de las Voces del Destino\n\nCon la sesión a punto de comenzar, la mesa se enfoca en resolver los desequilibrios de volumen entre los participantes. Alexandria (Wyan) presenta problemas de ganancia, apareciendo con múltiples conexiones en el servidor ('Wyan 5e' y 'Wyan 6e'). Los jugadores intentan ajustar sus configuraciones individuales en Discord; algunos suben el volumen de Acher al 200% para compensar, mientras que Ximena (Moni) y Wyan requieren ajustes manuales constantes para no perderse en el ruido de fondo.\n\nEn medio de la calibración, Rodrigo comparte su pantalla, revelando un fondo de pantalla que llama la atención de todos los presentes. El grupo compara la imagen con un nuevo jefe de 'Honkai', bromeando sobre el cambio estético de última hora y llamándolo cariñosamente 'loquito' por su obsesión visual. Estos momentos de camaradería refuerzan la química del grupo antes de que el telón de la campaña se levante de forma definitiva.\n\nFinalmente, con los niveles de audio estabilizados, las conexiones duplicadas resueltas y el ambiente perfectamente preparado, el grupo inicia una cuenta regresiva de cuatro minutos. Los dados virtuales están listos, las fichas de personaje en orden y la mesa se declara dispuesta para abandonar por unas horas la rutina universitaria y sumergirse de lleno en los peligros y maravillas que el Dungeon Master tiene preparados para esta primera gran aventura.\n\n## 2. Cierre de Mesa, Decisiones y Expectativas\nLa sesión concluyó con la exitosa calibración técnica de todos los participantes en Discord. No se obtuvo botín ni oro en esta fase preparatoria, pero los jugadores dejaron sus canales listos y manifestaron su total disposición para iniciar la campaña formalmente en la próxima sesión sin retrasos técnicos.\n\n## 3. 🎙️ Guion para abrir la Sesión #2 (Para leer en voz alta)\nA ver gente, para acordarnos: la sesión pasada estuvimos acomodando los bártulos en Discord, ajustando los micros porque a Acher lo teníamos que subir al 200% y a Wyan casi ni se la escuchaba con su doble conexión de 5e y 6e. Entre risas sobre si vivimos en el futuro con las clases virtuales o si nos jodemos si no vamos a la universidad, Rodrigo nos presumió su wallpaper que parecía un boss de Honkai y celebramos ese 18 que se sacó en su primer avance del proyecto.\n\nFue una sesión de pura calibración técnica y calentamiento de motores, pero ya dejamos el canal de audio fino y limpio de ruidos molestos. Ahora que todos nos escuchamos clarito y las fichas están listas, es momento de dejar atrás la vida universitaria por unas horas y meternos de lleno en el juego.\n\nAsí que, preparen sus dados y acomódense. La partida se cortó justo cuando terminábamos de configurar el Discord y el DM daba la señal de inicio. ¿Están listos para ver qué peligros nos esperan al cruzar el portal? ¡Tiren iniciativa, que esto arranca ya!",
+      "raw_transcript": "Solo el examen y el resto son los avances del proyecto final y pues valen lo mismo y yo tengo 18 por buena nota en el primer avance O sea, si sigo así con los otros avances pues no debería preocuparme porque de todas maneras fue... Fuerza amigo Obviamente Pues básicamente ahorita es hacer una prueba Quiero ver como lo hace Y quien aca da esto Abby? Que? Me asusto su vaina que le dio al coso A checa el Discord Donde? El canal de Discord de Abby Hay que llorar 5e y Wyan 6e Ahorita se meti Wyan le doy refrescar 6e Ah est ya sale ¿Quién le escribió ya Isaac? 6e- Ajonián 7e- Entonces esperamos un rato y vamos a ver qué pasa Porque creo que le tengo que ajustar el nivel de cómo capta el audio Asu, dime ¿Tú también vives en el futuro como Acher? Como que excepto Sí, supongo No, es que ellos no tienen... Bueno, primero, en tu universidad graban las clases, ¿no? Presenciales también No, el que no va se jode. No? Oh my god. No es que en L es m de si no vas te jodes Aj O sea Acher es el que vive en el en l es m de si no vas te jodes aj aaaah o sea Acher es el que vive en el futuro no en mi caso en lópez no no no graban solamente graba si es clase virtual no la mía las dos lo escribí en peruano 6e- Pues dejen, quiten música, que pongan lo que quieran 7e- Yo no voy a poner 6e- Yo sí quiero 7e- Amiga acércate al micro por favor 6e- Ay amiga, estoy, literalmente estoy 7e- Hala muy bajo Ay, me voy al celular entonces. Ah cierto, que puedo subir el volumen y ya tengo al puto Acher al 200. Sí, el Acher me lo va a tener al 200. Ahora tengo el 200. A Wyan siempre la tengo bajita Yo tambi a Moni Es que ya s se escucha clarito Igual S a Wyan No mira t tienes a Wyan 5e y Wyan 5e. ¿Esto es tu computa, amiga? 5e. Sí, amiga. 5e. Está bonita. 5e. Ahí ya te bajé además. 5e. Es que mira el fondo de pantalla de la compu de Roy. 5e. Parece el nuevo boss de Honkai. 5e. Este está loquito. 5e. Esto. Ayer cambió. ¡Caramba, Lady! Bueno, vamos. Cuatro minutos. Vamos a ver qué pasó."
+    },
+    {
+      "session_number": 2,
+      "date": "02/10/2026",
+      "session_title": "Entre Machetes, Fantasmas y la Falta de Short Rest",
+      "title": "Entre Machetes, Fantasmas y la Falta de Short Rest",
+      "recap_text": "A ver gente, para acordarnos: la sesión pasada estuvimos discutiendo si debíamos tomar un Short rest o no, y al final decidimos irnos así, en putiza, directo al peligro. Algunos de nosotros andamos con media vida y sin curas, pero el plan ya está armado. La partida se cortó justo cuando nos preparábamos para darnos en la madre con lo que sea que nos espere en el cerro. ¡Así que preparen esos dados porque hoy se define quién vive y quién se va con el diablo del machete!",
+      "next_session_script": "A ver gente, para acordarnos: la sesión pasada estuvimos discutiendo si debíamos tomar un Short rest o no, y al final decidimos irnos así, en putiza, directo al peligro. Algunos de nosotros andamos con media vida y sin curas, pero el plan ya está armado. La partida se cortó justo cuando nos preparábamos para darnos en la madre con lo que sea que nos espere en el cerro. ¡Así que preparen esos dados porque hoy se define quién vive y quién se va con el diablo del machete!",
+      "episode_synopsis": "",
+      "chronicle_text": "### Acto I: Escena 1: Planificación y Quejas de la Mesa\n\nLa sesión comienza con los jugadores reuniéndose en el canal de Discord para evaluar los daños tras el enfrentamiento previo contra un fantasma. La tensión es evidente en el ambiente, ya que el grupo decidió omitir un Short rest para avanzar rápidamente ('en putiza') hacia su siguiente objetivo. Esta decisión táctica ha dejado a varios miembros de la party en una situación sumamente vulnerable, especialmente a aquellos que suelen ocupar la vanguardia en los combates.\n\nRodrigo (Roy) expresa su preocupación al notar que se encuentra a media vida y sin recursos de curación disponibles, quejándose de que siempre termina siendo el blanco principal de los ataques enemigos por estar hasta adelante. Mientras tanto, los demás jugadores revisan sus hojas de personaje; algunos se encuentran con sus puntos de golpe al máximo, lo que genera un debate sobre la disparidad de recursos y la falta de curas disponibles para el próximo encuentro.\n\n### Acto I: Escena 2: El Destino de Marcus y la Sombra del Cerro\n\nDurante la charla operativa, los jugadores recuerdan con humor y resignación la partida de Marcus, quien abandonó el grupo recientemente ('al final se fue Marcus'). La conversación se desvía momentáneamente hacia las leyendas locales del cerro y el mito de Selen, bromeando sobre perderse en el monte y encontrarse con 'el diablo del machete'. A pesar de las risas, el peligro inminente los devuelve a la realidad del juego.\n\nEl grupo analiza el estado de sus aliados y compañeros. Se confirma que Mini Peko, el fiel kenku de la party, se encuentra en perfectas condiciones con 30 de 30 HP. Por otro lado, Belit, la barda del grupo, se mantiene intacta con 35 de 35 HP debido a que no participó directamente en la última pelea contra el fantasma. Con las posiciones claras y el plan de ataque acordado, los aventureros se preparan para cruzar el umbral y enfrentarse a lo que sea que les espere en el cerro.",
+      "closing_expectations": "La sesión concluye con la party decidiendo avanzar hacia el peligro sin haber tomado un descanso corto. Los jugadores son conscientes de que Roy se encuentra a media vida y sin curas, por lo que su principal expectativa para la próxima sesión es sobrevivir al inminente combate táctico y descubrir qué misterios aguardan en el cerro.",
+      "user_coaching": "",
+      "markus_coaching": "",
+      "user_character": {},
+      "detected_npc_names": [
+        "Mini Peko",
+        "Belit",
+        "Marcus",
+        "Selen"
+      ],
+      "detected_party": [],
+      "detected_pcs": [
+        {
+          "jugador": "Rodrigo",
+          "personaje": "Roy",
+          "aliases": [],
+          "especie": "Humano",
+          "clase": "Otro / Personalizado",
+          "subclase": "-",
+          "debut_sesion": 2,
+          "hitos_acumulados": [
+            "Sesión #2: Se preparó para el combate en la vanguardia a pesar de encontrarse a media vida y sin recursos de curación."
+          ],
+          "rol_en_sesion": "Asumió el riesgo de liderar la vanguardia del grupo a pesar de estar gravemente herido y sin curas disponibles."
+        },
+        {
+          "jugador": "Fabiruchis",
+          "personaje": "Acher",
+          "aliases": [],
+          "especie": "Humano",
+          "clase": "Otro / Personalizado",
+          "subclase": "-",
+          "debut_sesion": 2,
+          "hitos_acumulados": [
+            "Sesión #2: Coordinó la estrategia del grupo para el próximo enfrentamiento en el cerro."
+          ],
+          "rol_en_sesion": "Ayudó a establecer el plan de acción táctico para el inminente combate de la party."
+        },
+        {
+          "jugador": "Ximena",
+          "personaje": "Moni",
+          "aliases": [],
+          "especie": "Humano",
+          "clase": "Otro / Personalizado",
+          "subclase": "-",
+          "debut_sesion": 2,
+          "hitos_acumulados": [
+            "Sesión #2: Apoyó la decisión de avanzar rápidamente sin realizar un Short rest."
+          ],
+          "rol_en_sesion": "Se mantuvo lista para el combate apoyando la ofensiva rápida del grupo."
+        },
+        {
+          "jugador": "Alexandria",
+          "personaje": "Wyan",
+          "aliases": [],
+          "especie": "Humano",
+          "clase": "Otro / Personalizado",
+          "subclase": "-",
+          "debut_sesion": 2,
+          "hitos_acumulados": [
+            "Sesión #2: Evaluó los recursos y puntos de golpe restantes de los miembros de la party."
+          ],
+          "rol_en_sesion": "Analizó la viabilidad táctica de avanzar al combate con los recursos actuales del grupo."
+        }
+      ],
+      "chronicle_markdown": "### 🎭 Compañía de Aventureros (Protagonistas Detectados)\n\n| Personaje | Jugador / Rol | Clase / Especie | Rol en la Sesión |\n|---|---|---|---|\n| **Roy** | Rodrigo | Otro / Personalizado / Humano | Asumió el riesgo de liderar la vanguardia del grupo a pesar de estar gravemente herido y sin curas disponibles. |\n| **Acher** | Fabiruchis | Otro / Personalizado / Humano | Ayudó a establecer el plan de acción táctico para el inminente combate de la party. |\n| **Moni** | Ximena | Otro / Personalizado / Humano | Se mantuvo lista para el combate apoyando la ofensiva rápida del grupo. |\n| **Wyan** | Alexandria | Otro / Personalizado / Humano | Analizó la viabilidad táctica de avanzar al combate con los recursos actuales del grupo. |\n\n---\n\n\n## 1. Crónica Narrativa y Combates\n### Acto I: Escena 1: Planificación y Quejas de la Mesa\n\nLa sesión comienza con los jugadores reuniéndose en el canal de Discord para evaluar los daños tras el enfrentamiento previo contra un fantasma. La tensión es evidente en el ambiente, ya que el grupo decidió omitir un Short rest para avanzar rápidamente ('en putiza') hacia su siguiente objetivo. Esta decisión táctica ha dejado a varios miembros de la party en una situación sumamente vulnerable, especialmente a aquellos que suelen ocupar la vanguardia en los combates.\n\nRodrigo (Roy) expresa su preocupación al notar que se encuentra a media vida y sin recursos de curación disponibles, quejándose de que siempre termina siendo el blanco principal de los ataques enemigos por estar hasta adelante. Mientras tanto, los demás jugadores revisan sus hojas de personaje; algunos se encuentran con sus puntos de golpe al máximo, lo que genera un debate sobre la disparidad de recursos y la falta de curas disponibles para el próximo encuentro.\n\n### Acto I: Escena 2: El Destino de Marcus y la Sombra del Cerro\n\nDurante la charla operativa, los jugadores recuerdan con humor y resignación la partida de Marcus, quien abandonó el grupo recientemente ('al final se fue Marcus'). La conversación se desvía momentáneamente hacia las leyendas locales del cerro y el mito de Selen, bromeando sobre perderse en el monte y encontrarse con 'el diablo del machete'. A pesar de las risas, el peligro inminente los devuelve a la realidad del juego.\n\nEl grupo analiza el estado de sus aliados y compañeros. Se confirma que Mini Peko, el fiel kenku de la party, se encuentra en perfectas condiciones con 30 de 30 HP. Por otro lado, Belit, la barda del grupo, se mantiene intacta con 35 de 35 HP debido a que no participó directamente en la última pelea contra el fantasma. Con las posiciones claras y el plan de ataque acordado, los aventureros se preparan para cruzar el umbral y enfrentarse a lo que sea que les espere en el cerro.\n\n## 2. Cierre de Mesa, Decisiones y Expectativas\nLa sesión concluye con la party decidiendo avanzar hacia el peligro sin haber tomado un descanso corto. Los jugadores son conscientes de que Roy se encuentra a media vida y sin curas, por lo que su principal expectativa para la próxima sesión es sobrevivir al inminente combate táctico y descubrir qué misterios aguardan en el cerro.\n\n## 3. 🎙️ Guion para abrir la Sesión #3 (Para leer en voz alta)\nA ver gente, para acordarnos: la sesión pasada estuvimos discutiendo si debíamos tomar un Short rest o no, y al final decidimos irnos así, en putiza, directo al peligro. Algunos de nosotros andamos con media vida y sin curas, pero el plan ya está armado. La partida se cortó justo cuando nos preparábamos para darnos en la madre con lo que sea que nos espere en el cerro. ¡Así que preparen esos dados porque hoy se define quién vive y quién se va con el diablo del machete!",
+      "raw_transcript": "6e. Pues puede que haya otro guionazo, como todas las veces en las que casi morimos. 5e. ¿Casi morimos? 6e. Yo ya me morí una vez, amigo. 5e. ¿Qué te pareció el juego? El del manchete era Selen, pero... ¿A poco? Es que estábamos diciendo que tú eras el que se iba a perder en el cerro con... Con el diablo con el manchete por tus... Tus besos Mis quimos Tus navajas 5e Ah no puede ser Al final se fue Marcus Ah pendejo 5e. Y pues voy con media vida. 5e. Bueno. 5e. Y curas. 5e. Siempre que tenemos combates, nunca estoy cerca de ti. 5e. Esta vez, en vez de hacer un descanso corto, quisieron hacer todo en putiza. 5e. Ya está el plan, todos están full vida, menos yo. Hay que darnos en la madre. 5e. Se metió a ver la vida el otro día y yo digo que le falta vida. No mueras Eso no queda quedan mis manos quedan los dados 5e. Ahora pasemos al... Me parece a mí. Hola. Hola. Mira, España. Belit. Sí, yo no pelié. Sí, yo sé. 35 de 35. Sí, yo digo que... No, ni siquiera estuviste. Con lo del fantasma, güey. No, pero... Me fui antes de que atacaran. Sí, pero fue la sesión anterior cuando nos hicimos la madre. Sí. FL en 35-35. Mi amiga Twins. Twins amiga siempre Mini Peko 5e 30de30 5e. Kenku Has pasado 31 de 35 Un putazo y yo Sí, porque nos atacó un fantasma y yo inicié con la guerra y no corrió muy rápido ni nada Y yo 31 de 48 y ya no tengo curas Es un verbo de vida, amigo 5e. Sí, pero yo soy el que está hasta adelante. 5e. El que siempre le pegan. 5e. A ver, pues... 5e. Ah, no, porque la voy a contar con el otro."
+    }
+  ],
+  "detected_pcs": [
+    {
+      "jugador": "Rodrigo",
+      "personaje": "Roy",
+      "aliases": [],
+      "especie": "Humano",
+      "clase": "Otro / Personalizado",
+      "subclase": "-",
+      "debut_sesion": 2,
+      "hitos_acumulados": [
+        "Sesión #2: Se preparó para el combate en la vanguardia a pesar de encontrarse a media vida y sin recursos de curación."
+      ],
+      "rol_en_sesion": "Asumió el riesgo de liderar la vanguardia del grupo a pesar de estar gravemente herido y sin curas disponibles."
+    },
+    {
+      "jugador": "Fabiruchis",
+      "personaje": "Acher",
+      "aliases": [],
+      "especie": "Humano",
+      "clase": "Otro / Personalizado",
+      "subclase": "-",
+      "debut_sesion": 2,
+      "hitos_acumulados": [
+        "Sesión #2: Coordinó la estrategia del grupo para el próximo enfrentamiento en el cerro."
+      ],
+      "rol_en_sesion": "Ayudó a establecer el plan de acción táctico para el inminente combate de la party."
+    },
+    {
+      "jugador": "Ximena",
+      "personaje": "Moni",
+      "aliases": [],
+      "especie": "Humano",
+      "clase": "Otro / Personalizado",
+      "subclase": "-",
+      "debut_sesion": 2,
+      "hitos_acumulados": [
+        "Sesión #2: Apoyó la decisión de avanzar rápidamente sin realizar un Short rest."
+      ],
+      "rol_en_sesion": "Se mantuvo lista para el combate apoyando la ofensiva rápida del grupo."
+    },
+    {
+      "jugador": "Alexandria",
+      "personaje": "Wyan",
+      "aliases": [],
+      "especie": "Humano",
+      "clase": "Otro / Personalizado",
+      "subclase": "-",
+      "debut_sesion": 2,
+      "hitos_acumulados": [
+        "Sesión #2: Evaluó los recursos y puntos de golpe restantes de los miembros de la party."
+      ],
+      "rol_en_sesion": "Analizó la viabilidad táctica de avanzar al combate con los recursos actuales del grupo."
+    }
+  ],
+  "detected_party": [
+    {
+      "player_name": "Rodrigo",
+      "character_name": "Roy",
+      "aliases": [],
+      "species": "Humano",
+      "role": "Otro / Personalizado",
+      "subclass": "-",
+      "debut_sesion": 2,
+      "hitos_acumulados": [
+        "Sesión #2: Se preparó para el combate en la vanguardia a pesar de encontrarse a media vida y sin recursos de curación."
+      ],
+      "session_role": "Asumió el riesgo de liderar la vanguardia del grupo a pesar de estar gravemente herido y sin curas disponibles."
+    },
+    {
+      "player_name": "Fabiruchis",
+      "character_name": "Acher",
+      "aliases": [],
+      "species": "Humano",
+      "role": "Otro / Personalizado",
+      "subclass": "-",
+      "debut_sesion": 2,
+      "hitos_acumulados": [
+        "Sesión #2: Coordinó la estrategia del grupo para el próximo enfrentamiento en el cerro."
+      ],
+      "session_role": "Ayudó a establecer el plan de acción táctico para el inminente combate de la party."
+    },
+    {
+      "player_name": "Ximena",
+      "character_name": "Moni",
+      "aliases": [],
+      "species": "Humano",
+      "role": "Otro / Personalizado",
+      "subclass": "-",
+      "debut_sesion": 2,
+      "hitos_acumulados": [
+        "Sesión #2: Apoyó la decisión de avanzar rápidamente sin realizar un Short rest."
+      ],
+      "session_role": "Se mantuvo lista para el combate apoyando la ofensiva rápida del grupo."
+    },
+    {
+      "player_name": "Alexandria",
+      "character_name": "Wyan",
+      "aliases": [],
+      "species": "Humano",
+      "role": "Otro / Personalizado",
+      "subclass": "-",
+      "debut_sesion": 2,
+      "hitos_acumulados": [
+        "Sesión #2: Evaluó los recursos y puntos de golpe restantes de los miembros de la party."
+      ],
+      "session_role": "Analizó la viabilidad táctica de avanzar al combate con los recursos actuales del grupo."
+    }
+  ],
+  "locations": [
+    {
+      "name": "El Éter de Discord",
+      "type": "punto_de_interes",
+      "description": "El espacio digital donde los jugadores se reúnen para calibrar sus voces y coordinar la partida.",
+      "status": "explorado",
+      "associated_characters": [
+        "Roy",
+        "Acher",
+        "Moni",
+        "Wyan"
+      ]
+    },
+    {
+      "name": "El Cerro del Diablo",
+      "type": "region",
+      "description": "Región montañosa peligrosa mencionada por los personajes donde se rumorea que habita una entidad armada con un machete.",
+      "status": "no_visitado",
+      "associated_characters": [
+        "Selen"
+      ]
+    }
+  ]
+}

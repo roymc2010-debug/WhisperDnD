@@ -51,6 +51,8 @@ class ProcessCampaignSessionRequest(BaseModel):
     roster: Optional[List[server.PlayerMetadata]] = Field(default=None, description="Party roster")
     session_number: Optional[int] = Field(default=None, description="Session number override")
     target_language: str = Field(default="es", description="Target language ('es' or 'en')")
+    custom_date: Optional[str] = Field(default=None, description="Optional custom date string")
+    client_timezone_offset: Optional[int] = Field(default=None, description="Client timezone offset in minutes")
 
 
 class FinalizeNpcsRequest(BaseModel):
@@ -419,6 +421,8 @@ async def process_campaign_session_endpoint(campaign_name: str, payload: Process
             transcript_text=payload.transcript_text,
             roster_dicts=roster_dicts,
             session_number=payload.session_number,
+            custom_date=payload.custom_date,
+            client_timezone_offset=payload.client_timezone_offset,
         )
         manager = server.CampaignManager()
         saved_path = manager.get_campaign_path(campaign_name)

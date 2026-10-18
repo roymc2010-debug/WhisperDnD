@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Main launcher for WhisperDnD Localhost Web Application."""
 
+import os
 import sys
 from pathlib import Path
 
@@ -8,10 +9,23 @@ from pathlib import Path
 project_root = Path(__file__).resolve().parent
 sys.path.insert(0, str(project_root))
 
-import os
+# Auto re-exec inside .venv interpreter if running under global python
+venv_python = project_root / ".venv" / "Scripts" / "python.exe"
+if sys.platform == "win32" and venv_python.is_file() and not os.environ.get("WHISPER_REEXEC"):
+    current_exe = Path(sys.executable).resolve()
+    target_exe = venv_python.resolve()
+    if current_exe != target_exe:
+        import subprocess
+        env = dict(os.environ)
+        env["WHISPER_REEXEC"] = "1"
+        try:
+            res = subprocess.call([str(target_exe)] + sys.argv, env=env)
+            sys.exit(res)
+        except Exception as _reexec_err:
+            print(f"[Launcher] Warning: Could not auto-switch to venv: {_reexec_err}")
 
-# Auto-hide console window on Windows if launched without SHOW_CONSOLE
-if sys.platform == "win32" and not os.environ.get("SHOW_CONSOLE"):
+# Optional: Auto-hide console window on Windows ONLY if explicitly requested via HIDE_CONSOLE=1
+if sys.platform == "win32" and os.environ.get("HIDE_CONSOLE") == "1":
     try:
         import ctypes
         hwnd = ctypes.windll.kernel32.GetConsoleWindow()

@@ -37,6 +37,18 @@ async function loadAcademicNotesHistory(showToast = false) {
   }
 }
 
+function formatNoteCardDate(note) {
+  if (!note) return "Sin fecha";
+  if (note.timestamp && typeof note.timestamp === "number" && !isNaN(note.timestamp) && note.timestamp > 0) {
+    const d = new Date(note.timestamp * (note.timestamp < 1e11 ? 1000 : 1));
+    if (!isNaN(d.getTime())) {
+      const pad = (n) => String(n).padStart(2, "0");
+      return `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()} • ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    }
+  }
+  return note.date || note.created_at || "Sin fecha";
+}
+
 function cleanNoteDisplayTitle(titleStr, filename) {
   let t = (titleStr || "").trim();
   if (!t && filename) {
@@ -88,7 +100,7 @@ function renderAcademicNotesList(notes) {
     card.onclick = () => selectAcademicNote(note.filename);
 
     const title = cleanNoteDisplayTitle(note.title || note.topic, note.filename);
-    const dateStr = note.date || note.created_at || "Sin fecha";
+    const dateStr = formatNoteCardDate(note);
     const wordCount = note.word_count !== undefined ? note.word_count : 0;
     const excerpt = note.excerpt || "Sin extracto.";
 
@@ -282,7 +294,7 @@ async function selectAcademicNote(filename) {
   titleEl.textContent = cleanNoteDisplayTitle(note.title || note.topic, note.filename);
   const wordCount = note.word_count !== undefined ? note.word_count : 0;
   if (metaEl) {
-    metaEl.textContent = `${note.date || note.created_at || 'Sin fecha'} • ${wordCount.toLocaleString()} palabras • ${note.filename}`;
+    metaEl.textContent = `${formatNoteCardDate(note)} • ${wordCount.toLocaleString()} palabras • ${note.filename}`;
   }
 
   const docxFile = note.docx_filename || note.filename.replace(/\.md$/, ".docx");
