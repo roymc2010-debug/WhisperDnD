@@ -44,19 +44,28 @@ if sys.platform == "win32" and not os.environ.get("SHOW_CONSOLE"):
     except Exception:
         pass
 
-# Setup unified persistent file logging to outputs/server.log
+# Setup unified persistent rotating file logging to outputs/server.log
 import logging
+from logging.handlers import RotatingFileHandler
+
 log_dir = project_root / "outputs"
 log_dir.mkdir(parents=True, exist_ok=True)
 log_file = log_dir / "server.log"
 
+# Mantiene un tamaño máximo de 2 MB y solo los 2 respaldos más recientes (server.log.1, server.log.2)
+# Los logs antiguos de hace días, semanas o meses se eliminan solos automáticamente.
 logging.captureWarnings(True)
-file_handler = logging.FileHandler(str(log_file), encoding="utf-8", mode="a")
+file_handler = RotatingFileHandler(
+    str(log_file),
+    maxBytes=2 * 1024 * 1024,  # Máximo 2 MB por archivo
+    backupCount=2,             # Solo conserva los 2 respaldos más recientes
+    encoding="utf-8",
+)
 file_handler.setFormatter(logging.Formatter("%(asctime)s [%(levelname)s] %(name)s: %(message)s"))
 
 root_logger = logging.getLogger()
 root_logger.setLevel(logging.INFO)
-if not any(isinstance(h, logging.FileHandler) for h in root_logger.handlers):
+if not any(isinstance(h, RotatingFileHandler) for h in root_logger.handlers):
     root_logger.addHandler(file_handler)
 
 def _unhandled_exception_handler(exc_type, exc_value, exc_traceback):
