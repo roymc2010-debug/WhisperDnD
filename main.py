@@ -44,19 +44,40 @@ if sys.platform == "win32" and not os.environ.get("SHOW_CONSOLE"):
     except Exception:
         pass
 
+# Setup unified persistent file logging to outputs/server.log
+import logging
+log_dir = project_root / "outputs"
+log_dir.mkdir(parents=True, exist_ok=True)
+log_file = log_dir / "server.log"
+
+logging.captureWarnings(True)
+file_handler = logging.FileHandler(str(log_file), encoding="utf-8", mode="a")
+file_handler.setFormatter(logging.Formatter("%(asctime)s [%(levelname)s] %(name)s: %(message)s"))
+
+root_logger = logging.getLogger()
+root_logger.setLevel(logging.INFO)
+if not any(isinstance(h, logging.FileHandler) for h in root_logger.handlers):
+    root_logger.addHandler(file_handler)
+
+def _unhandled_exception_handler(exc_type, exc_value, exc_traceback):
+    if issubclass(exc_type, KeyboardInterrupt):
+        sys.__excepthook__(exc_type, exc_value, exc_traceback)
+        return
+    root_logger.critical("Excepción no capturada:", exc_info=(exc_type, exc_value, exc_traceback))
+
+sys.excepthook = _unhandled_exception_handler
+
 # Under pythonw.exe on Windows, sys.stdout and sys.stderr are None.
 # Uvicorn requires sys.stdout to have .isatty() or it raises AttributeError.
 if sys.stdout is None:
     try:
-        os.makedirs(str(project_root / "outputs"), exist_ok=True)
-        sys.stdout = open(str(project_root / "outputs" / "server.log"), "a", encoding="utf-8")
+        sys.stdout = open(str(log_file), "a", encoding="utf-8")
     except Exception:
         sys.stdout = open(os.devnull, "w", encoding="utf-8")
 
 if sys.stderr is None:
     try:
-        os.makedirs(str(project_root / "outputs"), exist_ok=True)
-        sys.stderr = open(str(project_root / "outputs" / "server.log"), "a", encoding="utf-8")
+        sys.stderr = open(str(log_file), "a", encoding="utf-8")
     except Exception:
         sys.stderr = open(os.devnull, "w", encoding="utf-8")
 
