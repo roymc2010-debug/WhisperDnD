@@ -34,8 +34,8 @@ if sys.platform == "win32" and venv_python.is_file() and not os.environ.get("WHI
         except Exception as _reexec_err:
             print(f"[Launcher] Warning: Could not auto-switch to venv: {_reexec_err}")
 
-# Optional: Auto-hide console window on Windows ONLY if explicitly requested via HIDE_CONSOLE=1
-if sys.platform == "win32" and os.environ.get("HIDE_CONSOLE") == "1":
+# Auto-hide console window on Windows if launched without SHOW_CONSOLE
+if sys.platform == "win32" and not os.environ.get("SHOW_CONSOLE"):
     try:
         import ctypes
         hwnd = ctypes.windll.kernel32.GetConsoleWindow()
