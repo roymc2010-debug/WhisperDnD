@@ -297,6 +297,9 @@ class GoogleDriveStorage:
         Retains the active flow instance so the PKCE code_verifier is preserved for the callback exchange.
         """
         global _active_oauth_flow, _active_oauth_flows
+        os.environ.setdefault("OAUTHLIB_INSECURE_TRANSPORT", "1")
+        os.environ.setdefault("OAUTHLIB_RELAX_TOKEN_SCOPE", "1")
+
         if not self.credentials_path.is_file():
             raise FileNotFoundError(
                 f"No se encontró el archivo de credenciales de Google OAuth en: {self.credentials_path}. "
@@ -330,6 +333,9 @@ class GoogleDriveStorage:
         Reuses the active flow instance to retain the PKCE code_verifier generated during get_authorization_url.
         """
         global _active_oauth_flow, _active_oauth_flows
+        os.environ.setdefault("OAUTHLIB_INSECURE_TRANSPORT", "1")
+        os.environ.setdefault("OAUTHLIB_RELAX_TOKEN_SCOPE", "1")
+
         if not self.credentials_path.is_file():
             raise FileNotFoundError(
                 f"No se encontró el archivo de credenciales de Google OAuth en: {self.credentials_path}."
@@ -349,6 +355,10 @@ class GoogleDriveStorage:
                 redirect_uri=active_redirect,
             )
 
+        # Ensure flow has a redirect_uri set; if already set during get_authorization_url, keep it exact
+        if not getattr(flow, "redirect_uri", None):
+            flow.redirect_uri = active_redirect
+
         flow.fetch_token(code=code)
         creds = flow.credentials
         creds_json = creds.to_json()
@@ -359,6 +369,13 @@ class GoogleDriveStorage:
             backup_file.write_text(creds_json, encoding="utf-8")
         except Exception:
             pass
+        # Also mirror to /app/token.json if running in container
+        container_token = Path("/app/token.json")
+        if container_token.parent.exists():
+            try:
+                container_token.write_text(creds_json, encoding="utf-8")
+            except Exception:
+                pass
         self._service = None
         _active_oauth_flow = None
         return creds

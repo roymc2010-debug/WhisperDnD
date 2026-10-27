@@ -24,6 +24,19 @@ function navigateToDownload(url) {
 }
 window.navigateToDownload = navigateToDownload;
 
+function getLocalFormattedDateTime(d = new Date()) {
+  const dateObj = (d instanceof Date) ? d : new Date(d);
+  if (isNaN(dateObj.getTime())) return "";
+  const pad = (n) => String(n).padStart(2, "0");
+  const day = pad(dateObj.getDate());
+  const month = pad(dateObj.getMonth() + 1);
+  const year = dateObj.getFullYear();
+  const hours = pad(dateObj.getHours());
+  const minutes = pad(dateObj.getMinutes());
+  return `${day}/${month}/${year} ${hours}:${minutes}`;
+}
+window.getLocalFormattedDateTime = getLocalFormattedDateTime;
+
 var youtubeAbortController = null;
 var isYoutubeTranscribing = false;
 var selectedLocalRecordingFilename = null;
@@ -394,6 +407,11 @@ function setWorkspace(workspace) {
     if (tabLiveBtnText) tabLiveBtnText.textContent = "Grabar Reunión / Clase";
     if (tabYoutubeBtnText) tabYoutubeBtnText.textContent = "Video / YouTube";
     if (tabFileBtnText) tabFileBtnText.textContent = "Subir Audio";
+
+    const dateInput = document.getElementById("workStudyDateInput");
+    if (dateInput && (!dateInput.value || !dateInput.value.trim())) {
+      dateInput.value = getLocalFormattedDateTime(new Date());
+    }
 
     setActiveView('ingest');
     setLiveMode("class");
@@ -1082,6 +1100,9 @@ async function transcribeYoutube() {
   const taskId = generateTaskId();
   const engineName = (engine === "groq") ? "Groq Whisper Large-v3" : "faster-whisper local";
 
+  const customDateInput = document.getElementById("workStudyDateInput");
+  const customDateVal = customDateInput ? customDateInput.value.trim() : "";
+
   let bodyPayload = {
     task_id: taskId,
     url: url,
@@ -1090,6 +1111,8 @@ async function transcribeYoutube() {
     workspace: currentWorkspace,
     recording_mode: isClass ? "class" : "roleplay",
     target_language: currentTargetLanguage,
+    custom_date: customDateVal || null,
+    client_timezone_offset: new Date().getTimezoneOffset(),
   };
 
   if (typeof updateStepperMode === "function") updateStepperMode(true);
@@ -1419,6 +1442,12 @@ async function loadLocalRecordingsList() {
     let html = '<div class="space-y-1.5 max-h-48 overflow-y-auto pr-1">';
     files.forEach((f, idx) => {
       const isLatest = idx === 0;
+      let displayDate = f.created_at;
+      if (f.timestamp) {
+        const ms = f.timestamp < 1e11 ? f.timestamp * 1000 : f.timestamp;
+        const formatted = getLocalFormattedDateTime(new Date(ms));
+        if (formatted) displayDate = formatted;
+      }
       html += `
         <div class="flex items-center justify-between p-2 rounded-xl bg-slate-900/80 hover:bg-slate-800/80 border border-slate-800 transition text-left cursor-pointer group"
              onclick="selectExistingRecording('${f.filename}', ${f.has_timeline ? 'true' : 'false'}, ${f.size_mb}, '${f.folder || 'data/input'}')">
@@ -1429,7 +1458,7 @@ async function loadLocalRecordingsList() {
               ${f.has_timeline ? '<span class="text-[9px] px-1.5 py-0.5 rounded bg-indigo-500/20 text-indigo-300 font-semibold border border-indigo-500/30">🎧 Con Timeline</span>' : ''}
             </div>
             <div class="text-[10px] text-slate-500 flex items-center gap-2 mt-0.5">
-              <span>📅 ${f.created_at}</span>
+              <span>📅 ${displayDate}</span>
               <span>💾 ${f.size_mb} MB</span>
               ${f.folder ? `<span class="text-indigo-400/80">📁 ${f.folder}</span>` : ''}
             </div>
@@ -1542,6 +1571,12 @@ async function transcribeFile() {
     formData.append("workspace", currentWorkspace);
     formData.append("recording_mode", isClass ? "class" : "roleplay");
     formData.append("target_language", currentTargetLanguage);
+    const customDateInput = document.getElementById("workStudyDateInput");
+    const customDateVal = customDateInput ? customDateInput.value.trim() : "";
+    if (customDateVal) {
+      formData.append("custom_date", customDateVal);
+    }
+    formData.append("client_timezone_offset", String(new Date().getTimezoneOffset()));
 
     if (isClass) {
       const topic = (document.getElementById("workStudyTopicInput") ? document.getElementById("workStudyTopicInput").value.trim() : "") ||
@@ -1668,10 +1703,10 @@ function displayResults(data, options = {}) {
     if (mdText) mdText.textContent = "Notas .md";
 
     if (data.docx_filename && btnDocx) {
-      btnDocx.onclick = () => window.location.href = `/api/record/download-docx?filename=${encodeURIComponent(data.docx_filename)}`;
+      btnDocx.onclick = () => navigateToDownload(`/api/record/download-docx?filename=${encodeURIComponent(data.docx_filename)}`);
     }
     if (data.md_filename && btnMd) {
-      btnMd.onclick = () => window.location.href = `/api/record/download-md?filename=${encodeURIComponent(data.md_filename)}`;
+      btnMd.onclick = () => navigateToDownload(`/api/record/download-md?filename=${encodeURIComponent(data.md_filename)}`);
     }
   } else {
     if (docxText) docxText.textContent = "Grimorio .docx";
@@ -1922,6 +1957,9 @@ function displayResults(data, options = {}) {
     resultsCard.scrollIntoView({ behavior: "smooth" });
   }
   if (typeof fetchApiQuota === "function") fetchApiQuota();
+  if (isClassMode && typeof loadAcademicNotesHistory === "function") {
+    loadAcademicNotesHistory(false);
+  }
 }
 
 function showResults(data) {
@@ -2528,6 +2566,8 @@ async function switchSummaryLanguage() {
       roster: isClass ? [] : (currentResult.roster || (typeof getRosterFromTable === "function" ? getRosterFromTable(true) : [])),
       subject: isClass ? (currentResult.subject || document.getElementById("lectureSubjectInput")?.value.trim() || "") : "",
       topic: isClass ? (currentResult.topic || document.getElementById("lectureTopicInput")?.value.trim() || "") : "",
+      custom_date: (document.getElementById("workStudyDateInput") ? document.getElementById("workStudyDateInput").value.trim() : "") || null,
+      client_timezone_offset: new Date().getTimezoneOffset(),
     };
 
     const res = await fetch("/api/summarize/switch-language", {
@@ -2608,6 +2648,8 @@ async function reprocessCampaignChronicle() {
       roster: isClass ? [] : (currentResult.roster || (typeof getRosterFromTable === "function" ? getRosterFromTable(true) : [])),
       subject: isClass ? (currentResult.subject || document.getElementById("lectureSubjectInput")?.value.trim() || "") : "",
       topic: isClass ? (currentResult.topic || document.getElementById("lectureTopicInput")?.value.trim() || "") : "",
+      custom_date: (document.getElementById("workStudyDateInput") ? document.getElementById("workStudyDateInput").value.trim() : "") || null,
+      client_timezone_offset: new Date().getTimezoneOffset(),
     };
 
     if (window.currentActiveAbortController) {
@@ -2839,6 +2881,15 @@ function closeDiscordBridgeModal() {
 // =========================================================================
 window.addEventListener("keydown", (e) => {
   if (e.key === "Escape" || e.key === "Esc") {
+    const errorCard = document.getElementById("errorCard");
+    if (errorCard && !errorCard.classList.contains("hidden")) {
+      if (typeof hideErrorCard === "function") {
+        hideErrorCard();
+      } else {
+        errorCard.classList.add("hidden");
+        errorCard.classList.remove("flex");
+      }
+    }
     const campaignModal = document.getElementById("campaignManagerModal");
     if (campaignModal && !campaignModal.classList.contains("hidden")) {
       toggleCampaignManagerModal(false);
@@ -2926,17 +2977,9 @@ window.addEventListener("click", (e) => {
 }, true);
 
 function triggerServerShutdownBeacon() {
-  if (_isPageNavigatingOrReloading) return;
-  if (typeof isMobileUser === "function" && isMobileUser()) return;
-  try {
-    if (navigator.sendBeacon) {
-      navigator.sendBeacon("/api/shutdown");
-    } else {
-      fetch("/api/shutdown", { method: "POST", keepalive: true }).catch(() => {});
-    }
-  } catch (err) {
-    console.warn("Shutdown beacon failed:", err);
-  }
+  // Deshabilitado por defecto para evitar que recargas de página, redirecciones OAuth
+  // o cierres de pestaña en otras computadoras maten el proceso del servidor web.
+  return;
 }
 
 window.addEventListener("beforeunload", (e) => {
@@ -2945,14 +2988,6 @@ window.addEventListener("beforeunload", (e) => {
     e.preventDefault();
     e.returnValue = "Hay una sesión grabándose actualmente. ¿Seguro que deseas salir?";
     return e.returnValue;
-  }
-  triggerServerShutdownBeacon();
-});
-
-window.addEventListener("pagehide", () => {
-  const isRecordingActive = !document.getElementById("btnStopRecording")?.disabled;
-  if (!isRecordingActive) {
-    triggerServerShutdownBeacon();
   }
 });
 
@@ -2981,7 +3016,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   const dateInput = document.getElementById("workStudyDateInput");
   if (dateInput && !dateInput.value) {
-    dateInput.value = new Date().toISOString().slice(0, 10);
+    dateInput.value = getLocalFormattedDateTime(new Date());
   }
 
   const topicInput = document.getElementById("workStudyTopicInput");

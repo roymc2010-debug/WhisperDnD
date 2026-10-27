@@ -175,9 +175,16 @@ async def keep_alive_ping():
 @app.post("/api/shutdown")
 @app.get("/api/shutdown")
 async def shutdown_server():
-    """Cleanly terminate the application server process upon client window close."""
+    """Cleanly handle shutdown requests without killing multi-user or cloud server instances."""
     if os.environ.get("WHISPER_ENV") in ("test", "testing") or os.environ.get("TESTING") == "1":
         return {"status": "shutdown_simulated", "message": "Test mode: shutdown not executed"}
+
+    # Never kill the server on cloud/container deployments or multi-computer sessions unless explicitly enabled
+    if os.environ.get("ALLOW_SERVER_SHUTDOWN") != "1":
+        return {
+            "status": "ignored",
+            "message": "El servidor permanece activo para soportar recargas de página y múltiples dispositivos.",
+        }
 
     def _delayed_exit():
         time.sleep(0.75)
@@ -333,6 +340,77 @@ def extract_academic_sections(chronicle_md: str) -> Tuple[List[str], str]:
     return action_items, key_points
 
 
+def parse_client_datetime(
+    custom_date: Optional[str] = None,
+    client_timezone_offset: Optional[Union[int, str]] = None,
+) -> Tuple[str, str, datetime.datetime]:
+    """
+    Parse client provided date/time string or calculate client local time using client_timezone_offset.
+    Returns:
+        now_str: "YYYYMMDD_HHMMSS" suitable for filenames
+        now_formatted: "DD/MM/YYYY HH:MM" suitable for displays, prompts and documents
+        effective_dt: datetime object representing local time
+    """
+    if custom_date and str(custom_date).strip():
+        raw = str(custom_date).strip()
+        # Pattern 1: DD/MM/YYYY [HH:MM[:SS]]
+        m = re.search(r"^(\d{1,2})[/.-](\d{1,2})[/.-](\d{4})(?:[T\s]+(\d{1,2}):(\d{1,2})(?::(\d{1,2}))?)?", raw)
+        if m:
+            d, mo, y, h, mi, s = m.groups()
+            local_fallback = None
+            if client_timezone_offset is not None:
+                try:
+                    local_fallback = datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(minutes=int(client_timezone_offset))
+                except Exception:
+                    pass
+            if local_fallback is None:
+                local_fallback = datetime.datetime.now()
+
+            hour = int(h) if h is not None else local_fallback.hour
+            minute = int(mi) if mi is not None else local_fallback.minute
+            sec = int(s) if s is not None else local_fallback.second
+            try:
+                dt = datetime.datetime(int(y), int(mo), int(d), hour, minute, sec)
+                return dt.strftime("%Y%m%d_%H%M%S"), dt.strftime("%d/%m/%Y %H:%M"), dt
+            except Exception:
+                pass
+
+        # Pattern 2: YYYY/MM/DD or YYYY-MM-DD [HH:MM[:SS]]
+        m2 = re.search(r"^(\d{4})[/.-](\d{1,2})[/.-](\d{1,2})(?:[T\s]+(\d{1,2}):(\d{1,2})(?::(\d{1,2}))?)?", raw)
+        if m2:
+            y, mo, d, h, mi, s = m2.groups()
+            local_fallback = None
+            if client_timezone_offset is not None:
+                try:
+                    local_fallback = datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(minutes=int(client_timezone_offset))
+                except Exception:
+                    pass
+            if local_fallback is None:
+                local_fallback = datetime.datetime.now()
+
+            hour = int(h) if h is not None else local_fallback.hour
+            minute = int(mi) if mi is not None else local_fallback.minute
+            sec = int(s) if s is not None else local_fallback.second
+            try:
+                dt = datetime.datetime(int(y), int(mo), int(d), hour, minute, sec)
+                return dt.strftime("%Y%m%d_%H%M%S"), dt.strftime("%d/%m/%Y %H:%M"), dt
+            except Exception:
+                pass
+
+    if client_timezone_offset is not None:
+        try:
+            offset_mins = int(client_timezone_offset)
+            utc_now = datetime.datetime.now(datetime.timezone.utc)
+            local_dt = utc_now - datetime.timedelta(minutes=offset_mins)
+            local_naive = local_dt.replace(tzinfo=None)
+            return local_naive.strftime("%Y%m%d_%H%M%S"), local_naive.strftime("%d/%m/%Y %H:%M"), local_naive
+        except Exception:
+            pass
+
+    now = datetime.datetime.now()
+    return now.strftime("%Y%m%d_%H%M%S"), now.strftime("%d/%m/%Y %H:%M"), now
+
+
 class DriveExportRequest(BaseModel):
     file_path: str = Field(..., description="Local path or filename of the file to upload to Google Drive")
 
@@ -348,6 +426,8 @@ class SaveAcademicNoteRequest(BaseModel):
     topic: Optional[str] = Field(default="Tema de Clase", description="Topic")
     content: str = Field(..., description="Markdown content of the note")
     transcript: Optional[str] = Field(default=None, description="Raw audio transcript")
+    custom_date: Optional[str] = Field(default=None, description="Custom date string")
+    client_timezone_offset: Optional[Union[int, str]] = Field(default=None, description="Client timezone offset in minutes")
 
 
 class DriveExportResponse(BaseModel):
@@ -435,6 +515,9 @@ def process_session_for_campaign(
     target_language: str = "es",
     is_youtube: bool = False,
     gemini_api_key: Optional[str] = None,
+    on_progress: Optional[Callable[[float, str], None]] = None,
+    custom_date: Optional[str] = None,
+    client_timezone_offset: Optional[Union[int, str]] = None,
 ) -> Dict[str, Any]:
     """
     Process a session transcript for a living campaign:
@@ -444,6 +527,12 @@ def process_session_for_campaign(
     4. Export the unified Living Campaign Journal into .docx and .md.
     """
     manager = CampaignManager()
+    state = manager.load_campaign(campaign_name)
+    if session_number is not None and any(str(s.get("session_number")) == str(session_number) for s in state.get("sessions", [])):
+        print(f"[process_session_for_campaign] Regrabación de Sesión #{session_number} detectada. Purgando datos previos...")
+        state = manager.purge_session_data(state, int(session_number))
+        manager.save_campaign(state)
+
     active_ctx = manager.get_active_context(campaign_name)
     actual_session_num = session_number or active_ctx["session_number"]
 
@@ -471,6 +560,14 @@ def process_session_for_campaign(
         if user_character is None:
             user_character = None  # Explicitly no user character — coaching disabled
 
+    if on_progress:
+        if is_youtube:
+            on_progress(70.0, "Extrayendo misiones (Quests) y PNJs con Gemini...")
+            on_progress(76.0, "Redactando Crónica Épica Novelesca del episodio con Gemini...")
+        else:
+            on_progress(55.0, "Extrayendo misiones (Quests) y PNJs con Gemini...")
+            on_progress(65.0, "Redactando Crónica Épica Novelesca con Gemini...")
+
     summarizer = GeminiTTRPGSummarizer(api_key=gemini_api_key)
     session_data = summarizer.generate_campaign_session(
         transcript_text=transcript_text,
@@ -485,6 +582,12 @@ def process_session_for_campaign(
         character_backstory=active_ctx.get("user_character_backstory", ""),
         last_session_recap=active_ctx.get("last_session_recap", ""),
     )
+
+    if on_progress:
+        if is_youtube:
+            on_progress(90.0, "Generando Sinopsis Ejecutiva y actualizando estado de campaña...")
+        else:
+            on_progress(87.0, "Generando Coaching del DM, Recap y línea de tiempo...")
 
     s_title = session_data.get("session_title") or session_data.get("session_chapter", {}).get("session_title") or session_data.get("session_chapter", {}).get("title")
     if s_title:
@@ -599,6 +702,10 @@ def process_session_for_campaign(
     chronicle_body = "\n\n".join(chronicle_parts) or ch.get("chronicle_text", "")
     chronicle_md = f"{protagonists_table}\n\n{chronicle_body}".strip() if protagonists_table else chronicle_body
 
+    now_str, now_formatted, _ = parse_client_datetime(custom_date, client_timezone_offset)
+    if "date" not in session_data.get("session_chapter", {}) or not session_data["session_chapter"]["date"]:
+        session_data.setdefault("session_chapter", {})["date"] = now_formatted.split(" ")[0]
+
     campaign_state = manager.record_session(
         name=campaign_name,
         session_chapter=session_data["session_chapter"],
@@ -617,8 +724,14 @@ def process_session_for_campaign(
         items=session_data.get("items"),
     )
 
+    if on_progress:
+        on_progress(95.0, "Compilando documentos Word (.docx) y Markdown (.md)...")
+
     docx_file = export_living_journal_docx(campaign_state)
     md_file = export_living_journal_md(campaign_state)
+
+    if on_progress:
+        on_progress(98.0, "Documentos Word (.docx) y Markdown (.md) generados...")
 
     # Save standalone plain-text transcript to data/output/
     safe_name = manager.sanitize_name(campaign_name)
@@ -748,26 +861,40 @@ def update_task_progress(
     status: Optional[str] = None,
     stage: Optional[str] = None,
 ) -> None:
-    """Update progress for a specific task ID."""
+    """Update progress for a specific task ID with strict monotonic non-decreasing guarantee."""
     if not task_id:
         return
     pct = round(max(0.0, min(100.0, float(percent))), 1)
+    prev_task = task_progress_state.get(task_id, {})
+    prev_pct = float(prev_task.get("percent", 0.0) or 0.0)
+    prev_status = prev_task.get("status")
+
+    # Never allow progress percentage to move backwards during an active run
+    if prev_status == "running" and pct > 0.0 and pct < prev_pct:
+        pct = prev_pct
+
     current_status = status or ("completed" if pct >= 100.0 else "running")
 
-    # Determine or preserve stage
-    prev_task = task_progress_state.get(task_id, {})
-    current_stage = stage or prev_task.get("stage")
-    if not current_stage:
-        if pct < 20.0:
-            current_stage = "audio"
-        elif pct < 30.0:
-            current_stage = "segmenting"
-        elif pct < 80.0:
-            current_stage = "transcribing"
-        elif pct < 100.0:
-            current_stage = "analyzing"
-        else:
-            current_stage = "done"
+    # Infer stage dynamically when not explicitly passed so it never gets stuck on an early stage
+    step_lower = f"{step} {message}".lower()
+    if stage:
+        current_stage = stage
+    elif pct >= 100.0:
+        current_stage = "done"
+    elif any(k in step_lower for k in ("gemini", "crónica", "cronica", "apuntes", "quests", "pnjs", "word", ".docx", "coaching", "sinopsis")):
+        current_stage = "analyzing"
+    elif any(k in step_lower for k in ("transcrib", "whisper", "groq", "fragmento", "micrófono", "microfono", "discord")):
+        current_stage = "transcribing"
+    elif any(k in step_lower for k in ("ffmpeg", "segment", "cortando", "bloque", "separando")):
+        current_stage = "segmenting"
+    elif pct >= 70.0:
+        current_stage = "analyzing"
+    elif pct >= 25.0:
+        current_stage = "transcribing"
+    elif pct >= 20.0:
+        current_stage = "segmenting"
+    else:
+        current_stage = prev_task.get("stage") or "audio"
 
     task_progress_state[task_id] = {
         "task_id": task_id,
@@ -1253,6 +1380,19 @@ from src.api.routers.drive import (
     discard_transcription_endpoint,
 )
 app.include_router(drive_router)
+
+
+@app.on_event("startup")
+async def startup_migrate_campaigns():
+    """Ensure all existing campaigns are migrated to modular storage format on server start."""
+    try:
+        cm = CampaignManager()
+        for c in cm.list_campaigns():
+            c_name = c.get("name") or c.get("campaign_name")
+            if c_name:
+                cm.load_campaign(c_name)
+    except Exception as exc:
+        print(f"[Startup] Notice checking campaign migrations: {exc}")
 
 
 

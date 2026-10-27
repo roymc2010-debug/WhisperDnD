@@ -1,0 +1,1632 @@
+<!DOCTYPE html>
+<html lang="es" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>WhisperDnD - Mockup del Sistema Completo (Nuevo Estilo Negro Puro)</title>
+  
+  <!-- Tailwind CSS: gstatic (compatible con CSP de Antigravity) + fallback para navegador externo -->
+  <script src="https://www.gstatic.com/antigravity/web/dev/tailwindcss.min.js"></script>
+  <script>if (!window.tailwind) { document.write('<script src="https://cdn.tailwindcss.com"><\/script>'); }</script>
+  
+  <!-- Google Fonts: Inter & JetBrains Mono -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700;800&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  
+  <style>
+    body {
+      background-color: #000000;
+      color: #EDEDED;
+      font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    }
+    .font-mono {
+      font-family: 'JetBrains Mono', monospace;
+    }
+    .font-fantasy {
+      font-family: 'Cinzel', serif;
+    }
+    .tabular-nums {
+      font-variant-numeric: tabular-nums;
+    }
+    /* Scrollbars minimalistas */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #000000;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #222222;
+      border-radius: 9999px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #333333;
+    }
+    /* Desactivar flechas numéricas */
+    input[type=number]::-webkit-inner-spin-button, 
+    input[type=number]::-webkit-outer-spin-button { 
+      -webkit-appearance: none; 
+      margin: 0; 
+    }
+  </style>
+</head>
+<body class="bg-black text-[#ededed] h-screen overflow-hidden flex flex-col md:flex-row antialiased selection:bg-[#262626] selection:text-white">
+
+  <!-- =================================================================== -->
+  <!-- BARRA LATERAL (SIDEBAR) - ESTILO NEGRO PURO & HARDWARE CRAFT        -->
+  <!-- =================================================================== -->
+  <aside class="w-full md:w-64 bg-black border-r border-[#1a1a1a] flex flex-col justify-between shrink-0 h-auto md:h-screen z-20 select-none">
+    
+    <!-- Parte Superior: Marca, Workspace & Navegación -->
+    <div class="p-4 space-y-5">
+      
+      <!-- Brand & Logo -->
+      <div class="flex items-center gap-3 px-1 py-1">
+        <div class="w-9 h-9 rounded-xl bg-[#0d0d0d] border border-[#222222] flex items-center justify-center text-amber-400 shrink-0 shadow-inner">
+          <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
+          </svg>
+        </div>
+        <div class="min-w-0">
+          <h1 class="text-xs font-bold text-white tracking-widest font-mono uppercase truncate">WHISPERDND</h1>
+          <p class="text-[10px] text-neutral-500 font-mono tracking-tight truncate">Diario Vivo de Campaña</p>
+        </div>
+      </div>
+
+      <!-- Selector de Workspace (D&D vs Work & Study) -->
+      <div class="p-1 rounded-xl bg-[#0a0a0a] border border-[#1f1f1f] flex items-center gap-1">
+        <button id="wsDndBtn" onclick="switchWorkspace('dnd')" type="button"
+          class="flex-1 py-1.5 px-2 rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 transition bg-[#161616] border border-[#2a2a2a] text-neutral-100 shadow-sm cursor-pointer">
+          <span>🛡️</span>
+          <span>D&D</span>
+        </button>
+        <button id="wsWorkBtn" onclick="switchWorkspace('work')" type="button"
+          class="flex-1 py-1.5 px-2 rounded-lg text-xs font-medium flex items-center justify-center gap-1.5 transition text-neutral-500 hover:text-neutral-300 border border-transparent cursor-pointer">
+          <span>💼</span>
+          <span>Work & Study</span>
+        </button>
+      </div>
+
+      <!-- Menú de Navegación Principal -->
+      <nav class="space-y-1.5 pt-1" aria-label="Navegación principal">
+        
+        <!-- Vista 1: Sesión & Grabación -->
+        <button id="navBtnSession" onclick="switchMainView('session')" type="button"
+          class="w-full text-left px-3 py-2.5 rounded-xl text-xs font-medium flex items-center gap-2.5 transition cursor-pointer bg-[#121212] border border-[#262626] text-white">
+          <svg class="w-4 h-4 text-amber-400 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/>
+            <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+            <line x1="12" x2="12" y1="19" y2="22"/>
+          </svg>
+          <span class="font-semibold">Sesión & Grabación</span>
+          <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 ml-auto animate-pulse"></span>
+        </button>
+
+        <!-- Vista 2: Wiki & Crónicas -->
+        <button id="navBtnWiki" onclick="switchMainView('wiki')" type="button"
+          class="w-full text-left px-3 py-2.5 rounded-xl text-xs font-medium flex items-center gap-2.5 transition cursor-pointer text-neutral-400 hover:text-neutral-200 hover:bg-[#0c0c0c] border border-transparent">
+          <svg class="w-4 h-4 text-neutral-500 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1-2.5-2.5Z"/>
+            <path d="M6 6h10"/>
+            <path d="M6 10h10"/>
+          </svg>
+          <span>Wiki & Crónicas</span>
+        </button>
+
+        <!-- Vista 3: Mi Personaje -->
+        <button id="navBtnCharacter" onclick="switchMainView('character')" type="button"
+          class="w-full text-left px-3 py-2.5 rounded-xl text-xs font-medium flex items-center gap-2.5 transition cursor-pointer text-neutral-400 hover:text-neutral-200 hover:bg-[#0c0c0c] border border-transparent">
+          <svg class="w-4 h-4 text-neutral-500 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="8" r="4"/>
+            <path d="M20 21a8 8 0 1 0-16 0"/>
+          </svg>
+          <span>Mi Personaje</span>
+        </button>
+      </nav>
+
+    </div>
+
+    <!-- Parte Inferior: Cuota de APIs & Ajustes -->
+    <div class="p-4 space-y-3 border-t border-[#1a1a1a]">
+      
+      <!-- Widget de Cuota de APIs -->
+      <div class="p-3 rounded-xl bg-[#090909] border border-[#1f1f1f] space-y-2">
+        <div class="flex items-center justify-between text-[11px] font-mono">
+          <span class="text-neutral-400 flex items-center gap-1.5">
+            <span class="w-2 h-2 rounded-full bg-emerald-400"></span>
+            <span>Cuota APIs:</span>
+          </span>
+          <span class="text-emerald-400 font-bold tabular-nums">100.0%</span>
+        </div>
+        
+        <div class="w-full bg-[#161616] rounded-full h-1.5 overflow-hidden">
+          <div class="h-full bg-emerald-500 rounded-full" style="width: 100%;"></div>
+        </div>
+
+        <div class="flex items-center justify-between text-[10px] text-neutral-500 font-mono">
+          <span>Gemini + Groq</span>
+          <span class="text-emerald-400 font-medium">Óptima</span>
+        </div>
+      </div>
+
+      <!-- Botón de Ajustes & APIs -->
+      <button onclick="switchMainView('settings')" type="button"
+        class="w-full py-2.5 px-3 rounded-xl bg-[#0d0d0d] hover:bg-[#161616] border border-[#222222] hover:border-[#333333] text-neutral-300 hover:text-white text-xs font-medium flex items-center justify-center gap-2 transition cursor-pointer active:scale-95">
+        <svg class="w-3.5 h-3.5 text-neutral-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 20h9"/>
+          <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/>
+        </svg>
+        <span>Ajustes & APIs</span>
+      </button>
+
+    </div>
+  </aside>
+
+  <!-- =================================================================== -->
+  <!-- ÁREA DE CONTENIDO PRINCIPAL                                         -->
+  <!-- =================================================================== -->
+  <main class="flex-1 flex flex-col h-screen overflow-y-auto bg-black p-4 sm:p-6 lg:p-8 space-y-6">
+
+    <!-- ================================================================= -->
+    <!-- VISTA PRINCIPAL: SESIÓN & GRABACIÓN                              -->
+    <!-- ================================================================= -->
+    <div id="viewSectionSession" class="max-w-6xl mx-auto w-full space-y-6">
+      
+      <!-- 1. HUB DE CAMPAÑA: DIARIO VIVO DE CAMPAÑA (GRIMORIO) -->
+      <section class="p-5 sm:p-6 rounded-2xl bg-[#080808] border border-[#222222] shadow-xl space-y-4">
+        
+        <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+          
+          <!-- Título & Identificador de Campaña -->
+          <div class="flex items-start sm:items-center gap-3">
+            <div class="w-10 h-10 rounded-xl bg-[#121212] border border-[#262626] flex items-center justify-center text-amber-400 shrink-0">
+              <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1-2.5-2.5Z"/>
+                <path d="M6 6h10"/>
+                <path d="M6 10h10"/>
+              </svg>
+            </div>
+            <div>
+              <div class="flex items-center gap-2 flex-wrap">
+                <h2 class="text-xs sm:text-sm font-bold text-neutral-100 font-mono uppercase tracking-wider">
+                  Diario Vivo de Campaña (Grimorio)
+                </h2>
+                <span class="px-2 py-0.5 rounded-md text-[10px] font-mono font-bold bg-[#141414] text-amber-400 border border-[#2a2a2a]">
+                  Nueva Campaña (Sesión #1)
+                </span>
+              </div>
+              <p class="text-[11px] text-neutral-400 font-sans mt-0.5">
+                Registro acumulativo: Quest Tracker, Directorio de PNJs y Capítulos históricos continuos.
+              </p>
+            </div>
+          </div>
+
+          <!-- Controles de Campaña: Nombre, Botones & Sesión -->
+          <div class="flex flex-wrap items-center gap-2.5">
+            
+            <!-- Selector de Campaña -->
+            <div class="flex items-center gap-1.5">
+              <label for="campaignInput" class="text-xs font-mono text-neutral-400">Campaña:</label>
+              <input type="text" id="campaignInput" value="Candlekeep 2.0"
+                class="bg-[#101010] hover:bg-[#141414] focus:bg-black border border-[#262626] focus:border-neutral-500 rounded-xl px-3 py-1.5 text-xs text-neutral-100 font-medium outline-none w-36 sm:w-44 transition">
+            </div>
+
+            <!-- Botón Mis Campañas -->
+            <button type="button" onclick="showToast('Abriendo gestor de campañas...', 'info', '📂')"
+              class="px-3 py-1.5 rounded-xl bg-[#121212] hover:bg-[#1c1c1c] border border-[#262626] text-xs font-medium text-neutral-300 hover:text-white flex items-center gap-1.5 transition cursor-pointer active:scale-95">
+              <svg class="w-3.5 h-3.5 text-neutral-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+              <span>Mis Campañas</span>
+            </button>
+
+            <!-- Botón Importar -->
+            <button type="button" onclick="showToast('Selecciona archivo ZIP/JSON para importar', 'info', '📥')"
+              class="px-3 py-1.5 rounded-xl bg-[#121212] hover:bg-[#1c1c1c] border border-[#262626] text-xs font-medium text-neutral-300 hover:text-white flex items-center gap-1.5 transition cursor-pointer active:scale-95">
+              <svg class="w-3.5 h-3.5 text-neutral-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+              <span>Importar</span>
+            </button>
+
+            <!-- Control de Sesión # -->
+            <div class="flex items-center gap-1.5 bg-[#101010] border border-[#262626] rounded-xl px-2.5 py-1">
+              <span class="text-xs font-mono text-neutral-400">Sesión #:</span>
+              <span class="text-xs font-mono font-bold text-white tabular-nums px-1.5">1</span>
+              <span class="px-1.5 py-0.2 rounded text-[9px] font-mono font-semibold bg-[#1a1a1a] text-neutral-400 border border-[#303030]">🔒 En Vivo</span>
+            </div>
+
+            <!-- Checkbox Regrabar -->
+            <label class="flex items-center gap-1.5 text-[11px] font-sans text-neutral-400 hover:text-neutral-200 cursor-pointer select-none">
+              <input type="checkbox" class="rounded bg-[#121212] border-[#2c2c2c] text-amber-500 focus:ring-0 w-3.5 h-3.5 cursor-pointer">
+              <span>Regrabar</span>
+            </label>
+
+            <!-- Indicador Google Drive -->
+            <div class="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-[#0d0d0d] border border-[#222222] text-[11px] font-mono text-neutral-400 select-none">
+              <span class="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
+              <span>⚠️ Sin conexión a Drive</span>
+            </div>
+
+          </div>
+
+        </div>
+
+        <!-- Acordeón Desplegable: Resumen de Sesiones Anteriores / Lore Previo -->
+        <details class="group border-t border-[#1c1c1c] pt-3">
+          <summary class="flex items-center justify-between cursor-pointer text-xs font-semibold text-neutral-400 hover:text-neutral-200 transition select-none list-none">
+            <div class="flex items-center gap-2">
+              <span class="text-amber-400">📜</span>
+              <span>Resumen de Sesiones Anteriores / Lore Previo (Opcional)</span>
+            </div>
+            <span class="text-xs text-neutral-500 group-open:rotate-180 transition-transform">▼</span>
+          </summary>
+          <div class="mt-3 space-y-2">
+            <textarea rows="3"
+              placeholder="Si tu campaña ya empezó antes de usar esta app, escribe aquí en 5 renglones qué pasó en las sesiones anteriores y qué NPCs o misiones ya conocen..."
+              class="w-full bg-[#0a0a0a] border border-[#222222] focus:border-neutral-500 rounded-xl p-3 text-xs text-neutral-200 placeholder-neutral-600 outline-none leading-relaxed resize-y transition font-sans"></textarea>
+            <div class="flex items-center justify-between text-[11px] text-neutral-500 font-mono">
+              <span>💡 Gemini mantendrá la continuidad histórica de tus quests y PNJs a partir de este lore.</span>
+              <button type="button" onclick="showToast('Lore de campaña guardado', 'success', '✓')"
+                class="px-3 py-1 rounded-lg bg-[#141414] hover:bg-[#202020] text-neutral-200 border border-[#2b2b2b] text-xs font-medium cursor-pointer">
+                Guardar Lore
+              </button>
+            </div>
+          </div>
+        </details>
+
+      </section>
+
+      <!-- 2. ROSTER DE LA MESA & VINCULACIÓN DISCORD -->
+      <section class="p-5 sm:p-6 rounded-2xl bg-[#080808] border border-[#222222] shadow-xl space-y-4">
+        
+        <!-- Header de la Tabla: Título & 3 Botones Principales -->
+        <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border-b border-[#1c1c1c] pb-3">
+          <div class="flex items-center gap-2">
+            <h3 class="text-xs font-bold text-neutral-200 font-mono uppercase tracking-wider flex items-center gap-2">
+              <span>ROSTER DE LA MESA & VINCULACIÓN DISCORD</span>
+            </h3>
+          </div>
+
+          <!-- Los 3 Botones Solicitados -->
+          <div class="flex flex-wrap items-center gap-2">
+            
+            <button type="button" onclick="refreshDiscord()"
+              class="px-3 py-1.5 rounded-xl bg-[#121212] hover:bg-[#1c1c1c] border border-[#262626] text-xs font-medium text-neutral-200 hover:text-white flex items-center gap-2 transition cursor-pointer active:scale-95 shadow-sm">
+              <svg class="w-3.5 h-3.5 text-neutral-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 18v-6a9 9 0 0 1 18 0v6"/><path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"/></svg>
+              <span>Refrescar Discord</span>
+            </button>
+
+            <button type="button" onclick="addPlayer()"
+              class="px-3 py-1.5 rounded-xl bg-[#121212] hover:bg-[#1c1c1c] border border-[#262626] text-xs font-medium text-neutral-200 hover:text-white flex items-center gap-1.5 transition cursor-pointer active:scale-95 shadow-sm">
+              <span class="text-sm leading-none font-bold">+</span>
+              <span>Agregar Jugador</span>
+            </button>
+
+            <button type="button" onclick="saveGroup()"
+              class="px-3 py-1.5 rounded-xl bg-[#161616] hover:bg-[#202020] border border-[#333333] text-xs font-semibold text-emerald-400 hover:text-emerald-300 flex items-center gap-2 transition cursor-pointer active:scale-95 shadow-sm">
+              <svg class="w-3.5 h-3.5 text-emerald-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+              <span>Guardar Grupo</span>
+            </button>
+
+          </div>
+        </div>
+
+        <!-- Tabla Roster: 6 Columnas con table-fixed (Sin barras de scroll horizontal) -->
+        <div class="border border-[#1f1f1f] rounded-xl overflow-hidden bg-black shadow-inner">
+          <table class="w-full text-left text-xs border-collapse table-fixed">
+            <thead>
+              <tr class="bg-[#0c0c0c] text-neutral-400 border-b border-[#222222] font-mono text-[11px] uppercase tracking-wider">
+                <th class="py-3 px-2 w-[5%] text-center" title="⭐ Marca cuál es tu personaje en esta campaña">Tú</th>
+                <th class="py-3 px-4 w-[24%]">Personaje & Discord</th>
+                <th class="py-3 px-4 w-[19%]">Especie</th>
+                <th class="py-3 px-4 w-[36%]">Clase & Subclase (D&D Beyond)</th>
+                <th class="py-3 px-2 w-[11%] text-center">Asistencia</th>
+                <th class="py-3 px-2 w-[5%] text-center">Borrar</th>
+              </tr>
+            </thead>
+            <tbody id="partyTableBody" class="divide-y divide-[#181818] text-neutral-200">
+              <!-- Renderizado dinámico vía JavaScript -->
+            </tbody>
+          </table>
+        </div>
+
+      </section>
+
+      <!-- 3. CONSOLA DE GRABACIÓN & TELEMETRÍA EN VIVO -->
+      <section class="rounded-2xl bg-[#080808] border border-[#222222] shadow-xl overflow-hidden">
+        
+        <!-- Header de Pestañas de Ingesta (Grabar en Vivo, YouTube, Archivo Local, Idioma) -->
+        <div class="flex flex-wrap items-center justify-between border-b border-[#1c1c1c] px-5 sm:px-7 pt-4 bg-[#0a0a0a]">
+          <nav class="flex gap-4 sm:gap-6" aria-label="Modos de captura">
+            <button id="tabLiveBtn" onclick="switchTab('live')" type="button"
+              class="pb-3 text-xs sm:text-sm font-semibold border-b-2 border-neutral-200 text-white flex items-center gap-2 cursor-pointer">
+              <span class="w-2 h-2 rounded-full bg-rose-500 animate-pulse"></span>
+              <span>Grabar en Vivo</span>
+            </button>
+            <button id="tabYoutubeBtn" onclick="switchTab('youtube')" type="button"
+              class="pb-3 text-xs sm:text-sm font-medium border-b-2 border-transparent text-neutral-400 hover:text-neutral-200 transition flex items-center gap-2 cursor-pointer">
+              <svg class="w-3.5 h-3.5 text-neutral-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+              <span>YouTube URL</span>
+            </button>
+            <button id="tabFileBtn" onclick="switchTab('file')" type="button"
+              class="pb-3 text-xs sm:text-sm font-medium border-b-2 border-transparent text-neutral-400 hover:text-neutral-200 transition flex items-center gap-2 cursor-pointer">
+              <svg class="w-3.5 h-3.5 text-neutral-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+              <span>Archivo Local</span>
+            </button>
+          </nav>
+
+          <!-- Selector de Idioma -->
+          <div class="flex items-center gap-2 pb-2">
+            <span class="text-[11px] font-mono text-neutral-500 hidden sm:inline">Idioma:</span>
+            <div class="inline-flex p-0.5 rounded-xl bg-black border border-[#222222]">
+              <button id="langEsBtn" onclick="setLang('es')" class="px-2.5 py-1 text-xs font-semibold rounded-lg bg-[#181818] text-white">🇪🇸 Español</button>
+              <button id="langEnBtn" onclick="setLang('en')" class="px-2.5 py-1 text-xs font-semibold rounded-lg text-neutral-500 hover:text-white">🇺🇸 English</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Contenedor del Deck de Grabación en Vivo -->
+        <div id="tabLiveContent" class="p-5 sm:p-7 space-y-6">
+
+          <!-- Configuración de Dispositivos de Audio Dual -->
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            
+            <!-- Canal 1: Micrófono (Tu Voz) -->
+            <div class="p-4 rounded-xl bg-black border border-[#222222] space-y-3 shadow-sm hover:border-[#333333] transition">
+              <div class="flex items-center justify-between">
+                <div class="flex items-center gap-2">
+                  <span class="w-2 h-2 rounded-full bg-sky-400"></span>
+                  <label for="micSelect" class="text-xs font-bold text-neutral-200 font-mono uppercase tracking-wide">
+                    Canal 1: Micrófono (Tu Voz)
+                  </label>
+                </div>
+                <span class="text-[10px] font-mono text-neutral-500 bg-[#141414] px-2 py-0.5 rounded border border-[#262626]">
+                  Canal Izquierdo
+                </span>
+              </div>
+              <select id="micSelect" class="w-full bg-[#101010] hover:bg-[#161616] focus:bg-black border border-[#262626] rounded-xl px-3 py-2 text-xs text-neutral-200 outline-none cursor-pointer transition">
+                <option value="default">Micrófono por Defecto del Sistema</option>
+                <option value="usb" selected>Micrófono USB High Definition Audio (Recomendado)</option>
+                <option value="realtek">Realtek(R) Audio - Micrófono Interno</option>
+              </select>
+              <div class="flex items-center justify-between text-[11px] text-neutral-500 font-mono pt-1">
+                <span>Ganancia Mic:</span>
+                <span class="text-neutral-300 font-semibold tabular-nums">+0.0 dB</span>
+              </div>
+            </div>
+
+            <!-- Canal 2: Audio de Discord / Audífonos -->
+            <div class="p-4 rounded-xl bg-black border border-[#222222] space-y-3 shadow-sm hover:border-[#333333] transition">
+              <div class="flex items-center justify-between">
+                <div class="flex items-center gap-2">
+                  <span class="w-2 h-2 rounded-full bg-amber-400"></span>
+                  <label for="speakerSelect" class="text-xs font-bold text-neutral-200 font-mono uppercase tracking-wide">
+                    Canal 2: Audio Discord / Audífonos
+                  </label>
+                </div>
+                <span class="text-[10px] font-mono text-neutral-500 bg-[#141414] px-2 py-0.5 rounded border border-[#262626]">
+                  Canal Derecho (Loopback)
+                </span>
+              </div>
+              <select id="speakerSelect" class="w-full bg-[#101010] hover:bg-[#161616] focus:bg-black border border-[#262626] rounded-xl px-3 py-2 text-xs text-neutral-200 outline-none cursor-pointer transition">
+                <option value="default">Dispositivo de Audio Predeterminado</option>
+                <option value="headphones" selected>Audífonos Stereo (Captura de Discord WASAPI)</option>
+                <option value="speakers">Altavoces Realtek(R) Audio</option>
+              </select>
+              <div class="flex items-center justify-between text-[11px] text-neutral-500 font-mono pt-1">
+                <span>Ganancia Discord:</span>
+                <span class="text-neutral-300 font-semibold tabular-nums">+0.0 dB</span>
+              </div>
+            </div>
+
+          </div>
+
+          <!-- Monitor de Señal & Medidores VU en Vivo -->
+          <div class="p-4 sm:p-5 rounded-2xl bg-black border border-[#222222] space-y-3.5 shadow-inner">
+            <div class="flex items-center justify-between text-xs pb-1 border-b border-[#1a1a1a]">
+              <div class="flex items-center gap-2">
+                <span id="meterDotIndicator" class="w-2 h-2 rounded-full bg-emerald-400"></span>
+                <span class="font-bold text-neutral-200 font-mono uppercase tracking-wider text-[11px]">
+                  Monitor de Señal en Tiempo Real
+                </span>
+              </div>
+              <div class="flex items-center gap-3">
+                <span class="text-[10px] font-mono text-neutral-500 select-none">
+                  -48 dB &bull; -24 dB &bull; -12 dB &bull; 0 dB
+                </span>
+              </div>
+            </div>
+
+            <!-- VU Meter Canal 1 (Micrófono) -->
+            <div class="space-y-1">
+              <div class="flex justify-between items-center text-[11px] font-mono">
+                <span class="text-neutral-300 flex items-center gap-1.5">
+                  <span class="text-sky-400 font-bold">L:</span>
+                  <span>Micrófono (Tu Voz)</span>
+                  <span id="vuMicBadge" class="text-[9px] px-1.5 py-0.2 rounded font-semibold border border-emerald-500/30 text-emerald-400 bg-emerald-500/10">Óptimo</span>
+                </span>
+                <span id="vuMicDbText" class="text-neutral-300 tabular-nums font-semibold">-18.4 dB</span>
+              </div>
+              <div class="w-full bg-[#111111] rounded-lg h-2.5 overflow-hidden border border-[#262626] flex p-0.5">
+                <div id="vuMicBar" class="h-full rounded transition-[width,background-color] duration-75" style="width: 52%; background-color: #10b981;"></div>
+              </div>
+            </div>
+
+            <!-- VU Meter Canal 2 (Discord / Audio) -->
+            <div class="space-y-1">
+              <div class="flex justify-between items-center text-[11px] font-mono">
+                <span class="text-neutral-300 flex items-center gap-1.5">
+                  <span class="text-amber-400 font-bold">R:</span>
+                  <span>Discord / Sistema (Llamada)</span>
+                  <span id="vuSpkBadge" class="text-[9px] px-1.5 py-0.2 rounded font-semibold border border-emerald-500/30 text-emerald-400 bg-emerald-500/10">Óptimo</span>
+                </span>
+                <span id="vuSpkDbText" class="text-neutral-300 tabular-nums font-semibold">-14.2 dB</span>
+              </div>
+              <div class="w-full bg-[#111111] rounded-lg h-2.5 overflow-hidden border border-[#262626] flex p-0.5">
+                <div id="vuSpkBar" class="h-full rounded transition-[width,background-color] duration-75" style="width: 58%; background-color: #10b981;"></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Estación de Control Central (Console Deck / Cronómetro & Botones Físicos) -->
+          <div class="p-6 sm:p-8 rounded-2xl bg-[#080808] border border-[#222222] text-center space-y-6 shadow-2xl relative overflow-hidden">
+            
+            <div class="space-y-2">
+              <div id="timerDisplay" class="text-6xl sm:text-7xl font-mono font-medium tracking-tight text-white tabular-nums select-none">
+                00:00:00
+              </div>
+              <div class="flex items-center justify-center gap-2">
+                <span id="deckStatusDot" class="w-2 h-2 rounded-full bg-neutral-600 transition-colors"></span>
+                <p id="deckStatusText" class="text-xs text-neutral-400 font-mono tracking-wide">
+                  Listo para iniciar la sesión
+                </p>
+              </div>
+            </div>
+
+            <!-- Botones Físicos de Hardware -->
+            <div class="flex flex-wrap items-center justify-center gap-4 pt-2">
+              
+              <!-- Botón GRABAR -->
+              <button id="btnMainRecord" onclick="toggleRecording()" type="button"
+                class="min-h-[52px] px-8 rounded-xl bg-white hover:bg-neutral-200 text-black font-bold text-sm tracking-wide shadow-xl flex items-center gap-3 transition cursor-pointer active:scale-95">
+                <span id="recordIconDot" class="w-3 h-3 rounded-full bg-rose-600"></span>
+                <span id="recordBtnText">Iniciar Grabación</span>
+              </button>
+
+              <!-- Botón PAUSAR -->
+              <button id="btnMainPause" onclick="togglePause()" disabled type="button"
+                class="min-h-[52px] px-6 rounded-xl bg-[#141414] border border-[#2a2a2a] text-neutral-500 font-semibold text-xs flex items-center gap-2 transition cursor-not-allowed opacity-50 active:scale-95">
+                <span id="pauseIconGraphic">⏸️</span>
+                <span id="pauseBtnText">Pausar</span>
+              </button>
+
+              <!-- Botón DETENER -->
+              <button id="btnMainStop" onclick="stopRecording()" disabled type="button"
+                class="min-h-[52px] px-6 rounded-xl bg-[#141414] border border-[#2a2a2a] text-neutral-500 font-semibold text-xs flex items-center gap-2 transition cursor-not-allowed opacity-50 active:scale-95">
+                <span>⏹️</span>
+                <span>Detener & Procesar</span>
+              </button>
+
+            </div>
+
+            <div class="pt-4 border-t border-[#1a1a1a] flex flex-wrap items-center justify-between text-[11px] font-mono text-neutral-500">
+              <span class="flex items-center gap-1.5">
+                <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                <span>Motor Whisper Local + Groq Dual Fallback</span>
+              </span>
+              <span>16 kHz PCM Stereo &bull; 192 kbps</span>
+            </div>
+
+          </div>
+
+        </div>
+
+      </section>
+
+    </div>
+
+    <!-- ================================================================= -->
+    <!-- VISTA SECUNDARIA 1: WIKI & CRÓNICAS (#viewSectionWiki)             -->
+    <!-- ================================================================= -->
+    <div id="viewSectionWiki" class="hidden max-w-6xl mx-auto w-full space-y-6">
+      
+      <div class="flex items-center justify-between border-b border-[#222222] pb-4">
+        <div>
+          <h2 class="text-base font-bold text-white font-fantasy tracking-wide">WIKI DE CAMPAÑA & HISTORIAL DE CRÓNICAS</h2>
+          <p class="text-xs text-neutral-400 font-mono mt-0.5">Base de conocimiento viva generada tras cada sesión por Gemini</p>
+        </div>
+        <button onclick="switchMainView('session')" class="px-3.5 py-1.5 rounded-xl bg-[#141414] hover:bg-[#1f1f1f] border border-[#2a2a2a] text-xs font-semibold text-neutral-300 hover:text-white cursor-pointer">
+          ← Volver a Sesión
+        </button>
+      </div>
+
+      <!-- Grid de 3 Tarjetas de la Wiki en Estilo Negro Puro -->
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-5">
+        
+        <!-- Tarjeta 1: Quest Tracker -->
+        <div class="p-5 rounded-2xl bg-[#080808] border border-[#222222] space-y-4">
+          <div class="flex items-center justify-between border-b border-[#1c1c1c] pb-3">
+            <span class="text-xs font-bold text-neutral-200 font-mono flex items-center gap-2">
+              <span>⚔️</span> Quest Tracker (Misiones)
+            </span>
+            <span class="text-[10px] font-mono px-2 py-0.5 rounded bg-[#141414] text-neutral-400 border border-[#282828]">3 Activas</span>
+          </div>
+          <div class="space-y-3">
+            <div class="p-3 rounded-xl bg-black border border-[#1f1f1f] space-y-1">
+              <div class="flex items-center justify-between text-xs font-semibold text-neutral-100">
+                <span>El Misterio de la Cripta</span>
+                <span class="text-[10px] text-amber-400 font-mono">En curso</span>
+              </div>
+              <p class="text-[11px] text-neutral-400">Encontrar el grimorio sellado en las catacumbas bajo Candlekeep.</p>
+            </div>
+            <div class="p-3 rounded-xl bg-black border border-[#1f1f1f] space-y-1">
+              <div class="flex items-center justify-between text-xs font-semibold text-neutral-100">
+                <span>Deuda con el Alquimista</span>
+                <span class="text-[10px] text-emerald-400 font-mono">Completada</span>
+              </div>
+              <p class="text-[11px] text-neutral-400">Recolectar 4 hongos luminiscentes del bosque sombrío.</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tarjeta 2: Directorio de PNJs -->
+        <div class="p-5 rounded-2xl bg-[#080808] border border-[#222222] space-y-4">
+          <div class="flex items-center justify-between border-b border-[#1c1c1c] pb-3">
+            <span class="text-xs font-bold text-neutral-200 font-mono flex items-center gap-2">
+              <span>👥</span> Directorio de PNJs
+            </span>
+            <span class="text-[10px] font-mono px-2 py-0.5 rounded bg-[#141414] text-neutral-400 border border-[#282828]">5 Conocidos</span>
+          </div>
+          <div class="space-y-3">
+            <div class="p-3 rounded-xl bg-black border border-[#1f1f1f] space-y-1">
+              <div class="flex items-center justify-between text-xs font-semibold text-neutral-100">
+                <span>Archimago Vaelin</span>
+                <span class="text-[10px] text-sky-400 font-mono">Aliado</span>
+              </div>
+              <p class="text-[11px] text-neutral-400">Bibliotecario mayor de Candlekeep. Conoce secretos arcanos.</p>
+            </div>
+            <div class="p-3 rounded-xl bg-black border border-[#1f1f1f] space-y-1">
+              <div class="flex items-center justify-between text-xs font-semibold text-neutral-100">
+                <span>Capitán Gorun</span>
+                <span class="text-[10px] text-neutral-400 font-mono">Neutral</span>
+              </div>
+              <p class="text-[11px] text-neutral-400">Comandante de la guardia costera. Estricto y desconfiado.</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tarjeta 3: Crónicas de Sesiones -->
+        <div class="p-5 rounded-2xl bg-[#080808] border border-[#222222] space-y-4">
+          <div class="flex items-center justify-between border-b border-[#1c1c1c] pb-3">
+            <span class="text-xs font-bold text-neutral-200 font-mono flex items-center gap-2">
+              <span>📖</span> Capítulos Históricos
+            </span>
+            <span class="text-[10px] font-mono px-2 py-0.5 rounded bg-[#141414] text-neutral-400 border border-[#282828]">Sesión 1</span>
+          </div>
+          <div class="p-3 rounded-xl bg-black border border-[#1f1f1f] space-y-2">
+            <div class="text-xs font-bold text-white font-fantasy">Capítulo 1: La Llegada a Candlekeep</div>
+            <p class="text-[11px] text-neutral-400 leading-relaxed font-sans">
+              Los aventureros se reunieron en la posada del Faro Ardiente tras el largo viaje desde Puerta de Baldur...
+            </p>
+            <div class="pt-2 flex items-center justify-between text-[10px] font-mono text-neutral-500 border-t border-[#1a1a1a]">
+              <span>18 de Octubre, 2026</span>
+              <span class="text-amber-400 cursor-pointer hover:underline">Leer Completa →</span>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+
+    <!-- ================================================================= -->
+    <!-- VISTA SECUNDARIA 2: MI PERSONAJE (#viewSectionCharacter)          -->
+    <!-- ================================================================= -->
+    <div id="viewSectionCharacter" class="hidden max-w-6xl mx-auto w-full space-y-6">
+      
+      <div class="flex items-center justify-between border-b border-[#222222] pb-4">
+        <div>
+          <h2 class="text-base font-bold text-white font-fantasy tracking-wide">DIARIO ÍNTIMO & REFLEXIÓN DEL PERSONAJE</h2>
+          <p class="text-xs text-neutral-400 font-mono mt-0.5">Pensamientos privados, desarrollo de arco personal y secretos</p>
+        </div>
+        <button onclick="switchMainView('session')" class="px-3.5 py-1.5 rounded-xl bg-[#141414] hover:bg-[#1f1f1f] border border-[#2a2a2a] text-xs font-semibold text-neutral-300 hover:text-white cursor-pointer">
+          ← Volver a Sesión
+        </button>
+      </div>
+
+      <div class="p-6 rounded-2xl bg-[#080808] border border-[#222222] space-y-6">
+        
+        <div class="flex items-center gap-4 border-b border-[#1c1c1c] pb-4">
+          <div class="w-14 h-14 rounded-2xl bg-black border border-[#262626] flex items-center justify-center text-amber-400 text-2xl font-bold font-fantasy">
+            MV
+          </div>
+          <div>
+            <div class="flex items-center gap-2">
+              <h3 class="text-lg font-bold text-white font-fantasy">Markus Veyl</h3>
+              <span class="px-2 py-0.5 rounded-md text-[10px] font-mono font-bold bg-[#141414] text-neutral-300 border border-[#2e2e2e]">Tu Personaje</span>
+            </div>
+            <p class="text-xs text-neutral-400 font-mono">Humano &bull; Guerrero (Battle Master) Nivel 3</p>
+          </div>
+        </div>
+
+        <div class="space-y-3">
+          <label class="block text-xs font-mono font-bold uppercase tracking-wider text-neutral-300">
+            Reflexión de Markus tras la última sesión:
+          </label>
+          <div class="p-4 rounded-xl bg-black border border-[#222222] text-xs text-neutral-300 leading-relaxed font-sans space-y-2">
+            <p>
+              "El grimorio encontrado en la cripta resonó con una vibración extraña cuando toqué su encuadernación. No se lo dije a los demás, pero creo que mi juramento de armas me ata de algún modo a esta orden caída..."
+            </p>
+            <div class="text-[10px] text-neutral-500 font-mono pt-2 border-t border-[#1a1a1a]">
+              Generado con IA en base a tus acciones habladas durante la sesión.
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+
+    <!-- ================================================================= -->
+    <!-- VISTA SECUNDARIA 3: AJUSTES & APIS (#viewSectionSettings)         -->
+    <!-- ================================================================= -->
+    <div id="viewSectionSettings" class="hidden max-w-6xl mx-auto w-full space-y-6">
+      
+      <div class="flex items-center justify-between border-b border-[#222222] pb-4">
+        <div>
+          <h2 class="text-base font-bold text-white font-mono uppercase tracking-wide">AJUSTES DEL SISTEMA & LLAVES DE API</h2>
+          <p class="text-xs text-neutral-400 font-mono mt-0.5">Configuración de transcripción, modelos Gemini y persistencia</p>
+        </div>
+        <button onclick="switchMainView('session')" class="px-3.5 py-1.5 rounded-xl bg-[#141414] hover:bg-[#1f1f1f] border border-[#2a2a2a] text-xs font-semibold text-neutral-300 hover:text-white cursor-pointer">
+          ← Volver a Sesión
+        </button>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+        
+        <div class="p-5 rounded-2xl bg-[#080808] border border-[#222222] space-y-4">
+          <h3 class="text-xs font-bold text-neutral-200 font-mono uppercase">Credenciales de IA</h3>
+          <div class="space-y-3 text-xs">
+            <div>
+              <label class="block text-neutral-400 font-mono mb-1">Google Gemini API Key:</label>
+              <input type="password" value="AIzaSyD-sample-gemini-key-placeholder"
+                class="w-full bg-black border border-[#262626] rounded-xl px-3 py-2 text-neutral-200 outline-none font-mono">
+            </div>
+            <div>
+              <label class="block text-neutral-400 font-mono mb-1">Groq API Key (Whisper Ultra Rápido):</label>
+              <input type="password" value="gsk_sample-groq-key-placeholder"
+                class="w-full bg-black border border-[#262626] rounded-xl px-3 py-2 text-neutral-200 outline-none font-mono">
+            </div>
+          </div>
+        </div>
+
+        <div class="p-5 rounded-2xl bg-[#080808] border border-[#222222] space-y-4">
+          <h3 class="text-xs font-bold text-neutral-200 font-mono uppercase">Preferencias de Grabación</h3>
+          <div class="space-y-3 text-xs font-mono text-neutral-400">
+            <div class="flex items-center justify-between p-3 rounded-xl bg-black border border-[#222222]">
+              <span>Formato de Captura:</span>
+              <span class="text-neutral-200 font-bold">16 kHz PCM Dual Stereo</span>
+            </div>
+            <div class="flex items-center justify-between p-3 rounded-xl bg-black border border-[#222222]">
+              <span>Reducción de Ruido:</span>
+              <span class="text-emerald-400 font-bold">Activo (Filtro Pasa-Altos 80Hz)</span>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+
+  </main>
+
+  <!-- =================================================================== -->
+  <!-- MODAL DE ESPECIES (COMPLETO 2024 + MOTM)                            -->
+  <!-- =================================================================== -->
+  <div id="speciesModal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-sm p-4">
+    <div class="bg-black border border-[#262626] rounded-2xl w-full max-w-2xl overflow-hidden shadow-2xl flex flex-col max-h-[85vh]">
+      
+      <div class="p-4 border-b border-[#222222] flex items-center justify-between bg-[#0a0a0a]">
+        <div class="flex items-center gap-2.5">
+          <span class="text-xl">🧬</span>
+          <div>
+            <h3 class="text-sm font-bold text-neutral-100 font-fantasy">Seleccionar Especie de D&D</h3>
+            <p class="text-[11px] text-neutral-400">Opciones oficiales organizadas en categorías lógicas</p>
+          </div>
+        </div>
+        <button onclick="closeSpeciesModal()" class="w-8 h-8 rounded-lg bg-[#141414] hover:bg-[#222222] text-neutral-400 hover:text-white flex items-center justify-center text-sm font-bold cursor-pointer">
+          ✕
+        </button>
+      </div>
+
+      <div class="p-3 bg-black border-b border-[#222222]">
+        <input type="text" id="speciesSearchInput" oninput="filterSpecies(this.value)" placeholder="Buscar especie (ej: 'Elfo', 'Dwarf', 'Dragonborn', 'Tabaxi')..."
+          class="w-full bg-[#0a0a0a] border border-[#2e2e2e] focus:border-neutral-400 rounded-xl px-3.5 py-2 text-xs text-neutral-200 outline-none placeholder-neutral-500 font-medium">
+      </div>
+
+      <div class="grid grid-cols-1 sm:grid-cols-12 flex-1 overflow-hidden min-h-[340px]">
+        <div id="speciesCategoryList" class="sm:col-span-5 bg-black border-r border-[#222222] p-2 space-y-1 overflow-y-auto"></div>
+        <div id="speciesItemsList" class="sm:col-span-7 bg-[#0a0a0a] p-3 space-y-1.5 overflow-y-auto"></div>
+      </div>
+
+      <div class="p-3.5 border-t border-[#222222] bg-black flex items-center justify-between">
+        <button type="button" onclick="selectCustomSpeciesPrompt()" class="px-3 py-1.5 rounded-xl bg-[#141414] hover:bg-[#202020] text-neutral-300 border border-[#2a2a2a] text-xs font-semibold cursor-pointer">
+          ✍️ Escribir Otra / Homebrew
+        </button>
+        <button onclick="closeSpeciesModal()" class="px-4 py-1.5 rounded-xl bg-[#1a1a1a] hover:bg-[#252525] text-neutral-300 text-xs font-semibold cursor-pointer">
+          Cerrar
+        </button>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- =================================================================== -->
+  <!-- MODAL DE CLASE & SUBCLASE (D&D BEYOND)                              -->
+  <!-- =================================================================== -->
+  <div id="classModal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-sm p-4">
+    <div class="bg-black border border-[#262626] rounded-2xl w-full max-w-2xl overflow-hidden shadow-2xl flex flex-col max-h-[85vh]">
+      
+      <div class="p-4 border-b border-[#222222] flex items-center justify-between bg-[#0a0a0a]">
+        <div class="flex items-center gap-2.5">
+          <span class="text-xl">⚔️</span>
+          <div>
+            <h3 id="classModalTitle" class="text-sm font-bold text-neutral-100 font-fantasy">Seleccionar Clase & Subclase</h3>
+            <p class="text-[11px] text-neutral-400">12 Clases Oficiales + Subclases canónicas D&D Beyond</p>
+          </div>
+        </div>
+        <button onclick="closeClassModal()" class="w-8 h-8 rounded-lg bg-[#141414] hover:bg-[#222222] text-neutral-400 hover:text-white flex items-center justify-center text-sm font-bold cursor-pointer">
+          ✕
+        </button>
+      </div>
+
+      <div class="grid grid-cols-1 sm:grid-cols-12 flex-1 overflow-hidden min-h-[340px]">
+        <div id="classCategoryList" class="sm:col-span-5 bg-black border-r border-[#222222] p-2 space-y-1 overflow-y-auto"></div>
+        <div id="classItemsList" class="sm:col-span-7 bg-[#0a0a0a] p-3 space-y-1.5 overflow-y-auto"></div>
+      </div>
+
+      <div class="p-3.5 border-t border-[#222222] bg-black flex items-center justify-end">
+        <button onclick="closeClassModal()" class="px-4 py-1.5 rounded-xl bg-[#1a1a1a] hover:bg-[#252525] text-neutral-300 text-xs font-semibold cursor-pointer">
+          Cerrar
+        </button>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Toast Notification Container -->
+  <div id="toastNotificationContainer" class="fixed bottom-5 right-5 z-50 flex flex-col gap-2 pointer-events-none"></div>
+
+  <!-- =================================================================== -->
+  <!-- JAVASCRIPT: LÓGICA DE DATOS, VISTAS, VU METER & RENDERIZADO          -->
+  <!-- =================================================================== -->
+  <script>
+    // Paleta de Colores Oficiales de D&D Beyond
+    const DND_BEYOND_COLORS = {
+      barbarian: '#E7623E',
+      bard: '#AB6DAC',
+      cleric: '#91A1B2',
+      druid: '#7A9958',
+      fighter: '#7F513E',
+      monk: '#51A5C5',
+      paladin: '#B59E54',
+      ranger: '#507F62',
+      rogue: '#555752',
+      sorcerer: '#992E2E',
+      warlock: '#7B469B',
+      wizard: '#2A50A1',
+      artificer: '#C56E32',
+      blood_hunter: '#801C1C',
+      mystic: '#4A6984',
+      pugilist: '#9C4124',
+      illrigger: '#5A1827',
+      sidekick: '#6B7280',
+      dm: '#D4AF37'
+    };
+
+    // Logos Vectoriales SVG
+    const CLASS_VECTOR_LOGOS = {
+      dm: `<svg viewBox="0 0 24 24" class="w-full h-full" fill="none" stroke="currentColor" stroke-width="1.8"><polygon points="12 2 2 8.5 2 15.5 12 22 22 15.5 22 8.5 12 2"/><line x1="12" y1="22" x2="12" y2="15.5"/><polyline points="22 8.5 12 15.5 2 8.5"/><polyline points="2 15.5 12 8.5 22 15.5"/><line x1="12" y1="2" x2="12" y2="8.5"/></svg>`,
+      fighter: `<svg viewBox="0 0 24 24" class="w-full h-full" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="14.5 17.5 3 6 3 3 6 3 17.5 14.5"/><line x1="13" x2="19" y1="19" y2="13"/><line x1="16" x2="20" y1="16" y2="20"/><line x1="19" x2="21" y1="21" y2="19"/></svg>`,
+      wizard: `<svg viewBox="0 0 24 24" class="w-full h-full" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1-2.5-2.5z"/><path d="M6 6h10"/><path d="M6 10h10"/><path d="M10 14h6"/><circle cx="13" cy="10" r="1.5" fill="currentColor"/></svg>`,
+      monk: `<svg viewBox="0 0 24 24" class="w-full h-full" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 3a9 9 0 0 1 0 18 4.5 4.5 0 0 1 0-9 4.5 4.5 0 0 0 0-9z"/><circle cx="12" cy="7.5" r="1.5" fill="currentColor"/><circle cx="12" cy="16.5" r="1.5" fill="currentColor"/></svg>`,
+      rogue: `<svg viewBox="0 0 24 24" class="w-full h-full" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m14 12-8.5 8.5a2.12 2.12 0 1 1-3-3L11 9"/><path d="M15 13 9 7l3-3 8 2-2 8-3-1z"/></svg>`,
+      bard: `<svg viewBox="0 0 24 24" class="w-full h-full" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>`,
+      cleric: `<svg viewBox="0 0 330.7 320.04" class="w-full h-full" fill="currentColor"><g><path d="M293.5,186.58l-12.46,2.41c2.51-1.93,5.09-2.96,7.81-4.34,13.32-6.78,26.53-14.36,34.4-27.48,4.64-7.75,7.12-16.3,7.45-25.54-1.86,1.03-2.81,2.62-4.19,3.96l-11.74,11.39c-8.29,6.75-17.42,12-27.15,16.34-1.53.68-2.71,1.58-4.52,1.74l14.53-11.76c13.85-12.45,24.34-26.72,26.74-45.67.97-7.63.62-15.14-1.7-22.44-.22-.68-2.1.16-2.12.9-9.36,22.83-21.84,42.67-42.77,56.69,16.49-19.44,28.67-39.86,29.53-65.74.38-11.55-2.11-26.53-9.67-35.16-.37-.43-2.23-.89-2.27,0-.59,12.77-3.06,25.08-7.32,37.2-5.61,15.97-13.64,30.83-24.46,43.93,3.35,6.9,2.68,17.04-.11,24.02l-3.35,8.38,7.31-5.46c.93-.7,2.25-1.77,3.46-1.64,1.12.12,1.76,1.74,1.94,2.78.96,5.63-.08,11.22-2.58,16.35l-5.08,8.64c3.4-1.77,7.94-4.5,10.41-2.47.22,6.77-1.89,13.33-6.05,18.6l-6.08,5.98c3.94-1.06,9.78-2.16,9.43.31-.92,6.4-4.28,12.31-9.53,16.08l-4.69,2.73,5.95,2.23c2.03.76-3.62,8.88-11.64,11.93l-5.53,2.1,4.52,2.63c.64.37.28,1.49-.12,1.95-2.28,2.61-5.15,4.15-8.4,5.25-6.47,2.18-13.25,1.23-18.85-2.72,7.59,1.4,15.78,2.06,21.17-3.3l-4.15-2.39c-2.86-1.65-5.94-2.7-8.59-4.94,7.3.99,14.15.15,20.3-3.31,2.04-1.15,3.8-2.48,5.1-4.43l-7.41-1.52c-3.59-.73-7.16-1.06-10.46-2.49,11.25-1.54,22.44-5.3,26.17-16.49l-13.76,1.46-8.29.56,9.56-4.81c7.42-3.73,14.86-11.27,15.16-20.13l-23.76,8.42c8.3-6.32,16.76-12.24,20.4-22.07,1.29-3.48,2.11-7.01,1.62-10.79-9.03,7.07-18.21,13.07-28.45,18.37l7.93-8.47c9.41-9.66,15.69-22.27,13.36-36.22l-13.91,14.59-14.56,12.94c-11.63,10.73-16.88,26.02-14.29,41.57,2.43,14.6,0,27.41-11.61,37.06-4.46,3.71-9.09,6.37-14.23,9.44-13.93,8.34-19.77,24.86-11.63,39.84,1.4-7.53,4.57-13.94,10.63-18.2,11.66-8.19,21.9-.36,34.59,1.03l-7.51-5.74c-1.52-1.16-3.04-2.14-4.27-3.69,4.73.6,8.84,2.09,13.1,3.72,6.48,2.48,14.33,4.96,20.83,2.9.61-.19.88-.88.88-1.32,0-.68-.56-.76-1.13-1.1-4.73-2.85-9.02-6.32-12.7-10.62l11.87,3.32c7.45,2.08,15.22,1.73,22.31-1.33.52-.23.76-.86.83-1.2.05-.28-.06-.94-.57-1.05-6.37-1.41-12.42-4.48-16.99-9.23.25-.81,1.12-.87,1.83-.86l15.4.27c4.28.07,8.39-.67,12.46-1.89,2.72-.81,4.94-2.03,7.29-3.66.57-.4,1.21-2.26.16-2.38-5.68-.61-11.11-1.73-16.38-3.99-1.81-.78-3.68-1.15-5.2-2.53l10.93-1.17c11.6-1.25,23.97-6.03,29.64-17.03-5.05,1.61-9.73,2.66-14.81,2.79-5.88.14-11.5.09-17.61-1.01l15.96-4.96c14.02-5.27,27.62-14,32.57-28.65.29-.85.65-1.65-.03-2.64-9.43,6.53-19.68,11.06-30.86,13.22ZM112.99,158.39c0-24.25,19.66-43.92,43.92-43.92s43.92,19.66,43.92,43.92-19.66,43.92-43.92,43.92-43.92-19.66-43.92-43.92Z"/><circle cx="156.91" cy="158.4" r="36.23" transform="translate(-49.48 242.75) rotate(-67.5)"/></g></svg>`,
+      paladin: `<svg viewBox="0 0 24 24" class="w-full h-full" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>`,
+      barbarian: `<svg viewBox="0 0 24 24" class="w-full h-full" fill="none" stroke="currentColor" stroke-width="2"><path d="m14 12-8.5 8.5a2.12 2.12 0 1 1-3-3L11 9"/><path d="M15 13 9 7l3-3 8 2-2 8-3-1z"/></svg>`,
+      druid: `<svg viewBox="0 0 24 24" class="w-full h-full" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10Z"/><path d="M2 21c0-3 1.85-5.36 5.08-6C9.5 14.52 12 13 13 12"/></svg>`,
+      ranger: `<svg viewBox="0 0 24 24" class="w-full h-full" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 3c3 3 3 8 0 11l-3 3-8-8 3-3c3-3 8-3 11 0z"/><path d="m8 14-5 5"/><path d="m7 21 2-2"/></svg>`,
+      sorcerer: `<svg viewBox="0 0 24 24" class="w-full h-full" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>`,
+      warlock: `<svg viewBox="0 0 24 24" class="w-full h-full" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="m4.93 4.93 4.24 4.24"/><path d="m14.83 9.17 4.24-4.24"/><path d="m14.83 14.83 4.24 4.24"/><path d="m9.17 14.83-4.24 4.24"/></svg>`,
+      artificer: `<svg viewBox="0 0 24 24" class="w-full h-full" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v4"/><path d="M12 18v4"/><path d="M2 12h4"/><path d="M18 12h4"/><circle cx="12" cy="12" r="3"/></svg>`,
+      blood_hunter: `<svg viewBox="0 0 24 24" class="w-full h-full" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v14"/><path d="M8 6h8"/><path d="M12 22s-4-3-4-6a4 4 0 0 1 8 0c0 3-4 6-4 6z" fill="currentColor"/></svg>`,
+      mystic: `<svg viewBox="0 0 24 24" class="w-full h-full" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3" fill="currentColor" fill-opacity="0.25"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>`,
+      pugilist: `<svg viewBox="0 0 24 24" class="w-full h-full" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 11V6a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v0"/><path d="M14 10V4a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v2"/><path d="M10 10.5V6a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v8"/><path d="M18 8a2 2 0 1 1 4 0v6a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-5.99-2.34l-3.6-3.6a2 2 0 0 1 2.83-2.82L7 15"/></svg>`,
+      illrigger: `<svg viewBox="0 0 24 24" class="w-full h-full" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22V2M8 5h8M7 9h10"/><path d="M5 4c0 4 2 8 7 10 5-2 7-6 7-10"/><path d="M3 2c1 5 4 9 9 11 5-2 8-6 9-11"/></svg>`,
+      sidekick: `<svg viewBox="0 0 24 24" class="w-full h-full" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></svg>`
+    };
+
+    function getClassVectorLogo(classId) {
+      return CLASS_VECTOR_LOGOS[classId] || CLASS_VECTOR_LOGOS.fighter;
+    }
+
+    // Pool de Miembros de Discord
+    const DISCORD_MEMBERS_POOL = [
+      { discord: '@Beta', player: 'Beta' },
+      { discord: '@Roy', player: 'Roy' },
+      { discord: '@Drowser45', player: 'Drowser45' },
+      { discord: '@IDarkLink', player: 'IDarkLink' },
+      { discord: '@Acher08', player: 'Acher08' },
+      { discord: '@mooniumxb', player: 'Moonium' },
+      { discord: '@Aldo_G', player: 'Aldo' },
+      { discord: '@Valerie99', player: 'Valerie' },
+      { discord: '@CarlosDM', player: 'Carlos' }
+    ];
+
+    // Datos del Roster
+    let mockParty = [
+      {
+        id: 0,
+        isDM: true,
+        player: 'Beta',
+        char: 'Dungeon Master',
+        discord: '@Beta',
+        speciesText: '(N/A - DM)',
+        isUserChar: false,
+        primaryClass: { classId: 'dm', customText: 'Dungeon Master (DM)' },
+        secondaryClass: { active: false },
+        isAbsent: false
+      },
+      {
+        id: 1,
+        isDM: false,
+        player: 'Roy',
+        char: 'Markus Veyl',
+        discord: '@Roy',
+        speciesText: 'Humano',
+        isUserChar: true,
+        primaryClass: { classId: 'fighter', subclassId: 'bm', customText: 'Guerrero (Battle Master)' },
+        secondaryClass: { active: false },
+        isAbsent: false
+      },
+      {
+        id: 2,
+        isDM: false,
+        player: 'Drowser45',
+        char: 'Minipeko',
+        discord: '@Drowser45',
+        speciesText: 'Kenku',
+        isUserChar: false,
+        primaryClass: { classId: 'wizard', subclassId: 'scribes', customText: 'Mago (Order of Scribes)' },
+        secondaryClass: { active: false },
+        isAbsent: false
+      },
+      {
+        id: 3,
+        isDM: false,
+        player: 'IDarkLink',
+        char: 'Atou Shadowgrace',
+        discord: '@IDarkLink',
+        speciesText: 'Elfo de los Bosques',
+        isUserChar: false,
+        primaryClass: { classId: 'monk', subclassId: 'shadow', customText: 'Monje (Warrior of Shadow)' },
+        secondaryClass: { active: false },
+        isAbsent: false
+      },
+      {
+        id: 4,
+        isDM: false,
+        player: 'Acher08',
+        char: 'Selen',
+        discord: '@Acher08',
+        speciesText: 'Cambiante (Shifter)',
+        isUserChar: false,
+        primaryClass: { classId: 'rogue', subclassId: 'phantom', customText: 'Pícaro (Phantom)' },
+        secondaryClass: { active: true, classId: 'fighter', customText: 'Guerrero (Champion)' },
+        isAbsent: false
+      },
+      {
+        id: 5,
+        isDM: false,
+        player: 'mooniumxb',
+        char: 'Velith',
+        discord: '@mooniumxb',
+        speciesText: 'Tiefling Infernal',
+        isUserChar: false,
+        primaryClass: { classId: 'bard', subclassId: 'lore', customText: 'Bardo (College of Lore)' },
+        secondaryClass: { active: true, classId: 'sorcerer', customText: 'Hechicero (Wild Magic)' },
+        isAbsent: false
+      },
+      {
+        id: 6,
+        isDM: false,
+        player: 'Elandor',
+        char: 'Hermana Alyssa',
+        discord: '@Elandor',
+        speciesText: 'Aasimar',
+        isUserChar: false,
+        primaryClass: { classId: 'cleric', subclassId: 'life', customText: 'Clérigo (Dominio de la Vida)' },
+        secondaryClass: { active: false },
+        isAbsent: false
+      }
+    ];
+
+    // =======================================================================
+    // RENDERIZADO DE LA TABLA (FONDO NEGRO NEUTRO #000000 & ESTRELLA SIN CUADRADO)
+    // =======================================================================
+    function renderTable() {
+      const tbody = document.getElementById('partyTableBody');
+      if (!tbody) return;
+
+      tbody.innerHTML = mockParty.map(p => {
+        const takenDiscords = new Set(
+          mockParty.filter(m => m.id !== p.id && m.discord).map(m => m.discord)
+        );
+        const availableDiscords = DISCORD_MEMBERS_POOL.filter(u => !takenDiscords.has(u.discord));
+
+        // FILA DUNGEON MASTER
+        if (p.isDM) {
+          const dmColor = DND_BEYOND_COLORS.dm;
+          return `
+            <tr class="bg-[#0a0a0a] border-b border-[#1f1f1f] hover:bg-[#121212] transition">
+              <!-- Corona DM: Flotante libre (sin caja cuadrada) -->
+              <td class="py-3 px-2 text-center align-middle">
+                <div class="flex items-center justify-center mx-auto select-none" title="Dungeon Master">
+                  <svg class="w-5 h-5 text-neutral-500" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24">
+                    <path d="M2 4l3 12h14l3-12-6 7-4-7-4 7-6-7zm3 16h14v2H5v-2z"/>
+                  </svg>
+                </div>
+              </td>
+
+              <!-- Personaje & Discord -->
+              <td class="py-3 px-4 align-middle">
+                <div class="space-y-1">
+                  <div class="text-sm font-bold text-neutral-100 font-fantasy">
+                    <input type="text" value="${escapeHtml(p.char)}" oninput="updateCharName(${p.id}, this.value)"
+                      class="bg-transparent hover:bg-[#141414] focus:bg-black border border-transparent hover:border-[#2a2a2a] focus:border-neutral-500 rounded-md px-1.5 py-0.5 text-sm font-bold text-neutral-100 outline-none w-full transition truncate font-fantasy tracking-wide">
+                  </div>
+                  <div class="flex items-center gap-1.5 whitespace-nowrap min-w-0">
+                    <select onchange="handleDiscordSelect(${p.id}, this.value)" class="bg-[#111111] hover:bg-[#1a1a1a] focus:bg-black border border-[#2a2a2a] text-neutral-200 font-mono text-xs rounded-lg px-2 py-0.5 outline-none cursor-pointer transition shrink-0">
+                      <option value="" ${!p.discord ? 'selected' : ''}>Discord User</option>
+                      ${availableDiscords.map(u => `<option value="${escapeHtml(u.discord)}" ${u.discord === p.discord ? 'selected' : ''}>${escapeHtml(u.discord)} (${escapeHtml(u.player)})</option>`).join('')}
+                    </select>
+                    ${p.player ? `<span class="text-neutral-500 text-[11px] select-none">(<span class="text-neutral-300">${escapeHtml(p.player)}</span>)</span>` : ''}
+                  </div>
+                </div>
+              </td>
+
+              <!-- Especie DM -->
+              <td class="py-3 px-4 align-middle">
+                <div class="text-xs text-neutral-500 font-mono bg-black px-3 py-2 rounded-xl border border-[#222222] text-center select-none">—</div>
+              </td>
+
+              <!-- Clase DM -->
+              <td class="py-3 px-4 align-middle">
+                <div class="flex items-center gap-3">
+                  <div class="w-10 h-10 flex items-center justify-center shrink-0 select-none" style="color: ${dmColor};">
+                    ${getClassVectorLogo('dm')}
+                  </div>
+                  <div class="flex-1 min-w-0">
+                    <div class="px-3 py-1.5 rounded-xl bg-black border border-[#262626] text-neutral-100 font-bold text-xs shadow-sm">
+                      Dungeon Master (DM)
+                    </div>
+                  </div>
+                </div>
+              </td>
+
+              <!-- Asistencia DM -->
+              <td class="py-3 px-2 text-center align-middle">
+                <div class="w-full max-w-[95px] mx-auto px-2.5 py-1.5 rounded-xl bg-black border border-[#262626] flex items-center justify-center gap-2 select-none">
+                  <span class="w-2 h-2 rounded-full bg-emerald-400"></span>
+                  <span class="text-xs font-semibold text-neutral-300">Presente</span>
+                </div>
+              </td>
+
+              <!-- Borrar DM -->
+              <td class="py-3 px-2 text-center align-middle">
+                <span class="text-neutral-700 text-xs select-none">—</span>
+              </td>
+            </tr>
+          `;
+        }
+
+        // FILA DE JUGADORES NORMALES
+        const pColor = DND_BEYOND_COLORS[p.primaryClass.classId] || '#EDEDED';
+        const sActive = p.secondaryClass && p.secondaryClass.active;
+        const sColor = sActive ? (DND_BEYOND_COLORS[p.secondaryClass.classId] || '#EDEDED') : '';
+        const rowHighlight = p.isUserChar ? 'bg-[#0f0f0f] border-l-2 border-l-neutral-200' : 'hover:bg-[#0c0c0c]';
+        const rowDim = p.isAbsent ? 'opacity-40 grayscale-[40%]' : '';
+
+        return `
+          <tr class="${rowHighlight} ${rowDim} border-b border-[#1f1f1f] transition duration-150">
+            
+            <!-- Marca de Tu Personaje: ESTRELLA FLOTANTE LIBRE (SIN CUADRADO, MÁS GRANDE) -->
+            <td class="py-3 px-2 text-center align-middle">
+              <button type="button" onclick="toggleUserChar(${p.id})"
+                class="p-1 transition duration-150 flex items-center justify-center mx-auto active:scale-90 cursor-pointer ${p.isUserChar ? 'text-amber-400 drop-shadow-[0_0_8px_rgba(245,158,11,0.5)]' : 'text-neutral-600 hover:text-amber-400/80'}"
+                title="${p.isUserChar ? 'Tu personaje en esta campaña (clic para desmarcar)' : 'Clic para marcar como tu personaje'}">
+                <svg class="w-5 h-5 transition-transform" fill="${p.isUserChar ? 'currentColor' : 'none'}" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24">
+                  <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
+                </svg>
+              </button>
+            </td>
+
+            <!-- Personaje & Discord (1 solo renglón por defecto, sin audífonos) -->
+            <td class="py-3 px-4 align-middle">
+              <div class="space-y-1">
+                <div class="flex items-center gap-1.5">
+                  <input type="text" value="${escapeHtml(p.char)}" oninput="updateCharName(${p.id}, this.value)"
+                    placeholder="Nombre del personaje..."
+                    class="bg-transparent hover:bg-[#141414] focus:bg-black border border-transparent hover:border-[#2a2a2a] focus:border-neutral-500 rounded-md px-1.5 py-0.5 text-sm font-bold text-neutral-100 outline-none w-full transition truncate">
+                  ${p.isUserChar ? '<span class="text-[9px] font-mono font-bold text-neutral-300 bg-[#1e1e1e] px-1.5 py-0.5 rounded-full border border-[#333333] shrink-0 select-none">Tú</span>' : ''}
+                </div>
+                <div class="flex items-center gap-1.5 whitespace-nowrap min-w-0">
+                  <select onchange="handleDiscordSelect(${p.id}, this.value)" class="bg-[#111111] hover:bg-[#1a1a1a] focus:bg-black border border-[#2a2a2a] text-neutral-200 font-mono text-xs rounded-lg px-2 py-0.5 outline-none cursor-pointer transition shrink-0">
+                    <option value="" ${!p.discord ? 'selected' : ''}>Discord User</option>
+                    ${p.discord && !availableDiscords.some(u => u.discord === p.discord) ? `<option value="${escapeHtml(p.discord)}" selected>${escapeHtml(p.discord)}</option>` : ''}
+                    ${availableDiscords.map(u => `<option value="${escapeHtml(u.discord)}" ${u.discord === p.discord ? 'selected' : ''}>${escapeHtml(u.discord)} (${escapeHtml(u.player)})</option>`).join('')}
+                  </select>
+                  ${p.player ? `<span class="text-neutral-500 text-[11px] select-none">(<span class="text-neutral-300">${escapeHtml(p.player)}</span>)</span>` : ''}
+                </div>
+              </div>
+            </td>
+
+            <!-- Especie / Raza -->
+            <td class="py-3 px-4 align-middle">
+              <button type="button" onclick="openSpeciesModal(${p.id})"
+                class="w-full text-left px-3 py-2 rounded-xl bg-black border border-[#222222] hover:border-[#383838] transition flex items-center justify-between text-xs text-neutral-200 hover:text-white cursor-pointer shadow-sm group">
+                <span class="truncate font-medium">${escapeHtml(p.speciesText)}</span>
+                <span class="text-neutral-500 group-hover:text-neutral-300 text-[11px] ml-1">🧬</span>
+              </button>
+            </td>
+
+            <!-- Clases & Subclases (D&D Beyond Logos Flotantes) -->
+            <td class="py-3 px-4 align-middle">
+              <div class="space-y-2">
+                <!-- Clase Primaria -->
+                <div class="flex items-center gap-2.5">
+                  <div class="w-8 h-8 flex items-center justify-center shrink-0 select-none" style="color: ${pColor};">
+                    ${getClassVectorLogo(p.primaryClass.classId)}
+                  </div>
+                  <button type="button" onclick="openClassModal(${p.id}, 'primary')"
+                    class="flex-1 text-left px-3 py-1.5 rounded-xl bg-black border border-[#262626] hover:border-[#444] text-xs text-neutral-200 hover:text-white transition flex items-center justify-between cursor-pointer truncate">
+                    <span class="truncate font-medium">${escapeHtml(p.primaryClass.customText)}</span>
+                    <span class="text-[10px] text-neutral-500">▼</span>
+                  </button>
+                </div>
+
+                <!-- Clase Secundaria / Multiclase -->
+                ${sActive ? `
+                  <div class="flex items-center gap-2.5">
+                    <div class="w-8 h-8 flex items-center justify-center shrink-0 select-none" style="color: ${sColor};">
+                      ${getClassVectorLogo(p.secondaryClass.classId)}
+                    </div>
+                    <button type="button" onclick="openClassModal(${p.id}, 'secondary')"
+                      class="flex-1 text-left px-3 py-1.5 rounded-xl bg-black border border-[#262626] hover:border-[#444] text-xs text-neutral-200 hover:text-white transition flex items-center justify-between cursor-pointer truncate">
+                      <span class="truncate font-medium">${escapeHtml(p.secondaryClass.customText)}</span>
+                      <span class="text-[10px] text-neutral-500">▼</span>
+                    </button>
+                    <button type="button" onclick="removeMulticlass(${p.id})" title="Quitar multiclase" class="text-neutral-600 hover:text-rose-400 text-xs px-1 cursor-pointer">✕</button>
+                  </div>
+                ` : `
+                  <button type="button" onclick="addMulticlass(${p.id})" class="text-[10px] font-mono text-neutral-500 hover:text-neutral-300 flex items-center gap-1 pl-11 cursor-pointer">
+                    <span>+ Añadir Multiclase</span>
+                  </button>
+                `}
+              </div>
+            </td>
+
+            <!-- Asistencia -->
+            <td class="py-3 px-2 text-center align-middle">
+              <button type="button" onclick="toggleAbsence(${p.id})"
+                class="w-full max-w-[95px] mx-auto px-2.5 py-1.5 rounded-xl bg-black hover:bg-[#141414] border border-[#262626] hover:border-[#383838] transition flex items-center justify-center gap-2 cursor-pointer shadow-sm active:scale-95">
+                <span class="w-2 h-2 rounded-full ${p.isAbsent ? 'bg-neutral-600' : 'bg-emerald-400'}"></span>
+                <span class="text-xs font-semibold ${p.isAbsent ? 'text-neutral-500' : 'text-neutral-200'}">
+                  ${p.isAbsent ? 'Ausente' : 'Presente'}
+                </span>
+              </button>
+            </td>
+
+            <!-- Borrar Jugador -->
+            <td class="py-3 px-2 text-center align-middle">
+              <button type="button" onclick="deletePlayer(${p.id})" title="Eliminar fila de jugador"
+                class="w-7 h-7 rounded-lg text-neutral-600 hover:text-rose-400 hover:bg-rose-500/10 flex items-center justify-center mx-auto transition cursor-pointer active:scale-90">
+                <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/>
+                </svg>
+              </button>
+            </td>
+
+          </tr>
+        `;
+      }).join('');
+    }
+
+    // Funciones del Roster
+    function toggleUserChar(rowId) {
+      mockParty.forEach(p => {
+        p.isUserChar = (p.id === rowId) ? !p.isUserChar : false;
+      });
+      renderTable();
+    }
+
+    function toggleAbsence(rowId) {
+      const p = mockParty.find(x => x.id === rowId);
+      if (p && !p.isDM) {
+        p.isAbsent = !p.isAbsent;
+        renderTable();
+      }
+    }
+
+    function updateCharName(rowId, val) {
+      const p = mockParty.find(x => x.id === rowId);
+      if (p) p.char = val;
+    }
+
+    function handleDiscordSelect(rowId, val) {
+      const p = mockParty.find(x => x.id === rowId);
+      if (!p) return;
+      p.discord = val;
+      const found = DISCORD_MEMBERS_POOL.find(u => u.discord === val);
+      p.player = found ? found.player : '';
+      renderTable();
+    }
+
+    function addPlayer() {
+      const maxId = mockParty.reduce((acc, curr) => Math.max(acc, curr.id || 0), 0);
+      mockParty.push({
+        id: maxId + 1,
+        isDM: false,
+        player: '',
+        char: 'Nuevo Aventurero',
+        discord: '',
+        speciesText: 'Humano',
+        isUserChar: false,
+        primaryClass: { classId: 'fighter', customText: 'Guerrero' },
+        secondaryClass: { active: false },
+        isAbsent: false
+      });
+      renderTable();
+      showToast('Nuevo jugador añadido al grupo', 'success', '➕');
+    }
+
+    function deletePlayer(rowId) {
+      const p = mockParty.find(x => x.id === rowId);
+      if (!p || p.isDM) return;
+      mockParty = mockParty.filter(x => x.id !== rowId);
+      renderTable();
+      showToast(`Jugador eliminado`, 'info', '🗑️');
+    }
+
+    function refreshDiscord() {
+      renderTable();
+      showToast('Participantes de Discord sincronizados', 'info', '🎧');
+    }
+
+    function saveGroup() {
+      showToast('Roster oficial de campaña guardado', 'success', '💾');
+    }
+
+    function addMulticlass(rowId) {
+      const p = mockParty.find(x => x.id === rowId);
+      if (p) {
+        p.secondaryClass = { active: true, classId: 'rogue', customText: 'Pícaro' };
+        renderTable();
+      }
+    }
+
+    function removeMulticlass(rowId) {
+      const p = mockParty.find(x => x.id === rowId);
+      if (p && p.secondaryClass) {
+        p.secondaryClass.active = false;
+        renderTable();
+      }
+    }
+
+    // Modal de Especies
+    let activeSpeciesRowId = null;
+    const SPECIES_DB = [
+      { id: 'human', name: 'Humano', cat: 'Core 2024' },
+      { id: 'elf_high', name: 'Alto Elfo', cat: 'Core 2024' },
+      { id: 'elf_wood', name: 'Elfo de los Bosques', cat: 'Core 2024' },
+      { id: 'dwarf', name: 'Enano de las Colinas', cat: 'Core 2024' },
+      { id: 'halfling', name: 'Mediano Piesligeros', cat: 'Core 2024' },
+      { id: 'dragonborn', name: 'Dracónido', cat: 'Core 2024' },
+      { id: 'gnome', name: 'Gnomo de las Rocas', cat: 'Core 2024' },
+      { id: 'tiefling', name: 'Tiefling Infernal', cat: 'Core 2024' },
+      { id: 'aasimar', name: 'Aasimar', cat: 'Core 2024' },
+      { id: 'orc', name: 'Orco', cat: 'Core 2024' },
+      { id: 'goliath', name: 'Goliat', cat: 'Core 2024' },
+      { id: 'tabaxi', name: 'Tabaxi (Felino)', cat: 'Monsters of the Multiverse' },
+      { id: 'kenku', name: 'Kenku (Córvido)', cat: 'Monsters of the Multiverse' },
+      { id: 'shifter', name: 'Cambiante (Shifter)', cat: 'Monsters of the Multiverse' },
+      { id: 'harengon', name: 'Harengon (Lepórido)', cat: 'Monsters of the Multiverse' },
+      { id: 'tortle', name: 'Tortuga (Tortle)', cat: 'Monsters of the Multiverse' },
+      { id: 'fairy', name: 'Hada (Fairy)', cat: 'Monsters of the Multiverse' }
+    ];
+
+    function openSpeciesModal(rowId) {
+      activeSpeciesRowId = rowId;
+      const modal = document.getElementById('speciesModal');
+      modal.classList.remove('hidden');
+      renderSpeciesCategories();
+    }
+
+    function closeSpeciesModal() {
+      document.getElementById('speciesModal').classList.add('hidden');
+    }
+
+    function renderSpeciesCategories() {
+      const cats = ['Todas', 'Core 2024', 'Monsters of the Multiverse'];
+      const catListEl = document.getElementById('speciesCategoryList');
+      catListEl.innerHTML = cats.map((cat, idx) => `
+        <button type="button" onclick="filterSpeciesByCat('${cat}')"
+          class="w-full text-left px-3 py-2 rounded-xl text-xs font-semibold ${idx === 0 ? 'bg-[#181818] text-white' : 'text-neutral-400 hover:text-white'} transition">
+          ${cat}
+        </button>
+      `).join('');
+      filterSpeciesByCat('Todas');
+    }
+
+    function filterSpeciesByCat(category) {
+      const filtered = category === 'Todas' ? SPECIES_DB : SPECIES_DB.filter(s => s.cat === category);
+      renderSpeciesItems(filtered);
+    }
+
+    function filterSpecies(query) {
+      const q = query.toLowerCase().trim();
+      const filtered = SPECIES_DB.filter(s => s.name.toLowerCase().includes(q));
+      renderSpeciesItems(filtered);
+    }
+
+    function renderSpeciesItems(items) {
+      const listEl = document.getElementById('speciesItemsList');
+      listEl.innerHTML = items.map(s => `
+        <button type="button" onclick="selectSpecies('${s.name}')"
+          class="w-full text-left px-3 py-2.5 rounded-xl bg-black hover:bg-[#161616] border border-[#222222] hover:border-[#383838] text-xs text-neutral-200 hover:text-white transition flex items-center justify-between cursor-pointer">
+          <span class="font-medium">${s.name}</span>
+          <span class="text-[10px] font-mono text-neutral-500">${s.cat}</span>
+        </button>
+      `).join('');
+    }
+
+    function selectSpecies(name) {
+      const p = mockParty.find(x => x.id === activeSpeciesRowId);
+      if (p) {
+        p.speciesText = name;
+        renderTable();
+      }
+      closeSpeciesModal();
+    }
+
+    function selectCustomSpeciesPrompt() {
+      const val = prompt('Escribe el nombre de tu especie personalizada:');
+      if (val) selectSpecies(val);
+    }
+
+    // Modal de Clases
+    let activeClassRowId = null;
+    let activeClassSlot = 'primary';
+    const CLASSES_DB = [
+      { id: 'fighter', name: 'Guerrero (Fighter)' },
+      { id: 'wizard', name: 'Mago (Wizard)' },
+      { id: 'cleric', name: 'Clérigo (Cleric)' },
+      { id: 'rogue', name: 'Pícaro (Rogue)' },
+      { id: 'monk', name: 'Monje (Monk)' },
+      { id: 'bard', name: 'Bardo (Bard)' },
+      { id: 'paladin', name: 'Paladín (Paladin)' },
+      { id: 'barbarian', name: 'Bárbaro (Barbarian)' },
+      { id: 'druid', name: 'Druida (Druid)' },
+      { id: 'ranger', name: 'Explorador (Ranger)' },
+      { id: 'sorcerer', name: 'Hechicero (Sorcerer)' },
+      { id: 'warlock', name: 'Brujo (Warlock)' },
+      { id: 'artificer', name: 'Artífice (Artificer)' },
+      { id: 'blood_hunter', name: 'Cazador de Sangre (Blood Hunter)' },
+      { id: 'mystic', name: 'Místico (Psion)' },
+      { id: 'pugilist', name: 'Pugilista (Pugilist)' },
+      { id: 'illrigger', name: 'Illrigger (Caballero Diabólico)' },
+      { id: 'sidekick', name: 'Acompañante (Sidekick)' }
+    ];
+
+    function openClassModal(rowId, slot) {
+      activeClassRowId = rowId;
+      activeClassSlot = slot;
+      document.getElementById('classModal').classList.remove('hidden');
+      renderClassList();
+    }
+
+    function closeClassModal() {
+      document.getElementById('classModal').classList.add('hidden');
+    }
+
+    function renderClassList() {
+      const catList = document.getElementById('classCategoryList');
+      catList.innerHTML = CLASSES_DB.map(c => `
+        <button type="button" onclick="selectClass('${c.id}', '${c.name}')"
+          class="w-full text-left px-3 py-2.5 rounded-xl bg-black hover:bg-[#161616] border border-[#222222] hover:border-[#383838] text-xs text-neutral-200 hover:text-white transition flex items-center gap-2.5 cursor-pointer">
+          <div class="w-5 h-5 shrink-0" style="color: ${DND_BEYOND_COLORS[c.id]}">
+            ${getClassVectorLogo(c.id)}
+          </div>
+          <span class="font-medium">${c.name}</span>
+        </button>
+      `).join('');
+      document.getElementById('classItemsList').innerHTML = `
+        <div class="p-4 text-xs text-neutral-500 font-mono text-center">
+          Haz clic en cualquier clase para asignarla con su logo oficial de D&D Beyond.
+        </div>
+      `;
+    }
+
+    function selectClass(classId, className) {
+      const p = mockParty.find(x => x.id === activeClassRowId);
+      if (p) {
+        if (activeClassSlot === 'primary') {
+          p.primaryClass.classId = classId;
+          p.primaryClass.customText = className;
+        } else {
+          p.secondaryClass.classId = classId;
+          p.secondaryClass.customText = className;
+        }
+        renderTable();
+      }
+      closeClassModal();
+    }
+
+    // =======================================================================
+    // SIMULACIÓN DEL MEDIDOR VU CON 4 UMBRALES DINÁMICOS (SIN ARCOÍRIS)
+    // =======================================================================
+    function getVUMeterColorAndBadge(percent) {
+      if (percent < 30) {
+        return {
+          color: '#ef4444',
+          badgeText: 'Bajo',
+          badgeClass: 'border-rose-500/30 text-rose-400 bg-rose-500/10'
+        };
+      } else if (percent <= 75) {
+        return {
+          color: '#10b981',
+          badgeText: 'Óptimo',
+          badgeClass: 'border-emerald-500/30 text-emerald-400 bg-emerald-500/10'
+        };
+      } else if (percent <= 88) {
+        return {
+          color: '#facc15',
+          badgeText: 'Margen',
+          badgeClass: 'border-yellow-500/30 text-yellow-400 bg-yellow-500/10'
+        };
+      } else {
+        return {
+          color: '#f97316',
+          badgeText: 'Saturado',
+          badgeClass: 'border-orange-500/30 text-orange-400 bg-orange-500/10'
+        };
+      }
+    }
+
+    let vuAnimId = null;
+    function startVUAnimation() {
+      let t = 0;
+      function tick() {
+        t += 0.05;
+        const micPct = Math.min(95, Math.max(10, Math.round(50 + Math.sin(t * 2.2) * 25 + Math.cos(t * 3.7) * 15)));
+        const spkPct = Math.min(95, Math.max(10, Math.round(55 + Math.cos(t * 1.8) * 28 + Math.sin(t * 4.1) * 12)));
+
+        const micStyle = getVUMeterColorAndBadge(micPct);
+        const micBar = document.getElementById('vuMicBar');
+        const micBadge = document.getElementById('vuMicBadge');
+        const micDb = document.getElementById('vuMicDbText');
+        if (micBar) {
+          micBar.style.width = micPct + '%';
+          micBar.style.backgroundColor = micStyle.color;
+        }
+        if (micBadge) {
+          micBadge.textContent = micStyle.badgeText;
+          micBadge.className = `text-[9px] px-1.5 py-0.2 rounded font-semibold border ${micStyle.badgeClass}`;
+        }
+        if (micDb) {
+          const dbVal = (-48 + (micPct / 100) * 48).toFixed(1);
+          micDb.textContent = (dbVal > 0 ? '+' : '') + dbVal + ' dB';
+        }
+
+        const spkStyle = getVUMeterColorAndBadge(spkPct);
+        const spkBar = document.getElementById('vuSpkBar');
+        const spkBadge = document.getElementById('vuSpkBadge');
+        const spkDb = document.getElementById('vuSpkDbText');
+        if (spkBar) {
+          spkBar.style.width = spkPct + '%';
+          spkBar.style.backgroundColor = spkStyle.color;
+        }
+        if (spkBadge) {
+          spkBadge.textContent = spkStyle.badgeText;
+          spkBadge.className = `text-[9px] px-1.5 py-0.2 rounded font-semibold border ${spkStyle.badgeClass}`;
+        }
+        if (spkDb) {
+          const dbVal = (-48 + (spkPct / 100) * 48).toFixed(1);
+          spkDb.textContent = (dbVal > 0 ? '+' : '') + dbVal + ' dB';
+        }
+
+        vuAnimId = requestAnimationFrame(tick);
+      }
+      vuAnimId = requestAnimationFrame(tick);
+    }
+
+    // Cronómetro & Estado de Grabación
+    let isRecording = false;
+    let isPaused = false;
+    let recordTimer = null;
+    let secondsElapsed = 0;
+
+    function toggleRecording() {
+      if (!isRecording) {
+        isRecording = true;
+        isPaused = false;
+        secondsElapsed = 0;
+        
+        document.getElementById('btnMainRecord').className = "min-h-[52px] px-8 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-bold text-sm tracking-wide shadow-xl flex items-center gap-3 transition cursor-pointer active:scale-95";
+        document.getElementById('recordBtnText').textContent = "Grabando en Vivo";
+        document.getElementById('recordIconDot').className = "w-3 h-3 rounded-full bg-white animate-ping";
+        
+        const pauseBtn = document.getElementById('btnMainPause');
+        pauseBtn.disabled = false;
+        pauseBtn.className = "min-h-[52px] px-6 rounded-xl bg-[#181818] hover:bg-[#252525] border border-[#333333] text-neutral-200 font-semibold text-xs flex items-center gap-2 transition cursor-pointer active:scale-95";
+        
+        const stopBtn = document.getElementById('btnMainStop');
+        stopBtn.disabled = false;
+        stopBtn.className = "min-h-[52px] px-6 rounded-xl bg-[#181818] hover:bg-[#252525] border border-[#333333] text-neutral-200 font-semibold text-xs flex items-center gap-2 transition cursor-pointer active:scale-95";
+        
+        document.getElementById('deckStatusDot').className = "w-2 h-2 rounded-full bg-rose-500 animate-pulse";
+        document.getElementById('deckStatusText').textContent = "Sesión en curso • Captura estéreo activa";
+
+        recordTimer = setInterval(() => {
+          if (!isPaused) {
+            secondsElapsed++;
+            updateTimerDisplay();
+          }
+        }, 1000);
+
+        showToast('Grabación iniciada en 16 kHz PCM Dual Stereo', 'success', '🎙️');
+      }
+    }
+
+    function togglePause() {
+      if (!isRecording) return;
+      isPaused = !isPaused;
+      if (isPaused) {
+        document.getElementById('pauseBtnText').textContent = "Reanudar";
+        document.getElementById('deckStatusText').textContent = "Grabación en pausa";
+        document.getElementById('deckStatusDot').className = "w-2 h-2 rounded-full bg-amber-400";
+        showToast('Grabación pausada', 'info', '⏸️');
+      } else {
+        document.getElementById('pauseBtnText').textContent = "Pausar";
+        document.getElementById('deckStatusText').textContent = "Sesión en curso • Captura estéreo activa";
+        document.getElementById('deckStatusDot').className = "w-2 h-2 rounded-full bg-rose-500 animate-pulse";
+        showToast('Grabación reanudada', 'info', '▶️');
+      }
+    }
+
+    function stopRecording() {
+      if (!isRecording) return;
+      isRecording = false;
+      isPaused = false;
+      clearInterval(recordTimer);
+
+      document.getElementById('btnMainRecord').className = "min-h-[52px] px-8 rounded-xl bg-white hover:bg-neutral-200 text-black font-bold text-sm tracking-wide shadow-xl flex items-center gap-3 transition cursor-pointer active:scale-95";
+      document.getElementById('recordBtnText').textContent = "Iniciar Grabación";
+      document.getElementById('recordIconDot').className = "w-3 h-3 rounded-full bg-rose-600";
+
+      const pauseBtn = document.getElementById('btnMainPause');
+      pauseBtn.disabled = true;
+      pauseBtn.className = "min-h-[52px] px-6 rounded-xl bg-[#141414] border border-[#2a2a2a] text-neutral-500 font-semibold text-xs flex items-center gap-2 transition cursor-not-allowed opacity-50 active:scale-95";
+      
+      const stopBtn = document.getElementById('btnMainStop');
+      stopBtn.disabled = true;
+      stopBtn.className = "min-h-[52px] px-6 rounded-xl bg-[#141414] border border-[#2a2a2a] text-neutral-500 font-semibold text-xs flex items-center gap-2 transition cursor-not-allowed opacity-50 active:scale-95";
+
+      document.getElementById('deckStatusDot').className = "w-2 h-2 rounded-full bg-neutral-600";
+      document.getElementById('deckStatusText').textContent = "Grabación finalizada • Audio listo para procesar";
+
+      showToast('Grabación completada. Enviando a Whisper/Groq...', 'success', '⏹️');
+    }
+
+    function updateTimerDisplay() {
+      const h = String(Math.floor(secondsElapsed / 3600)).padStart(2, '0');
+      const m = String(Math.floor((secondsElapsed % 3600) / 60)).padStart(2, '0');
+      const s = String(secondsElapsed % 60).padStart(2, '0');
+      document.getElementById('timerDisplay').textContent = `${h}:${m}:${s}`;
+    }
+
+    // Navegación entre Vistas Principales (Sesión, Wiki, Mi Personaje, Ajustes)
+    function switchMainView(viewName) {
+      const sections = {
+        session: document.getElementById('viewSectionSession'),
+        wiki: document.getElementById('viewSectionWiki'),
+        character: document.getElementById('viewSectionCharacter'),
+        settings: document.getElementById('viewSectionSettings')
+      };
+
+      const buttons = {
+        session: document.getElementById('navBtnSession'),
+        wiki: document.getElementById('navBtnWiki'),
+        character: document.getElementById('navBtnCharacter')
+      };
+
+      for (const k in sections) {
+        if (sections[k]) sections[k].classList.add('hidden');
+      }
+
+      if (sections[viewName]) {
+        sections[viewName].classList.remove('hidden');
+      }
+
+      for (const k in buttons) {
+        if (buttons[k]) {
+          if (k === viewName) {
+            buttons[k].className = "w-full text-left px-3 py-2.5 rounded-xl text-xs font-semibold flex items-center gap-2.5 transition cursor-pointer bg-[#121212] border border-[#262626] text-white";
+          } else {
+            buttons[k].className = "w-full text-left px-3 py-2.5 rounded-xl text-xs font-medium flex items-center gap-2.5 transition cursor-pointer text-neutral-400 hover:text-neutral-200 hover:bg-[#0c0c0c] border border-transparent";
+          }
+        }
+      }
+    }
+
+    function switchWorkspace(ws) {
+      const dndBtn = document.getElementById('wsDndBtn');
+      const workBtn = document.getElementById('wsWorkBtn');
+      if (ws === 'dnd') {
+        dndBtn.className = "flex-1 py-1.5 px-2 rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 transition bg-[#161616] border border-[#2a2a2a] text-neutral-100 shadow-sm cursor-pointer";
+        workBtn.className = "flex-1 py-1.5 px-2 rounded-lg text-xs font-medium flex items-center justify-center gap-1.5 transition text-neutral-500 hover:text-neutral-300 border border-transparent cursor-pointer";
+        showToast('Cambiado a Modo Partida de Rol (D&D)', 'info', '🛡️');
+      } else {
+        workBtn.className = "flex-1 py-1.5 px-2 rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 transition bg-[#161616] border border-[#2a2a2a] text-neutral-100 shadow-sm cursor-pointer";
+        dndBtn.className = "flex-1 py-1.5 px-2 rounded-lg text-xs font-medium flex items-center justify-center gap-1.5 transition text-neutral-500 hover:text-neutral-300 border border-transparent cursor-pointer";
+        showToast('Cambiado a Modo Work & Study (Clases/Reuniones)', 'info', '💼');
+      }
+    }
+
+    function switchTab(tab) {
+      showToast(`Pestaña cambiada a ${tab.toUpperCase()}`, 'info', '📁');
+    }
+
+    function setLang(lang) {
+      document.getElementById('langEsBtn').className = lang === 'es' ? "px-2.5 py-1 text-xs font-semibold rounded-lg bg-[#181818] text-white" : "px-2.5 py-1 text-xs font-semibold rounded-lg text-neutral-500 hover:text-white";
+      document.getElementById('langEnBtn').className = lang === 'en' ? "px-2.5 py-1 text-xs font-semibold rounded-lg bg-[#181818] text-white" : "px-2.5 py-1 text-xs font-semibold rounded-lg text-neutral-500 hover:text-white";
+      showToast(`Idioma configurado en: ${lang === 'es' ? 'Español' : 'English'}`, 'info', '🌐');
+    }
+
+    function showToast(msg, type = 'info', icon = '✨') {
+      const container = document.getElementById('toastNotificationContainer');
+      const toast = document.createElement('div');
+      toast.className = `pointer-events-auto bg-[#111111] border border-[#333333] px-4 py-2.5 rounded-xl shadow-2xl flex items-center gap-2.5 text-xs font-medium text-neutral-200 transition-all duration-200 opacity-0 translate-y-2 backdrop-blur-md`;
+      toast.innerHTML = `<span class="text-sm shrink-0">${icon}</span><span class="truncate">${escapeHtml(msg)}</span>`;
+      container.appendChild(toast);
+      
+      requestAnimationFrame(() => {
+        toast.classList.remove('opacity-0', 'translate-y-2');
+        toast.classList.add('opacity-100', 'translate-y-0');
+      });
+
+      setTimeout(() => {
+        toast.classList.remove('opacity-100', 'translate-y-0');
+        toast.classList.add('opacity-0', 'translate-y-2');
+        setTimeout(() => toast.remove(), 250);
+      }, 3000);
+    }
+
+    function escapeHtml(str) {
+      if (!str) return '';
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    }
+
+    // Inicialización al cargar
+    document.addEventListener('DOMContentLoaded', () => {
+      renderTable();
+      startVUAnimation();
+    });
+  </script>
+</body>
+</html>

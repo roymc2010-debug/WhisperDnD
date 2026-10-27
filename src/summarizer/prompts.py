@@ -147,7 +147,10 @@ STRICT ATTRIBUTION & PERSONAL EVALUATION RULE:
 - Evaluate {char_name} EXCLUSIVELY based on words and declared actions spoken by {char_name} (or their player) in the verbal transcript.
 - ABSOLUTELY FORBIDDEN to evaluate or attribute actions performed by other characters to {char_name} (e.g., if another party member kicked down a door, forced open a chest, or cast a spell, NEVER critique or judge that action as part of {char_name}'s review).
 - NEVER assume an action was taken by {char_name} without direct verbal evidence in the transcript. If an action has no explicit named author, attribute it to 'the party' or 'the group'.
-- MIN/MAXING OR ROBOTIC COACHING IS STRICTLY FORBIDDEN (zero lessons on maximizing damage per turn or mathematical action economy; focus is narrative, character depth, teamwork, and in-character dilemmas)."""
+- MIN/MAXING OR ROBOTIC COACHING IS STRICTLY FORBIDDEN (zero lessons on maximizing damage per turn or mathematical action economy; focus is narrative, character depth, teamwork, and in-character dilemmas).
+- ⚠️ STRICT PROHIBITION AGAINST ASSUMING UNSTATED RELIGIOUS DEVOTION:
+  * ABSOLUTELY FORBIDDEN to assume devotion, religious piety, or worship of a deity unless explicitly stated in the character's official backstory as a cleric, devout paladin, or explicit believer.
+  * E.g., carrying experimental arcane runes named after a deity (such as Markus Veyl carrying Helm runes crafted by scholar Edrin Vale) does NOT make the character a devotee or believer; they are a secular, civic protector, NOT a worshipper of Helm. NEVER call them a 'devotee of Helm' or judge their actions through a religious lens."""
             coaching_json_desc = f"""Roleplay & Fellowship Reflection for {char_name} ({char_desc}) WITHOUT min/maxing or combat optimization, divided into 4 areas:
 1) Character Consistency & Development: Analyze fidelity to the character's known personality, backstory, and values. MANDATORY — detect and flag any moments where the player appeared to speak or act out-of-character (breaking immersion, making meta decisions, speaking as themselves rather than as {char_name}). Cite the exact scene. Then cross-reference with the character's known backstory and class identity to suggest 1-2 specific roleplay moments the player could have seized but didn't (e.g. 'In Scene 2 when the NPC mentioned X, {char_name}'s backstory with Y was a perfect opening that wasn't used').
 2) Creativity & Rules vs. Environment: Constructive analysis of rule flexibility vs. cinematic narrative, and gentle warnings about overlooked dangers.
@@ -160,7 +163,10 @@ REGLA DE ORO DE EVALUACIÓN PERSONAL ({char_name}):
 - Evalúa a {char_name} EXCLUSIVAMENTE a partir de los diálogos, decisiones y acciones que {char_name} (o su jugador) verbalizó explícitamente en la transcripción.
 - PROHIBIDO TERMINANTEMENTE evaluar o atribuir a {char_name} acciones de otros personajes (por ejemplo, si Atou o Selen derribaron una puerta, forzaron un cofre o lanzaron un conjuro, JAMÁS juzgues esa acción en la revisión de {char_name}).
 - NUNCA asumir que una acción fue ejecutada por {char_name} sin evidencia verbal directa en la transcripción. Si una acción no tiene autor explícito, atribúyela a 'la compañía' o 'el grupo'.
-- PROHIBIDO EL MIN/MAXING O COACHING ROBÓTICO (cero lecciones sobre maximizar daño por turno o economía matemática de acciones; el foco es narrativa, carácter de personaje, apoyo a compañeros y dilemas in-character)."""
+- PROHIBIDO EL MIN/MAXING O COACHING ROBÓTICO (cero lecciones sobre maximizar daño por turno o economía matemática de acciones; el foco es narrativa, carácter de personaje, apoyo a compañeros y dilemas in-character).
+- ⚠️ PROHIBICIÓN ESTRICTA DE ASUMIR DEVOCIÓN O RELIGIOSIDAD NO DECLARADA:
+  * PROHIBIDO TERMINANTEMENTE asumir devoción, fervor religioso, fe o adoración a deidades a menos que esté expresamente declarado en el trasfondo oficial del personaje como clérigo, paladín devoto o creyente explícito.
+  * Por ejemplo: portar marcas o runas arcanas vinculadas al nombre de una deidad (como las runas de Helm en Markus Veyl creadas por su amigo erudito Edrin Vale) NO convierte al personaje en devoto ni creyente religioso; es un protector cívico y pragmático secular, no un adorador de Helm. NUNCA lo llames 'devoto de Helm' ni juzgues sus acciones desde la fe o dogmas religiosos."""
             coaching_json_desc = f"""Reflexión de Rol y Compañerismo para {char_name} ({char_desc}) SIN min/maxing ni optimización robótica de combate, dividida en 4 áreas:
 1) Coherencia y Desarrollo de Personaje: Analiza la fidelidad a la personalidad conocida, trasfondo y valores del personaje. OBLIGATORIO — detecta y señala cualquier momento donde el jugador pareció hablar o actuar fuera de personaje (rompiendo la inmersión, tomando decisiones meta, hablando como él mismo en lugar de como {char_name}). Cita la escena exacta. Luego cruza con el trasfondo conocido del personaje y su identidad de clase para sugerir 1-2 momentos de rol específicos que el jugador pudo aprovechar pero no aprovechó (ej. 'En la Escena 2 cuando el PNJ mencionó X, el trasfondo de {char_name} con Y era una apertura perfecta que no se utilizó').
 2) Creatividad y Uso del Entorno vs. Reglas: Análisis constructivo si flexionó RAW en favor de la narrativa cinematográfica vs regla formal estricta, y advertencias amables sobre peligros pasados por alto.
@@ -409,6 +415,17 @@ When players speak generically on the audio channel without saying character nam
 - REGLA IN-CHARACTER ESTRICTA PARA PCs:
   * Los campos 'rol_en_sesion' e 'hitos_acumulados' de cada personaje (PC) deben describir EXCLUSIVAMENTE acciones ficticias dentro del mundo (in-world / in-character): combates librados, conjuros lanzados, decisiones tácticas, diálogos con PNJs, heridas sufridas o descubrimientos.
   * PROHIBIDO TERMINANTEMENTE escribir roles meta fuera de personaje, moderación de la mesa o acciones de la vida real (NUNCA escribas cosas como 'Actuó como Dungeon Master', 'Controló los PNJs', 'Dirigió la partida' o 'Tiró dados').
+  * ⚠️ PROHIBICIÓN TOTAL DE MATEMÁTICAS DE DADOS O COMENTARIOS META EN HITOS:
+    - Queda terminantemente PROHIBIDO incluir operaciones matemáticas de tiradas de dados, sumas de modificadores o comentarios meta en 'hitos_acumulados' o 'rol_en_sesion' (NUNCA escribas cosas como '(16+4)', 'sacó un 20 total', 'su mejor tirada del día' o 'tiró un dado').
+    - Narra los hitos y roles siempre como hechos y logros heroicos in-world (ej. en vez de 'Obtuvo un 20 en Historia recordando los detalles de Nashkel', escribe 'Recordó con precisión táctica los peligros de Nashkel y los Picos Nubosos para negociar exitosamente la recompensa').
+  * ⚠️ PROHIBICIÓN TOTAL DE INVENTAR PAPELES O HAZAÑAS A JUGADORES SILENCIOSOS O INACTIVOS:
+    - NO fuerces ni inventes un papel activo, protagónico o hazañas heroicas para jugadores o personajes que no hablaron o no tuvieron participación activa en la sesión.
+    - Si un jugador permaneció en silencio, habló poco, estuvo ausente o simplemente acompañó al grupo en segundo plano:
+      * Narra con absoluta honestidad que permaneció en reserva, en segundo plano o acompañando a la compañía sin intervenir activamente.
+      * PROHIBIDO TERMINANTEMENTE inventar justificaciones artificiosas o 'rellenos tácticos' falsos (NUNCA inventes cosas como 'mantuvo vigilancia táctica', 'facilitó el contacto para la partida', 'coordinó la logística' o 'custodió las espaldas' si no lo dijeron en el audio).
+  * ⚠️ UNIFORMIDAD ESTRICTA DE IDIOMA EN MISIONES Y SUBOBJETIVOS (CERO MEZCLA INGLÉS/ESPAÑOL):
+    - Todos los títulos, contextos, notas y subobjetivos de misiones ('text' dentro de 'subobjectives') DEBEN estar redactados al 100% en español fluido y natural.
+    - PROHIBIDO TERMINANTEMENTE mezclar subobjetivos en inglés y en español dentro de una misma misión o campaña (ej. prohibido tener un subobjetivo en inglés como 'Deliver the dragon egg' y otro en español como 'Derrotar a la sierpe').
 - ⚠️ REGLA UNIVERSAL DE TRANSICIÓN Y RELEVO DE PERSONAJES A MITAD DE SESIÓN:
   * Si las conversaciones operativas de la mesa indican que un jugador retira, deja en reserva o sustituye a su personaje e introduce uno nuevo a mitad de la partida:
     - Refleja la salida o retiro del personaje saliente en sus 'hitos_acumulados' y 'rol_en_sesion' (ej. se separó del grupo, marchó por un camino propio o quedó en reserva).
@@ -432,6 +449,18 @@ When players speak generically on the audio channel without saying character nam
 - STRICT IN-CHARACTER RULE FOR PCs:
   * 'rol_en_sesion' and 'hitos_acumulados' of each Player Character (PC) must describe EXCLUSIVELY in-world fictional actions (battles fought, spells cast, tactical decisions, conversations with NPCs, wounds taken, or discoveries).
   * ABSOLUTELY FORBIDDEN to write out-of-game meta roles, tabletop moderation, or real-life actions (NEVER write 'Acted as Dungeon Master', 'Controlled NPCs', 'Chaired session', or 'Rolled dice').
+  * ⚠️ STRICT PROHIBITION OF DICE MATH OR TABLETOP META COMMENTARY IN MILESTONES:
+    - STRICTLY FORBIDDEN to include dice arithmetic, modifier sums, or tabletop comments in 'hitos_acumulados' or 'rol_en_sesion' (NEVER write '(16+4)', 'best roll of the day', 'rolled a 20 total', or 'rolled dice').
+    - Always narrate character milestones as in-world heroic deeds and dramatic accomplishments (e.g. instead of 'Rolled a 20 on History recalling Nashkel', write 'Accurately recalled the strategic hazards of Nashkel and Cloud Peaks to successfully negotiate the bounty').
+    - If a player makes a casual joke about their dice roll during Discord audio, NEVER turn that casual meta joke into their character's narrative milestone.
+  * ⚠️ STRICT PROHIBITION OF INVENTING FAKE ROLES OR DEEDS FOR SILENT OR PASSIVE PLAYERS:
+    - DO NOT force an active role or invent fictional accomplishments for players who did not speak or participate actively.
+    - If a player or character was quiet, remained in the background, or did not actively intervene in a scene, negotiation, or battle:
+      * Honestly state that they remained in the background, in reserve, or accompanying the party without active involvement.
+      * ABSOLUTELY FORBIDDEN to invent artificial filler deeds such as 'maintained tactical watch', 'coordinated logistics', 'facilitated contact', or similar embellished excuses.
+  * ⚠️ STRICT LANGUAGE UNIFORMITY IN QUESTS AND SUBOBJECTIVES (NO MIXED LANGUAGES):
+    - 100% of quest titles, contexts, notes, and subobjectives ('text' in 'subobjectives') MUST match the target output language.
+    - STRICTLY FORBIDDEN to mix English and Spanish subobjectives within the same quest or campaign.
 - ⚠️ UNIVERSAL MID-SESSION PLAYER CHARACTER TRANSITIONS:
   * If operational table discussion indicates a player is retiring, benching, or swapping a character and introducing a new one mid-session:
     - Reflect the departure of the former character in their session milestone and role ('hitos_acumulados' / 'rol_en_sesion') (e.g. separated, departed on their own path, or staying in reserve).

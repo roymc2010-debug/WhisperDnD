@@ -14,7 +14,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, File, HTTPException, Query, UploadFile, Request
-from fastapi.responses import FileResponse, Response
+from fastapi.responses import FileResponse, Response, JSONResponse
 from pydantic import BaseModel, Field, ConfigDict
 from starlette.concurrency import run_in_threadpool
 
@@ -46,11 +46,32 @@ class UpdatePriorLoreRequest(BaseModel):
     prior_lore: str = Field(default="", description="Prior lore / backstory for ongoing campaigns")
 
 
+class SaveRosterRequest(BaseModel):
+    model_config = ConfigDict(extra="allow")
+
+    campaign_name: Optional[str] = Field(default=None, description="Campaign name")
+    dm_name: Optional[str] = Field(default=None, description="Dungeon Master name")
+    dm_discord_user_id: Optional[str] = Field(default=None, description="DM Discord user ID")
+    dm_discord_id: Optional[str] = Field(default=None, description="DM Discord user ID alias")
+    players: Optional[List[Dict[str, Any]]] = Field(default=None, description="Players roster")
+    roster: Optional[List[Dict[str, Any]]] = Field(default=None, description="Full roster list")
+
+
+class KeepTranscriptRequest(BaseModel):
+    model_config = ConfigDict(extra="allow")
+
+    raw_transcript: Optional[str] = Field(default=None, description="Raw speech-to-text transcript")
+    transcript: Optional[str] = Field(default=None, description="Raw transcript alias")
+    transcript_text: Optional[str] = Field(default=None, description="Raw transcript alias")
+
+
 class ProcessCampaignSessionRequest(BaseModel):
     transcript_text: str = Field(..., description="Speech-to-text transcript")
     roster: Optional[List[server.PlayerMetadata]] = Field(default=None, description="Party roster")
     session_number: Optional[int] = Field(default=None, description="Session number override")
     target_language: str = Field(default="es", description="Target language ('es' or 'en')")
+    custom_date: Optional[str] = Field(default=None, description="Optional custom date string")
+    client_timezone_offset: Optional[int] = Field(default=None, description="Client timezone offset in minutes")
 
 
 class FinalizeNpcsRequest(BaseModel):
@@ -95,7 +116,10 @@ class UpdateNpcRequest(BaseModel):
 async def list_campaigns():
     """List all campaigns in data/campaigns/."""
     manager = server.CampaignManager()
-    return manager.list_campaigns()
+    return JSONResponse(
+        content=manager.list_campaigns(),
+        headers={"Cache-Control": "no-cache, no-store, must-revalidate", "Pragma": "no-cache"},
+    )
 
 
 @router.get("/api/campaigns/{campaign_name}")
@@ -104,10 +128,13 @@ async def get_campaign(campaign_name: str):
     manager = server.CampaignManager()
     state = manager.load_campaign(campaign_name)
     active_ctx = manager.get_active_context(campaign_name)
-    return {
-        "campaign_state": state,
-        "active_context": active_ctx,
-    }
+    return JSONResponse(
+        content={
+            "campaign_state": state,
+            "active_context": active_ctx,
+        },
+        headers={"Cache-Control": "no-cache, no-store, must-revalidate", "Pragma": "no-cache"},
+    )
 
 
 @router.get("/api/campaigns/{campaign_name}/session/{session_num}")
@@ -120,12 +147,54 @@ async def get_campaign_session_endpoint(campaign_name: str, session_num: int):
 
     sessions = state.get("sessions", [])
     target_session = next((s for s in sessions if int(s.get("session_number", 0)) == int(session_num)), None)
-    if not target_session and sessions:
-        sorted_sessions = sorted(sessions, key=lambda s: int(s.get("session_number", 0)))
-        latest_sess = sorted_sessions[-1]
-        latest_num = int(latest_sess.get("session_number", 0))
-        if len(sessions) == 1 or int(session_num) == latest_num + 1:
-            target_session = latest_sess
+
+    safe_name = manager.sanitize_name(campaign_name)
+    custom_tf = target_session.get("raw_transcript_file") if target_session else None
+    possible_txt_paths = [
+        Path(custom_tf) if custom_tf else None,
+        server.project_root / custom_tf if custom_tf else None,
+        Path("outputs") / f"{safe_name}_sesion_{session_num}_transcripcion.txt",
+        server.get_data_output_dir() / f"{safe_name}_sesion_{session_num}_transcripcion.txt",
+        Path("outputs") / f"{campaign_name.lower()}_sesion_{session_num}_transcripcion.txt",
+        server.get_data_output_dir() / f"{campaign_name.lower()}_sesion_{session_num}_transcripcion.txt",
+    ]
+    possible_txt_paths = [p for p in possible_txt_paths if p is not None]
+    disk_transcript = ""
+    for pt in possible_txt_paths:
+        if pt.is_file():
+            try:
+                content = pt.read_text(encoding="utf-8").strip()
+                if content:
+                    disk_transcript = content
+                    break
+            except Exception:
+                pass
+
+    if not target_session:
+        if disk_transcript:
+            target_session = {
+                "session_number": int(session_num),
+                "title": f"Sesión {session_num}",
+                "session_title": f"Sesión {session_num}",
+                "date": datetime.datetime.now().strftime("%d/%m/%Y"),
+                "raw_transcript": disk_transcript,
+                "chronicle_text": "Transcripción de sesión preservada.",
+                "chronicle_markdown": f"# Sesión #{session_num}\n\nTranscripción preservada con éxito.",
+                "detected_pcs": state.get("roster") or state.get("universal_pcs") or []
+            }
+            if "sessions" not in state or not isinstance(state["sessions"], list):
+                state["sessions"] = []
+            state["sessions"].append(target_session)
+            if int(session_num) > int(state.get("last_session", 0)):
+                state["last_session"] = int(session_num)
+            manager.save_campaign(state)
+        elif sessions:
+            sorted_sessions = sorted(sessions, key=lambda s: int(s.get("session_number", 0)))
+            latest_sess = sorted_sessions[-1]
+            latest_num = int(latest_sess.get("session_number", 0))
+            if len(sessions) == 1 or int(session_num) == latest_num + 1:
+                target_session = latest_sess
+
     if not target_session:
         raise HTTPException(status_code=404, detail=f"Sesión #{session_num} no encontrada en la campaña '{campaign_name}'.")
 
@@ -166,10 +235,13 @@ async def get_campaign_session_endpoint(campaign_name: str, session_num: int):
 
     # Resolve raw_transcript
     raw_transcript = (target_session.get("raw_transcript") or "").strip()
-    if not raw_transcript:
+    if (not raw_transcript or raw_transcript.startswith("Transcripción no guardada")) and disk_transcript:
+        raw_transcript = disk_transcript
+        target_session["raw_transcript"] = disk_transcript
+        manager.save_campaign(state)
+    elif not raw_transcript:
         raw_transcript = f"Transcripción no guardada para la sesión #{session_num}."
 
-    safe_name = manager.sanitize_name(campaign_name)
     txt_filename = f"{safe_name}_sesion_{session_num}_transcripcion.txt"
     try:
         txt_path = server.get_data_output_dir() / txt_filename
@@ -199,6 +271,125 @@ async def get_campaign_session_endpoint(campaign_name: str, session_num: int):
         "campaign_state": state,
         "txt_filename": txt_filename,
         "wav_filename": target_session.get("wav_filename"),
+    }
+
+
+@router.post("/api/campaigns/{campaign_name}/session/{session_num}/keep-transcript")
+async def keep_campaign_session_transcript_endpoint(
+    campaign_name: str,
+    session_num: int,
+    payload: KeepTranscriptRequest,
+):
+    """Explicitly persist the raw transcript into the session state and disk."""
+    manager = server.CampaignManager()
+    state = manager.load_campaign(campaign_name)
+    if not state:
+        raise HTTPException(status_code=404, detail=f"Campaña '{campaign_name}' no encontrada.")
+
+    raw_text = (payload.raw_transcript or payload.transcript or payload.transcript_text or "").strip()
+    if not raw_text:
+        raise HTTPException(status_code=400, detail="Texto de transcripción vacío.")
+
+    sessions = state.get("sessions", [])
+    target = next((s for s in sessions if int(s.get("session_number", 0)) == int(session_num)), None)
+    if not target:
+        target = {
+            "session_number": int(session_num),
+            "title": f"Sesión {session_num}",
+            "session_title": f"Sesión {session_num}",
+            "date": datetime.datetime.now().strftime("%d/%m/%Y"),
+            "raw_transcript": raw_text,
+            "chronicle_text": "Transcripción de sesión preservada.",
+            "chronicle_markdown": f"# Sesión #{session_num}\n\nTranscripción preservada con éxito.",
+            "detected_pcs": state.get("roster") or state.get("universal_pcs") or [],
+        }
+        if "sessions" not in state or not isinstance(state["sessions"], list):
+            state["sessions"] = []
+        state["sessions"].append(target)
+    else:
+        target["raw_transcript"] = raw_text
+
+    if int(session_num) > int(state.get("last_session", 0)):
+        state["last_session"] = int(session_num)
+
+    saved_path = manager.save_campaign(state)
+    safe_name = manager.sanitize_name(campaign_name)
+    try:
+        out_file = server.get_data_output_dir() / f"{safe_name}_sesion_{session_num}_transcripcion.txt"
+        out_file.write_text(raw_text, encoding="utf-8")
+        outputs_file = Path("outputs") / f"{safe_name}_sesion_{session_num}_transcripcion.txt"
+        outputs_file.parent.mkdir(parents=True, exist_ok=True)
+        outputs_file.write_text(raw_text, encoding="utf-8")
+    except Exception as e:
+        print(f"[keep_campaign_session_transcript] Warning writing to disk: {e}")
+
+    server.trigger_drive_sync_background([saved_path])
+    return {
+        "status": "success",
+        "message": f"Transcripción de Sesión #{session_num} guardada correctamente.",
+        "campaign_state": state,
+    }
+
+
+@router.post("/api/campaigns/{campaign_name}/roster")
+async def save_campaign_roster_endpoint(campaign_name: str, payload: SaveRosterRequest):
+    """Save roster, DM info, and player Discord links for a campaign."""
+    manager = server.CampaignManager()
+    state = manager.load_campaign(campaign_name)
+    if not state:
+        raise HTTPException(status_code=404, detail=f"Campaña '{campaign_name}' no encontrada.")
+
+    dm_name = payload.dm_name or state.get("dm_name") or state.get("dm") or "Dungeon Master"
+    dm_discord_id = payload.dm_discord_user_id or payload.dm_discord_id or state.get("dm_discord_id") or ""
+
+    state["dm"] = dm_name
+    state["dungeon_master"] = dm_name
+    state["dm_name"] = dm_name
+    state["dm_discord_id"] = dm_discord_id
+    state["dm_discord_user_id"] = dm_discord_id
+    state["dm_discord"] = dm_discord_id
+
+    incoming_players = payload.players if payload.players is not None else payload.roster
+    if incoming_players is not None:
+        full_roster = []
+        has_dm = any(
+            p.get("character_name") == "(DM)" or p.get("role") == "Dungeon Master (DM)"
+            for p in incoming_players
+        )
+        if not has_dm:
+            dm_entry = {
+                "player_name": dm_name,
+                "character_name": "(DM)",
+                "species": "(N/A - DM)",
+                "role": "Dungeon Master (DM)",
+                "subclass": "N/A",
+                "discord_user_id": dm_discord_id,
+                "discord_id": dm_discord_id,
+                "is_user": False,
+                "is_user_character": False,
+                "is_absent": False,
+            }
+            full_roster.append(dm_entry)
+
+        for p in incoming_players:
+            entry = dict(p)
+            if entry.get("character_name") == "(DM)" or entry.get("role") == "Dungeon Master (DM)":
+                if dm_name and not entry.get("player_name"):
+                    entry["player_name"] = dm_name
+                if dm_discord_id and not (entry.get("discord_user_id") or entry.get("discord_id")):
+                    entry["discord_user_id"] = dm_discord_id
+                    entry["discord_id"] = dm_discord_id
+            full_roster.append(entry)
+
+        state["roster"] = full_roster
+
+    saved_path = manager.save_campaign(state)
+    server.trigger_drive_sync_background([saved_path])
+
+    return {
+        "status": "success",
+        "message": "Roster de campaña guardado con éxito.",
+        "campaign_state": state,
     }
 
 
@@ -419,6 +610,8 @@ async def process_campaign_session_endpoint(campaign_name: str, payload: Process
             transcript_text=payload.transcript_text,
             roster_dicts=roster_dicts,
             session_number=payload.session_number,
+            custom_date=payload.custom_date,
+            client_timezone_offset=payload.client_timezone_offset,
         )
         manager = server.CampaignManager()
         saved_path = manager.get_campaign_path(campaign_name)

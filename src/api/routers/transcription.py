@@ -40,6 +40,8 @@ class YouTubeTranscribeRequest(BaseModel):
     topic: Optional[str] = Field(default="", description="Tema de la clase for university lecture")
     target_language: str = Field(default="es", description="Target language ('es' or 'en')")
     audio_language: Optional[str] = Field(default=None, description="Explicit audio language or None for Whisper auto-detection")
+    custom_date: Optional[str] = Field(default=None, description="Client local date string (e.g. DD/MM/YYYY HH:MM)")
+    client_timezone_offset: Optional[Union[int, str]] = Field(default=None, description="Client timezone offset in minutes")
 
 
 
@@ -89,6 +91,8 @@ class SwitchLanguageRequest(BaseModel):
     roster: Optional[List[server.PlayerMetadata]] = Field(default_factory=list, description="Party roster")
     subject: Optional[str] = Field(default="", description="Subject for lecture")
     topic: Optional[str] = Field(default="", description="Topic for lecture")
+    custom_date: Optional[str] = Field(default=None, description="Client local date string (e.g. DD/MM/YYYY HH:MM)")
+    client_timezone_offset: Optional[Union[int, str]] = Field(default=None, description="Client timezone offset in minutes")
 
 
 
@@ -106,6 +110,8 @@ class ReprocessCampaignRequest(BaseModel):
     subject: Optional[str] = Field(default="", description="Subject for lecture")
     topic: Optional[str] = Field(default="", description="Topic for lecture")
     is_youtube: Optional[bool] = Field(default=False, description="Whether this session was ingested from YouTube")
+    custom_date: Optional[str] = Field(default=None, description="Client local date string (e.g. DD/MM/YYYY HH:MM)")
+    client_timezone_offset: Optional[Union[int, str]] = Field(default=None, description="Client timezone offset in minutes")
 
 
 # ---------------------------------------------------------------------------
@@ -169,8 +175,11 @@ async def transcribe_youtube(payload: YouTubeTranscribeRequest, request: Request
     engine = payload.engine or "groq"
     start_time = time.time()
 
-    def yt_progress(pct: int, msg: str):
+    def yt_progress(pct: float, msg: str):
         server.update_task_progress(task_id, pct, "Descargando audio de YouTube...", msg, stage="audio")
+
+    audio_file_path = None
+    caption_fallback_result = None
 
     try:
         audio_file_path = await run_in_threadpool(
@@ -180,16 +189,32 @@ async def transcribe_youtube(payload: YouTubeTranscribeRequest, request: Request
             on_progress=yt_progress if task_id else None,
         )
     except ValueError as exc:
-        server.update_task_progress(task_id, 0, f"Error URL YouTube: {exc}", stage="error")
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+        err_msg = str(exc)
+        server.set_task_error(task_id, err_msg, error_type="YouTubeUrlError", stage="Validación URL")
+        raise HTTPException(status_code=400, detail=err_msg) from exc
     except Exception as exc:
-        server.update_task_progress(task_id, 0, f"Error descargando YouTube: {exc}", stage="error")
-        raise HTTPException(status_code=500, detail=f"Error descargando audio de YouTube: {exc}") from exc
+        err_msg = str(exc)
+        # Attempt automatic captions/subtitles fallback if audio stream download failed (e.g. cloud IP block)
+        try:
+            from src.transcription.youtube_downloader import extract_youtube_captions_fallback
+            server.update_task_progress(
+                task_id,
+                25.0,
+                "Descarga de stream bloqueada; extrayendo subtítulos oficiales de YouTube...",
+                "Modo respaldo de subtítulos...",
+                stage="transcribing",
+            )
+            caption_fallback_result = await run_in_threadpool(
+                extract_youtube_captions_fallback,
+                url,
+                getattr(payload, "audio_language", None) or "es",
+            )
+        except Exception:
+            caption_fallback_result = None
 
-    server.update_task_progress(task_id, 25.0, "Descarga completada. Iniciando transcripción...", "Iniciando motor de audio...", stage="transcribing")
-
-    def progress_cb(pct: int, msg: str):
-        server.update_task_progress(task_id, pct, msg, stage="transcribing")
+        if not caption_fallback_result:
+            server.set_task_error(task_id, err_msg, error_type="YouTubeDownloadError", stage="Descarga de YouTube")
+            raise HTTPException(status_code=500, detail=f"Error descargando audio de YouTube: {err_msg}") from exc
 
     roster_dicts = [p.model_dump() for p in payload.roster] if payload.roster else []
     user_char_name = None
@@ -198,28 +223,44 @@ async def transcribe_youtube(payload: YouTubeTranscribeRequest, request: Request
             user_char_name = (p.get("character_name") or "").strip()
             break
 
-    try:
-        result = await run_in_threadpool(
-            server.transcribe_audio_pipeline,
-            audio_path=audio_file_path,
-            engine=engine,
-            model_size=model_size,
-            language=getattr(payload, "audio_language", None),
-            on_progress=progress_cb,
-            source="youtube",
-            user_char_name=user_char_name,
-            roster=roster_dicts,
-            groq_api_key=groq_key,
-            campaign_name=getattr(payload, "campaign_name", None),
-            recording_mode=payload.recording_mode,
-            subject=payload.subject,
-            topic=payload.topic,
-            task_id=task_id,
+    if caption_fallback_result is not None:
+        result = caption_fallback_result
+        server.update_task_progress(
+            task_id,
+            70.0,
+            "Transcripción obtenida vía subtítulos de YouTube (70.0%). Analizando con Gemini...",
+            "Generando documento...",
+            stage="analyzing",
         )
-    except Exception as exc:
-        human_err = server.format_human_error(exc)
-        server.set_task_error(task_id, human_err)
-        raise HTTPException(status_code=500, detail=human_err) from exc
+    else:
+        server.update_task_progress(task_id, 20.0, "Descarga de YouTube completada (20.0%). Segmentando con FFmpeg...", "Preparando bloques de audio...", stage="segmenting")
+
+        def progress_cb(pct: float, msg: str):
+            cur_stage = "segmenting" if pct < 25.0 else "transcribing"
+            server.update_task_progress(task_id, pct, msg, stage=cur_stage)
+
+        try:
+            result = await run_in_threadpool(
+                server.transcribe_audio_pipeline,
+                audio_path=audio_file_path,
+                engine=engine,
+                model_size=model_size,
+                language=getattr(payload, "audio_language", None),
+                on_progress=progress_cb,
+                source="youtube",
+                user_char_name=user_char_name,
+                roster=roster_dicts,
+                groq_api_key=groq_key,
+                campaign_name=getattr(payload, "campaign_name", None),
+                recording_mode=payload.recording_mode,
+                subject=payload.subject,
+                topic=payload.topic,
+                task_id=task_id,
+            )
+        except Exception as exc:
+            human_err = server.format_human_error(exc)
+            server.set_task_error(task_id, human_err)
+            raise HTTPException(status_code=500, detail=human_err) from exc
 
     elapsed_time = round(time.time() - start_time, 2)
     language_code = result.get("language_code") or (
@@ -245,11 +286,14 @@ async def transcribe_youtube(payload: YouTubeTranscribeRequest, request: Request
     top = (payload.topic or "").strip() or "Tema de Clase"
 
     if is_academic:
-        server.update_task_progress(task_id, 72.0, "Analizando clase universitaria con Gemini...", "Sintetizando conceptos teóricos y fórmulas...", stage="analyzing")
+        server.update_task_progress(task_id, 70.0, "Extrayendo conceptos clave de la clase con Gemini...", "Analizando transcripción de YouTube...", stage="analyzing")
+        server.update_task_progress(task_id, 76.0, "Redactando guía de estudio y apuntes con Gemini...", "Sintetizando conceptos teóricos y fórmulas...", stage="analyzing")
         subj = (payload.subject or "").strip() or "Materia Universitaria"
         top = (payload.topic or "").strip() or "Tema de Clase"
-        now_str = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-        now_formatted = datetime.datetime.now().strftime("%d/%m/%Y %H:%M")
+        now_str, now_formatted, _ = server.parse_client_datetime(
+            custom_date=getattr(payload, "custom_date", None),
+            client_timezone_offset=getattr(payload, "client_timezone_offset", None),
+        )
 
         try:
             summarizer = server.GeminiTTRPGSummarizer(api_key=gemini_key)
@@ -261,6 +305,7 @@ async def transcribe_youtube(payload: YouTubeTranscribeRequest, request: Request
                 date_str=now_formatted,
                 target_language=payload.target_language,
             )
+            server.update_task_progress(task_id, 95.0, "Compilando documentos Word (.docx) y Markdown (.md)...", "Generando archivos de apuntes...", stage="analyzing")
             clean_subj = re.sub(r'[\\/*?:"<>|]', "", subj.strip()) or "Materia"
             safe_subj = re.sub(r"\s+", "_", clean_subj)
             clean_top = re.sub(r'[\\/*?:"<>|]', "", top.strip()) or "Tema"
@@ -282,15 +327,13 @@ async def transcribe_youtube(payload: YouTubeTranscribeRequest, request: Request
             chronicle_md = f"# ⚠️ Error generando guía académica con Gemini:\n\n> {exc}\n\n**Texto:**\n\n{transcript_text}"
             print(f"[transcribe_youtube] Warning: academic notes export failed: {exc}")
 
-        server.update_task_progress(task_id, 94.0, "Generando documentos (.docx y .md)...", "Creando archivos de apuntes...", stage="analyzing")
-        server.update_task_progress(task_id, 100.0, "¡Completado!", "Guía de estudio generada exitosamente.", stage="done")
+        server.update_task_progress(task_id, 98.0, "Documentos generados. Sincronizando con Drive y limpiando...", "Finalizando exportación...", stage="analyzing")
     else:
-        server.update_task_progress(task_id, 72.0, "Generando crónica / apuntes explicativos con IA...", "Extrayendo hechos e inventario...", stage="analyzing")
+        server.update_task_progress(task_id, 70.0, "Iniciando síntesis con Gemini...", "Extrayendo Quests y PNJs...", stage="analyzing")
 
         campaign_name = (payload.campaign_name or payload.campaign_id or "").strip()
         if campaign_name:
             try:
-                server.update_task_progress(task_id, 80.0, "Actualizando Quest Tracker y Directorio Universal de NPCs...", stage="analyzing")
                 camp_res = await run_in_threadpool(
                     server.process_session_for_campaign,
                     campaign_name=campaign_name,
@@ -300,6 +343,9 @@ async def transcribe_youtube(payload: YouTubeTranscribeRequest, request: Request
                     target_language=payload.target_language,
                     is_youtube=True,
                     gemini_api_key=gemini_key,
+                    on_progress=lambda p, m: server.update_task_progress(task_id, p, m, stage="analyzing"),
+                    custom_date=getattr(payload, "custom_date", None),
+                    client_timezone_offset=getattr(payload, "client_timezone_offset", None),
                 )
                 campaign_state = camp_res.get("campaign_state")
                 session_chapter = camp_res.get("session_chapter")
@@ -317,6 +363,7 @@ async def transcribe_youtube(payload: YouTubeTranscribeRequest, request: Request
                 print(f"[transcribe_youtube] Warning: campaign session processing failed: {exc}")
 
         if not file_path_str:
+            server.update_task_progress(task_id, 95.0, "Compilando documentos Word (.docx) y Markdown (.md)...", "Creando archivos del Grimorio...", stage="analyzing")
             timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
             safe_title = Path(audio_file_path).stem[:40]
             out_docx_path = server.get_data_output_dir() / f"transcripcion_youtube_{safe_title}_{timestamp}.docx"
@@ -342,8 +389,7 @@ async def transcribe_youtube(payload: YouTubeTranscribeRequest, request: Request
                 docx_filename = None
                 md_filename = Path(out_md_path).name
 
-        server.update_task_progress(task_id, 94.0, "Generando documentos (.docx y .md)...", "Creando archivos del Grimorio (.docx y .md)...", stage="analyzing")
-        server.update_task_progress(task_id, 100.0, "¡Completado!", "Sesión procesada exitosamente.", stage="done")
+        server.update_task_progress(task_id, 98.0, "Documentos generados. Sincronizando con Drive y limpiando...", "Finalizando exportación...", stage="analyzing")
 
     # Auto-Delete YouTube Audio:
     # Once the campaign chapter is successfully generated and exported to Drive/Output,
@@ -383,11 +429,13 @@ async def transcribe_youtube(payload: YouTubeTranscribeRequest, request: Request
             server.trigger_drive_sync_background(files_to_sync)
     except Exception as exc:
         print(f"[transcribe_youtube] Warning triggering drive sync: {exc}")
+    server.update_task_progress(task_id, 100.0, "¡Completado!", "Sesión procesada y sincronizada exitosamente.", stage="done")
     action_items = None
     key_points = None
     if is_work_study:
         action_items, key_points = server.extract_academic_sections(chronicle_md or "")
 
+    actual_yt_sess_num = camp_res.get("session_number") if camp_res else payload.session_number
     return TranscribeResponse(
         text=transcript_text,
         segments=result["segments"],
@@ -399,6 +447,8 @@ async def transcribe_youtube(payload: YouTubeTranscribeRequest, request: Request
         docx_filename=docx_filename,
         md_filename=md_filename,
         txt_filename=txt_filename,
+        campaign_name=campaign_name if not is_work_study else None,
+        session_number=actual_yt_sess_num if not is_work_study else None,
         campaign_state=campaign_state,
         session_chapter=session_chapter,
         updated_quests=updated_quests or [],
@@ -434,6 +484,8 @@ async def transcribe_file(
     topic: Optional[str] = Form(default=None),
     target_language: str = Form(default="es"),
     audio_language: Optional[str] = Form(default=None),
+    custom_date: Optional[str] = Form(default=None),
+    client_timezone_offset: Optional[Union[int, str]] = Form(default=None),
     request: Request = None,
 ):
     """Accept an uploaded audio file or existing local recording and transcribe it using Groq Whisper or faster-whisper."""
@@ -457,7 +509,7 @@ async def transcribe_file(
         save_dest = cand_dest
         if not save_dest.is_file():
             raise HTTPException(status_code=404, detail=f"Archivo no encontrado: {clean_filename}")
-        server.update_task_progress(task_id, 20.0, f"Cargando archivo local: {clean_filename}...", "Iniciando motor de audio...", stage="segmenting")
+        server.update_task_progress(task_id, 1.0, f"Cargando archivo local: {clean_filename}...", "Preparando análisis y corte FFmpeg...", stage="segmenting")
     elif file and getattr(file, "filename", None):
         clean_filename = Path(file.filename).name
 
@@ -500,14 +552,14 @@ async def transcribe_file(
             if matched_audio and matched_audio.is_file():
                 save_dest = matched_audio
                 clean_filename = matched_audio.name
-                server.update_task_progress(task_id, 20.0, f"Timeline recibido. Usando audio asociado: {clean_filename}...", "Iniciando motor de audio...", stage="segmenting")
+                server.update_task_progress(task_id, 1.0, f"Timeline recibido. Usando audio asociado: {clean_filename}...", "Preparando corte FFmpeg...", stage="segmenting")
             else:
                 raise HTTPException(
                     status_code=400,
                     detail=f"Has seleccionado un archivo de timeline ('{clean_filename}'), pero falta el archivo de audio (.wav o .mp3). Por favor selecciona el archivo de audio correspondiente."
                 )
         else:
-            server.update_task_progress(task_id, 20.0, "Segmentando archivo en el servidor...", "Guardando en almacenamiento local...", stage="segmenting")
+            server.update_task_progress(task_id, 1.0, "Recibiendo archivo en el servidor...", "Guardando en almacenamiento local...", stage="segmenting")
             save_dest = server.get_data_input_dir() / clean_filename
             try:
                 with open(save_dest, "wb") as buffer:
@@ -551,7 +603,7 @@ async def transcribe_file(
         except Exception as mirror_err:
             print(f"[transcribe_file] Notice mirroring audio to campaign: {mirror_err}")
 
-    server.update_task_progress(task_id, 20.0, "Segmentando archivo en el servidor...", "Iniciando motor de audio...", stage="segmenting")
+    server.update_task_progress(task_id, 2.0, "Analizando y segmentando audio con FFmpeg...", "Preparando bloques de 24 MB...", stage="segmenting")
 
     import json
     roster_dicts = []
@@ -580,7 +632,8 @@ async def transcribe_file(
             print(f"[transcribe_file] Notice loading campaign roster: {camp_roster_err}")
 
     def progress_cb(pct: float, msg: str):
-        server.update_task_progress(task_id, pct, msg, stage="transcribing")
+        cur_stage = "segmenting" if pct <= 5.0 else "transcribing"
+        server.update_task_progress(task_id, pct, msg, stage=cur_stage)
 
     try:
         result = await run_in_threadpool(
@@ -625,11 +678,14 @@ async def transcribe_file(
     chronicle_md = None
 
     if recording_mode == "class":
-        server.update_task_progress(task_id, 72.0, "Generando crónica / apuntes explicativos con IA...", "Sintetizando conceptos teóricos y fórmulas...", stage="analyzing")
+        server.update_task_progress(task_id, 55.0, "Extrayendo conceptos clave y glosario con Gemini...", "Analizando transcripción...", stage="analyzing")
+        server.update_task_progress(task_id, 65.0, "Redactando apuntes detallados y guía de estudio con Gemini...", "Sintetizando conceptos teóricos y fórmulas...", stage="analyzing")
         subj = (subject or "").strip() or "Materia Universitaria"
         top = (topic or "").strip() or "Tema de Clase"
-        now_str = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-        now_formatted = datetime.datetime.now().strftime("%d/%m/%Y %H:%M")
+        now_str, now_formatted, _ = server.parse_client_datetime(
+            custom_date=custom_date,
+            client_timezone_offset=client_timezone_offset,
+        )
 
         try:
             summarizer = server.GeminiTTRPGSummarizer(api_key=gemini_key)
@@ -641,10 +697,11 @@ async def transcribe_file(
                 date_str=now_formatted,
                 target_language=target_language,
             )
+            server.update_task_progress(task_id, 87.0, "Extrayendo tareas, entregables y puntos clave...", "Organizando resumen ejecutivo...", stage="analyzing")
         except Exception as exc:
             chronicle_md = f"# ⚠️ Error generando guía académica con Gemini:\n\n> {exc}\n\n**Texto:**\n\n{transcript_text}"
 
-        server.update_task_progress(task_id, 94.0, "Generando documentos (.docx y .md)...", "Creando archivos de apuntes...", stage="analyzing")
+        server.update_task_progress(task_id, 95.0, "Compilando documentos Word (.docx) y Markdown (.md)...", "Creando archivos de apuntes...", stage="analyzing")
         clean_subj = re.sub(r'[\\/*?:"<>|]', "", subj.strip()) or "Materia"
         safe_subj = re.sub(r"\s+", "_", clean_subj)
         docx_filename = f"apuntes_file_{safe_subj}_{now_str}.docx"
@@ -661,6 +718,8 @@ async def transcribe_file(
             file_path_str = str(docx_out_path.resolve())
         except Exception as exc:
             print(f"[transcribe_file] Warning: academic notes export failed: {exc}")
+
+        server.update_task_progress(task_id, 98.0, "Documentos generados. Sincronizando con Google Drive...", "Finalizando exportación...", stage="analyzing")
 
         # Background Drive Sync for academic notes
         try:
@@ -697,12 +756,11 @@ async def transcribe_file(
             key_points=key_points,
         )
 
-    server.update_task_progress(task_id, 72.0, "Generando crónica / apuntes explicativos con IA...", "Extrayendo hechos e inventario...", stage="analyzing")
+    server.update_task_progress(task_id, 55.0, "Iniciando síntesis con Gemini...", "Extrayendo misiones (Quests) y PNJs...", stage="analyzing")
 
     detected_pcs = None
     if campaign_name:
         try:
-            server.update_task_progress(task_id, 80.0, "Actualizando Quest Tracker y Directorio Universal de NPCs...", stage="analyzing")
             camp_res = await run_in_threadpool(
                 server.process_session_for_campaign,
                 campaign_name=campaign_name,
@@ -711,6 +769,9 @@ async def transcribe_file(
                 session_number=session_number,
                 target_language=target_language,
                 gemini_api_key=gemini_key,
+                on_progress=lambda p, m: server.update_task_progress(task_id, p, m, stage="analyzing"),
+                custom_date=custom_date,
+                client_timezone_offset=client_timezone_offset,
             )
             campaign_state = camp_res.get("campaign_state")
             session_chapter = camp_res.get("session_chapter")
@@ -729,7 +790,7 @@ async def transcribe_file(
             chronicle_md = f"# ⚠️ Error generando crónica con Gemini:\n\n> {exc}\n\n**Texto de Transcripción:**\n\n{transcript_text}"
     else:
         try:
-            server.update_task_progress(task_id, 80.0, "Generando crónica narrativa con Gemini...", stage="analyzing")
+            server.update_task_progress(task_id, 65.0, "Redactando Crónica Épica Novelesca con Gemini...", stage="analyzing")
             summarizer = server.GeminiTTRPGSummarizer(api_key=gemini_key)
             chronicle_md = await run_in_threadpool(
                 summarizer.generate_chronicle,
@@ -738,11 +799,13 @@ async def transcribe_file(
                 target_language=target_language,
                 session_number=session_number or 1,
             )
+            server.update_task_progress(task_id, 87.0, "Generando resumen de cierre y recap...", stage="analyzing")
         except Exception as exc:
             print(f"[transcribe_file] Warning: standalone chronicle generation failed: {exc}")
             chronicle_md = f"# ⚠️ Error generando crónica con Gemini:\n\n> {exc}\n\n**Texto de Transcripción:**\n\n{transcript_text}"
 
     if not file_path_str:
+        server.update_task_progress(task_id, 95.0, "Compilando documentos Word (.docx) y Markdown (.md)...", stage="analyzing")
         timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
         safe_title = Path(clean_filename).stem[:40]
         out_docx_path = server.get_data_output_dir() / f"cronica_{safe_title}_{timestamp}.docx"
@@ -767,7 +830,7 @@ async def transcribe_file(
             file_path_str = str((server.get_data_output_dir() / md_filename).resolve())
             docx_filename = None
 
-    server.update_task_progress(task_id, 100.0, "¡Completado!", "Sesión procesada exitosamente.", stage="done")
+    server.update_task_progress(task_id, 98.0, "Documentos generados. Sincronizando con Google Drive...", "Finalizando exportación...", stage="analyzing")
 
     # Mirror exports to dedicated data/campaigns/<campaign>/exports/
     if campaign_name:
@@ -805,6 +868,9 @@ async def transcribe_file(
     except Exception as exc:
         print(f"[transcribe_file] Warning triggering drive sync: {exc}")
 
+    server.update_task_progress(task_id, 100.0, "¡Completado!", "Sesión procesada exitosamente.", stage="done")
+
+    actual_file_sess_num = camp_res.get("session_number") if camp_res else session_number
     return TranscribeResponse(
         text=transcript_text,
         segments=result["segments"],
@@ -816,6 +882,8 @@ async def transcribe_file(
         docx_filename=docx_filename,
         md_filename=md_filename,
         txt_filename=txt_filename,
+        campaign_name=campaign_name,
+        session_number=actual_file_sess_num,
         campaign_state=campaign_state,
         session_chapter=session_chapter,
         updated_quests=updated_quests,
@@ -848,6 +916,8 @@ async def upload_session_with_telemetry(
     subject: Optional[str] = Form(default=None),
     topic: Optional[str] = Form(default=None),
     audio_language: Optional[str] = Form(default=None),
+    custom_date: Optional[str] = Form(default=None),
+    client_timezone_offset: Optional[Union[int, str]] = Form(default=None),
     request: Request = None,
 ):
     """
@@ -866,7 +936,7 @@ async def upload_session_with_telemetry(
     if not actual_audio or not actual_audio.filename:
         raise HTTPException(status_code=400, detail="No se proporcionó ningún archivo de audio (audio_file).")
 
-    server.update_task_progress(task_id, 10.0, "Recibiendo audio y telemetría de Discord...", "Guardando archivos temporales...", stage="segmenting")
+    server.update_task_progress(task_id, 1.5, "Recibiendo audio y telemetría de Discord...", "Guardando archivos temporales...", stage="segmenting")
     clean_audio_name = Path(actual_audio.filename).name
     save_dest = server.get_data_input_dir() / clean_audio_name
     start_time = time.time()
@@ -973,10 +1043,11 @@ async def upload_session_with_telemetry(
             user_char_name = (p.get("character_name") or "").strip()
             break
 
-    server.update_task_progress(task_id, 25.0, "Segmentando audio y ejecutando transcripción...", "Iniciando motor de audio...", stage="segmenting")
+    server.update_task_progress(task_id, 3.0, "Analizando y segmentando audio con FFmpeg...", "Preparando bloques de 24 MB...", stage="segmenting")
 
     def progress_cb(pct: float, msg: str):
-        server.update_task_progress(task_id, pct, msg, stage="transcribing")
+        cur_stage = "segmenting" if pct <= 5.0 else "transcribing"
+        server.update_task_progress(task_id, pct, msg, stage=cur_stage)
 
     try:
         result = await run_in_threadpool(
@@ -1024,11 +1095,14 @@ async def upload_session_with_telemetry(
     session_title = None
 
     if recording_mode == "class":
-        server.update_task_progress(task_id, 72.0, "Generando apuntes académicos con IA...", "Sintetizando conceptos teóricos...", stage="analyzing")
+        server.update_task_progress(task_id, 55.0, "Extrayendo conceptos clave y glosario con Gemini...", "Analizando transcripción...", stage="analyzing")
+        server.update_task_progress(task_id, 65.0, "Redactando apuntes académicos y guía de estudio con Gemini...", "Sintetizando conceptos teóricos...", stage="analyzing")
         subj = (subject or "").strip() or "Materia Universitaria"
         top = (topic or "").strip() or "Tema de Clase"
-        now_str = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-        now_formatted = datetime.datetime.now().strftime("%d/%m/%Y %H:%M")
+        now_str, now_formatted, _ = server.parse_client_datetime(
+            custom_date=custom_date,
+            client_timezone_offset=client_timezone_offset,
+        )
 
         try:
             summarizer = server.GeminiTTRPGSummarizer(api_key=gemini_key)
@@ -1040,10 +1114,11 @@ async def upload_session_with_telemetry(
                 date_str=now_formatted,
                 target_language=target_language,
             )
+            server.update_task_progress(task_id, 87.0, "Extrayendo tareas, entregables y puntos clave...", "Organizando resumen ejecutivo...", stage="analyzing")
         except Exception as exc:
             chronicle_md = f"# ⚠️ Error generando guía académica con Gemini:\n\n> {exc}\n\n**Texto:**\n\n{transcript_text}"
 
-        server.update_task_progress(task_id, 94.0, "Generando documentos (.docx y .md)...", "Creando archivos de apuntes...", stage="analyzing")
+        server.update_task_progress(task_id, 95.0, "Compilando documentos Word (.docx) y Markdown (.md)...", "Creando archivos de apuntes...", stage="analyzing")
         clean_subj = re.sub(r'[\\/*?:"<>|]', "", subj.strip()) or "Materia"
         safe_subj = re.sub(r"\s+", "_", clean_subj)
         docx_filename = f"apuntes_telemetria_{safe_subj}_{now_str}.docx"
@@ -1059,6 +1134,8 @@ async def upload_session_with_telemetry(
             file_path_str = str(docx_out_path.resolve())
         except Exception as exc:
             print(f"[upload-with-telemetry] Warning exporting academic notes: {exc}")
+
+        server.update_task_progress(task_id, 98.0, "Documentos generados. Sincronizando con Google Drive...", "Finalizando exportación...", stage="analyzing")
 
         try:
             files_to_sync = []
@@ -1096,11 +1173,10 @@ async def upload_session_with_telemetry(
         )
 
     # Roleplay Mode: Living Campaign Journal or single session chronicle
-    server.update_task_progress(task_id, 72.0, "Generando crónica con IA y atribución exacta...", "Extrayendo hechos e inventario...", stage="analyzing")
+    server.update_task_progress(task_id, 55.0, "Iniciando síntesis con Gemini...", "Extrayendo misiones (Quests) y PNJs...", stage="analyzing")
 
     if campaign_name:
         try:
-            server.update_task_progress(task_id, 80.0, "Actualizando Quest Tracker y Directorio Universal de NPCs...", stage="analyzing")
             camp_res = await run_in_threadpool(
                 server.process_session_for_campaign,
                 campaign_name=campaign_name,
@@ -1109,6 +1185,7 @@ async def upload_session_with_telemetry(
                 session_number=session_number,
                 target_language=target_language,
                 gemini_api_key=gemini_key,
+                on_progress=lambda p, m: server.update_task_progress(task_id, p, m, stage="analyzing"),
             )
             campaign_state = camp_res.get("campaign_state")
             session_chapter = camp_res.get("session_chapter")
@@ -1128,6 +1205,7 @@ async def upload_session_with_telemetry(
             print(f"[upload-with-telemetry] Warning: campaign session processing failed: {exc}")
 
     if not file_path_str:
+        server.update_task_progress(task_id, 95.0, "Compilando documentos Word (.docx) y Markdown (.md)...", stage="analyzing")
         timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
         safe_title = Path(clean_audio_name).stem[:40]
         out_docx_path = server.get_data_output_dir() / f"transcripcion_{safe_title}_{timestamp}.docx"
@@ -1153,7 +1231,7 @@ async def upload_session_with_telemetry(
             docx_filename = None
             md_filename = Path(out_md_path).name
 
-    server.update_task_progress(task_id, 100.0, "¡Completado!", "Sesión procesada exitosamente con telemetría de Discord.", stage="done")
+    server.update_task_progress(task_id, 98.0, "Documentos generados. Sincronizando con Google Drive...", "Finalizando exportación...", stage="analyzing")
 
     # Background Drive Sync
     try:
@@ -1172,6 +1250,8 @@ async def upload_session_with_telemetry(
             server.trigger_drive_sync_background(files_to_sync)
     except Exception as exc:
         print(f"[upload-with-telemetry] Warning triggering drive sync: {exc}")
+
+    server.update_task_progress(task_id, 100.0, "¡Completado!", "Sesión procesada exitosamente con telemetría de Discord.", stage="done")
 
     actual_sess_num = session_number
     if actual_sess_num is None and session_chapter and isinstance(session_chapter, dict):
@@ -1221,8 +1301,10 @@ async def switch_summary_language(payload: SwitchLanguageRequest, request: Reque
     target_lang = (payload.target_language or "es").lower().strip()
     is_class_mode = payload.recording_mode == "class"
     start_time = time.time()
-    now_str = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-    now_formatted = datetime.datetime.now().strftime("%d/%m/%Y %H:%M")
+    now_str, now_formatted, _ = server.parse_client_datetime(
+        custom_date=getattr(payload, "custom_date", None),
+        client_timezone_offset=getattr(payload, "client_timezone_offset", None),
+    )
 
     file_path_str = ""
     docx_filename = None
@@ -1281,6 +1363,8 @@ async def switch_summary_language(payload: SwitchLanguageRequest, request: Reque
                     session_number=session_num,
                     target_language=target_lang,
                     gemini_api_key=gemini_key,
+                    custom_date=payload.custom_date,
+                    client_timezone_offset=payload.client_timezone_offset,
                 )
                 campaign_state = camp_res.get("campaign_state")
                 session_chapter = camp_res.get("session_chapter")
@@ -1402,8 +1486,10 @@ async def reprocess_campaign(payload: ReprocessCampaignRequest, request: Request
     target_lang = (payload.target_language or "es").lower().strip()
     is_class_mode = payload.recording_mode == "class" or payload.workspace == "work_and_study"
     start_time = time.time()
-    now_str = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-    now_formatted = datetime.datetime.now().strftime("%d/%m/%Y %H:%M")
+    now_str, now_formatted, _ = server.parse_client_datetime(
+        custom_date=getattr(payload, "custom_date", None),
+        client_timezone_offset=getattr(payload, "client_timezone_offset", None),
+    )
 
     file_path_str = ""
     docx_filename = None
@@ -1464,6 +1550,8 @@ async def reprocess_campaign(payload: ReprocessCampaignRequest, request: Request
                 target_language=target_lang,
                 is_youtube=bool(payload.is_youtube),
                 gemini_api_key=gemini_key,
+                custom_date=payload.custom_date,
+                client_timezone_offset=payload.client_timezone_offset,
             )
             campaign_state = camp_res.get("campaign_state")
             session_chapter = camp_res.get("session_chapter")

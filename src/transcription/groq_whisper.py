@@ -2,9 +2,11 @@
 
 import os
 import re
+import shutil
 import sys
 import time
 import subprocess
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
 
@@ -15,14 +17,40 @@ except ImportError:
     pass
 
 
-def slice_audio_for_groq(input_audio_path: str, chunk_minutes: int = 15) -> List[str]:
+WIN32_NO_WINDOW = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
+
+
+def slice_audio_for_groq(
+    input_audio_path: str,
+    chunk_minutes: int = 15,
+    on_progress: Optional[Callable[[float, str], None]] = None,
+) -> List[str]:
     """
     Fast, stream-based audio segmentation using direct FFmpeg CLI.
     Never loads large audio files into Python memory.
-    Preserves original native extension (.m4a, .webm, .mp3) using direct packet stream-copy ('-c copy')
-    for instant slicing in ~1.5s with zero CPU re-encoding overhead.
-    Falls back to '-c:a libmp3lame -b:a 64k' only if stream copy fails or for raw audio formats.
+    If input file is already <= 24 MB, immediately returns the file with zero processing.
+    Preserves original native extension (.m4a, .webm, .mp3) using direct packet stream-copy ('-c:a copy')
+    with -nostdin, -vn, -reset_timestamps 1 and timeout protection.
+    Falls back to '-c:a libmp3lame -b:a 48k -ac 1' for ultra-fast mono speech encoding if stream copy fails.
     """
+    input_path = Path(input_audio_path).resolve()
+    if not input_path.is_file():
+        raise FileNotFoundError(f"Archivo de audio no encontrado para segmentar: {input_audio_path}")
+
+    # If the file is already small enough for Groq (<= 24 MB), no slicing is needed!
+    file_size = input_path.stat().st_size
+    if file_size <= 24 * 1024 * 1024:
+        if on_progress:
+            on_progress(25.0, "Audio óptimo (menor a 24 MB). Listo para transcripción con Groq Cloud.")
+        return [str(input_path)]
+
+    if not shutil.which("ffmpeg"):
+        raise RuntimeError(
+            "FFmpeg no está instalado en este sistema o no se encuentra en el PATH. "
+            "Para transcribir archivos de audio grandes (> 24 MB) o videos de YouTube con Groq, FFmpeg es necesario. "
+            "Descarga FFmpeg y añádelo al PATH del sistema."
+        )
+
     env_input = os.environ.get("WHISPER_INPUT_DIR")
     if env_input:
         input_dir = Path(env_input).resolve()
@@ -41,40 +69,87 @@ def slice_audio_for_groq(input_audio_path: str, chunk_minutes: int = 15) -> List
         except Exception:
             pass
 
-    input_path = Path(input_audio_path)
     ext = input_path.suffix.lower() or ".mp3"
     segment_seconds = chunk_minutes * 60
 
-    # For compressed streamable files (not raw uncompressed WAV), try instant packet copy first
+    if on_progress:
+        on_progress(21.5, "Iniciando segmentación de audio con FFmpeg...")
+
+    # Strategy 1: For compressed streamable files, try instant packet stream-copy first
     if ext in (".mp3", ".m4a", ".aac", ".webm", ".ogg"):
         output_pattern = str(chunks_dir / f"chunk_%03d{ext}").replace("\\", "/")
         cmd = [
-            "ffmpeg", "-y", "-threads", "0", "-i", str(input_path),
-            "-f", "segment", "-segment_time", str(segment_seconds),
-            "-c", "copy",
-            output_pattern
+            "ffmpeg", "-nostdin", "-y", "-threads", "0",
+            "-i", str(input_path),
+            "-vn", "-sn", "-dn",
+            "-map", "0:a:0",
+            "-f", "segment",
+            "-segment_time", str(segment_seconds),
+            "-reset_timestamps", "1",
+            "-c:a", "copy",
+            output_pattern,
         ]
         try:
-            subprocess.run(cmd, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            subprocess.run(
+                cmd,
+                check=True,
+                stdin=subprocess.DEVNULL,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.PIPE,
+                creationflags=WIN32_NO_WINDOW,
+                timeout=90,
+            )
             chunk_files = sorted([str(p) for p in chunks_dir.glob(f"chunk_*{ext}")])
             if chunk_files and all(Path(p).stat().st_size <= 24 * 1024 * 1024 for p in chunk_files):
+                if on_progress:
+                    on_progress(25.0, f"Segmentación rápida FFmpeg completada ({len(chunk_files)} bloques listos)")
                 return chunk_files
-        except Exception:
-            pass
+        except Exception as copy_err:
+            print(f"[slice_audio_for_groq] Stream-copy aviso: {copy_err}. Usando codificación mono optimizada...")
 
-    # For WAV or any audio whose chunks would exceed 24 MB, encode to compact MP3 at 64k
-    # 15 minutes of speech at 64kbps = ~7 MB, well below Groq's 25 MB hard limit
+    # Strategy 2: Fast mono MP3 re-encoding at 48 kbps
+    # Whisper natively resamples to 16 kHz mono; 48 kbps mono is crystal clear for speech, encodes at ~50x speed
+    if on_progress:
+        on_progress(22.5, "Optimizando y empaquetando fragmentos de audio para Groq...")
+
     fallback_pattern = str(chunks_dir / "chunk_%03d.mp3").replace("\\", "/")
     cmd = [
-        "ffmpeg", "-y", "-threads", "0", "-i", str(input_path),
+        "ffmpeg", "-nostdin", "-y", "-threads", "0",
+        "-i", str(input_path),
+        "-vn", "-sn", "-dn",
+        "-map", "0:a:0",
         "-f", "segment",
         "-segment_time", str(segment_seconds),
-        "-c:a", "libmp3lame", "-b:a", "64k",
-        fallback_pattern
+        "-reset_timestamps", "1",
+        "-c:a", "libmp3lame",
+        "-b:a", "48k",
+        "-ac", "1",
+        fallback_pattern,
     ]
-    subprocess.run(cmd, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    try:
+        subprocess.run(
+            cmd,
+            check=True,
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.PIPE,
+            creationflags=WIN32_NO_WINDOW,
+            timeout=180,
+        )
+    except subprocess.TimeoutExpired:
+        raise RuntimeError(
+            "FFmpeg tardó más de 3 minutos en segmentar el audio. El archivo puede estar dañado o bloqueado."
+        )
+    except subprocess.CalledProcessError as cpe:
+        err_out = cpe.stderr.decode("utf-8", errors="replace") if cpe.stderr else ""
+        raise RuntimeError(f"Error en FFmpeg al segmentar audio: {err_out[:300]}")
 
     chunk_files = sorted([str(p) for p in chunks_dir.glob("chunk_*.mp3")])
+    if not chunk_files:
+        raise RuntimeError(f"FFmpeg no generó fragmentos de audio para: {input_audio_path}")
+
+    if on_progress:
+        on_progress(25.0, f"Segmentación FFmpeg completada ({len(chunk_files)} bloques listos)")
     return chunk_files
 
 
@@ -255,12 +330,20 @@ def split_dual_channel_audio(audio_path: str, output_dir: Optional[Path] = None)
     # Fast single-pass FFmpeg extraction
     try:
         cmd = [
-            "ffmpeg", "-y", "-threads", "0", "-i", str(p),
+            "ffmpeg", "-nostdin", "-y", "-threads", "0", "-i", str(p),
+            "-vn", "-sn", "-dn",
             "-filter_complex", "[0:a]pan=mono|c0=c0[left];[0:a]pan=mono|c0=c1[right]",
             "-map", "[left]", "-c:a", "libmp3lame", "-b:a", "64k", mic_path,
             "-map", "[right]", "-c:a", "libmp3lame", "-b:a", "64k", discord_path,
         ]
-        res = subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        res = subprocess.run(
+            cmd,
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            creationflags=WIN32_NO_WINDOW,
+            timeout=120,
+        )
         if res.returncode == 0 and Path(mic_path).is_file() and Path(discord_path).is_file():
             return mic_path, discord_path
     except Exception:
@@ -618,9 +701,13 @@ class GroqWhisperTranscriber:
             mic_file = None
             discord_file = None
             try:
+                if on_progress:
+                    on_progress(1.5, "Analizando niveles y separando canales con FFmpeg (1.5%)...")
                 mic_rms, discord_rms = check_stereo_channels_rms(str(path))
                 print(f"[GroqTranscriber] Canal 0 (Mic) RMS: {mic_rms:.5f} | Canal 1 (Discord) RMS: {discord_rms:.5f}")
                 mic_file, discord_file = split_dual_channel_audio(str(path))
+                if on_progress:
+                    on_progress(5.0, "Corte y separación de canales FFmpeg completado (5.0%)")
                 # Check if user is registered in this campaign
                 user_in_campaign = bool(
                     (user_char_name and user_char_name.strip())
@@ -638,11 +725,11 @@ class GroqWhisperTranscriber:
                     if not user_in_campaign:
                         print(f"[GroqTranscriber] El usuario no está en el roster de esta campaña (partida ajena / espectador). Omitiendo canal de micrófono local por completo.")
                         if on_progress:
-                            on_progress(25.0, "Partida ajena detectada (sin usuario en roster). Omitiendo tu micrófono y transcribiendo Discord...")
+                            on_progress(5.0, "Partida ajena detectada (sin usuario en roster). Omitiendo tu micrófono y transcribiendo Discord...")
                     else:
                         print(f"[GroqTranscriber] Pista 1 (Micrófono) en silencio total (RMS={mic_rms:.5f} < 0.003). Omitiendo transcripción de micrófono para evitar alucinaciones y timeouts.")
                         if on_progress:
-                            on_progress(25.0, "Micrófono en silencio detectado. Transcribiendo Pista 2: Discord (Compañeros)...")
+                            on_progress(5.0, "Micrófono en silencio detectado. Transcribiendo Pista 2: Discord (Compañeros)...")
                     def disc_prog(pct: float, msg: str):
                         if on_progress:
                             on_progress(pct, f"Discord: {msg}")
@@ -651,39 +738,39 @@ class GroqWhisperTranscriber:
                         language=effective_lang,
                         prompt=prompt,
                         on_progress=disc_prog,
-                        min_pct=25.0,
-                        max_pct=70.0,
+                        min_pct=5.0,
+                        max_pct=55.0,
                     )
                 else:
                     if on_progress:
-                        on_progress(25.0, "Transcribiendo Pista 1: Micrófono local (Tu voz)...")
+                        on_progress(5.0, "Transcribiendo Pista 1 de 2: Micrófono local (Tu voz)...")
                     def mic_prog(pct: float, msg: str):
                         if on_progress:
-                            on_progress(pct, f"Tu voz: {msg}")
+                            on_progress(pct, f"Pista 1/2 (Tu voz): {msg}")
                     mic_res = self._transcribe_audio_target(
                         mic_file,
                         language=effective_lang,
                         prompt=prompt,
                         on_progress=mic_prog,
-                        min_pct=25.0,
-                        max_pct=47.0,
+                        min_pct=5.0,
+                        max_pct=30.0,
                     )
                     mic_segs = mic_res.get("segments", [])
                     for s in mic_segs:
                         s["speaker"] = user_label
 
                     if on_progress:
-                        on_progress(48.0, "Transcribiendo Pista 2: Audio de Discord (Compañeros)...")
+                        on_progress(30.0, "Transcribiendo Pista 2 de 2: Audio de Discord (Compañeros)...")
                     def disc_prog(pct: float, msg: str):
                         if on_progress:
-                            on_progress(pct, f"Discord: {msg}")
+                            on_progress(pct, f"Pista 2/2 (Discord): {msg}")
                     discord_res = self._transcribe_audio_target(
                         discord_file,
                         language=effective_lang,
                         prompt=prompt,
                         on_progress=disc_prog,
-                        min_pct=48.0,
-                        max_pct=70.0,
+                        min_pct=30.0,
+                        max_pct=55.0,
                     )
 
                 discord_segs = discord_res.get("segments", [])
@@ -770,24 +857,27 @@ class GroqWhisperTranscriber:
         on_progress: Optional[Callable[[float, str], None]] = None,
         source: str = "local",
         prompt: Optional[str] = None,
-        min_pct: float = 30.0,
-        max_pct: float = 80.0,
+        min_pct: Optional[float] = None,
+        max_pct: Optional[float] = None,
     ) -> Dict[str, Any]:
         """Transcribe a single audio file or slice into chunks if exceeding 24 MB."""
         p = Path(file_path).resolve()
         file_size = p.stat().st_size
-        target_min = 35.0 if source == "youtube" else 25.0
-        target_max = 70.0
-        effective_min = min_pct if min_pct != 30.0 else target_min
-        effective_max = max_pct if max_pct != 80.0 else target_max
+        # YouTube: FFmpeg 20-25%, Groq 25-70% | Local/Live: FFmpeg 0-5%, Groq 5-55%
+        target_min = 25.0 if source == "youtube" else 5.0
+        target_max = 70.0 if source == "youtube" else 55.0
+        effective_min = min_pct if min_pct is not None else target_min
+        effective_max = max_pct if max_pct is not None else target_max
 
         if file_size <= self.MAX_FILE_SIZE_BYTES:
+            if on_progress:
+                on_progress(effective_min, f"Iniciando transcripción con Groq Whisper ({effective_min:.1f}%)...")
             single_kwargs = {"language": language, "timeout": 60.0}
             if prompt is not None:
                 single_kwargs["prompt"] = prompt
             res = self._transcribe_single_file(str(p), **single_kwargs)
             if on_progress:
-                on_progress(effective_max, f"Transcribiendo audio ({effective_max:.1f}%)")
+                on_progress(effective_max, f"Transcripción de audio completada ({effective_max:.1f}%)")
             return res
         else:
             return self._transcribe_chunked(
@@ -955,9 +1045,10 @@ class GroqWhisperTranscriber:
         self,
         audio_path: str,
         chunk_minutes: int = 15,
+        on_progress: Optional[Callable[[float, str], None]] = None,
     ) -> List[Any]:
         """Wrapper method for fast FFmpeg slicing."""
-        return slice_audio_for_groq(audio_path, chunk_minutes=chunk_minutes)
+        return slice_audio_for_groq(audio_path, chunk_minutes=chunk_minutes, on_progress=on_progress)
 
     def _transcribe_chunked(
         self,
@@ -966,96 +1057,136 @@ class GroqWhisperTranscriber:
         on_progress: Optional[Callable[[float, str], None]] = None,
         source: str = "local",
         prompt: Optional[str] = None,
-        min_pct: float = 30.0,
-        max_pct: float = 80.0,
+        min_pct: float = 5.0,
+        max_pct: float = 55.0,
     ) -> Dict[str, Any]:
         """
         Slice audio file into 15-minute chunks with FFmpeg and transcribe each sequentially.
         If language is not specified, auto-detects on chunk 1 and pins that language for all remaining chunks.
         """
-        if on_progress:
-            if source == "youtube":
-                on_progress(26.0, "Segmentando audio de YouTube en fragmentos de alta fidelidad...")
-            else:
-                on_progress(15.0, "Segmentando archivo de audio para inferencia por lotes...")
-
-        chunks_list = self._slice_audio(audio_path, chunk_minutes=self.DEFAULT_CHUNK_MINUTES)
+        chunks_list = self._slice_audio(
+            audio_path,
+            chunk_minutes=self.DEFAULT_CHUNK_MINUTES,
+            on_progress=on_progress,
+        )
         num_chunks = len(chunks_list)
 
         if num_chunks == 0:
             raise RuntimeError(f"FFmpeg no generó fragmentos de audio para: {audio_path}")
 
+        # If only 1 chunk was returned (e.g. file <= 24 MB), transcribe directly
+        if num_chunks == 1:
+            single_path = chunks_list[0] if isinstance(chunks_list[0], str) else chunks_list[0][0]
+            if on_progress:
+                on_progress(min_pct, f"Transcribiendo audio con Groq Whisper ({min_pct:.1f}%)...")
+            res = self._transcribe_single_file(
+                single_path,
+                language=language,
+                timeout=60.0,
+                prompt=prompt,
+            )
+            if on_progress:
+                on_progress(max_pct, f"Transcripción de audio completada ({max_pct:.1f}%)")
+            return res
+
         all_segments: List[Dict[str, Any]] = []
         text_parts: List[str] = []
         total_duration = 0.0
-        current_time_offset = 0.0
         detected_lang = language if (language and str(language).strip().lower() != "auto") else None
 
-        try:
-            for idx, chunk_item in enumerate(chunks_list):
-                chunk_path = chunk_item[0] if isinstance(chunk_item, (tuple, list)) else chunk_item
+        chunk_results: Dict[int, Dict[str, Any]] = {}
 
-                # Default fallback duration if chunk tuple has it
-                estimated_chunk_dur = 0.0
-                if isinstance(chunk_item, (tuple, list)) and len(chunk_item) >= 3:
-                    try:
-                        estimated_chunk_dur = float(chunk_item[2])
-                    except (ValueError, TypeError):
-                        estimated_chunk_dur = 0.0
-
-                # Notificar progreso al INICIO del fragmento para que la interfaz refleje el fragmento ACTIVO
-                start_chunk_pct = round(min_pct + ((idx / max(1, num_chunks)) * (max_pct - min_pct)), 1)
-                if on_progress:
-                    on_progress(
-                        start_chunk_pct,
-                        f"Transcribiendo audio (Fragmento {idx + 1} de {num_chunks} - {start_chunk_pct:.1f}%)",
-                    )
-
+        def _do_transcribe_chunk(idx: int, path_item: Any, lang_code: Optional[str]) -> Dict[str, Any]:
+            c_path = path_item[0] if isinstance(path_item, (tuple, list)) else path_item
+            est_dur = 0.0
+            if isinstance(path_item, (tuple, list)) and len(path_item) >= 3:
                 try:
-                    # Enviar chunk a Groq con timeout de 60s
-                    # Si detected_lang ya fue determinado (por fragmento 1 o usuario), fijar en todos los fragmentos
-                    kwargs = {
-                        "language": detected_lang,
-                        "time_offset": current_time_offset,
-                        "timeout": 60.0,
-                    }
-                    if prompt is not None:
-                        kwargs["prompt"] = prompt
-                    chunk_res = self._transcribe_single_file(
-                        chunk_path,
-                        **kwargs,
-                    )
+                    est_dur = float(path_item[2])
+                except (ValueError, TypeError):
+                    est_dur = 0.0
+            try:
+                kw = {
+                    "language": lang_code,
+                    "time_offset": 0.0,
+                    "timeout": 60.0,
+                }
+                if prompt is not None:
+                    kw["prompt"] = prompt
+                res = self._transcribe_single_file(c_path, **kw)
+                dur = res.get("duration", 0.0) or est_dur
+                res["duration"] = dur
+                return res
+            except Exception as e:
+                print(f"[Error en chunk {idx + 1}/{num_chunks}]: {e}")
+                fb_text = f"[Fragmento {idx + 1}: audio no reconocido]"
+                dur = est_dur or (self.DEFAULT_CHUNK_MINUTES * 60.0)
+                return {
+                    "segments": [{
+                        "start": 0.0,
+                        "end": round(dur, 2),
+                        "text": fb_text,
+                    }],
+                    "text": fb_text,
+                    "duration": dur,
+                    "language_code": lang_code,
+                }
 
-                    all_segments.extend(chunk_res.get("segments", []))
-                    if chunk_res.get("text"):
-                        text_parts.append(chunk_res["text"])
-                    if not detected_lang and chunk_res.get("language_code"):
-                        detected_lang = chunk_res["language_code"]
-                        print(f"[groq_whisper] Idioma de audio detectado en fragmento 1: '{detected_lang}'. Fijando para todos los fragmentos restantes.")
-
-                    chunk_dur = chunk_res.get("duration", 0.0) or estimated_chunk_dur
-                except Exception as e:
-                    print(f"[Error en chunk {idx + 1}/{num_chunks}]: {e}")
-                    # Si un chunk falla por silencio o red, registrar el fallo y continuar con el siguiente
-                    fallback_text = f"[Fragmento {idx + 1}: audio no reconocido]"
-                    text_parts.append(fallback_text)
-                    chunk_dur = estimated_chunk_dur or (self.DEFAULT_CHUNK_MINUTES * 60.0)
-                    all_segments.append({
-                        "start": round(current_time_offset, 2),
-                        "end": round(current_time_offset + chunk_dur, 2),
-                        "text": fallback_text,
-                    })
-
-                current_time_offset += chunk_dur
-                total_duration += chunk_dur
-
-                # Emitir progreso real al completar el fragmento
-                done_chunk_pct = round(min_pct + (((idx + 1) / max(1, num_chunks)) * (max_pct - min_pct)), 1)
+        try:
+            start_idx = 0
+            # Step 1: If language was not specified, transcribe chunk 0 first to detect and pin language
+            if not detected_lang and num_chunks > 0:
                 if on_progress:
-                    on_progress(
-                        done_chunk_pct,
-                        f"Transcribiendo audio (Fragmento {idx + 1} de {num_chunks} completado - {done_chunk_pct:.1f}%)",
-                    )
+                    start_chunk_pct = round(min_pct, 1)
+                    on_progress(start_chunk_pct, f"Transcribiendo audio (Fragmento 1 de {num_chunks} - detectando idioma...)")
+                res_0 = _do_transcribe_chunk(0, chunks_list[0], None)
+                chunk_results[0] = res_0
+                if res_0.get("language_code"):
+                    detected_lang = res_0["language_code"]
+                    print(f"[groq_whisper] Idioma de audio detectado en fragmento 1: '{detected_lang}'. Fijando para todos los fragmentos restantes.")
+                start_idx = 1
+                if on_progress:
+                    pct = round(min_pct + (1.0 / max(1, num_chunks)) * (max_pct - min_pct), 1)
+                    on_progress(pct, f"Transcribiendo audio (Fragmento 1 de {num_chunks} completado - {pct:.1f}%)")
+
+            # Step 2: Transcribe remaining chunks concurrently (max_workers=3 for fast, rate-limit-safe requests)
+            remaining_indices = list(range(start_idx, num_chunks))
+            if remaining_indices:
+                workers = min(3, len(remaining_indices))
+                completed_count = len(chunk_results)
+
+                with ThreadPoolExecutor(max_workers=workers, thread_name_prefix="groq_chunk") as executor:
+                    future_to_idx = {
+                        executor.submit(_do_transcribe_chunk, idx, chunks_list[idx], detected_lang): idx
+                        for idx in remaining_indices
+                    }
+                    for future in as_completed(future_to_idx):
+                        idx = future_to_idx[future]
+                        res = future.result()
+                        chunk_results[idx] = res
+                        completed_count += 1
+                        done_pct = round(min_pct + (completed_count / max(1, num_chunks)) * (max_pct - min_pct), 1)
+                        if on_progress:
+                            on_progress(
+                                done_pct,
+                                f"Transcribiendo audio (Fragmento {completed_count} de {num_chunks} completado - {done_pct:.1f}%)",
+                            )
+
+            # Step 3: Reassemble all chunks strictly in sequential chronological order
+            current_time_offset = 0.0
+            for idx in range(num_chunks):
+                c_res = chunk_results.get(idx, {})
+                c_dur = float(c_res.get("duration", 0.0))
+                for seg in c_res.get("segments", []):
+                    all_segments.append({
+                        "start": round(float(seg.get("start", 0.0)) + current_time_offset, 2),
+                        "end": round(float(seg.get("end", 0.0)) + current_time_offset, 2),
+                        "text": seg.get("text", "").strip(),
+                    })
+                if c_res.get("text"):
+                    text_parts.append(c_res["text"])
+                current_time_offset += c_dur
+                total_duration += c_dur
+
         finally:
             # Chunk Cleanup: Immediately after all chunks are transcribed, delete the chunks directory contents
             clean_groq_chunks()

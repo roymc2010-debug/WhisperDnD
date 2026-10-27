@@ -192,6 +192,10 @@ async function checkDriveStatus() {
       userEmail = data.email || null;
       userName = data.name || null;
       serverToken = data.token || null;
+      if (data.oauth_redirect_uri) {
+        const redirectEl = document.getElementById("currentOAuthRedirectUriDisplay");
+        if (redirectEl) redirectEl.textContent = data.oauth_redirect_uri;
+      }
       // Sincronizar token fresco en localStorage
       if (serverToken) {
         localStorage.setItem("gdrive_auth_token", JSON.stringify(serverToken));
@@ -235,10 +239,10 @@ async function checkDriveStatus() {
         }
       }
 
-      // Auto-sync al conectarse o al iniciar la app
-      if (isJustConnected || !hasAutoSyncedDriveThisSession) {
+      // Auto-sync únicamente si el usuario acaba de autorizar con Google OAuth
+      if (isJustConnected) {
         hasAutoSyncedDriveThisSession = true;
-        await syncWithGoogleDrive(!isJustConnected, isJustConnected);
+        await syncWithGoogleDrive(false, true);
       }
     }
   } catch (err) {
@@ -268,8 +272,18 @@ async function connectGoogleDriveUpfront() {
       throw new Error(data.detail || "No se pudo generar la URL de autenticación.");
     }
   } catch (err) {
+    let userMsg = err.message || "Error al iniciar sesión con Google Drive.";
+    if (userMsg.toLowerCase().includes("failed to fetch")) {
+      userMsg = "No se pudo contactar al servidor WhisperDnD (Failed to fetch). Verifica que el servidor esté activo en http://localhost:8080 ('start.bat' o 'python main.py').";
+    } else if (userMsg.toLowerCase().includes("credentials.json")) {
+      userMsg = "El servidor aún no tiene configuradas las credenciales OAuth de Google Cloud (credentials.json).";
+    } else if (userMsg.toLowerCase().includes("redirect_uri_mismatch")) {
+      userMsg = "La URL de este dominio aún no está autorizada en Google Cloud Console (Authorized Redirect URIs).";
+    }
     if (typeof showAlert === "function") {
-      showAlert("Error conectando Google Drive: " + err.message);
+      showAlert("⚠️ Conexión de Google Drive: " + userMsg);
+    } else {
+      alert("⚠️ Conexión de Google Drive: " + userMsg);
     }
     if (btn) {
       btn.disabled = false;
@@ -418,6 +432,7 @@ async function syncWithGoogleDrive(isSilent = false, isJustConnected = false) {
     }
   } finally {
     setButtonsLoading(false);
+    updateDriveSyncIndicator(_driveConnected ? "saved" : "disconnected");
   }
 }
 
@@ -477,6 +492,131 @@ async function uploadCampaignToDrive() {
   }
 }
 
+async function copyDriveSessionToken() {
+  try {
+    let token = localStorage.getItem("gdrive_auth_token");
+    if (!token) {
+      const res = await fetch("/api/drive/token");
+      if (res.ok) {
+        const data = await res.json();
+        if (data.token) {
+          token = JSON.stringify(data.token);
+        }
+      }
+    }
+    if (!token) {
+      if (typeof showAlert === "function") {
+        showAlert("⚠️ No hay ninguna sesión activa de Google Drive en este momento para copiar.");
+      } else {
+        alert("⚠️ No hay ninguna sesión activa de Google Drive en este momento para copiar.");
+      }
+      return;
+    }
+    await navigator.clipboard.writeText(token);
+    if (typeof showSuccessAlert === "function") {
+      showSuccessAlert("📋 ¡Token de sesión copiado al portapapeles!\n\nPuedes pegarlo en tu otra computadora para conectar Google Drive al instante sin necesidad de volver a autorizar con Google.");
+    } else {
+      alert("📋 ¡Token de sesión copiado al portapapeles!\n\nPuedes pegarlo en tu otra computadora para conectar Google Drive al instante.");
+    }
+  } catch (err) {
+    if (typeof showAlert === "function") showAlert("Error al copiar token: " + err.message);
+  }
+}
+
+async function pasteDriveSessionToken() {
+  const container = document.getElementById("driveTokenPasteContainer");
+  const input = document.getElementById("driveTokenPasteInput");
+  if (container && input) {
+    container.classList.remove("hidden");
+    input.focus();
+    // Try reading clipboard automatically for convenience if browser allows it
+    if (navigator.clipboard && navigator.clipboard.readText) {
+      try {
+        const clipText = await navigator.clipboard.readText();
+        if (clipText && clipText.trim().startsWith("{") && !input.value.trim()) {
+          input.value = clipText.trim();
+        }
+      } catch (_) {
+        // User can paste manually with Ctrl+V
+      }
+    }
+    return;
+  }
+
+  // Fallback if container is not found
+  const tokenStr = prompt("Pega aquí el Token de Sesión de Google Drive exportado desde tu otra computadora:");
+  if (!tokenStr || !tokenStr.trim()) return;
+  await _restoreDriveTokenFromString(tokenStr.trim());
+}
+
+async function submitPastedDriveSessionToken() {
+  const input = document.getElementById("driveTokenPasteInput");
+  const tokenStr = input ? input.value.trim() : "";
+  if (!tokenStr) {
+    if (typeof showAlert === "function") showAlert("⚠️ Pega primero el JSON del token de sesión en el recuadro.");
+    return;
+  }
+  await _restoreDriveTokenFromString(tokenStr);
+}
+
+async function _restoreDriveTokenFromString(tokenStr) {
+  try {
+    const parsed = JSON.parse(tokenStr);
+    const res = await fetch("/api/auth/gdrive/restore", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ token_data: parsed })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || "No se pudo restaurar la sesión con el token provisto.");
+
+    localStorage.setItem("gdrive_auth_token", JSON.stringify(parsed));
+    const container = document.getElementById("driveTokenPasteContainer");
+    const input = document.getElementById("driveTokenPasteInput");
+    if (input) input.value = "";
+    if (container) container.classList.add("hidden");
+
+    await checkDriveStatus();
+    await syncWithGoogleDrive(false, true);
+    if (typeof showSuccessAlert === "function") {
+      showSuccessAlert("🟢 ¡Google Drive conectado y sincronizado con éxito mediante el token importado!");
+    } else {
+      alert("🟢 ¡Google Drive conectado con éxito!");
+    }
+  } catch (err) {
+    if (typeof showAlert === "function") showAlert("Error al importar token: " + err.message);
+    else alert("Error al importar token: " + err.message);
+  }
+}
+
+async function uploadCredentialsFile(fileInput) {
+  if (!fileInput || !fileInput.files || !fileInput.files[0]) return;
+  const file = fileInput.files[0];
+  const formData = new FormData();
+  formData.append("file", file);
+
+  try {
+    const res = await fetch("/api/drive/upload-credentials", {
+      method: "POST",
+      body: formData
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || "Error al subir credentials.json");
+
+    if (typeof showSuccessAlert === "function") {
+      showSuccessAlert("✅ credentials.json cargado con éxito en el servidor. Ya puedes hacer clic en 'Conectar Google Drive'.");
+    } else {
+      alert("✅ credentials.json cargado con éxito.");
+    }
+    await checkDriveStatus();
+  } catch (err) {
+    if (typeof showAlert === "function") showAlert("Error subiendo credenciales: " + err.message);
+    else alert("Error subiendo credenciales: " + err.message);
+  } finally {
+    try { fileInput.value = ""; } catch(_) {}
+  }
+}
+
 // Window bindings
 window.updateDriveSyncIndicator = updateDriveSyncIndicator;
 window.notifyDriveSaveEvent = notifyDriveSaveEvent;
@@ -488,3 +628,7 @@ window.disconnectGoogleDrive = disconnectGoogleDrive;
 window.syncWithGoogleDrive = syncWithGoogleDrive;
 window.exportLivingCampaignToDrive = exportLivingCampaignToDrive;
 window.uploadCampaignToDrive = uploadCampaignToDrive;
+window.copyDriveSessionToken = copyDriveSessionToken;
+window.pasteDriveSessionToken = pasteDriveSessionToken;
+window.submitPastedDriveSessionToken = submitPastedDriveSessionToken;
+window.uploadCredentialsFile = uploadCredentialsFile;

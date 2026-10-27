@@ -1,14 +1,38 @@
 #!/usr/bin/env python3
 """Main launcher for WhisperDnD Localhost Web Application."""
 
+import os
 import sys
+import warnings
 from pathlib import Path
+
+# Suppress harmless WASAPI buffer boundary warnings from live audio meter polling
+warnings.filterwarnings("ignore", message=".*discontinuity.*")
 
 # Add project root to sys.path
 project_root = Path(__file__).resolve().parent
 sys.path.insert(0, str(project_root))
 
-import os
+# Auto re-exec inside .venv interpreter if running under global python
+venv_python = project_root / ".venv" / "Scripts" / "python.exe"
+if sys.platform == "win32" and venv_python.is_file() and not os.environ.get("WHISPER_REEXEC"):
+    current_exe = Path(sys.executable).resolve()
+    target_exe = venv_python.resolve()
+    is_silent = current_exe.stem.lower() == "pythonw"
+    if is_silent:
+        venv_pythonw = project_root / ".venv" / "Scripts" / "pythonw.exe"
+        if venv_pythonw.is_file():
+            target_exe = venv_pythonw.resolve()
+    if current_exe != target_exe:
+        import subprocess
+        env = dict(os.environ)
+        env["WHISPER_REEXEC"] = "1"
+        creationflags = subprocess.CREATE_NO_WINDOW if is_silent else 0
+        try:
+            res = subprocess.call([str(target_exe)] + sys.argv, env=env, creationflags=creationflags)
+            sys.exit(res)
+        except Exception as _reexec_err:
+            print(f"[Launcher] Warning: Could not auto-switch to venv: {_reexec_err}")
 
 # Auto-hide console window on Windows if launched without SHOW_CONSOLE
 if sys.platform == "win32" and not os.environ.get("SHOW_CONSOLE"):
@@ -20,19 +44,49 @@ if sys.platform == "win32" and not os.environ.get("SHOW_CONSOLE"):
     except Exception:
         pass
 
+# Setup unified persistent rotating file logging to outputs/server.log
+import logging
+from logging.handlers import RotatingFileHandler
+
+log_dir = project_root / "outputs"
+log_dir.mkdir(parents=True, exist_ok=True)
+log_file = log_dir / "server.log"
+
+# Mantiene un tamaño máximo de 2 MB y solo los 2 respaldos más recientes (server.log.1, server.log.2)
+# Los logs antiguos de hace días, semanas o meses se eliminan solos automáticamente.
+logging.captureWarnings(True)
+file_handler = RotatingFileHandler(
+    str(log_file),
+    maxBytes=2 * 1024 * 1024,  # Máximo 2 MB por archivo
+    backupCount=2,             # Solo conserva los 2 respaldos más recientes
+    encoding="utf-8",
+)
+file_handler.setFormatter(logging.Formatter("%(asctime)s [%(levelname)s] %(name)s: %(message)s"))
+
+root_logger = logging.getLogger()
+root_logger.setLevel(logging.INFO)
+if not any(isinstance(h, RotatingFileHandler) for h in root_logger.handlers):
+    root_logger.addHandler(file_handler)
+
+def _unhandled_exception_handler(exc_type, exc_value, exc_traceback):
+    if issubclass(exc_type, KeyboardInterrupt):
+        sys.__excepthook__(exc_type, exc_value, exc_traceback)
+        return
+    root_logger.critical("Excepción no capturada:", exc_info=(exc_type, exc_value, exc_traceback))
+
+sys.excepthook = _unhandled_exception_handler
+
 # Under pythonw.exe on Windows, sys.stdout and sys.stderr are None.
 # Uvicorn requires sys.stdout to have .isatty() or it raises AttributeError.
 if sys.stdout is None:
     try:
-        os.makedirs(str(project_root / "outputs"), exist_ok=True)
-        sys.stdout = open(str(project_root / "outputs" / "server.log"), "a", encoding="utf-8")
+        sys.stdout = open(str(log_file), "a", encoding="utf-8")
     except Exception:
         sys.stdout = open(os.devnull, "w", encoding="utf-8")
 
 if sys.stderr is None:
     try:
-        os.makedirs(str(project_root / "outputs"), exist_ok=True)
-        sys.stderr = open(str(project_root / "outputs" / "server.log"), "a", encoding="utf-8")
+        sys.stderr = open(str(log_file), "a", encoding="utf-8")
     except Exception:
         sys.stderr = open(os.devnull, "w", encoding="utf-8")
 

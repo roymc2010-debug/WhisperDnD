@@ -209,7 +209,11 @@ function showAlert(msg) {
     box.className = "rounded-xl border border-rose-800 bg-rose-950/40 p-4 text-sm flex items-start gap-3 text-rose-200";
     box.classList.remove("hidden");
   }
-  showFloatingToast(msg, "error", 6000);
+  if (typeof showErrorCard === "function") {
+    showErrorCard(msg, null, null, "Aviso / Error");
+  } else {
+    showFloatingToast(msg, "error", 6000);
+  }
 }
 
 function showInfoAlert(msg) {
@@ -241,6 +245,7 @@ function showSuccessAlert(msg) {
 function hideAlert() {
   const box = document.getElementById("alertBox");
   if (box) box.classList.add("hidden");
+  if (typeof hideErrorCard === "function") hideErrorCard();
 }
 
 function showTransientAlert(msg, type = "info") {

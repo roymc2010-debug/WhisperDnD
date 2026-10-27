@@ -53,7 +53,7 @@ async function loadCharacterView() {
   campaignSelect.innerHTML = '<option value="">— Selecciona una campaña —</option>';
 
   try {
-    const res = await fetch("/api/campaigns");
+    const res = await fetch("/api/campaigns?t=" + Date.now(), { cache: "no-store" });
     if (res.ok) {
       const data = await res.json();
       const campaigns = data.campaigns || data || [];
@@ -97,7 +97,7 @@ async function loadCharactersForCampaign(campaignName, selectCharName = null) {
   const textarea = document.getElementById("characterBackstoryInput");
 
   try {
-    const res = await fetch(`/api/campaigns/${encodeURIComponent(campaignName)}`);
+    const res = await fetch(`/api/campaigns/${encodeURIComponent(campaignName)}?t=${Date.now()}`, { cache: "no-store" });
     if (res.ok) {
       const data = await res.json();
       const state = data.campaign_state || data || {};
@@ -341,7 +341,7 @@ async function refreshWikiCampaigns() {
   if (!select) return;
   const currentVal = (select.value || "").trim();
   try {
-    const res = await fetch("/api/campaigns");
+    const res = await fetch("/api/campaigns?t=" + Date.now(), { cache: "no-store" });
     if (res.ok) {
       const list = await res.json();
       select.innerHTML = '<option value="">-- Seleccionar Campaña --</option>';
@@ -384,7 +384,7 @@ async function onWikiCampaignSelected(campName) {
   }
 
   try {
-    const res = await fetch(`/api/campaigns/${encodeURIComponent(cleanName)}`);
+    const res = await fetch(`/api/campaigns/${encodeURIComponent(cleanName)}?t=${Date.now()}`, { cache: "no-store" });
     if (res.ok) {
       const data = await res.json();
       currentWikiCampaignState = data.campaign_state || { quests: [], npcs: [], universal_pcs: [] };
@@ -394,6 +394,22 @@ async function onWikiCampaignSelected(campName) {
       selectedWikiEntity = null;
       if (emptyState) emptyState.classList.add("hidden");
       if (explorerLayout) explorerLayout.classList.remove("hidden");
+
+      // Auto-select latest session if viewing sessions tab
+      if (activeWikiCategory === "sessions" && currentWikiCampaignState.sessions && currentWikiCampaignState.sessions.length > 0) {
+        const sortedSess = [...currentWikiCampaignState.sessions].sort((a, b) => {
+          return parseInt(b.session_number || b.number || 0, 10) - parseInt(a.session_number || a.number || 0, 10);
+        });
+        const latest = sortedSess[0];
+        if (latest) {
+          selectedWikiEntity = {
+            type: "session",
+            key: latest.session_number || latest.number || 1,
+            data: latest,
+          };
+        }
+      }
+
       renderWikiCategoryPills();
       renderWikiEntityList();
       renderWikiDossier();
@@ -412,13 +428,16 @@ async function onWikiCampaignSelected(campName) {
 }
 
 async function refreshWikiView() {
-  await refreshWikiCampaigns();
   const select = document.getElementById("wikiCampaignSelect");
   const mainCampInput = document.getElementById("campaignNameInput") || document.getElementById("campaignSelect");
   const currentMain = (mainCampInput && mainCampInput.value) ? mainCampInput.value.trim() : "";
-  const currentSelect = (select && select.value) ? select.value.trim() : "";
+  let targetCamp = (select && select.value) ? select.value.trim() : currentMain;
 
-  const targetCamp = currentSelect || currentMain;
+  await refreshWikiCampaigns();
+
+  if (!targetCamp && select && select.value) {
+    targetCamp = select.value.trim();
+  }
 
   if (targetCamp) {
     syncWikiCampaignSelector(targetCamp);
@@ -1669,10 +1688,16 @@ function buildNpcDossierHtml(n) {
               Visto por primera vez en Sesión #${n.first_seen_session || 1}
             </span>
           </div>
-          <button type="button" onclick="openMergeEntityModal('npc', '${escapeHtml(rawNpcName)}')" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-800/90 hover:bg-slate-700 text-amber-300 border border-slate-700 shadow-sm transition active:scale-95 cursor-pointer" title="Fusionar con otro personaje de la campaña">
-            <span>🔗</span>
-            <span>Fusionar con otro personaje</span>
-          </button>
+          <div class="flex items-center gap-1.5">
+            <button type="button" onclick="openEditNpcModal('${escapeHtml(rawNpcName)}')" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-800/90 hover:bg-slate-700 text-sky-300 border border-slate-700 shadow-sm transition active:scale-95 cursor-pointer" title="Modificar nombre, rol, categoría o estado de este personaje">
+              <span>✏️</span>
+              <span>Editar PNJ</span>
+            </button>
+            <button type="button" onclick="openMergeEntityModal('npc', '${escapeHtml(rawNpcName)}')" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-800/90 hover:bg-slate-700 text-amber-300 border border-slate-700 shadow-sm transition active:scale-95 cursor-pointer" title="Fusionar con otro personaje de la campaña">
+              <span>🔗</span>
+              <span>Fusionar</span>
+            </button>
+          </div>
         </div>
         <h3 class="text-base font-bold text-slate-100 font-fantasy">${escapeHtml(npcName)}</h3>
         <p class="text-xs text-amber-300 font-medium">${escapeHtml(npcRole)}</p>
@@ -2132,6 +2157,13 @@ async function submitEditNpc() {
 
     toggleEditNpcModal(false);
     renderNpcs((currentWikiCampaignState && currentWikiCampaignState.npcs) || []);
+    if (typeof renderWikiEntityList === "function") {
+      renderWikiEntityList();
+    }
+    const updatedTarget = ((currentWikiCampaignState && currentWikiCampaignState.npcs) || []).find(n => (n.name || "").trim().toLowerCase() === newName.trim().toLowerCase());
+    if (typeof selectWikiEntity === "function" && updatedTarget) {
+      selectWikiEntity("npc", newName, updatedTarget);
+    }
     if (typeof showTransientAlert === "function") {
       showTransientAlert(`PNJ '${newName}' actualizado correctamente`, "success");
     } else if (typeof showAlert === "function") {

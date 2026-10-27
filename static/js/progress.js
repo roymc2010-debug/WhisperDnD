@@ -41,19 +41,62 @@ function hideProcessingCard() {
   if (card) card.classList.add("hidden");
 }
 
-function showErrorCard(errorMessage, retryCallback = null) {
+function showErrorCard(errorMessage, retryCallback = null, details = null, stage = "Error") {
   finishProgressTracking(false);
   const card = document.getElementById("errorCard");
+  const modalBox = document.getElementById("errorModalBox");
   const msgEl = document.getElementById("errorCardMessage");
-  const finalMsg = errorMessage || "Ocurrió un error inesperado durante el procesamiento.";
-  if (msgEl) msgEl.textContent = finalMsg;
-  if (retryCallback) {
-    lastActionCallback = retryCallback;
+  const stageEl = document.getElementById("errorCardStageText");
+  const badgeEl = document.getElementById("errorCardTypeBadge");
+  const retryBtn = document.getElementById("btnRetryAction");
+  const techDetails = document.getElementById("errorTechDetails");
+  const techPre = document.getElementById("errorCardTechnicalDetails");
+
+  let finalMsg = errorMessage || "Ocurrió un error inesperado durante el procesamiento.";
+  let finalDetails = details || "";
+
+  // Support if an error object or JSON response is passed
+  if (typeof errorMessage === "object" && errorMessage !== null) {
+    finalMsg = errorMessage.error_message || errorMessage.message || errorMessage.detail || JSON.stringify(errorMessage);
+    if (!finalDetails) finalDetails = errorMessage.details || errorMessage.stack || "";
+    if (errorMessage.stage) stage = errorMessage.stage;
   }
+
+  if (msgEl) msgEl.textContent = finalMsg;
+  if (stageEl) stageEl.textContent = stage || "Error en el sistema";
+  if (badgeEl) badgeEl.textContent = retryCallback ? "FALLO" : "AVISO";
+
+  if (retryCallback && typeof retryCallback === "function") {
+    lastActionCallback = retryCallback;
+    if (retryBtn) retryBtn.classList.remove("hidden");
+  } else {
+    lastActionCallback = null;
+    if (retryBtn) retryBtn.classList.add("hidden");
+  }
+
+  if (techDetails && techPre) {
+    if (finalDetails && String(finalDetails).trim()) {
+      techPre.textContent = String(finalDetails).trim();
+      techDetails.classList.remove("hidden");
+    } else {
+      techDetails.classList.add("hidden");
+    }
+  }
+
   if (card) {
     card.classList.remove("hidden");
-    card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    card.classList.add("flex");
+    card.style.pointerEvents = "auto";
+    requestAnimationFrame(() => {
+      card.classList.remove("opacity-0", "pointer-events-none");
+      card.classList.add("opacity-100", "pointer-events-auto");
+      if (modalBox) {
+        modalBox.classList.remove("scale-95");
+        modalBox.classList.add("scale-100");
+      }
+    });
   }
+
   // Pop-Out Floating Notification: ensures error is seen immediately regardless of scroll
   if (typeof showFloatingToast === "function") {
     showFloatingToast(finalMsg, "error", 8000, retryCallback ? "Reintentar" : null, retryCallback ? () => retryLastAction() : null);
@@ -62,7 +105,35 @@ function showErrorCard(errorMessage, retryCallback = null) {
 
 function hideErrorCard() {
   const card = document.getElementById("errorCard");
-  if (card) card.classList.add("hidden");
+  const modalBox = document.getElementById("errorModalBox");
+  if (!card) return;
+  card.style.pointerEvents = "none";
+  card.classList.remove("opacity-100", "pointer-events-auto");
+  card.classList.add("opacity-0", "pointer-events-none");
+  if (modalBox) {
+    modalBox.classList.remove("scale-100");
+    modalBox.classList.add("scale-95");
+  }
+  setTimeout(() => {
+    card.classList.add("hidden");
+    card.classList.remove("flex");
+  }, 150);
+}
+
+function copyErrorDetails() {
+  const pre = document.getElementById("errorCardTechnicalDetails");
+  const btnText = document.getElementById("btnCopyErrorDetailsText");
+  const text = (pre && pre.textContent.trim()) ? pre.textContent.trim() : (document.getElementById("errorCardMessage")?.textContent || "");
+  if (!text) return;
+  navigator.clipboard.writeText(text).then(() => {
+    if (btnText) {
+      const orig = btnText.textContent;
+      btnText.textContent = "¡Copiado!";
+      setTimeout(() => { btnText.textContent = orig; }, 2000);
+    }
+  }).catch(() => {
+    prompt("Copia los detalles del error:", text);
+  });
 }
 
 function retryLastAction() {
@@ -94,17 +165,19 @@ function startProgressAnimationLoop() {
   const tick = () => {
     let diff = targetProgressPercent - currentProgressPercent;
 
-    if (Math.abs(diff) > 0.05) {
-      // Easing suave hacia el porcentaje real reportado por el backend
-      const step = diff * 0.15;
-      currentProgressPercent += step;
-    } else {
+    if (diff > 0.05) {
+      // Easing suave hacia el porcentaje real reportado por el backend (nunca retrocede)
+      const step = Math.max(0.02, diff * 0.15);
+      currentProgressPercent = Math.min(targetProgressPercent, currentProgressPercent + step);
+    } else if (diff > 0) {
       currentProgressPercent = targetProgressPercent;
     }
 
     renderProgressDOM(currentProgressPercent);
 
-    if (currentTaskId || Math.abs(currentProgressPercent - targetProgressPercent) > 0.05) {
+    if (currentTaskId && (targetProgressPercent - currentProgressPercent) > 0.05) {
+      progressAnimationRaf = requestAnimationFrame(tick);
+    } else if ((targetProgressPercent - currentProgressPercent) > 0.05) {
       progressAnimationRaf = requestAnimationFrame(tick);
     } else {
       progressAnimationRaf = null;
@@ -212,7 +285,15 @@ function updateProgressBar(percent, title, desc, stage = null) {
     if (span) span.textContent = title;
     else titleEl.textContent = title;
   }
-  if (desc && descEl) descEl.textContent = desc;
+  if (descEl) {
+    if (desc && (!title || desc.trim().toLowerCase() !== title.trim().toLowerCase())) {
+      descEl.textContent = desc;
+    } else if (!descEl.textContent || descEl.textContent === "Iniciando tareas del pipeline...") {
+      descEl.textContent = isYoutubeStepper
+        ? "Descargando audio, transcribiendo con Whisper y sintetizando crónica..."
+        : "Procesando canales de audio, transcribiendo con Whisper y redactando crónica...";
+    }
+  }
 
   startProgressAnimationLoop();
 }
@@ -239,13 +320,13 @@ function updateStepperMode(isYoutube) {
       stageAudio.style.display = "";
     }
     if (stageAudioStep) stageAudioStep.textContent = "Paso 1";
-    if (stageAudioDesc) stageAudioDesc.textContent = "0% – 25% (Extracción)";
+    if (stageAudioDesc) stageAudioDesc.textContent = "0% – 25% (Descarga & FFmpeg)";
     if (stageTranscribeStep) stageTranscribeStep.textContent = "Paso 2";
-    if (stageTranscribeDesc) stageTranscribeDesc.textContent = "25% – 70% (Whisper)";
+    if (stageTranscribeDesc) stageTranscribeDesc.textContent = "25% – 70% (Groq Whisper)";
     if (stageGeminiStep) stageGeminiStep.textContent = "Paso 3";
     if (stageGeminiDesc) stageGeminiDesc.textContent = "70% – 95% (Gemini & Lore)";
     if (stageDoneStep) stageDoneStep.textContent = "Paso 4";
-    if (stageDoneDesc) stageDoneDesc.textContent = "100%";
+    if (stageDoneDesc) stageDoneDesc.textContent = "95% – 100% (Word & Cierre)";
   } else {
     if (container) {
       container.className = "grid grid-cols-1 md:grid-cols-3 gap-2 pt-1";
@@ -255,11 +336,11 @@ function updateStepperMode(isYoutube) {
       stageAudio.style.display = "none";
     }
     if (stageTranscribeStep) stageTranscribeStep.textContent = "Paso 1";
-    if (stageTranscribeDesc) stageTranscribeDesc.textContent = "0% – 70% (Audio & Whisper)";
+    if (stageTranscribeDesc) stageTranscribeDesc.textContent = "0% – 55% (FFmpeg & Whisper)";
     if (stageGeminiStep) stageGeminiStep.textContent = "Paso 2";
-    if (stageGeminiDesc) stageGeminiDesc.textContent = "70% – 95% (Gemini & Lore)";
+    if (stageGeminiDesc) stageGeminiDesc.textContent = "55% – 95% (Gemini & Lore)";
     if (stageDoneStep) stageDoneStep.textContent = "Paso 3";
-    if (stageDoneDesc) stageDoneDesc.textContent = "100%";
+    if (stageDoneDesc) stageDoneDesc.textContent = "95% – 100% (Word & Cierre)";
   }
 }
 
@@ -280,7 +361,7 @@ function updateStageHighlights(p, stage = null) {
     }
 
     if (stage) {
-      if (stage === "audio") {
+      if (stage === "audio" || (stage === "segmenting" && p < 25.0)) {
         setStageElementState(elAudio, "active");
         setStageElementState(elTranscribe, "waiting");
         setStageElementState(elGemini, "waiting");
@@ -290,11 +371,16 @@ function updateStageHighlights(p, stage = null) {
         setStageElementState(elTranscribe, "active");
         setStageElementState(elGemini, "waiting");
         setStageElementState(elDone, "waiting");
-      } else if (stage === "analyzing") {
+      } else if (stage === "analyzing" && p < 95.0) {
         setStageElementState(elAudio, "completed");
         setStageElementState(elTranscribe, "completed");
         setStageElementState(elGemini, "active");
         setStageElementState(elDone, "waiting");
+      } else if (stage === "analyzing" && p >= 95.0 && p < 100.0) {
+        setStageElementState(elAudio, "completed");
+        setStageElementState(elTranscribe, "completed");
+        setStageElementState(elGemini, "completed");
+        setStageElementState(elDone, "active");
       } else if (stage === "done" || p >= 100.0) {
         setStageElementState(elAudio, "completed");
         setStageElementState(elTranscribe, "completed");
@@ -305,7 +391,7 @@ function updateStageHighlights(p, stage = null) {
       setStageElementState(elAudio, p >= 25.0 ? "completed" : (p > 0.0 ? "active" : "waiting"));
       setStageElementState(elTranscribe, p >= 70.0 ? "completed" : (p >= 25.0 ? "active" : "waiting"));
       setStageElementState(elGemini, p >= 95.0 ? "completed" : (p >= 70.0 ? "active" : "waiting"));
-      setStageElementState(elDone, p >= 100.0 ? "completed" : "waiting");
+      setStageElementState(elDone, p >= 100.0 ? "completed" : (p >= 95.0 ? "active" : "waiting"));
     }
   } else {
     // Mode Local / En vivo: stageAudio ALWAYS hidden, exactly 3 steps in 1 row
@@ -322,19 +408,23 @@ function updateStageHighlights(p, stage = null) {
         setStageElementState(elTranscribe, "active");
         setStageElementState(elGemini, "waiting");
         setStageElementState(elDone, "waiting");
-      } else if (stage === "analyzing") {
+      } else if (stage === "analyzing" && p < 95.0) {
         setStageElementState(elTranscribe, "completed");
         setStageElementState(elGemini, "active");
         setStageElementState(elDone, "waiting");
+      } else if (stage === "analyzing" && p >= 95.0 && p < 100.0) {
+        setStageElementState(elTranscribe, "completed");
+        setStageElementState(elGemini, "completed");
+        setStageElementState(elDone, "active");
       } else if (stage === "done" || p >= 100.0) {
         setStageElementState(elTranscribe, "completed");
         setStageElementState(elGemini, "completed");
         setStageElementState(elDone, "completed");
       }
     } else {
-      setStageElementState(elTranscribe, p >= 70.0 ? "completed" : (p > 0.0 ? "active" : "waiting"));
-      setStageElementState(elGemini, p >= 95.0 ? "completed" : (p >= 70.0 ? "active" : "waiting"));
-      setStageElementState(elDone, p >= 100.0 ? "completed" : "waiting");
+      setStageElementState(elTranscribe, p >= 55.0 ? "completed" : (p > 0.0 ? "active" : "waiting"));
+      setStageElementState(elGemini, p >= 95.0 ? "completed" : (p >= 55.0 ? "active" : "waiting"));
+      setStageElementState(elDone, p >= 100.0 ? "completed" : (p >= 95.0 ? "active" : "waiting"));
     }
   }
 }
@@ -439,6 +529,7 @@ window.showProcessingCard = showProcessingCard;
 window.hideProcessingCard = hideProcessingCard;
 window.showErrorCard = showErrorCard;
 window.hideErrorCard = hideErrorCard;
+window.copyErrorDetails = copyErrorDetails;
 window.retryLastAction = retryLastAction;
 window.renderProgressDOM = renderProgressDOM;
 window.startProgressTracking = startProgressTracking;

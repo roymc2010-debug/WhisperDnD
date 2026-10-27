@@ -607,7 +607,10 @@ async def save_academic_note_endpoint(payload: server.SaveAcademicNoteRequest):
         raise HTTPException(status_code=400, detail="El contenido de la nota no puede estar vacío.")
 
     output_dir = server.get_data_output_dir()
-    now_str = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+    now_str, now_formatted, _ = server.parse_client_datetime(
+        custom_date=getattr(payload, "custom_date", None),
+        client_timezone_offset=getattr(payload, "client_timezone_offset", None),
+    )
     clean_subj = re.sub(r'[\\/*?:"<>|]', "", (payload.subject or payload.topic or "apuntes").strip())
     safe_subject = re.sub(r"\s+", "_", clean_subj) or "apuntes"
 
@@ -765,7 +768,6 @@ async def import_academic_note_endpoint(file: UploadFile = File(...)):
 
 @router.get("/api/academic-notes/download/{filename}")
 @router.get("/api/notes/download/{filename}")
-@router.get("/api/download/docx/{filename}")
 async def download_academic_note_docx(filename: str):
     """Download an academic note Word .docx document, compiling on the fly if needed."""
     decoded_filename = urllib.parse.unquote(filename)

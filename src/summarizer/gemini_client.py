@@ -192,14 +192,15 @@ class GeminiTTRPGSummarizer:
 
     def _generate_with_retry(self, contents: Any, config: Any = None) -> str:
         """
-        Executes generate_content with automatic retries on 503 UNAVAILABLE / 429 RESOURCE_EXHAUSTED
-        and seamless fallback to next available active models:
-        [self.model_name, DEFAULT_GEMINI_MODEL, FAST_GEMINI_MODEL, "gemini-3.1-pro-preview", "gemini-4-argon"]
+        Executes generate_content with immediate model fallback on 503 UNAVAILABLE / 429 RESOURCE_EXHAUSTED
+        across available active models:
+        [self.model_name, DEFAULT_GEMINI_MODEL, FAST_GEMINI_MODEL, "gemini-2.5-flash", "gemini-3.1-pro-preview", "gemini-4-argon"]
         """
         candidate_models = [
             self.model_name,
             DEFAULT_GEMINI_MODEL,
             FAST_GEMINI_MODEL,
+            "gemini-2.5-flash",
             "gemini-3.1-pro-preview",
             "gemini-4-argon",
         ]
@@ -227,7 +228,7 @@ class GeminiTTRPGSummarizer:
                 else:
                     call_config = config
 
-            for attempt in range(3):
+            for attempt in range(2):
                 try:
                     kwargs = {"model": model, "contents": contents}
                     if call_config is not None:
@@ -255,10 +256,12 @@ class GeminiTTRPGSummarizer:
                     err_msg = str(exc)
                     if "API_KEY_INVALID" in err_msg or "PERMISSION_DENIED" in err_msg:
                         raise ValueError(f"Error de autenticación con Gemini API: {err_msg}") from exc
-                    if "503" in err_msg or "UNAVAILABLE" in err_msg or "429" in err_msg or "RESOURCE_EXHAUSTED" in err_msg:
-                        time.sleep(1.5 * (attempt + 1))
-                        continue
-                    break
+                    # On 503, 500, or 429, don't freeze in exponential backoff loop - fail over immediately!
+                    if any(code in err_msg for code in ("503", "UNAVAILABLE", "500", "429", "RESOURCE_EXHAUSTED", "OVERLOADED")):
+                        print(f"[GeminiClient] Modelo '{model}' no disponible temporalmente ({err_msg[:70]}...). Conmutando inmediatamente al siguiente modelo...")
+                        break
+                    time.sleep(1.0)
+                    continue
 
         raise RuntimeError(f"Error al generar con Gemini tras reintentos y modelos alternativos: {last_error}") from last_error
 

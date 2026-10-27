@@ -5,10 +5,20 @@ import json
 import os
 import threading
 import time
+import warnings
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 import numpy as np
+
+# Suppress benign WASAPI buffer boundary warnings during live RMS level polling
+warnings.filterwarnings("ignore", message=".*discontinuity.*")
+try:
+    import soundcard as sc
+    if hasattr(sc, "SoundcardRuntimeWarning"):
+        warnings.filterwarnings("ignore", category=sc.SoundcardRuntimeWarning)
+except Exception:
+    pass
 
 try:
     from src.transcription.discord_rpc import discord_tracker

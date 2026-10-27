@@ -7,7 +7,7 @@ import re
 import time
 import traceback
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 from fastapi import APIRouter, File, HTTPException, Query, UploadFile, Request
 from fastapi.responses import FileResponse
@@ -45,6 +45,8 @@ class StopAndProcessRequest(BaseModel):
     topic: Optional[str] = Field(default="", description="Tema de la clase for university lecture")
     target_language: str = Field(default="es", description="Target language ('es' or 'en')")
     audio_language: Optional[str] = Field(default=None, description="Explicit audio language or None for auto-detection")
+    custom_date: Optional[str] = Field(default=None, description="Client local date string (e.g. DD/MM/YYYY HH:MM)")
+    client_timezone_offset: Optional[Union[int, str]] = Field(default=None, description="Client timezone offset in minutes")
 
 
 
@@ -221,7 +223,7 @@ async def stop_and_process(payload: StopAndProcessRequest, request: Request = No
         raise HTTPException(status_code=400, detail="Debes seleccionar o crear una campaña antes de procesar la sesión.")
 
     task_id = payload.task_id
-    server.update_task_progress(task_id, 20.0, "Preparando grabación en el servidor...", "Finalizando captura de audio...", stage="audio")
+    server.update_task_progress(task_id, 1.0, "Finalizando captura de audio en vivo...", "Cerrando archivo WAV en disco...", stage="segmenting")
     start_time = time.time()
 
     # 1. Stop audio recording if active, or use recently finalized file
@@ -240,10 +242,11 @@ async def stop_and_process(payload: StopAndProcessRequest, request: Request = No
         server.set_task_error(task_id, "El archivo de audio grabado no se encontró en disco.", error_type="AudioFileError", stage="Grabación en Vivo")
         raise HTTPException(status_code=500, detail="El archivo de audio grabado no se encontró en disco.")
 
-    server.update_task_progress(task_id, 10.0, "Preparando audio en el servidor...", "Verificando canales estéreo y niveles RMS...", stage="audio")
+    server.update_task_progress(task_id, 2.0, "Analizando y segmentando audio con FFmpeg...", "Verificando canales estéreo y niveles RMS...", stage="segmenting")
 
     def progress_cb(pct: float, msg: str):
-        server.update_task_progress(task_id, pct, msg, stage="transcribing")
+        cur_stage = "segmenting" if pct <= 5.0 else "transcribing"
+        server.update_task_progress(task_id, pct, msg, stage=cur_stage)
 
     # 2. Run Whisper Transcription (Groq Cloud or Local faster-whisper)
     model_size = payload.model_size or "base"
@@ -298,11 +301,14 @@ async def stop_and_process(payload: StopAndProcessRequest, request: Request = No
     # 3. Check Mode: In-Person University Lecture vs D&D Roleplay
     is_class_mode = (payload.recording_mode == "class") or (getattr(server.active_recorder, "mode", "roleplay") == "class")
     if is_class_mode:
-        server.update_task_progress(task_id, 72.0, "Generando guía académica con Gemini...", "Sintetizando conceptos teóricos y fórmulas...", stage="analyzing")
+        server.update_task_progress(task_id, 55.0, "Extrayendo conceptos clave y glosario con Gemini...", "Analizando transcripción...", stage="analyzing")
+        server.update_task_progress(task_id, 65.0, "Redactando guía académica y apuntes con Gemini...", "Sintetizando conceptos teóricos y fórmulas...", stage="analyzing")
         subj = (payload.subject or "").strip() or "Materia Universitaria"
         top = (payload.topic or "").strip() or "Tema de Clase"
-        now_str = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-        now_formatted = datetime.datetime.now().strftime("%d/%m/%Y %H:%M")
+        now_str, now_formatted, _ = server.parse_client_datetime(
+            custom_date=getattr(payload, "custom_date", None),
+            client_timezone_offset=getattr(payload, "client_timezone_offset", None),
+        )
 
         try:
             summarizer = server.GeminiTTRPGSummarizer(api_key=gemini_key)
@@ -314,13 +320,14 @@ async def stop_and_process(payload: StopAndProcessRequest, request: Request = No
                 date_str=now_formatted,
                 target_language=payload.target_language,
             )
+            server.update_task_progress(task_id, 87.0, "Extrayendo tareas, entregables y puntos clave...", "Organizando resumen ejecutivo...", stage="analyzing")
         except Exception as exc:
             chronicle_md = (
                 f"# ⚠️ Error generando guía académica con Gemini:\n\n> {exc}\n\n"
                 f"**Transcripción obtenida:**\n\n{transcript_text}"
             )
 
-        server.update_task_progress(task_id, 94.0, "Generando documentos (.docx y .md)...", "Creando archivos de apuntes...", stage="analyzing")
+        server.update_task_progress(task_id, 95.0, "Compilando documentos Word (.docx) y Markdown (.md)...", "Creando archivos de apuntes...", stage="analyzing")
         clean_subj = re.sub(r'[\\/*?:"<>|]', "", subj.strip()) or "Materia"
         safe_subj = re.sub(r"\s+", "_", clean_subj)
         docx_filename = f"apuntes_{safe_subj}_{now_str}.docx"
@@ -336,6 +343,8 @@ async def stop_and_process(payload: StopAndProcessRequest, request: Request = No
             (server.get_data_output_dir() / f"{safe_subj}_transcripcion.txt").write_text(transcript_text, encoding="utf-8")
         except Exception as exc:
             print(f"[!] Warning: academic notes export failed: {exc}")
+
+        server.update_task_progress(task_id, 98.0, "Documentos generados. Sincronizando con Google Drive...", "Finalizando exportación...", stage="analyzing")
 
         # Update consolidated academic notes and sync to Drive in background
         files_to_sync = []
@@ -382,7 +391,7 @@ async def stop_and_process(payload: StopAndProcessRequest, request: Request = No
         }
 
     # 4. Roleplay Mode: Living Campaign Journal or Single Session Chronicle
-    server.update_task_progress(task_id, 72.0, "Generando crónica / apuntes explicativos con IA...", "Extrayendo hechos e inventario...", stage="analyzing")
+    server.update_task_progress(task_id, 55.0, "Iniciando síntesis con Gemini...", "Extrayendo misiones (Quests) y PNJs...", stage="analyzing")
     if not roster_dicts and payload.roster:
         roster_dicts = [p.model_dump() for p in payload.roster]
     chronicle_md = ""
@@ -399,7 +408,6 @@ async def stop_and_process(payload: StopAndProcessRequest, request: Request = No
 
     if payload.campaign_name:
         try:
-            server.update_task_progress(task_id, 80.0, "Actualizando Quest Tracker y Directorio Universal de NPCs...", stage="analyzing")
             camp_res = await run_in_threadpool(
                 server.process_session_for_campaign,
                 campaign_name=payload.campaign_name,
@@ -408,6 +416,9 @@ async def stop_and_process(payload: StopAndProcessRequest, request: Request = No
                 session_number=payload.session_number,
                 target_language=payload.target_language,
                 gemini_api_key=gemini_key,
+                on_progress=lambda p, m: server.update_task_progress(task_id, p, m, stage="analyzing"),
+                custom_date=payload.custom_date,
+                client_timezone_offset=payload.client_timezone_offset,
             )
             campaign_state = camp_res.get("campaign_state")
             session_chapter = camp_res.get("session_chapter")
@@ -425,6 +436,7 @@ async def stop_and_process(payload: StopAndProcessRequest, request: Request = No
 
     if not docx_filename:
         try:
+            server.update_task_progress(task_id, 65.0, "Redactando Crónica Épica Novelesca con Gemini...", stage="analyzing")
             summarizer = server.GeminiTTRPGSummarizer(api_key=gemini_key)
             chronicle_md = await run_in_threadpool(
                 summarizer.generate_chronicle,
@@ -432,6 +444,7 @@ async def stop_and_process(payload: StopAndProcessRequest, request: Request = No
                 roster=roster_dicts,
                 target_language=payload.target_language,
             )
+            server.update_task_progress(task_id, 87.0, "Generando resumen de cierre y recap...", stage="analyzing")
         except Exception as exc:
             chronicle_md = (
                 f"### ⚠️ No se pudo generar la crónica automática con Gemini:\n\n"
@@ -440,6 +453,7 @@ async def stop_and_process(payload: StopAndProcessRequest, request: Request = No
             )
 
         try:
+            server.update_task_progress(task_id, 95.0, "Compilando documentos Word (.docx) y Markdown (.md)...", stage="analyzing")
             now_str = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
             now_formatted = datetime.datetime.now().strftime("%d/%m/%Y %H:%M")
             docx_filename = f"cronica_sesion_{now_str}.docx"
@@ -455,7 +469,7 @@ async def stop_and_process(payload: StopAndProcessRequest, request: Request = No
         except Exception as exc:
             print(f"[!] Warning: docx export failed: {exc}")
 
-    server.update_task_progress(task_id, 94.0, "Generando documentos (.docx y .md)...", "Creando archivos del Grimorio (.docx y .md)...", stage="analyzing")
+    server.update_task_progress(task_id, 98.0, "Documentos generados. Sincronizando con Google Drive...", "Finalizando exportación...", stage="analyzing")
     elapsed_time = round(time.time() - start_time, 2)
     language_code = transcription_result.get("language_code") or (
         transcription_result["language"]["code"]
@@ -472,8 +486,6 @@ async def stop_and_process(payload: StopAndProcessRequest, request: Request = No
             (server.get_data_output_dir() / txt_filename).write_text(transcript_text, encoding="utf-8")
         except Exception as exc:
             print(f"[!] Warning: txt export failed: {exc}")
-
-    server.update_task_progress(task_id, 100.0, "¡Completado!", "Sesión procesada exitosamente.", stage="done")
 
     # Background Drive Sync and Campaign Folder Mirroring
     files_to_sync = []
@@ -504,6 +516,8 @@ async def stop_and_process(payload: StopAndProcessRequest, request: Request = No
         files_to_sync.append(docx_out_path)
     if files_to_sync:
         server.trigger_drive_sync_background(files_to_sync)
+
+    server.update_task_progress(task_id, 100.0, "¡Completado!", "Sesión procesada exitosamente.", stage="done")
 
     return {
         "status": "completed",
