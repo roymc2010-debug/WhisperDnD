@@ -51,3 +51,16 @@ Los recursos de interfaz se sirven localmente: Tailwind compilado, Inter, Marked
 - Los controles de la party esperan a que termine su carga inicial. Se retiran los listeners duplicados de campaña.
 
 Consulta VERIFICACION.md para resultados y límites de la prueba.
+
+## Proporciones de la referencia de escritorio
+
+La captura aportada por el usuario establece una escala de lectura mayor y un contenido más ancho. En pantallas de al menos 1440px se usa una raíz de 20px; por debajo se conserva 16px. Las medidas de componentes se expresan en rem para que texto, controles, iconos y espacio crezcan juntos. Los breakpoints permanecen en px.
+
+| Antes | Después en escritorio amplio | Motivo |
+| --- | --- | --- |
+| Barra lateral de 218px | 272,5px | Igualar la proporción de la referencia |
+| Contenido máximo de 1180px | 1475px | Aprovechar el ancho y acercar la pantalla de sesión al menú |
+| Título de 27px | 33,75px | Recuperar la jerarquía y legibilidad de la captura |
+| Controles e iconos con medidas rígidas mezcladas | Escala común en rem | Mantener alineación de campos, botones y multiclases |
+
+La ampliación es del diseño, sin modificar el zoom del navegador ni transformar el documento. Los colores, el orden de los controles y los handlers permanecen iguales.

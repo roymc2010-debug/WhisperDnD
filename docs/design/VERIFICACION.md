@@ -53,3 +53,11 @@ Los tres casos de telemetría reciben 401 con las claves ficticias de las prueba
 Se observó un proceso main.py en 8081 que devolvía el HTML antiguo y 404 para /static/desktop.css. El temporizador del lanzador podía abrir esa dirección incluso si el servidor nuevo no lograba iniciar.
 
 El lanzador reserva ahora un socket exclusivo en loopback, elige el siguiente puerto disponible y abre únicamente su URL cuando Uvicorn confirma el arranque. Se probó la selección de puerto con un socket real ocupado y se verificó el servidor corregido: HTML con desktop.js/desktop.css y respuesta 200 para esos estilos. El servidor temporal se cerró después de verificarlo.
+
+## Ajuste a la referencia visual de escritorio
+
+Verificado con la app real y la campaña ficticia aislada a 1919×897: raíz de 20px, barra lateral de 272,5px, contenido de 1475px y título de 33,75px. La vista principal no desborda horizontalmente. El selector de clases mide aproximadamente 960×715px y cabe dentro de la ventana.
+
+A 1280×720 se conserva la raíz de 16px y Work & Study no muestra la party ni desborda horizontalmente. A 390×844, el contenido principal tiene 380px visibles y 380px de ancho total; solo la tabla conserva su desplazamiento interno de 810px. Las seis paletas no cambiaron.
+
+La modificación es de CSS y la referencia de caché del stylesheet. No se modificó lógica Python o JavaScript. La suite de frontend se vuelve a ejecutar; los resultados generales de backend anteriores siguen documentados arriba.
