@@ -3162,3 +3162,139 @@ window.isMobileUser = isMobileUser;
 window.isPrivateCampaign = isPrivateCampaign;
 window.getCampaignRosterKey = getCampaignRosterKey;
 window.getSelectedCampaignName = getSelectedCampaignName;
+
+
+// =========================================================================
+// WORK & STUDY WORKSPACE ENHANCED CONTROLLERS (Crafted UI Suite)
+// =========================================================================
+
+function setWorkStudySubMode(mode) {
+  const btnAcademic = document.getElementById("btnWorkModeAcademic");
+  const btnExecutive = document.getElementById("btnWorkModeExecutive");
+  const subModeInput = document.getElementById("workStudySubModeInput");
+  const modeDesc = document.getElementById("workStudyModeDesc");
+  const labelTopic = document.getElementById("labelWorkStudyTopic");
+  const labelSession = document.getElementById("labelWorkStudySession");
+
+  const isAcademic = (mode === 'academic');
+  if (subModeInput) subModeInput.value = isAcademic ? 'academic' : 'executive';
+
+  if (isAcademic) {
+    if (btnAcademic) {
+      btnAcademic.className = "min-h-[34px] px-3 py-1 rounded-lg font-semibold transition-all duration-150 flex items-center gap-1.5 bg-sky-500/20 text-sky-300 border border-sky-500/30 shadow-sm cursor-pointer active:scale-[0.98]";
+    }
+    if (btnExecutive) {
+      btnExecutive.className = "min-h-[34px] px-3 py-1 rounded-lg font-medium transition-all duration-150 flex items-center gap-1.5 text-slate-400 hover:text-slate-200 border border-transparent cursor-pointer active:scale-[0.98]";
+    }
+    if (modeDesc) {
+      modeDesc.innerHTML = `<span class="text-sky-400">💡</span> <span>Gemini generará: <strong>Glosario conceptual, fórmulas KaTeX y guía estructurada</strong>.</span>`;
+    }
+    if (labelTopic) labelTopic.textContent = "Materia o Tema de Estudio:";
+    if (labelSession) labelSession.textContent = "Clase / Módulo #:";
+  } else {
+    if (btnExecutive) {
+      btnExecutive.className = "min-h-[34px] px-3 py-1 rounded-lg font-semibold transition-all duration-150 flex items-center gap-1.5 bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 shadow-sm cursor-pointer active:scale-[0.98]";
+    }
+    if (btnAcademic) {
+      btnAcademic.className = "min-h-[34px] px-3 py-1 rounded-lg font-medium transition-all duration-150 flex items-center gap-1.5 text-slate-400 hover:text-slate-200 border border-transparent cursor-pointer active:scale-[0.98]";
+    }
+    if (modeDesc) {
+      modeDesc.innerHTML = `<span class="text-indigo-400">💼</span> <span>Gemini generará: <strong>Minuta ejecutiva, matriz de compromisos y acuerdos clave</strong>.</span>`;
+    }
+    if (labelTopic) labelTopic.textContent = "Nombre de la Reunión / Sprint:";
+    if (labelSession) labelSession.textContent = "Sesión / Sprint #:";
+  }
+}
+
+function applyWorkStudyPreset(presetKey) {
+  const topicInput = document.getElementById("workStudyTopicInput");
+  const subjectDisplay = document.getElementById("workStudySubjectDisplay");
+  const subjectInput = document.getElementById("lectureSubjectInput");
+  const topicLegacy = document.getElementById("lectureTopicInput");
+
+  const presets = {
+    university: {
+      subMode: 'academic',
+      topic: 'Sistemas de Control y Dinámica',
+      subject: 'Ingeniería',
+      desc: 'Clase Universitaria'
+    },
+    meeting: {
+      subMode: 'executive',
+      topic: 'Reunión Semanal de Alineación Operativa',
+      subject: 'Operaciones',
+      desc: 'Reunión de Equipo'
+    },
+    research: {
+      subMode: 'academic',
+      topic: 'Metodología de Investigación y Estado del Arte',
+      subject: 'Tesis Doctoral',
+      desc: 'Tesis & Investigación'
+    },
+    keynote: {
+      subMode: 'academic',
+      topic: 'Conferencia Principal: Inteligencia Artificial Multimodal',
+      subject: 'Tecnología',
+      desc: 'Conferencia / Keynote'
+    },
+    sprint: {
+      subMode: 'executive',
+      topic: 'Sprint Planning & Priorización de Backlog',
+      subject: 'Desarrollo de Producto',
+      desc: 'Sprint Planning'
+    }
+  };
+
+  const p = presets[presetKey];
+  if (!p) return;
+
+  setWorkStudySubMode(p.subMode);
+
+  if (topicInput) {
+    topicInput.value = p.topic;
+    topicInput.focus();
+  }
+  if (subjectDisplay) subjectDisplay.value = p.subject;
+  if (subjectInput) subjectInput.value = p.subject;
+  if (topicLegacy) topicLegacy.value = p.topic;
+
+  setWorkStudyNowDate();
+
+  if (typeof showAlert === "function") {
+    showAlert(`✓ Plantilla "${p.desc}" aplicada.`);
+  }
+}
+
+function stepWorkStudySession(delta) {
+  const sessionInput = document.getElementById("workStudySessionInput");
+  if (!sessionInput) return;
+  let val = parseInt(sessionInput.value, 10);
+  if (isNaN(val)) val = 1;
+  val = Math.max(1, val + delta);
+  sessionInput.value = val;
+}
+
+function setWorkStudyNowDate() {
+  const dateInput = document.getElementById("workStudyDateInput");
+  if (!dateInput) return;
+  dateInput.value = getLocalFormattedDateTime(new Date());
+}
+
+function syncWorkStudySubject(val) {
+  const subEl = document.getElementById("lectureSubjectInput");
+  if (subEl) subEl.value = val || "";
+}
+
+function clearWorkStudyTopic() {
+  const topicInput = document.getElementById("workStudyTopicInput");
+  const topicLegacy = document.getElementById("lectureTopicInput");
+  if (topicInput) topicInput.value = "";
+  if (topicLegacy) topicLegacy.value = "";
+}
+
+window.setWorkStudySubMode = setWorkStudySubMode;
+window.applyWorkStudyPreset = applyWorkStudyPreset;
+window.stepWorkStudySession = stepWorkStudySession;
+window.setWorkStudyNowDate = setWorkStudyNowDate;
+window.syncWorkStudySubject = syncWorkStudySubject;
+window.clearWorkStudyTopic = clearWorkStudyTopic;

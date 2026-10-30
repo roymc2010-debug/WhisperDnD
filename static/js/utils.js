@@ -108,7 +108,7 @@ function showFloatingToast(msg, type = "info", duration = 5000, actionLabel = nu
     document.body.appendChild(container);
   }
 
-  // Prevent duplicate exact toasts if already showing
+  // Evitar duplicados exactos si ya está visible
   const existing = Array.from(container.children).find(c => c.getAttribute("data-msg") === msg);
   if (existing) {
     existing.classList.add("ring-2", "ring-white/40");
@@ -118,7 +118,7 @@ function showFloatingToast(msg, type = "info", duration = 5000, actionLabel = nu
 
   const toast = document.createElement("div");
   toast.setAttribute("data-msg", msg);
-  toast.className = "pointer-events-auto rounded-2xl p-4 shadow-2xl backdrop-blur-md border text-xs sm:text-sm font-sans flex items-start gap-3 transition-all duration-200 transform translate-y-[-10px] opacity-0 select-none";
+  toast.className = "pointer-events-auto rounded-2xl p-4 shadow-2xl backdrop-blur-md border text-sm font-sans flex items-start gap-3 transition-all duration-200 transform translate-y-[-10px] opacity-0 select-none";
 
   let iconHtml = "ℹ️";
   if (type === "error") {
@@ -139,7 +139,7 @@ function showFloatingToast(msg, type = "info", duration = 5000, actionLabel = nu
   contentCol.className = "flex-1 min-w-0 pr-1";
 
   const textEl = document.createElement("p");
-  textEl.className = "leading-relaxed whitespace-pre-wrap break-words font-medium";
+  textEl.className = "leading-relaxed whitespace-pre-wrap break-words font-medium text-sm";
   textEl.textContent = msg;
   contentCol.appendChild(textEl);
 
@@ -168,7 +168,6 @@ function showFloatingToast(msg, type = "info", duration = 5000, actionLabel = nu
 
   container.appendChild(toast);
 
-  // Smooth slide-in
   requestAnimationFrame(() => {
     toast.classList.remove("translate-y-[-10px]", "opacity-0");
     toast.classList.add("translate-y-0", "opacity-100");
@@ -199,63 +198,66 @@ function showFloatingToast(msg, type = "info", duration = 5000, actionLabel = nu
   return toast;
 }
 
-function showAlert(msg) {
+function showAlert(msg, type = "error") {
+  if (!msg) return;
+
+  // Si el mensaje es de éxito o info, enrutar a la función adecuada sin modal ni alerta roja
+  const lowerMsg = String(msg).toLowerCase();
+  if (type === "success" || lowerMsg.startsWith("✓") || lowerMsg.includes("éxito") || lowerMsg.includes("guardad") || lowerMsg.includes("correctamente")) {
+    showSuccessAlert(msg);
+    return;
+  }
+  if (type === "info" || lowerMsg.startsWith("ℹ") || lowerMsg.startsWith("🎧") || lowerMsg.startsWith("🔔")) {
+    showInfoAlert(msg);
+    return;
+  }
+
+  // Notificación flotante no bloqueante
+  showFloatingToast(msg, type === "warning" ? "warning" : "error", 6000);
+
+  // Cuadro fijo superior: se muestra solo en advertencias/errores reales y auto-desaparece a los 5 segundos
   const box = document.getElementById("alertBox");
   if (box) {
     const msgEl = document.getElementById("alertMessage");
     const iconEl = document.getElementById("alertIcon");
     if (msgEl) msgEl.textContent = msg;
     if (iconEl) iconEl.innerHTML = `<span class="text-rose-400">⚠️</span>`;
-    box.className = "rounded-xl border border-rose-800 bg-rose-950/40 p-4 text-sm flex items-start gap-3 text-rose-200";
+    box.className = "rounded-xl border border-rose-800 bg-rose-950/40 p-4 text-sm flex items-start gap-3 text-rose-200 shadow-lg";
     box.classList.remove("hidden");
-  }
-  if (typeof showErrorCard === "function") {
-    showErrorCard(msg, null, null, "Aviso / Error");
-  } else {
-    showFloatingToast(msg, "error", 6000);
+    clearTimeout(box._autoHideTimer);
+    box._autoHideTimer = setTimeout(() => {
+      hideAlert();
+    }, 5000);
   }
 }
 
 function showInfoAlert(msg) {
-  const box = document.getElementById("alertBox");
-  if (box) {
-    const msgEl = document.getElementById("alertMessage");
-    const iconEl = document.getElementById("alertIcon");
-    if (msgEl) msgEl.textContent = msg;
-    if (iconEl) iconEl.innerHTML = `<span class="text-indigo-400">ℹ️</span>`;
-    box.className = "rounded-xl border border-indigo-800 bg-indigo-950/40 p-4 text-sm flex items-start gap-3 text-indigo-200";
-    box.classList.remove("hidden");
-  }
-  showFloatingToast(msg, "info", 4000);
+  if (!msg) return;
+  showFloatingToast(msg, "info", 4500);
 }
 
 function showSuccessAlert(msg) {
-  const box = document.getElementById("alertBox");
-  if (box) {
-    const msgEl = document.getElementById("alertMessage");
-    const iconEl = document.getElementById("alertIcon");
-    if (msgEl) msgEl.textContent = msg;
-    if (iconEl) iconEl.innerHTML = `<span class="text-emerald-400">✅</span>`;
-    box.className = "rounded-xl border border-emerald-800 bg-emerald-950/40 p-4 text-sm flex items-start gap-3 text-emerald-200";
-    box.classList.remove("hidden");
-  }
+  if (!msg) return;
   showFloatingToast(msg, "success", 4000);
 }
 
 function hideAlert() {
   const box = document.getElementById("alertBox");
-  if (box) box.classList.add("hidden");
-  if (typeof hideErrorCard === "function") hideErrorCard();
+  if (box) {
+    box.classList.add("hidden");
+    if (box._autoHideTimer) {
+      clearTimeout(box._autoHideTimer);
+      box._autoHideTimer = null;
+    }
+    const msgEl = document.getElementById("alertMessage");
+    if (msgEl) msgEl.textContent = "";
+  }
 }
 
 function showTransientAlert(msg, type = "info") {
   if (type === "success") showSuccessAlert(msg);
-  else if (type === "warning" || type === "error") showAlert(msg);
+  else if (type === "warning" || type === "error") showAlert(msg, type);
   else showInfoAlert(msg);
-
-  setTimeout(() => {
-    hideAlert();
-  }, 3500);
 }
 
 function wipeCacheAndStartOver() {

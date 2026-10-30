@@ -472,8 +472,8 @@ function renderWikiCategoryPills() {
   const sCounter = document.getElementById("wikiSessionsCounter");
   if (sCounter) sCounter.textContent = sessionCount;
 
-  const activeClass = "min-h-[44px] py-1.5 px-2 rounded-lg text-xs font-semibold transition flex items-center justify-center gap-1.5 bg-amber-500/20 text-amber-300 border border-amber-500/30 cursor-pointer";
-  const inactiveClass = "min-h-[44px] py-1.5 px-2 rounded-lg text-xs font-medium transition flex items-center justify-center gap-1.5 text-slate-400 hover:text-slate-200 border border-transparent cursor-pointer";
+  const activeClass = "min-h-[46px] px-3 py-2.5 rounded-xl text-sm font-bold transition flex items-center justify-between gap-2 bg-[#1c1c24] text-white border border-white/20 cursor-pointer shadow-sm active:scale-95";
+  const inactiveClass = "min-h-[46px] px-3 py-2.5 rounded-xl text-sm font-semibold transition flex items-center justify-between gap-2 text-neutral-400 hover:text-white hover:bg-[#14141a] border border-[#222228] cursor-pointer active:scale-95";
 
   if (pillQuests) pillQuests.className = (activeWikiCategory === "quests") ? activeClass : inactiveClass;
   if (pillNpcs) pillNpcs.className = (activeWikiCategory === "npcs") ? activeClass : inactiveClass;
@@ -481,6 +481,23 @@ function renderWikiCategoryPills() {
   if (pillLocations) pillLocations.className = (activeWikiCategory === "locations") ? activeClass : inactiveClass;
   if (pillItems) pillItems.className = (activeWikiCategory === "items") ? activeClass : inactiveClass;
   if (pillSessions) pillSessions.className = (activeWikiCategory === "sessions") ? activeClass : inactiveClass;
+
+  const pillCounters = [
+    { el: qCounter, cat: "quests" },
+    { el: nCounter, cat: "npcs" },
+    { el: pCounter, cat: "pcs" },
+    { el: lCounter, cat: "locations" },
+    { el: iCounter, cat: "items" },
+    { el: sCounter, cat: "sessions" }
+  ];
+  pillCounters.forEach(c => {
+    if (!c.el) return;
+    if (activeWikiCategory === c.cat) {
+      c.el.className = "text-xs font-mono font-bold px-2 py-0.5 rounded-full bg-white/15 text-white border border-white/20 shrink-0";
+    } else {
+      c.el.className = "text-xs font-mono font-bold px-2 py-0.5 rounded-full bg-[#14141a] text-neutral-400 border border-white/10 shrink-0";
+    }
+  });
 }
 
 function onWikiSearchInput() {
@@ -507,7 +524,7 @@ function renderWikiEntityList() {
     });
 
     if (quests.length === 0) {
-      listEl.innerHTML = `<p class="italic text-slate-500 text-xs p-4 text-center">No se encontraron misiones.</p>`;
+      listEl.innerHTML = `<p class="italic text-neutral-400 text-sm font-medium p-4 text-center">No se encontraron misiones.</p>`;
       return;
     }
 
@@ -515,21 +532,21 @@ function renderWikiEntityList() {
       const isSelected = selectedWikiEntity && selectedWikiEntity.type === "quest" && selectedWikiEntity.key === q.id;
       const isCompleted = q.status === "completed";
       const card = document.createElement("div");
-      card.className = `p-3 rounded-xl border text-xs cursor-pointer transition flex items-center justify-between gap-2.5 ${
+      card.className = `p-3.5 rounded-xl border text-xs cursor-pointer transition-all duration-150 flex items-center justify-between gap-3 ${
         isSelected
-          ? "bg-amber-500/20 border-amber-500/40 text-amber-200 shadow-md"
-          : "bg-slate-950/70 border-slate-800/80 hover:bg-slate-900 text-slate-300"
+          ? "bg-white/10 border-white/25 text-white shadow-sm"
+          : "bg-[#0d0d0d] border-[#222222] hover:border-[#333333] hover:bg-[#141414] text-neutral-300"
       }`;
       card.onclick = () => selectWikiEntity("quest", q.id, q);
 
       const badge = isCompleted
-        ? '<span class="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">✓ Hecha</span>'
-        : '<span class="text-[10px] font-mono px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30">● Activa</span>';
+        ? '<span class="text-xs font-mono font-semibold px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">✓ Hecha</span>'
+        : '<span class="text-xs font-mono font-semibold px-3 py-1 rounded-full bg-white/10 text-white border border-white/20">● Activa</span>';
 
       card.innerHTML = `
         <div class="min-w-0 flex-1">
-          <div class="font-semibold truncate text-slate-200">${escapeHtml(q.title || "Misión sin título")}</div>
-          <div class="text-[11px] text-slate-400 truncate">${escapeHtml(q.tipo || "Principal")}</div>
+          <div class="text-sm font-semibold truncate text-neutral-100">${escapeHtml(q.title || "Misión sin título")}</div>
+          <div class="text-xs sm:text-[13px] text-neutral-300 font-medium truncate mt-1">${escapeHtml(q.tipo || "Principal")}</div>
         </div>
         ${badge}
       `;
@@ -544,7 +561,7 @@ function renderWikiEntityList() {
     });
 
     if (npcs.length === 0) {
-      listEl.innerHTML = `<p class="italic text-slate-500 text-xs p-4 text-center">No se encontraron PNJs.</p>`;
+      listEl.innerHTML = `<p class="italic text-neutral-400 text-sm font-medium p-4 text-center">No se encontraron PNJs.</p>`;
       return;
     }
 
@@ -553,17 +570,17 @@ function renderWikiEntityList() {
       const npcDesc = n.description || n.descripcion || n.detalles || n.rol_en_sesion || n.role || n.session_role || (Array.isArray(n.notes) && n.notes[0]) || "Sin descripción disponible";
       const isSelected = selectedWikiEntity && selectedWikiEntity.type === "npc" && selectedWikiEntity.key === (n.name || npcName);
       const card = document.createElement("div");
-      card.className = `p-3 rounded-xl border text-xs cursor-pointer transition flex items-center justify-between gap-2.5 ${
+      card.className = `p-3.5 rounded-xl border text-xs cursor-pointer transition-all duration-150 flex items-center justify-between gap-3 ${
         isSelected
-          ? "bg-amber-500/20 border-amber-500/40 text-amber-200 shadow-md"
-          : "bg-slate-950/70 border-slate-800/80 hover:bg-slate-900 text-slate-300"
+          ? "bg-white/10 border-white/25 text-white shadow-sm"
+          : "bg-[#0d0d0d] border-[#222222] hover:border-[#333333] hover:bg-[#141414] text-neutral-300"
       }`;
       card.onclick = () => selectWikiEntity("npc", n.name || npcName, n);
 
       card.innerHTML = `
         <div class="min-w-0 flex-1">
-          <div class="font-semibold truncate text-slate-200">${escapeHtml(npcName)}</div>
-          <div class="text-[11px] text-slate-400 truncate">${escapeHtml(npcDesc)}</div>
+          <div class="text-sm font-semibold truncate text-neutral-100">${escapeHtml(npcName)}</div>
+          <div class="text-xs sm:text-[13px] text-neutral-300 font-medium truncate mt-1">${escapeHtml(npcDesc)}</div>
         </div>
       `;
       listEl.appendChild(card);
@@ -578,7 +595,7 @@ function renderWikiEntityList() {
     });
 
     if (pcs.length === 0) {
-      listEl.innerHTML = `<p class="italic text-slate-500 text-xs p-4 text-center">No se encontraron protagonistas (PCs).</p>`;
+      listEl.innerHTML = `<p class="italic text-neutral-400 text-sm font-medium p-4 text-center">No se encontraron protagonistas (PCs).</p>`;
       return;
     }
 
@@ -588,18 +605,18 @@ function renderWikiEntityList() {
       const pcClass = p.character_class || p.clase || p.class || p.role || "Aventurero";
       const isSelected = selectedWikiEntity && selectedWikiEntity.type === "pc" && selectedWikiEntity.key === (p.name || pcName);
       const card = document.createElement("div");
-      card.className = `p-3 rounded-xl border text-xs cursor-pointer transition flex items-center justify-between gap-2.5 ${
+      card.className = `p-3.5 rounded-xl border text-xs cursor-pointer transition-all duration-150 flex items-center justify-between gap-3 ${
         isSelected
-          ? "bg-amber-500/20 border-amber-500/40 text-amber-200 shadow-md"
-          : "bg-slate-950/70 border-slate-800/80 hover:bg-slate-900 text-slate-300"
+          ? "bg-white/10 border-white/25 text-white shadow-sm"
+          : "bg-[#0d0d0d] border-[#222222] hover:border-[#333333] hover:bg-[#141414] text-neutral-300"
       }`;
       card.onclick = () => selectWikiEntity("pc", p.name || pcName, p);
 
       const subText = pcPlayer ? `${pcClass} • ${pcPlayer}` : pcClass;
       card.innerHTML = `
         <div class="min-w-0 flex-1">
-          <div class="font-semibold truncate text-slate-200">${escapeHtml(pcName)}</div>
-          <div class="text-[11px] text-slate-400 truncate">${escapeHtml(subText)}</div>
+          <div class="text-sm font-semibold truncate text-neutral-100">${escapeHtml(pcName)}</div>
+          <div class="text-xs sm:text-[13px] text-neutral-300 font-medium truncate mt-1">${escapeHtml(subText)}</div>
         </div>
       `;
       listEl.appendChild(card);
@@ -613,24 +630,24 @@ function renderWikiEntityList() {
     });
 
     if (locs.length === 0) {
-      listEl.innerHTML = `<p class="italic text-slate-500 text-xs p-4 text-center">No hay lugares registrados todavía en esta campaña.</p>`;
+      listEl.innerHTML = `<p class="italic text-neutral-400 text-sm font-medium p-4 text-center">No hay lugares registrados todavía en esta campaña.</p>`;
       return;
     }
 
     locs.forEach(l => {
       const isSelected = selectedWikiEntity && selectedWikiEntity.type === "location" && selectedWikiEntity.key === l.name;
       const card = document.createElement("div");
-      card.className = `p-3 rounded-xl border text-xs cursor-pointer transition flex items-center justify-between gap-2.5 ${
+      card.className = `p-3.5 rounded-xl border text-xs cursor-pointer transition-all duration-150 flex items-center justify-between gap-3 ${
         isSelected
-          ? "bg-amber-500/20 border-amber-500/40 text-amber-200 shadow-md"
-          : "bg-slate-950/70 border-slate-800/80 hover:bg-slate-900 text-slate-300"
+          ? "bg-white/10 border-white/25 text-white shadow-sm"
+          : "bg-[#0d0d0d] border-[#222222] hover:border-[#333333] hover:bg-[#141414] text-neutral-300"
       }`;
       card.onclick = () => selectWikiEntity("location", l.name, l);
 
       card.innerHTML = `
         <div class="min-w-0 flex-1">
-          <div class="font-semibold truncate text-slate-200">${escapeHtml(l.name || "Lugar")}</div>
-          <div class="text-[11px] text-slate-400 truncate">${escapeHtml(l.type || "Ubicación")}</div>
+          <div class="text-sm font-semibold truncate text-neutral-100">${escapeHtml(l.name || "Lugar")}</div>
+          <div class="text-xs sm:text-[13px] text-neutral-300 font-medium truncate mt-1">${escapeHtml(l.type || "Ubicación")}</div>
         </div>
       `;
       listEl.appendChild(card);
@@ -644,24 +661,24 @@ function renderWikiEntityList() {
     });
 
     if (items.length === 0) {
-      listEl.innerHTML = `<p class="italic text-slate-500 text-xs p-4 text-center">No hay objetos o facciones registrados todavía en esta campaña.</p>`;
+      listEl.innerHTML = `<p class="italic text-neutral-400 text-sm font-medium p-4 text-center">No hay objetos o facciones registrados todavía en esta campaña.</p>`;
       return;
     }
 
     items.forEach(it => {
       const isSelected = selectedWikiEntity && selectedWikiEntity.type === "item" && selectedWikiEntity.key === it.name;
       const card = document.createElement("div");
-      card.className = `p-3 rounded-xl border text-xs cursor-pointer transition flex items-center justify-between gap-2.5 ${
+      card.className = `p-3.5 rounded-xl border text-xs cursor-pointer transition-all duration-150 flex items-center justify-between gap-3 ${
         isSelected
-          ? "bg-amber-500/20 border-amber-500/40 text-amber-200 shadow-md"
-          : "bg-slate-950/70 border-slate-800/80 hover:bg-slate-900 text-slate-300"
+          ? "bg-white/10 border-white/25 text-white shadow-sm"
+          : "bg-[#0d0d0d] border-[#222222] hover:border-[#333333] hover:bg-[#141414] text-neutral-300"
       }`;
       card.onclick = () => selectWikiEntity("item", it.name, it);
 
       card.innerHTML = `
         <div class="min-w-0 flex-1">
-          <div class="font-semibold truncate text-slate-200">${escapeHtml(it.name || "Objeto")}</div>
-          <div class="text-[11px] text-slate-400 truncate">${escapeHtml(it.type || "Artefacto / Facción")}</div>
+          <div class="text-sm font-semibold truncate text-neutral-100">${escapeHtml(it.name || "Objeto")}</div>
+          <div class="text-xs sm:text-[13px] text-neutral-300 font-medium truncate mt-1">${escapeHtml(it.type || "Artefacto / Facción")}</div>
         </div>
       `;
       listEl.appendChild(card);
@@ -678,7 +695,7 @@ function renderWikiEntityList() {
     });
 
     if (sessions.length === 0) {
-      listEl.innerHTML = `<p class="italic text-slate-500 text-xs p-4 text-center">No hay sesiones registradas todavía en esta campaña.</p>`;
+      listEl.innerHTML = `<p class="italic text-neutral-400 text-sm font-medium p-4 text-center">No hay sesiones registradas todavía en esta campaña.</p>`;
       return;
     }
 
@@ -690,17 +707,17 @@ function renderWikiEntityList() {
 
       const isSelected = selectedWikiEntity && selectedWikiEntity.type === "session" && selectedWikiEntity.key === (s.session_number || num);
       const card = document.createElement("div");
-      card.className = `p-3 rounded-xl border text-xs cursor-pointer transition flex items-center justify-between gap-2.5 ${
+      card.className = `p-3.5 rounded-xl border text-xs cursor-pointer transition-all duration-150 flex items-center justify-between gap-3 ${
         isSelected
-          ? "bg-amber-500/20 border-amber-500/40 text-amber-200 shadow-md"
-          : "bg-slate-950/70 border-slate-800/80 hover:bg-slate-900 text-slate-300"
+          ? "bg-white/10 border-white/25 text-white shadow-sm"
+          : "bg-[#0d0d0d] border-[#222222] hover:border-[#333333] hover:bg-[#141414] text-neutral-300"
       }`;
       card.onclick = () => selectWikiEntity("session", s.session_number || num, s);
 
       card.innerHTML = `
         <div class="min-w-0 flex-1">
-          <div class="font-semibold truncate text-slate-200">${escapeHtml(displayTitle)}</div>
-          <div class="text-[11px] text-slate-400 truncate">${escapeHtml(s.date || "Sin fecha")} • ${escapeHtml(s.summary || "Capítulo de campaña")}</div>
+          <div class="text-sm font-semibold truncate text-neutral-100">${escapeHtml(displayTitle)}</div>
+          <div class="text-xs sm:text-[13px] text-neutral-300 font-medium truncate mt-1">${escapeHtml(s.date || "Sin fecha")} • ${escapeHtml(s.summary || "Capítulo de campaña")}</div>
         </div>
       `;
       listEl.appendChild(card);
@@ -1020,14 +1037,14 @@ function buildLocationDossierHtml(loc) {
   let assocChipsHtml = "";
   if (assoc.length > 0) {
     assocChipsHtml = `
-      <div class="space-y-2 pt-2 border-t border-slate-800/80">
-        <span class="text-[11px] font-semibold text-slate-400 block uppercase font-mono">Habitantes, Gobernantes o Custodios Permanentes:</span>
+      <div class="space-y-2 pt-2 border-t border-[#222222]">
+        <span class="text-[11px] font-semibold text-neutral-400 block uppercase font-mono">Habitantes, Gobernantes o Custodios Permanentes:</span>
         <div class="flex flex-wrap gap-2">
           ${assoc.map(charName => {
             const isPc = (state.universal_pcs || []).some(p => (p.name || p.nombre || p.personaje || "").toLowerCase().trim() === charName.toLowerCase().trim());
             const type = isPc ? 'pc' : 'npc';
             const icon = isPc ? '🛡️' : '🗣️';
-            return `<button type="button" onclick="findAndSelectWikiEntity('${type}', '${escapeHtml(charName)}')" class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs bg-slate-900 hover:bg-slate-800 text-amber-300 border border-slate-700 hover:border-amber-500/40 transition cursor-pointer active:scale-95 shadow-sm">
+            return `<button type="button" onclick="findAndSelectWikiEntity('${type}', '${escapeHtml(charName)}')" class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-xs bg-[#121212] hover:bg-[#1a1a1a] text-amber-300 border border-[#262626] hover:border-amber-500/50 transition cursor-pointer active:scale-95 shadow-sm">
               <span>${icon}</span>
               <span class="font-medium">${escapeHtml(charName)}</span>
             </button>`;
@@ -1038,23 +1055,23 @@ function buildLocationDossierHtml(loc) {
   }
 
   const statusBadges = {
-    explorado: '<span class="text-[10px] font-mono px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">✓ Explorado</span>',
-    en_progreso: '<span class="text-[10px] font-mono px-2.5 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30">● En Progreso</span>',
-    destruido: '<span class="text-[10px] font-mono px-2.5 py-0.5 rounded-full bg-rose-500/20 text-rose-300 border border-rose-500/30">✕ Destruido</span>',
-    no_visitado: '<span class="text-[10px] font-mono px-2.5 py-0.5 rounded-full bg-slate-800 text-slate-400 border border-slate-700">🧭 No Visitado</span>',
+    explorado: '<span class="text-[10px] font-mono px-2.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">✓ Explorado</span>',
+    en_progreso: '<span class="text-[10px] font-mono px-2.5 py-0.5 rounded-full bg-amber-500/15 text-amber-300 border border-amber-500/30">● En Progreso</span>',
+    destruido: '<span class="text-[10px] font-mono px-2.5 py-0.5 rounded-full bg-rose-500/15 text-rose-300 border border-rose-500/30">✕ Destruido</span>',
+    no_visitado: '<span class="text-[10px] font-mono px-2.5 py-0.5 rounded-full bg-[#121212] text-neutral-400 border border-[#262626]">🧭 No Visitado</span>',
   };
-  const badge = statusBadges[loc.status] || `<span class="text-[10px] font-mono px-2.5 py-0.5 rounded-full bg-slate-800 text-slate-300 border border-slate-700">${escapeHtml(loc.status || 'Ubicación')}</span>`;
+  const badge = statusBadges[loc.status] || `<span class="text-[10px] font-mono px-2.5 py-0.5 rounded-full bg-[#121212] text-neutral-300 border border-[#262626]">${escapeHtml(loc.status || 'Ubicación')}</span>`;
 
   return `
     <div class="space-y-4">
-      <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+      <div class="flex items-center justify-between border-b border-[#222222] pb-3">
         <div>
-          <h3 class="text-base font-bold text-amber-300 font-fantasy">${escapeHtml(loc.name || 'Lugar')}</h3>
-          <p class="text-xs text-slate-400">${escapeHtml(loc.type || 'Región / Punto de Interés')}</p>
+          <h3 class="text-xl font-bold text-amber-300 font-fantasy">${escapeHtml(loc.name || 'Lugar')}</h3>
+          <p class="text-sm text-neutral-400 mt-0.5">${escapeHtml(loc.type || 'Región / Punto de Interés')}</p>
         </div>
         <div>${badge}</div>
       </div>
-      <div class="bg-slate-950 p-4 rounded-xl border border-slate-800 text-xs text-slate-300 leading-relaxed font-sans">
+      <div class="bg-[#0a0a0d] p-5 rounded-xl border border-[#222222] text-[15px] text-neutral-200 leading-relaxed font-sans">
         ${renderMarkdownWithKaTeX(loc.description || loc.context || 'Sin descripción detallada.')}
       </div>
       ${assocChipsHtml}
@@ -1071,12 +1088,12 @@ function buildItemDossierHtml(item) {
     const type = isPc ? 'pc' : 'npc';
     const icon = isPc ? '🛡️' : '🗣️';
     holderChipHtml = `
-      <div class="pt-2 border-t border-slate-800/80 space-y-1.5">
-        <span class="text-[11px] font-semibold text-slate-400 block uppercase font-mono">Portador Actual / Custodio:</span>
-        <button type="button" onclick="findAndSelectWikiEntity('${type}', '${escapeHtml(holder)}')" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs bg-slate-900 hover:bg-slate-800 text-amber-300 border border-slate-700 hover:border-amber-500/40 transition cursor-pointer active:scale-95 shadow-sm">
+      <div class="pt-2 border-t border-[#222222] space-y-1.5">
+        <span class="text-[11px] font-semibold text-neutral-400 block uppercase font-mono">Portador Actual / Custodio:</span>
+        <button type="button" onclick="findAndSelectWikiEntity('${type}', '${escapeHtml(holder)}')" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs bg-[#121212] hover:bg-[#1a1a1a] text-amber-300 border border-[#262626] hover:border-amber-500/50 transition cursor-pointer active:scale-95 shadow-sm">
           <span>${icon}</span>
           <strong class="font-semibold">${escapeHtml(holder)}</strong>
-          <span class="text-[10px] text-slate-400">(${isPc ? 'Protagonista' : 'PNJ'})</span>
+          <span class="text-[10px] text-neutral-400">(${isPc ? 'Protagonista' : 'PNJ'})</span>
         </button>
       </div>
     `;
@@ -1084,20 +1101,20 @@ function buildItemDossierHtml(item) {
 
   return `
     <div class="space-y-4">
-      <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+      <div class="flex items-center justify-between border-b border-[#222222] pb-3">
         <div>
           <div class="flex items-center gap-2">
-            <span class="px-2 py-0.5 rounded-full text-[10px] font-semibold font-mono bg-purple-500/20 text-purple-300 border border-purple-500/30 uppercase">
+            <span class="px-2 py-0.5 rounded-full text-[10px] font-semibold font-mono bg-purple-500/15 text-purple-300 border border-purple-500/30 uppercase">
               ${escapeHtml(item.type || 'Artefacto')}
             </span>
-            <span class="px-2 py-0.5 rounded-full text-[10px] font-semibold font-mono bg-amber-500/20 text-amber-300 border border-amber-500/30">
+            <span class="px-2 py-0.5 rounded-full text-[10px] font-semibold font-mono bg-amber-500/15 text-amber-300 border border-amber-500/30">
               ${escapeHtml(item.status || 'En posesión')}
             </span>
           </div>
-          <h3 class="text-base font-bold text-amber-300 font-fantasy mt-1">${escapeHtml(item.name || 'Objeto / Reliquia')}</h3>
+          <h3 class="text-xl font-bold text-amber-300 font-fantasy mt-1">${escapeHtml(item.name || 'Objeto / Reliquia')}</h3>
         </div>
       </div>
-      <div class="bg-slate-950 p-4 rounded-xl border border-slate-800 text-xs text-slate-300 leading-relaxed font-sans">
+      <div class="bg-[#0a0a0d] p-5 rounded-xl border border-[#222222] text-[15px] text-neutral-200 leading-relaxed font-sans">
         ${renderMarkdownWithKaTeX(item.description || item.context || 'Sin descripción.')}
       </div>
       ${holderChipHtml}
@@ -1113,13 +1130,13 @@ function switchWikiSessionSubtab(subtab) {
   const tabTrans = document.getElementById("wikiSessionTranscriptTab");
 
   if (subtab === 'chronicle') {
-    if (btnChron) btnChron.className = "flex-1 min-h-[38px] px-3 py-1.5 rounded-lg text-xs font-semibold bg-amber-500/20 text-amber-300 border border-amber-500/30 cursor-pointer";
-    if (btnTrans) btnTrans.className = "flex-1 min-h-[38px] px-3 py-1.5 rounded-lg text-xs font-medium text-slate-400 hover:text-slate-200 border border-transparent cursor-pointer";
+    if (btnChron) btnChron.className = "flex-1 min-h-[38px] px-3 py-1.5 rounded-lg text-xs font-semibold bg-amber-500/15 text-amber-300 border border-amber-500/30 cursor-pointer shadow-sm";
+    if (btnTrans) btnTrans.className = "flex-1 min-h-[38px] px-3 py-1.5 rounded-lg text-xs font-medium text-neutral-400 hover:text-neutral-200 hover:bg-[#141414] border border-transparent cursor-pointer";
     if (tabChron) tabChron.classList.remove("hidden");
     if (tabTrans) tabTrans.classList.add("hidden");
   } else {
-    if (btnChron) btnChron.className = "flex-1 min-h-[38px] px-3 py-1.5 rounded-lg text-xs font-medium text-slate-400 hover:text-slate-200 border border-transparent cursor-pointer";
-    if (btnTrans) btnTrans.className = "flex-1 min-h-[38px] px-3 py-1.5 rounded-lg text-xs font-semibold bg-amber-500/20 text-amber-300 border border-amber-500/30 cursor-pointer";
+    if (btnChron) btnChron.className = "flex-1 min-h-[38px] px-3 py-1.5 rounded-lg text-xs font-medium text-neutral-400 hover:text-neutral-200 hover:bg-[#141414] border border-transparent cursor-pointer";
+    if (btnTrans) btnTrans.className = "flex-1 min-h-[38px] px-3 py-1.5 rounded-lg text-xs font-semibold bg-amber-500/15 text-amber-300 border border-amber-500/30 cursor-pointer shadow-sm";
     if (tabChron) tabChron.classList.add("hidden");
     if (tabTrans) tabTrans.classList.remove("hidden");
   }
@@ -1184,11 +1201,11 @@ function buildSessionDossierHtml(s) {
 
   let transcriptHtml = "";
   if (transcriptLines.length === 0) {
-    transcriptHtml = `<p class="italic text-slate-500 text-xs p-4 text-center">No hay transcripción en texto sin procesar para esta sesión.</p>`;
+    transcriptHtml = `<p class="italic text-neutral-400 text-sm font-medium p-4 text-center">No hay transcripción en texto sin procesar para esta sesión.</p>`;
   } else {
     transcriptHtml = transcriptLines.map((line, idx) => {
-      return `<div class="wiki-transcript-line py-1.5 px-2.5 rounded-lg hover:bg-slate-900/80 font-mono text-xs text-slate-300 leading-relaxed border-b border-slate-900/50">
-        <span class="text-slate-500 text-[10px] select-none mr-2 font-mono">${(idx + 1).toString().padStart(3, '0')}</span>
+      return `<div class="wiki-transcript-line py-2 px-3 rounded-lg hover:bg-[#141414] font-mono text-[13px] text-neutral-200 leading-relaxed border-b border-[#18181b]">
+        <span class="text-neutral-500 text-xs select-none mr-2.5 font-mono">${(idx + 1).toString().padStart(3, '0')}</span>
         <span>${escapeHtml(line)}</span>
       </div>`;
     }).join("");
@@ -1196,62 +1213,62 @@ function buildSessionDossierHtml(s) {
 
   return `
     <div class="space-y-4">
-      <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border-b border-slate-800 pb-3">
+      <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border-b border-[#222222] pb-3">
         <div>
           <div class="flex items-center gap-2">
-            <span class="px-2.5 py-0.5 rounded-full text-xs font-bold font-mono bg-amber-500/20 text-amber-300 border border-amber-500/30">Sesión #${num}</span>
-            <span class="text-xs text-slate-400 font-mono">${escapeHtml(dateStr)}</span>
+            <span class="px-2.5 py-0.5 rounded-full text-xs font-bold font-mono bg-amber-500/15 text-amber-300 border border-amber-500/30">Sesión #${num}</span>
+            <span class="text-xs text-neutral-400 font-mono">${escapeHtml(dateStr)}</span>
           </div>
-          <h3 class="text-base font-bold text-slate-100 font-fantasy mt-1">${escapeHtml((() => {
+          <h3 class="text-xl font-bold text-neutral-100 mt-1">${escapeHtml((() => {
             const rawTitle = (s.session_title || s.title || "").trim();
             const cleanTitle = rawTitle.replace(/^(?:sesi[oó]n|session)\s*#?\d+\s*[:\-]\s*/i, "").trim();
             return cleanTitle ? `Sesión #${num}: ${cleanTitle}` : `Sesión #${num}`;
           })())}</h3>
-          ${summaryStr ? `<p class="text-xs text-slate-400 mt-1 max-w-xl">${escapeHtml(summaryStr)}</p>` : ''}
+          ${summaryStr ? `<p class="text-sm text-neutral-300 mt-1.5 max-w-2xl leading-relaxed">${escapeHtml(summaryStr)}</p>` : ''}
         </div>
       </div>
 
-      <div class="flex items-center gap-2 p-1 rounded-xl bg-slate-950 border border-slate-800">
+      <div class="flex items-center gap-2 p-1 rounded-xl bg-black border border-[#222222]">
         <button type="button" id="btnWikiSessionChronicle" onclick="switchWikiSessionSubtab('chronicle')"
-          class="flex-1 min-h-[38px] px-3 py-1.5 rounded-lg text-xs font-semibold transition flex items-center justify-center gap-2 ${currentWikiSessionSubtab === 'chronicle' ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30' : 'text-slate-400 hover:text-slate-200 border border-transparent'} cursor-pointer">
+          class="flex-1 min-h-[38px] px-3 py-1.5 rounded-lg text-xs font-semibold transition flex items-center justify-center gap-2 ${currentWikiSessionSubtab === 'chronicle' ? 'bg-amber-500/15 text-amber-300 border border-amber-500/30 shadow-sm' : 'text-neutral-400 hover:text-neutral-200 hover:bg-[#141414] border border-transparent'} cursor-pointer">
           <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1-2.5-2.5Z"/><path d="M6 6h10"/><path d="M6 10h10"/></svg>
           <span>Crónica Narrativa</span>
         </button>
         <button type="button" id="btnWikiSessionTranscript" onclick="switchWikiSessionSubtab('transcript')"
-          class="flex-1 min-h-[38px] px-3 py-1.5 rounded-lg text-xs font-medium transition flex items-center justify-center gap-2 ${currentWikiSessionSubtab === 'transcript' ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30' : 'text-slate-400 hover:text-slate-200 border border-transparent'} cursor-pointer">
+          class="flex-1 min-h-[38px] px-3 py-1.5 rounded-lg text-xs font-medium transition flex items-center justify-center gap-2 ${currentWikiSessionSubtab === 'transcript' ? 'bg-amber-500/15 text-amber-300 border border-amber-500/30 shadow-sm' : 'text-neutral-400 hover:text-neutral-200 hover:bg-[#141414] border border-transparent'} cursor-pointer">
           <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
           <span>Transcripción Completa</span>
         </button>
       </div>
 
-      <div id="wikiSessionChronicleTab" class="${currentWikiSessionSubtab === 'chronicle' ? '' : 'hidden'} prose-dnd text-slate-300 text-xs sm:text-sm leading-relaxed overflow-x-auto space-y-3 font-serif">
+      <div id="wikiSessionChronicleTab" class="${currentWikiSessionSubtab === 'chronicle' ? '' : 'hidden'} prose-dnd text-neutral-200 text-base leading-relaxed overflow-x-auto space-y-4 font-sans max-w-3xl">
         ${renderMarkdownWithKaTeX(chronicleMd)}
       </div>
 
       <div id="wikiSessionTranscriptTab" class="${currentWikiSessionSubtab === 'transcript' ? '' : 'hidden'} space-y-3">
-        <div class="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5 bg-slate-950 p-2.5 rounded-xl border border-slate-800">
+        <div class="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5 bg-[#0a0a0d] p-2.5 rounded-xl border border-[#222222]">
           <div class="relative flex-1">
-            <span class="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none text-slate-500">
+            <span class="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none text-neutral-500">
               <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
             </span>
             <input type="text" id="wikiTranscriptSearch" oninput="filterWikiSessionTranscript(this.value)" placeholder="Filtrar diálogo o palabras clave..."
-              class="w-full min-h-[38px] bg-slate-900 border border-slate-700 focus:border-amber-500 rounded-lg pl-8 pr-3 py-1.5 text-xs text-slate-200 placeholder-slate-500 outline-none">
+              class="w-full min-h-[38px] bg-[#0d0d0d] border border-[#262626] focus:border-amber-500/70 rounded-lg pl-8 pr-3 py-1.5 text-xs text-neutral-200 placeholder-neutral-500 outline-none">
           </div>
           <div class="flex items-center gap-2">
             <button type="button" onclick="copyWikiSessionTranscript()" title="Copiar transcripción al portapapeles"
-              class="min-h-[38px] px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-semibold flex items-center gap-1.5 cursor-pointer active:scale-95 transition">
+              class="min-h-[38px] px-3 py-1.5 rounded-xl bg-[#121212] hover:bg-[#1a1a1a] text-neutral-200 hover:text-white border border-[#262626] text-xs font-semibold flex items-center gap-1.5 cursor-pointer active:scale-95 transition shadow-sm">
               <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>
               <span>Copiar Transcripción</span>
             </button>
             <button type="button" onclick="downloadWikiSessionTranscript()" title="Descargar transcripción como .txt"
-              class="min-h-[38px] px-3 py-1.5 rounded-lg bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 border border-amber-500/30 text-xs font-semibold flex items-center gap-1.5 cursor-pointer active:scale-95 transition">
+              class="min-h-[38px] px-3 py-1.5 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 border border-amber-500/30 text-xs font-semibold flex items-center gap-1.5 cursor-pointer active:scale-95 transition shadow-sm">
               <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>
               <span>Descargar (.txt)</span>
             </button>
           </div>
         </div>
 
-        <div id="wikiSessionTranscriptContainer" class="bg-slate-950/70 p-3 rounded-xl border border-slate-800/80 max-h-[500px] overflow-y-auto space-y-1">
+        <div id="wikiSessionTranscriptContainer" class="bg-[#08080a] p-3 rounded-xl border border-[#222222] max-h-[500px] overflow-y-auto space-y-1">
           ${transcriptHtml}
         </div>
       </div>
@@ -1264,38 +1281,38 @@ function buildQuestDossierHtml(q) {
   const isFailed = q.status === "failed";
   const tipo = (q.tipo || "principal").toLowerCase();
   
-  let tipoBadge = '<span class="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-500/20 text-amber-300 border border-amber-500/30">⭐ Misión Principal</span>';
+  let tipoBadge = '<span class="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-500/15 text-amber-300 border border-amber-500/30">⭐ Misión Principal</span>';
   if (tipo === "secundaria") {
-    tipoBadge = '<span class="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">⚔️ Misión Secundaria</span>';
+    tipoBadge = '<span class="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-indigo-500/15 text-indigo-300 border border-indigo-500/30">⚔️ Misión Secundaria</span>';
   } else if (tipo === "opcional") {
-    tipoBadge = '<span class="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">🧭 Tarea Opcional</span>';
+    tipoBadge = '<span class="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">🧭 Tarea Opcional</span>';
   } else if (tipo === "misterios_abiertos" || tipo === "misterio") {
-    tipoBadge = '<span class="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-purple-500/20 text-purple-300 border border-purple-500/30">🔮 Misterios Abiertos</span>';
+    tipoBadge = '<span class="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-purple-500/15 text-purple-300 border border-purple-500/30">🔮 Misterios Abiertos</span>';
   }
 
   let statusBadge = "";
   if (isCompleted) {
-    statusBadge = `<button type="button" onclick="toggleWikiQuestStatus('${escapeHtml(q.id)}', '${q.status}')" title="Clic para alternar estado" class="cursor-pointer hover:opacity-80 active:scale-95 transition px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">✓ COMPLETADA</button>`;
+    statusBadge = `<button type="button" onclick="toggleWikiQuestStatus('${escapeHtml(q.id)}', '${q.status}')" title="Clic para alternar estado" class="cursor-pointer hover:opacity-80 active:scale-95 transition px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">✓ COMPLETADA</button>`;
   } else if (isFailed) {
-    statusBadge = `<button type="button" onclick="toggleWikiQuestStatus('${escapeHtml(q.id)}', '${q.status}')" title="Clic para alternar estado" class="cursor-pointer hover:opacity-80 active:scale-95 transition px-2.5 py-0.5 rounded-full text-xs font-bold bg-red-500/20 text-red-300 border border-red-500/30">🔴 FRACASADA</button>`;
+    statusBadge = `<button type="button" onclick="toggleWikiQuestStatus('${escapeHtml(q.id)}', '${q.status}')" title="Clic para alternar estado" class="cursor-pointer hover:opacity-80 active:scale-95 transition px-2.5 py-0.5 rounded-full text-xs font-bold bg-rose-500/15 text-rose-300 border border-rose-500/30">🔴 FRACASADA</button>`;
   } else {
-    statusBadge = `<button type="button" onclick="toggleWikiQuestStatus('${escapeHtml(q.id)}', '${q.status}')" title="Clic para alternar estado" class="cursor-pointer hover:opacity-80 active:scale-95 transition px-2.5 py-0.5 rounded-full text-xs font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">EN PROGRESO</button>`;
+    statusBadge = `<button type="button" onclick="toggleWikiQuestStatus('${escapeHtml(q.id)}', '${q.status}')" title="Clic para alternar estado" class="cursor-pointer hover:opacity-80 active:scale-95 transition px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-500/15 text-amber-300 border border-amber-500/30">EN PROGRESO</button>`;
   }
 
   let subobjectivesHtml = "";
   if (q.subobjectives && q.subobjectives.length > 0) {
     subobjectivesHtml = `
-      <div class="space-y-2 pt-3 border-t border-slate-800">
-        <h5 class="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-2">
+      <div class="space-y-2 pt-3 border-t border-[#222222]">
+        <h5 class="text-xs font-bold text-neutral-300 uppercase tracking-wider flex items-center gap-2 font-mono">
           <span>🎯</span> Sub-objetivos & Hitos Concretos
         </h5>
-        <div class="space-y-1.5 bg-slate-900/80 p-3 rounded-xl border border-slate-800">
+        <div class="space-y-1.5 bg-[#0a0a0d] p-3.5 rounded-xl border border-[#222222]">
           ${q.subobjectives.map((sub, sIdx) => `
-            <label class="flex items-start gap-2.5 text-xs text-slate-200 cursor-pointer hover:text-white transition">
+            <label class="flex items-start gap-3 text-sm text-neutral-200 cursor-pointer hover:text-white transition py-0.5">
               <input type="checkbox" ${sub.completed ? 'checked' : ''}
                 onchange="toggleWikiSubobjective('${escapeHtml(q.id)}', ${sIdx}, this.checked)"
-                class="mt-0.5 w-4 h-4 rounded bg-slate-950 border-slate-700 text-indigo-600 focus:ring-0 cursor-pointer">
-              <span class="${sub.completed ? 'line-through text-slate-500' : 'text-slate-200'} leading-relaxed">${escapeHtml(sub.text)}</span>
+                class="mt-0.5 w-4 h-4 rounded bg-[#0d0d0d] border-[#262626] text-amber-500 focus:ring-0 cursor-pointer accent-amber-500">
+              <span class="${sub.completed ? 'line-through text-neutral-500' : 'text-neutral-200'} leading-relaxed">${escapeHtml(sub.text)}</span>
             </label>
           `).join('')}
         </div>
@@ -1305,18 +1322,18 @@ function buildQuestDossierHtml(q) {
 
   return `
     <div class="space-y-4">
-      <div class="border-b border-slate-800 pb-3 space-y-2">
+      <div class="border-b border-[#222222] pb-3 space-y-2">
         <div class="flex flex-wrap items-center gap-2">
           ${tipoBadge}
           ${statusBadge}
-          <span class="text-xs font-mono text-slate-500">[ID: ${escapeHtml(q.id || '-')}]</span>
+          <span class="text-xs font-mono text-neutral-500">[ID: ${escapeHtml(q.id || '-')}]</span>
         </div>
-        <h3 class="text-base font-bold text-slate-100 font-fantasy">${escapeHtml(q.title || 'Misión')}</h3>
+        <h3 class="text-xl font-bold text-neutral-100 mt-1">${escapeHtml(q.title || 'Misión')}</h3>
       </div>
 
       <div class="space-y-2">
-        <h5 class="text-xs font-bold text-slate-400 uppercase tracking-wider">Contexto & Apuestas</h5>
-        <p class="text-xs text-slate-300 leading-relaxed bg-slate-900/50 p-3.5 rounded-xl border border-slate-800/80">
+        <h5 class="text-xs font-bold text-neutral-400 uppercase tracking-wider font-mono">Contexto & Apuestas</h5>
+        <p class="text-sm text-neutral-200 leading-relaxed bg-[#0a0a0d] p-4 rounded-xl border border-[#222222]">
           ${escapeHtml(q.context || 'Sin contexto registrado.')}
         </p>
       </div>
@@ -1324,11 +1341,11 @@ function buildQuestDossierHtml(q) {
       ${subobjectivesHtml}
 
       ${q.lifecycle_notes ? `
-      <div class="space-y-1.5 pt-2 border-t border-slate-800">
-        <h5 class="text-xs font-bold text-amber-400/90 uppercase tracking-wider flex items-center gap-1.5">
+      <div class="space-y-1.5 pt-2 border-t border-[#222222]">
+        <h5 class="text-xs font-bold text-amber-400/90 uppercase tracking-wider flex items-center gap-1.5 font-mono">
           <span>📜</span> Registro Cronológico / Notas de Sesión
         </h5>
-        <div class="bg-amber-950/20 border border-amber-500/20 p-3 rounded-xl text-xs text-amber-200 font-mono leading-relaxed">
+        <div class="bg-amber-950/20 border border-amber-500/20 p-3.5 rounded-xl text-sm text-amber-200/90 font-mono leading-relaxed">
           ${escapeHtml(q.lifecycle_notes)}
         </div>
       </div>` : ''}
@@ -1642,16 +1659,16 @@ function buildNpcDossierHtml(n) {
   let itemsHtml = "";
   if (heldItems.length > 0) {
     itemsHtml = `
-      <div class="space-y-2 pt-2 border-t border-slate-800/80">
-        <h5 class="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5 font-mono">
+      <div class="space-y-2 pt-2 border-t border-[#222222]">
+        <h5 class="text-xs font-bold text-neutral-400 uppercase tracking-wider flex items-center gap-1.5 font-mono">
           <span>🗡️</span> Objetos y Artefactos en Custodia
         </h5>
         <div class="flex flex-wrap gap-2">
           ${heldItems.map(it => `
-            <button type="button" onclick="findAndSelectWikiEntity('item', '${escapeHtml(it.name)}')" class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs bg-slate-900 hover:bg-slate-800 text-purple-300 border border-purple-500/30 hover:border-purple-500/50 transition cursor-pointer active:scale-95 shadow-sm">
+            <button type="button" onclick="findAndSelectWikiEntity('item', '${escapeHtml(it.name)}')" class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-xs bg-[#121212] hover:bg-[#1a1a1a] text-purple-300 border border-purple-500/30 hover:border-purple-500/50 transition cursor-pointer active:scale-95 shadow-sm">
               <span>💎</span>
               <span class="font-medium">${escapeHtml(it.name)}</span>
-              <span class="text-[10px] text-slate-400">(${escapeHtml(it.type || 'Artefacto')})</span>
+              <span class="text-[10px] text-neutral-400">(${escapeHtml(it.type || 'Artefacto')})</span>
             </button>
           `).join("")}
         </div>
@@ -1661,36 +1678,36 @@ function buildNpcDossierHtml(n) {
 
   return `
     <div class="space-y-4">
-      <div class="border-b border-slate-800 pb-3 space-y-2">
+      <div class="border-b border-[#222222] pb-3 space-y-2">
         <div class="flex flex-wrap items-center justify-between gap-2">
           <div class="flex flex-wrap items-center gap-2">
             ${tipoBadge}
-            <span class="text-xs px-2 py-0.5 rounded bg-slate-900 border border-slate-800 text-slate-400 font-mono">
+            <span class="text-xs px-2 py-0.5 rounded-lg bg-[#0d0d0d] border border-[#222222] text-neutral-400 font-mono">
               Visto por primera vez en Sesión #${n.first_seen_session || 1}
             </span>
           </div>
-          <button type="button" onclick="openMergeEntityModal('npc', '${escapeHtml(rawNpcName)}')" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-800/90 hover:bg-slate-700 text-amber-300 border border-slate-700 shadow-sm transition active:scale-95 cursor-pointer" title="Fusionar con otro personaje de la campaña">
+          <button type="button" onclick="openMergeEntityModal('npc', '${escapeHtml(rawNpcName)}')" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-[#121212] hover:bg-[#1a1a1a] text-amber-300 border border-[#262626] hover:border-amber-500/50 shadow-sm transition active:scale-95 cursor-pointer" title="Fusionar con otro personaje de la campaña">
             <span>🔗</span>
             <span>Fusionar con otro personaje</span>
           </button>
         </div>
-        <h3 class="text-base font-bold text-slate-100 font-fantasy">${escapeHtml(npcName)}</h3>
-        <p class="text-xs text-amber-300 font-medium">${escapeHtml(npcRole)}</p>
+        <h3 class="text-xl font-bold text-neutral-100 font-fantasy mt-1">${escapeHtml(npcName)}</h3>
+        <p class="text-sm text-amber-300 font-semibold mt-0.5">${escapeHtml(npcRole)}</p>
         ${cleanNpcAliases.length > 0 ? `
           <div class="flex flex-wrap items-center gap-1.5 pt-1 text-xs">
-            <span class="text-[10px] uppercase font-mono text-slate-400">Apodo / Sobrenombre:</span>
-            ${cleanNpcAliases.map(a => `<span class="px-2 py-0.5 rounded-full bg-slate-900 border border-slate-700/80 text-amber-300 font-mono text-[11px]">${escapeHtml(a)}</span>`).join("")}
+            <span class="text-[10px] uppercase font-mono text-neutral-400">Apodo / Sobrenombre:</span>
+            ${cleanNpcAliases.map(a => `<span class="px-2 py-0.5 rounded-full bg-[#0d0d0d] border border-[#262626] text-amber-300 font-mono text-[11px]">${escapeHtml(a)}</span>`).join("")}
           </div>
         ` : ''}
       </div>
 
       <div class="space-y-2">
-        <h5 class="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-2">
+        <h5 class="text-xs font-bold text-neutral-400 uppercase tracking-wider flex items-center gap-2 font-mono">
           <span>📋</span> Registro Cronológico de Inteligencia & Pistas
         </h5>
         <div class="space-y-2">
           ${notes.map(note => `
-            <div class="p-3 rounded-xl bg-slate-950/70 border border-slate-800 text-xs text-slate-300 leading-relaxed">
+            <div class="p-3.5 rounded-xl bg-[#0a0a0d] border border-[#222222] text-sm text-neutral-200 leading-relaxed">
               ${escapeHtml(typeof note === 'string' ? note : (note.note || note.text || JSON.stringify(note)))}
             </div>
           `).join("")}
@@ -1719,13 +1736,13 @@ function buildPcDossierHtml(p) {
   let locsHtml = "";
   if (assocLocs.length > 0) {
     locsHtml = `
-      <div class="space-y-2 pt-2 border-t border-slate-800/80">
-        <h5 class="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5 font-mono">
+      <div class="space-y-2 pt-2 border-t border-[#222222]">
+        <h5 class="text-xs font-bold text-neutral-400 uppercase tracking-wider flex items-center gap-1.5 font-mono">
           <span>📍</span> Lugares Vinculados
         </h5>
         <div class="flex flex-wrap gap-2">
           ${assocLocs.map(l => `
-            <button type="button" onclick="findAndSelectWikiEntity('location', '${escapeHtml(l.name)}')" class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs bg-slate-900 hover:bg-slate-800 text-amber-300 border border-slate-700 hover:border-amber-500/40 transition cursor-pointer active:scale-95 shadow-sm">
+            <button type="button" onclick="findAndSelectWikiEntity('location', '${escapeHtml(l.name)}')" class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-xs bg-[#121212] hover:bg-[#1a1a1a] text-amber-300 border border-[#262626] hover:border-amber-500/50 transition cursor-pointer active:scale-95 shadow-sm">
               <span>📍</span>
               <span class="font-medium">${escapeHtml(l.name)}</span>
             </button>
@@ -1739,16 +1756,16 @@ function buildPcDossierHtml(p) {
   let itemsHtml = "";
   if (heldItems.length > 0) {
     itemsHtml = `
-      <div class="space-y-2 pt-2 border-t border-slate-800/80">
-        <h5 class="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5 font-mono">
+      <div class="space-y-2 pt-2 border-t border-[#222222]">
+        <h5 class="text-xs font-bold text-neutral-400 uppercase tracking-wider flex items-center gap-1.5 font-mono">
           <span>🗡️</span> Objetos y Artefactos en Posesión
         </h5>
         <div class="flex flex-wrap gap-2">
           ${heldItems.map(it => `
-            <button type="button" onclick="findAndSelectWikiEntity('item', '${escapeHtml(it.name)}')" class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs bg-slate-900 hover:bg-slate-800 text-purple-300 border border-purple-500/30 hover:border-purple-500/50 transition cursor-pointer active:scale-95 shadow-sm">
+            <button type="button" onclick="findAndSelectWikiEntity('item', '${escapeHtml(it.name)}')" class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-xs bg-[#121212] hover:bg-[#1a1a1a] text-purple-300 border border-purple-500/30 hover:border-purple-500/50 transition cursor-pointer active:scale-95 shadow-sm">
               <span>💎</span>
               <span class="font-medium">${escapeHtml(it.name)}</span>
-              <span class="text-[10px] text-slate-400">(${escapeHtml(it.type || 'Artefacto')})</span>
+              <span class="text-[10px] text-neutral-400">(${escapeHtml(it.type || 'Artefacto')})</span>
             </button>
           `).join("")}
         </div>
@@ -1759,56 +1776,56 @@ function buildPcDossierHtml(p) {
   return `
     <div class="space-y-4">
       <div class="flex items-center justify-between">
-        <button type="button" onclick="selectWikiEntity(null, null, null)" class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold bg-slate-800/90 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 transition active:scale-95 cursor-pointer">
+        <button type="button" onclick="selectWikiEntity(null, null, null)" class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-xs font-semibold bg-[#121212] hover:bg-[#1a1a1a] text-neutral-300 hover:text-white border border-[#262626] transition active:scale-95 cursor-pointer">
           <span>⬅️</span>
           <span>Ver Todos los Protagonistas</span>
         </button>
-        <button type="button" onclick="openMergeEntityModal('pc', '${escapeHtml(rawCharName)}')" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-800/90 hover:bg-slate-700 text-amber-300 border border-slate-700 shadow-sm transition active:scale-95 cursor-pointer" title="Fusionar con otro personaje de la campaña">
+        <button type="button" onclick="openMergeEntityModal('pc', '${escapeHtml(rawCharName)}')" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-[#121212] hover:bg-[#1a1a1a] text-amber-300 border border-[#262626] hover:border-amber-500/50 shadow-sm transition active:scale-95 cursor-pointer" title="Fusionar con otro personaje de la campaña">
           <span>🔗</span>
           <span>Fusionar con otro personaje</span>
         </button>
       </div>
-      <div class="border-b border-slate-800 pb-3 space-y-2">
+      <div class="border-b border-[#222222] pb-3 space-y-2">
         <div class="flex flex-wrap items-center gap-2">
-          <span class="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+          <span class="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-indigo-500/15 text-indigo-300 border border-indigo-500/30">
             🛡️ Protagonista (PC)
           </span>
-          <span class="text-xs px-2 py-0.5 rounded bg-slate-900 border border-slate-800 text-slate-400 font-mono">
+          <span class="text-xs px-2 py-0.5 rounded-lg bg-[#0d0d0d] border border-[#222222] text-neutral-400 font-mono">
             ${escapeHtml(debut)}
           </span>
         </div>
-        <h3 class="text-base font-bold text-slate-100 font-fantasy">${escapeHtml(charName)}</h3>
-        ${player ? `<p class="text-xs text-slate-300">Jugador: <strong class="text-amber-300">${escapeHtml(player)}</strong></p>` : ''}
+        <h3 class="text-xl font-bold text-neutral-100 font-fantasy mt-1">${escapeHtml(charName)}</h3>
+        ${player ? `<p class="text-sm text-neutral-300 mt-0.5">Jugador: <strong class="text-amber-300">${escapeHtml(player)}</strong></p>` : ''}
         ${cleanPcAliases.length > 0 ? `
           <div class="flex flex-wrap items-center gap-1.5 pt-1 text-xs">
-            <span class="text-[10px] uppercase font-mono text-slate-400">Apodo / Sobrenombre:</span>
-            ${cleanPcAliases.map(a => `<span class="px-2 py-0.5 rounded-full bg-slate-900 border border-slate-700/80 text-amber-300 font-mono text-[11px]">${escapeHtml(a)}</span>`).join("")}
+            <span class="text-[10px] uppercase font-mono text-neutral-400">Apodo / Sobrenombre:</span>
+            ${cleanPcAliases.map(a => `<span class="px-2 py-0.5 rounded-full bg-[#0d0d0d] border border-[#262626] text-amber-300 font-mono text-[11px]">${escapeHtml(a)}</span>`).join("")}
           </div>
         ` : ''}
       </div>
 
       <div class="grid grid-cols-1 sm:grid-cols-3 gap-2.5 text-xs">
-        <div class="bg-slate-900/80 border border-slate-800 rounded-xl p-2.5">
-          <span class="text-[10px] text-slate-500 block uppercase font-mono">Especie</span>
-          <strong class="text-slate-200">${escapeHtml(species)}</strong>
+        <div class="bg-[#0a0a0d] border border-[#222222] rounded-xl p-2.5">
+          <span class="text-[10px] text-neutral-500 block uppercase font-mono">Especie</span>
+          <strong class="text-neutral-200">${escapeHtml(species)}</strong>
         </div>
-        <div class="bg-slate-900/80 border border-slate-800 rounded-xl p-2.5">
-          <span class="text-[10px] text-slate-500 block uppercase font-mono">Clase</span>
-          <strong class="text-slate-200">${escapeHtml(cls)}</strong>
+        <div class="bg-[#0a0a0d] border border-[#222222] rounded-xl p-2.5">
+          <span class="text-[10px] text-neutral-500 block uppercase font-mono">Clase</span>
+          <strong class="text-neutral-200">${escapeHtml(cls)}</strong>
         </div>
-        <div class="bg-slate-900/80 border border-slate-800 rounded-xl p-2.5">
-          <span class="text-[10px] text-slate-500 block uppercase font-mono">Subclase</span>
-          <strong class="text-slate-200">${escapeHtml(subcls)}</strong>
+        <div class="bg-[#0a0a0d] border border-[#222222] rounded-xl p-2.5">
+          <span class="text-[10px] text-neutral-500 block uppercase font-mono">Subclase</span>
+          <strong class="text-neutral-200">${escapeHtml(subcls)}</strong>
         </div>
       </div>
 
       <div class="space-y-2">
-        <h5 class="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-2">
+        <h5 class="text-xs font-bold text-neutral-400 uppercase tracking-wider flex items-center gap-2 font-mono">
           <span>⚔️</span> Hitos & Hechos Destacados Acumulados
         </h5>
         <div class="space-y-2">
           ${hitos.map(h => `
-            <div class="p-3 rounded-xl bg-slate-950/70 border border-slate-800 text-xs text-slate-300 leading-relaxed">
+            <div class="p-3.5 rounded-xl bg-[#0a0a0d] border border-[#222222] text-sm text-neutral-200 leading-relaxed">
               ${escapeHtml(typeof h === 'string' ? h : (h.hito || h.text || JSON.stringify(h)))}
             </div>
           `).join("")}
@@ -1913,7 +1930,7 @@ function renderNpcs(npcs) {
   container.innerHTML = "";
   list.forEach(n => {
     const card = document.createElement("div");
-    card.className = "npc-card group relative p-4 rounded-xl bg-slate-900/90 border border-slate-800/80 hover:border-amber-500/40 backdrop-blur-sm shadow-md transition-all duration-150 flex flex-col justify-between h-full";
+    card.className = "npc-card group relative p-4 rounded-xl bg-[#0d0d0d] border border-[#222222] hover:border-amber-500/40 shadow-xl transition-all duration-150 flex flex-col justify-between h-full";
 
     const cat = String(n.category || "").toLowerCase();
     const t = String(n.tipo || "").toLowerCase();
@@ -1931,7 +1948,7 @@ function renderNpcs(npcs) {
     const statusBadge = getNpcStatusBadge(n);
 
     const notesHtml = (n.notes && n.notes.length > 0)
-      ? `<ul class="text-[11px] text-slate-300 space-y-1 list-disc list-inside mt-2 pt-2 border-t border-slate-800/80">${n.notes.map(note => `<li>${escapeHtml(note)}</li>`).join('')}</ul>`
+      ? `<ul class="text-[11px] text-neutral-300 space-y-1 list-disc list-inside mt-2 pt-2 border-t border-[#222222]">${n.notes.map(note => `<li>${escapeHtml(note)}</li>`).join('')}</ul>`
       : '';
 
     card.innerHTML = `
@@ -1939,28 +1956,28 @@ function renderNpcs(npcs) {
         <div class="flex items-start justify-between gap-2 min-h-[52px]">
           <div class="min-w-0 flex-1">
             <div class="flex flex-wrap items-center gap-1.5">
-              <h4 class="text-sm font-bold text-slate-100 truncate">${escapeHtml(formatCharacterDisplayName(n.name, n.aliases))}</h4>
+              <h4 class="text-sm font-bold text-neutral-100 truncate">${escapeHtml(formatCharacterDisplayName(n.name, n.aliases))}</h4>
               ${tipoBadge}
               ${statusBadge}
             </div>
-            <p class="text-xs text-sky-400 font-medium mt-1 truncate" title="${escapeHtml(n.role || 'PNJ')}">${escapeHtml(n.role || 'PNJ')}</p>
+            <p class="text-xs text-amber-300 font-medium mt-1 truncate" title="${escapeHtml(n.role || 'PNJ')}">${escapeHtml(n.role || 'PNJ')}</p>
           </div>
           <div class="flex items-center gap-1 shrink-0">
             <!-- Botones de Acción Rápida en Hover -->
             <div class="opacity-0 group-hover:opacity-100 transition-opacity duration-150 flex items-center gap-1 mr-1">
-              <button type="button" onclick="openEditNpcModal('${escapeHtml(n.name)}')" title="Editar PNJ" class="p-1.5 rounded-lg bg-slate-800 hover:bg-amber-500/20 text-slate-400 hover:text-amber-300 border border-slate-700 hover:border-amber-500/40 active:scale-95 transition cursor-pointer">
+              <button type="button" onclick="openEditNpcModal('${escapeHtml(n.name)}')" title="Editar PNJ" class="p-1.5 rounded-xl bg-[#121212] hover:bg-[#1a1a1a] text-neutral-400 hover:text-amber-300 border border-[#262626] hover:border-amber-500/40 active:scale-95 transition cursor-pointer shadow-sm">
                 <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/></svg>
               </button>
-              <button type="button" onclick="openMergeEntityModal('npc', '${escapeHtml(n.name)}')" title="Fusionar con otro personaje" class="p-1.5 rounded-lg bg-slate-800 hover:bg-sky-500/20 text-slate-400 hover:text-sky-300 border border-slate-700 hover:border-sky-500/40 active:scale-95 transition cursor-pointer">
+              <button type="button" onclick="openMergeEntityModal('npc', '${escapeHtml(n.name)}')" title="Fusionar con otro personaje" class="p-1.5 rounded-xl bg-[#121212] hover:bg-[#1a1a1a] text-neutral-400 hover:text-sky-300 border border-[#262626] hover:border-sky-500/40 active:scale-95 transition cursor-pointer shadow-sm">
                 <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
               </button>
             </div>
-            <span class="px-2 py-0.5 rounded-full text-[10px] bg-slate-800/80 text-slate-400 border border-slate-700/60 font-mono shrink-0">
+            <span class="px-2 py-0.5 rounded-lg text-[10px] bg-[#121212] text-neutral-400 border border-[#262626] font-mono shrink-0">
               Sesión #${n.first_seen_session || 1}
             </span>
           </div>
         </div>
-        <div class="border-t border-slate-800/80 mt-2.5 pt-2 flex-1">
+        <div class="border-t border-[#222222] mt-2.5 pt-2 flex-1">
           ${notesHtml}
         </div>
       </div>

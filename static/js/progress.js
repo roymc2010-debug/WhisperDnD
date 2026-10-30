@@ -118,6 +118,7 @@ function hideErrorCard() {
     card.classList.add("hidden");
     card.classList.remove("flex");
   }, 150);
+  if (typeof hideAlert === "function") hideAlert();
 }
 
 function copyErrorDetails() {

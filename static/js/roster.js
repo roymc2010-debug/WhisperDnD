@@ -7,7 +7,7 @@
 const DND_BEYOND_COLORS = {
   barbarian: '#E7623E',
   bard: '#AB6DAC',
-  cleric: '#91A1B2',
+  cleric: '#A2B5C9',
   druid: '#7A9958',
   fighter: '#7F513E',
   monk: '#51A5C5',
@@ -171,6 +171,9 @@ const DND_DATABASE = {
         { id: 'rune', name: { es: 'Caballero Rúnico (Rune Knight)', en: 'Rune Knight' } },
         { id: 'samurai', name: { es: 'Samurái', en: 'Samurai' } },
         { id: 'echo', name: { es: 'Caballero Eco (Echo Knight)', en: 'Echo Knight' } },
+        { id: 'arcane_archer', name: { es: 'Arquero Arcano (Arcane Archer)', en: 'Arcane Archer' } },
+        { id: 'cavalier', name: { es: 'Caballero (Cavalier)', en: 'Cavalier' } },
+        { id: 'banneret', name: { es: 'Caballero Dragón Púrpura (Banneret)', en: 'Purple Dragon Knight' } },
       ]
     },
     {
@@ -185,6 +188,8 @@ const DND_DATABASE = {
         { id: 'glory', name: { es: 'Juramento de la Gloria', en: 'Oath of Glory' } },
         { id: 'redemption', name: { es: 'Juramento de Redención', en: 'Oath of Redemption' } },
         { id: 'watcher', name: { es: 'Juramento de los Vigilantes', en: 'Oath of the Watchers' } },
+        { id: 'crown', name: { es: 'Juramento de la Corona (Crown)', en: 'Oath of the Crown' } },
+        { id: 'oathbreaker', name: { es: 'Rompejuramentos (Oathbreaker)', en: 'Oathbreaker' } },
       ]
     },
     {
@@ -199,6 +204,8 @@ const DND_DATABASE = {
         { id: 'celestial', name: { es: 'El Celestial', en: 'The Celestial' } },
         { id: 'great_old_one', name: { es: 'El Primigenio (Great Old One)', en: 'Great Old One' } },
         { id: 'undead', name: { es: 'El No-Muerto (The Undead)', en: 'The Undead' } },
+        { id: 'fathomless', name: { es: 'Las Profundidades (The Fathomless)', en: 'The Fathomless' } },
+        { id: 'undying', name: { es: 'El Inmortal (The Undying)', en: 'The Undying' } },
       ]
     },
     {
@@ -213,6 +220,8 @@ const DND_DATABASE = {
         { id: 'phantom', name: { es: 'Fantasma (Phantom)', en: 'Phantom' } },
         { id: 'swashbuckler', name: { es: 'Espadachín (Swashbuckler)', en: 'Swashbuckler' } },
         { id: 'inquisitive', name: { es: 'Inquisitivo (Inquisitive)', en: 'Inquisitive' } },
+        { id: 'scout', name: { es: 'Batidor (Scout)', en: 'Scout' } },
+        { id: 'mastermind', name: { es: 'Mente Maestra (Mastermind)', en: 'Mastermind' } },
       ]
     },
     {
@@ -221,12 +230,18 @@ const DND_DATABASE = {
       icon: '📜',
       subclasses: [
         { id: 'evoc', name: { es: 'Escuela de Evocación', en: 'School of Evocation' } },
-        { id: 'abjur', name: { es: 'Escuela de Abjuración', en: 'School of Abjuration' } },
+        { id: 'abjur', name: { es: 'Escuela de Abjuración (Abjurer)', en: 'School of Abjuration' } },
         { id: 'necro', name: { es: 'Escuela de Nigromancia', en: 'School of Necromancy' } },
         { id: 'divin', name: { es: 'Escuela de Adivinación', en: 'School of Divination' } },
         { id: 'bladesing', name: { es: 'Canto de las Espadas (Bladesinging)', en: 'Bladesinging' } },
         { id: 'chrono', name: { es: 'Cronurgia (Chronurgy)', en: 'Chronurgy Magic' } },
-        { id: 'illusion', name: { es: 'Escuela de Ilusión', en: 'School of Illusion' } },
+        { id: 'illusion', name: { es: 'Escuela de Ilusión (Illusionist)', en: 'School of Illusion' } },
+        { id: 'conjuration', name: { es: 'Escuela de Conjuración (Conjurer)', en: 'School of Conjuration' } },
+        { id: 'enchantment', name: { es: 'Escuela de Encantamiento (Enchanter)', en: 'School of Enchantment' } },
+        { id: 'transmutation', name: { es: 'Escuela de Transmutación (Transmuter)', en: 'School of Transmutation' } },
+        { id: 'war_magic', name: { es: 'Magia de Guerra (War Magic)', en: 'War Magic' } },
+        { id: 'scribes', name: { es: 'Orden de los Escribas (Order of Scribes)', en: 'Order of Scribes' } },
+        { id: 'graviturgy', name: { es: 'Graviturgia (Graviturgy)', en: 'Graviturgy Magic' } },
       ]
     },
     {
@@ -239,7 +254,15 @@ const DND_DATABASE = {
         { id: 'war', name: { es: 'Dominio de la Guerra', en: 'War Domain' } },
         { id: 'tempest', name: { es: 'Dominio de la Tempestad', en: 'Tempest Domain' } },
         { id: 'twilight', name: { es: 'Dominio del Crepúsculo (Twilight)', en: 'Twilight Domain' } },
-        { id: 'peace', name: { es: 'Dominio de la Paz', en: 'Peace Domain' } },
+        { id: 'peace', name: { es: 'Dominio de la Paz (Peace)', en: 'Peace Domain' } },
+        { id: 'forge', name: { es: 'Dominio de la Fragua (Forge)', en: 'Forge Domain' } },
+        { id: 'grave', name: { es: 'Dominio de la Tumba (Grave)', en: 'Grave Domain' } },
+        { id: 'death', name: { es: 'Dominio de la Muerte (Death)', en: 'Death Domain' } },
+        { id: 'knowledge', name: { es: 'Dominio del Conocimiento (Knowledge)', en: 'Knowledge Domain' } },
+        { id: 'nature', name: { es: 'Dominio de la Naturaleza (Nature)', en: 'Nature Domain' } },
+        { id: 'order', name: { es: 'Dominio del Orden (Order)', en: 'Order Domain' } },
+        { id: 'trickery', name: { es: 'Dominio del Engaño (Trickery)', en: 'Trickery Domain' } },
+        { id: 'arcana', name: { es: 'Dominio Arcano (Arcana)', en: 'Arcana Domain' } },
       ]
     },
     {
@@ -250,7 +273,11 @@ const DND_DATABASE = {
         { id: 'lore', name: { es: 'Colegio del Saber (Lore)', en: 'College of Lore' } },
         { id: 'valor', name: { es: 'Colegio del Valor', en: 'College of Valor' } },
         { id: 'swords', name: { es: 'Colegio de las Espadas (Swords)', en: 'College of Swords' } },
-        { id: 'eloquence', name: { es: 'Colegio de la Elocuencia', en: 'College of Eloquence' } },
+        { id: 'eloquence', name: { es: 'Colegio de la Elocuencia (Eloquence)', en: 'College of Eloquence' } },
+        { id: 'creation', name: { es: 'Colegio de la Creación (Creation)', en: 'College of Creation' } },
+        { id: 'glamour', name: { es: 'Colegio de la Fascinación (Glamour)', en: 'College of Glamour' } },
+        { id: 'whispers', name: { es: 'Colegio de los Susurros (Whispers)', en: 'College of Whispers' } },
+        { id: 'dance', name: { es: 'Colegio de la Danza (Dance - 2024)', en: 'College of Dance' } },
       ]
     },
     {
@@ -262,6 +289,12 @@ const DND_DATABASE = {
         { id: 'shadow', name: { es: 'Camino de las Sombras', en: 'Way of Shadow' } },
         { id: 'mercy', name: { es: 'Camino de la Piedad (Mercy)', en: 'Way of Mercy' } },
         { id: 'kensei', name: { es: 'Camino del Kensei', en: 'Way of the Kensei' } },
+        { id: 'astral_self', name: { es: 'Camino del Yo Astral (Astral Self)', en: 'Way of the Astral Self' } },
+        { id: 'ascendant_dragon', name: { es: 'Camino del Dragón Ascendente', en: 'Way of the Ascendant Dragon' } },
+        { id: 'drunken_master', name: { es: 'Camino del Maestro Borracho', en: 'Way of the Drunken Master' } },
+        { id: 'four_elements', name: { es: 'Camino de los Cuatro Elementos', en: 'Way of the Four Elements' } },
+        { id: 'long_death', name: { es: 'Camino de la Muerte Larga (Long Death)', en: 'Way of the Long Death' } },
+        { id: 'sun_soul', name: { es: 'Camino del Alma Solar (Sun Soul)', en: 'Way of the Sun Soul' } },
       ]
     },
     {
@@ -272,7 +305,11 @@ const DND_DATABASE = {
         { id: 'draconic', name: { es: 'Linaje Dracónico', en: 'Draconic Bloodline' } },
         { id: 'wild_magic', name: { es: 'Magia Salvaje', en: 'Wild Magic' } },
         { id: 'divine_soul', name: { es: 'Alma Divina (Divine Soul)', en: 'Divine Soul' } },
-        { id: 'aberrant', name: { es: 'Mente Aberrante', en: 'Aberrant Mind' } },
+        { id: 'aberrant', name: { es: 'Mente Aberrante (Aberrant Mind)', en: 'Aberrant Mind' } },
+        { id: 'clockwork', name: { es: 'Alma Mecánica (Clockwork Soul)', en: 'Clockwork Soul' } },
+        { id: 'shadow_magic', name: { es: 'Magia Sombría (Shadow Magic)', en: 'Shadow Magic' } },
+        { id: 'storm_sorcery', name: { es: 'Hechicería de Tormenta (Storm)', en: 'Storm Sorcery' } },
+        { id: 'lunar_sorcery', name: { es: 'Hechicería Lunar (Lunar Sorcery)', en: 'Lunar Sorcery' } },
       ]
     },
     {
@@ -282,7 +319,13 @@ const DND_DATABASE = {
       subclasses: [
         { id: 'berserker', name: { es: 'Camino del Berserker', en: 'Path of the Berserker' } },
         { id: 'totem', name: { es: 'Camino del Guerrero Totémico', en: 'Path of the Totem Warrior' } },
-        { id: 'zealot', name: { es: 'Camino del Zelote', en: 'Path of the Zealot' } },
+        { id: 'zealot', name: { es: 'Camino del Zelote (Zealot)', en: 'Path of the Zealot' } },
+        { id: 'ancestral_guardian', name: { es: 'Guardián Ancestral (Ancestral Guardian)', en: 'Path of the Ancestral Guardian' } },
+        { id: 'beast', name: { es: 'Camino de la Bestia (Beast)', en: 'Path of the Beast' } },
+        { id: 'storm_herald', name: { es: 'Heraldo de la Tormenta (Storm Herald)', en: 'Path of the Storm Herald' } },
+        { id: 'wild_magic_barb', name: { es: 'Magia Salvaje (Wild Magic)', en: 'Path of Wild Magic' } },
+        { id: 'world_tree', name: { es: 'Árbol del Mundo (World Tree - 2024)', en: 'Path of the World Tree' } },
+        { id: 'battlerager', name: { es: 'Furia de Batalla (Battlerager)', en: 'Path of the Battlerager' } },
       ]
     },
     {
@@ -292,7 +335,12 @@ const DND_DATABASE = {
       subclasses: [
         { id: 'moon', name: { es: 'Círculo de la Luna', en: 'Circle of the Moon' } },
         { id: 'stars', name: { es: 'Círculo de las Estrellas', en: 'Circle of Stars' } },
-        { id: 'spores', name: { es: 'Círculo de las Esporas', en: 'Circle of Spores' } },
+        { id: 'spores', name: { es: 'Círculo de las Esporas (Spores)', en: 'Circle of Spores' } },
+        { id: 'land', name: { es: 'Círculo de la Tierra (Land)', en: 'Circle of the Land' } },
+        { id: 'shepherd', name: { es: 'Círculo del Pastor (Shepherd)', en: 'Circle of the Shepherd' } },
+        { id: 'wildfire', name: { es: 'Círculo del Fuego Salvaje (Wildfire)', en: 'Circle of Wildfire' } },
+        { id: 'dreams', name: { es: 'Círculo de los Sueños (Dreams)', en: 'Circle of Dreams' } },
+        { id: 'sea_druid', name: { es: 'Círculo del Mar (Sea - 2024)', en: 'Circle of the Sea' } },
       ]
     },
     {
@@ -304,6 +352,10 @@ const DND_DATABASE = {
         { id: 'hunter', name: { es: 'Cazador (Hunter)', en: 'Hunter' } },
         { id: 'beast', name: { es: 'Maestro de Bestias (Beast Master)', en: 'Beast Master' } },
         { id: 'fey', name: { es: 'Caminante Feérico (Fey Wanderer)', en: 'Fey Wanderer' } },
+        { id: 'drakewarden', name: { es: 'Guardián del Draco (Drakewarden)', en: 'Drakewarden' } },
+        { id: 'horizon_walker', name: { es: 'Caminante del Horizonte (Horizon Walker)', en: 'Horizon Walker' } },
+        { id: 'monster_slayer', name: { es: 'Cazador de Monstruos (Monster Slayer)', en: 'Monster Slayer' } },
+        { id: 'swarmkeeper', name: { es: 'Guardián del Enjambre (Swarmkeeper)', en: 'Swarmkeeper' } },
       ]
     },
     {
@@ -313,7 +365,8 @@ const DND_DATABASE = {
       subclasses: [
         { id: 'armorer', name: { es: 'Armero (Armorer)', en: 'Armorer' } },
         { id: 'artillerist', name: { es: 'Artillero (Artillerist)', en: 'Artillerist' } },
-        { id: 'battlesmith', name: { es: 'Herrero de Batalla', en: 'Battle Smith' } },
+        { id: 'battlesmith', name: { es: 'Herrero de Batalla (Battle Smith)', en: 'Battle Smith' } },
+        { id: 'alchemist', name: { es: 'Alquimista (Alchemist)', en: 'Alchemist' } },
       ]
     },
     {
@@ -349,6 +402,11 @@ const DND_DATABASE = {
         { id: 'street', name: { es: 'Luchador Callejero (Sweet Science)', en: 'Sweet Science' } },
         { id: 'iron_chin', name: { es: 'Mano de Hierro (Iron Chin)', en: 'Iron Chin' } },
         { id: 'prowess', name: { es: 'Peleador de Taberna (Prowess)', en: 'Prowess' } },
+        { id: 'arena_royale', name: { es: 'Arena Royale (Lucha Libre)', en: 'Arena Royale' } },
+        { id: 'bloodhound', name: { es: 'Sabuesos Peleadores (Bloodhound Bruisers)', en: 'Bloodhound Bruisers' } },
+        { id: 'hand_of_dread', name: { es: 'Mano del Terror (Hand of Dread)', en: 'Hand of Dread' } },
+        { id: 'piss_and_vinegar', name: { es: 'Vinagre y Furia (Piss & Vinegar)', en: 'Piss & Vinegar' } },
+        { id: 'dog_and_bastard', name: { es: 'Perro y Bastardo (Dog & Bastard)', en: 'Dog & Bastard' } },
       ]
     },
     {
@@ -382,7 +440,7 @@ const CLASS_VECTOR_LOGOS = {
   warlock: `<svg viewBox="0 0 24 24" class="w-full h-full" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/><path d="M12 5V2M12 22v-3M5 12H2M22 12h-3"/></svg>`,
   rogue: `<svg viewBox="0 0 24 24" class="w-full h-full" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 3 7 7"/><path d="m10 10 5 5 6-6-5-5-6 6Z"/><path d="m14 14 7 7"/><path d="m18 18 3 3"/></svg>`,
   wizard: `<svg viewBox="0 0 24 24" class="w-full h-full" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1-2.5-2.5Z"/><polyline points="10 2 10 10 13 7 16 10 16 2"/></svg>`,
-  cleric: `<svg viewBox="0 0 24 24" class="w-full h-full" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20M5 8h14"/><circle cx="12" cy="12" r="9"/></svg>`,
+  cleric: `<svg viewBox="0 0 330.7 320.04" class="w-full h-full" fill="currentColor"><g fill="currentColor"><path d="M293.5,186.58l-12.46,2.41c2.51-1.93,5.09-2.96,7.81-4.34,13.32-6.78,26.53-14.36,34.4-27.48,4.64-7.75,7.12-16.3,7.45-25.54-1.86,1.03-2.81,2.62-4.19,3.96l-11.74,11.39c-8.29,6.75-17.42,12-27.15,16.34-1.53.68-2.71,1.58-4.52,1.74l14.53-11.76c13.85-12.45,24.34-26.72,26.74-45.67.97-7.63.62-15.14-1.7-22.44-.22-.68-2.1.16-2.12.9-9.36,22.83-21.84,42.67-42.77,56.69,16.49-19.44,28.67-39.86,29.53-65.74.38-11.55-2.11-26.53-9.67-35.16-.37-.43-2.23-.89-2.27,0-.59,12.77-3.06,25.08-7.32,37.2-5.61,15.97-13.64,30.83-24.46,43.93,3.35,6.9,2.68,17.04-.11,24.02l-3.35,8.38,7.31-5.46c.93-.7,2.25-1.77,3.46-1.64,1.12.12,1.76,1.74,1.94,2.78.96,5.63-.08,11.22-2.58,16.35l-5.08,8.64c3.4-1.77,7.94-4.5,10.41-2.47.22,6.77-1.89,13.33-6.05,18.6l-6.08,5.98c3.94-1.06,9.78-2.16,9.43.31-.92,6.4-4.28,12.31-9.53,16.08l-4.69,2.73,5.95,2.23c2.03.76-3.62,8.88-11.64,11.93l-5.53,2.1,4.52,2.63c.64.37.28,1.49-.12,1.95-2.28,2.61-5.15,4.15-8.4,5.25-6.47,2.18-13.25,1.23-18.85-2.72,7.59,1.4,15.78,2.06,21.17-3.3l-4.15-2.39c-2.86-1.65-5.94-2.7-8.59-4.94,7.3.99,14.15.15,20.3-3.31,2.04-1.15,3.8-2.48,5.1-4.43l-7.41-1.52c-3.59-.73-7.16-1.06-10.46-2.49,11.25-1.54,22.44-5.3,26.17-16.49l-13.76,1.46-8.29.56,9.56-4.81c7.42-3.73,14.86-11.27,15.16-20.13l-23.76,8.42c8.3-6.32,16.76-12.24,20.4-22.07,1.29-3.48,2.11-7.01,1.62-10.79-9.03,7.07-18.21,13.07-28.45,18.37l7.93-8.47c9.41-9.66,15.69-22.27,13.36-36.22l-13.91,14.59-14.56,12.94c-11.63,10.73-16.88,26.02-14.29,41.57,2.43,14.6,0,27.41-11.61,37.06-4.46,3.71-9.09,6.37-14.23,9.44-13.93,8.34-19.77,24.86-11.63,39.84,1.4-7.53,4.57-13.94,10.63-18.2,11.66-8.19,21.9-.36,34.59,1.03l-7.51-5.74c-1.52-1.16-3.04-2.14-4.27-3.69,4.73.6,8.84,2.09,13.1,3.72,6.48,2.48,14.33,4.96,20.83,2.9.61-.19.88-.88.88-1.32,0-.68-.56-.76-1.13-1.1-4.73-2.85-9.02-6.32-12.7-10.62l11.87,3.32c7.45,2.08,15.22,1.73,22.31-1.33.52-.23.76-.86.83-1.2.05-.28-.06-.94-.57-1.05-6.37-1.41-12.42-4.48-16.99-9.23.25-.81,1.12-.87,1.83-.86l15.4.27c4.28.07,8.39-.67,12.46-1.89,2.72-.81,4.94-2.03,7.29-3.66.57-.4,1.21-2.26.16-2.38-5.68-.61-11.11-1.73-16.38-3.99-1.81-.78-3.68-1.15-5.2-2.53l10.93-1.17c11.6-1.25,23.97-6.03,29.64-17.03-5.05,1.61-9.73,2.66-14.81,2.79-5.88.14-11.5.09-17.61-1.01l15.96-4.96c14.02-5.27,27.62-14,32.57-28.65.29-.85.65-1.65-.03-2.64-9.43,6.53-19.68,11.06-30.86,13.22Z"/><path d="M112.15,228.72c-2.31-1.99-4.54-3.24-5.68-1.16l-15.37,28.09-4.32,8.74c1.47-.69,2.34-1.9,3.42-3.36l22.01-29.76c.63-.85.71-1.88-.06-2.55Z"/><path d="M84.78,201.64c-.9-.69-1.76.2-2.46.75l-25.55,19.97c-2.42,1.89-5.09,3.57-6.49,6.28l36.66-21.02c2.25-1.24.04-4.3-2.16-5.97Z"/><path d="M112.82,85.45l-21.65-28.6c-1.45-1.91-2.69-3.59-4.52-5.12.31,1.72,1.08,2.89,1.89,4.34l18.01,32.23c.47.85,1.47,1.87,2.35,1.51,2.44-.98,5.13-2.77,3.92-4.36Z"/><path d="M87.22,109l-22.99-13c-4.89-2.54-9.22-5.4-14.6-7.55,2.3,2.76,5.06,4.44,7.82,6.53l26.14,19.73c.62.47,1.53.04,1.83-.4l2.17-3.21c.39-.58.31-1.71-.38-2.1Z"/><path d="M255.33,93l-28.21,15.57c-.51.28-.85.71-.95,1.02-.14.45-.02,1,.27,1.44l2.04,3.08c.49.75,1.39,1.07,2.21.44l30.23-22.74c1.21-.91,2.24-1.65,3.04-3.05l-8.63,4.24Z"/><path d="M183.18,33.49l-2.43,7.71-8.73,33.06c-.61,2.33,3.19,3.13,6.44,2.59l4.89-39.46c.17-1.35.56-2.5-.17-3.89Z"/><path d="M220.91,59.26l-19.12,25.36c-.61.81-.76,2.06.11,2.66,1.13.78,2.43,2.02,3.98,2.21,1.03.12,1.7-1.33,2.11-2.06l16.76-30.12c.86-1.83,2.13-3.13,2.38-5.4l-6.21,7.36Z"/><path d="M139.44,64.65l-7.82-29.25c-.22-.84-.4-1.56-1.17-2.06-.1,2.84.32,5.23.66,7.98l4.24,34.15c.32,2.58,3.7,1.74,6.75,0l-2.67-10.84Z"/><path d="M73.93,174.07c-.36-.92-1.23-1.31-2.19-1.04l-24.87,7.12c-4.91,1.41-9.6,2.51-14.47,4.69,3.49.4,6.38-.44,9.66-.71l31.65-4.45c1.88-.26,1.26-2.99.23-5.62Z"/><path d="M73.7,136.77l-38.75-5.29c-.89-.12-1.62-.13-2.55.15l6.73,2.42,33.46,9.43c.74.21,1.46-.52,1.56-.99l.87-4.1c.17-.83-.53-1.51-1.33-1.62Z"/><g><path d="M202.21,132.21c-1.15.08-2.19-2.35-1.51-3.33,3.99-5.66,8.04-10.87,12.54-16.14l46.77-54.84,8.76-10.86c-2.27,1.19-3.9,2.74-5.74,4.3l-14.88,12.67-19.95,17.14-25.93,22.01c-5.1,4.33-10.02,8.4-15.75,11.85-1.1.02-2.49-.96-3.06-1.87l4.91-14.37,26.03-75.58c1.16-3.38,2.26-6.33,2.85-9.95-1.83,1.95-2.65,4.28-3.75,6.6l-5.71,12.05-25.6,54.9-5.15,11.23-4.43,8.87c-.3.6-1.34,1.85-2.06,1.17-1.4-3.7-2.08-7.5-2.82-11.49-2.78-15-4.58-29.8-5.94-45.08l-4.16-46.87c-.15-1.71-.22-3.12-.77-4.61-.63,1.02-.63,1.88-.73,2.97l-5.08,56.81c-1.28,14.29-3.34,28.16-6.13,42.16l-1.45,5.76c-.12.48-.86.55-1.18.49-.96-.18-3.17-5.28-4.43-7.99l-23.82-51.29-13.04-27.77c-1.26-2.68-2.32-5.2-4.34-7.67.43,3.7,1.87,6.88,3.03,10.32l5.41,16.04,20.24,58.61,4.81,14.04c.39,1.14-.69,1.9-1.46,2.36-.92.55-1.88.1-2.82-.57-6.12-4.3-11.81-8.86-17.55-13.77l-51.11-43.71c-4.05-3.47-7.65-6.9-12.11-9.93,1.72,3.12,3.81,5.31,6,7.88l30.23,35.37,26.04,31.06c2.35,2.8,4.33,5.49,6.2,8.64-.15,1.03-1.2,2.08-2.21,2.66l-76.22-27.05-14.04-4.76c-2.8-.95-5.28-2.34-8.55-2.52,2.36,1.67,4.63,2.99,7.27,4.24l54.47,25.7,27.45,13.05,4.88,2.68c.39.21.18,1-.1,1.2-1.84,1.4-16.42,3.6-21.6,4.19l-31.7,3.58-46.87,4.1c-2.22.19-4.17.29-6.35,1.26,6.03,1.24,11.76,1.54,17.91,2.13l45.01,4.35c8.03.78,43,4.8,44.05,7.53.14.35.18.87-.35,1.12l-54.93,25.97-31.83,15.11c-2.63,1.25-4.95,2.33-7.28,4.23l7.43-2.12,88.59-30.99c1.32-.46,2.59-.84,3.77-.78.54.32,1.35,1.74,1.08,2.41-4.15,6.37-8.71,12.03-13.62,17.78l-18.52,21.64-27.38,32.44-9.02,11.37c1.71-.76,2.84-1.78,4.2-2.97l55.13-48.16,17.08-13.91,6.08-3.98c1.24.56,2.23,1.29,3.03,2.28l-9.33,26.65-20.34,58.87c-1.59,4.61-3.4,8.88-4.05,13.83l12.55-25.71,25.27-54.27,6.72-14.11c.24-.51,1.54-.71,1.68-.11,4.6,19.15,7.43,39.03,5.41,58.61-.73,7.04-2.28,13.57-4.64,20.19l-3.53,7.22,6.88,8.94,9.42,15.39c.21.35.32.53.57.33.11-.09.26-.31.37-.5l8.68-14.43,6.14-8.15c.49-.65,1.07-1.05,1.11-1.8.04-.7-.49-1.07-.84-1.74-12.23-23.74-7.89-57.64-1.98-83.16.12-.54.38-.94.65-1.06.36-.16.94-.11,1.33.3l14.42,29.64,7-4.55-10.56-30.4c.23-1.14,2.12-2.45,3.07-2.24,3.91,2.09,7.15,4.77,10.56,7.49l12.56,10.01c1.74-6,3.68-14.95-.07-19.12l-9.18-12.69c-.2-1.02,1.54-2.66,2.58-2.36l7.11,2.07c-.04-3.93.54-7.59,1.57-11.5l-3.79-2.02c-.48-.26-.66-.68-.63-1.09.02-.28.16-.78.55-.9l6.07-1.82c1.87-4.95,4.52-9.4,8.22-13.17l6.8-6.91-20.96-4.02c-.53-.1-.76-.52-.84-.79-.11-.34-.02-.69.35-.87l12.97-6.46,30.43-14.42c2.06-.98,4.36-1.71,6.06-3.17,2.82-2.43,4.79-5.56,7.13-8.65l-39.04,13.5-22.69,7.75ZM112.99,158.39c0-24.25,19.66-43.92,43.92-43.92s43.92,19.66,43.92,43.92-19.66,43.92-43.92,43.92-43.92-19.66-43.92-43.92Z"/><circle cx="156.91" cy="158.4" r="36.23" transform="translate(-49.48 242.75) rotate(-67.5)"/></g></g></svg>`,
   bard: `<svg viewBox="0 0 24 24" class="w-full h-full" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>`,
   monk: `<svg viewBox="0 0 24 24" class="w-full h-full" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3"/><path d="M12 3a9 9 0 0 1 9 9 9 9 0 0 1-9 9 9 9 0 0 1 0-18z"/></svg>`,
   sorcerer: `<svg viewBox="0 0 24 24" class="w-full h-full" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>`,
@@ -711,15 +769,19 @@ function renderRosterTable(rosterData = null) {
                 <select onchange="handleDiscordSelect(${p.id}, this.value)" title="Seleccionar usuario de Discord del DM" 
                   class="discord-user-select bg-[#111111] hover:bg-[#1a1a1a] focus:bg-black border border-[#2a2a2a] hover:border-[#444] ${!p.discord ? 'text-neutral-500' : 'text-neutral-200'} font-mono text-xs rounded-lg px-2 py-0.5 outline-none cursor-pointer transition shrink-0">
                   <option value="" ${!p.discord ? 'selected' : ''}>Discord User</option>
+                  ${(p.discord && !availableDiscordList.some(u => (u.user_id || u.id || '').toString().trim() === p.discord.toString().trim())) ? `<option value="${escapeHtml(p.discord)}" selected class="bg-[#121212] text-neutral-200">@${escapeHtml(p.player || p.discord)}</option>` : ''}
                   ${availableDiscordList.map(u => {
-                    const uid = (u.user_id || u.id || '').toString();
+                    const uid = (u.user_id || u.id || '').toString().trim();
                     const uname = u.username || u.display_name || 'Usuario';
-                    return `<option value="${escapeHtml(uid)}" ${uid === p.discord ? 'selected' : ''} class="bg-[#121212] text-neutral-200">@${escapeHtml(uname)}</option>`;
+                    const isSel = (p.discord && p.discord.toString().trim() === uid);
+                    return `<option value="${escapeHtml(uid)}" ${isSel ? 'selected' : ''} class="bg-[#121212] text-neutral-200">@${escapeHtml(uname)}</option>`;
                   }).join('')}
                 </select>
-                <span class="text-neutral-600 text-[11px] select-none">(</span>
-                <input type="text" value="${escapeHtml(p.player)}" oninput="updatePlayerName(${p.id}, this.value)" placeholder="DM" class="player-name bg-transparent hover:bg-[#141414] focus:bg-black border border-transparent hover:border-[#2a2a2a] focus:border-neutral-500 rounded px-1 py-0 text-xs text-neutral-400 hover:text-neutral-200 focus:text-neutral-100 font-sans outline-none w-24 transition placeholder-neutral-600 truncate" title="Nombre del DM">
-                <span class="text-neutral-600 text-[11px] select-none">)</span>
+                <div class="inline-flex items-center text-neutral-400 shrink-0 select-none">
+                  <span class="text-neutral-500 font-mono text-[11px] leading-none">(</span>
+                  <input type="text" value="${escapeHtml(p.player)}" oninput="this.style.width = (this.value ? (this.value.length + 1) : 4) + 'ch'; updatePlayerName(${p.id}, this.value)" placeholder="DM" style="width: ${p.player ? (p.player.length + 1) : 4}ch; min-width: 3ch; max-width: 18ch;" class="player-name bg-transparent hover:bg-[#1f202b] focus:bg-[#101116] border border-transparent hover:border-[#2e303e] focus:border-neutral-500 rounded px-0.5 py-0 text-xs text-neutral-300 hover:text-neutral-100 focus:text-white font-sans outline-none transition placeholder-neutral-600 text-center" title="Nombre del DM">
+                  <span class="text-neutral-500 font-mono text-[11px] leading-none">)</span>
+                </div>
               </div>
             </div>
           </td>
@@ -744,9 +806,9 @@ function renderRosterTable(rosterData = null) {
 
           <!-- Asistencia -->
           <td class="py-3 px-2 text-center align-middle">
-            <div class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-black border border-[#222222] select-none text-[11px] text-neutral-300">
-              <span class="w-2 h-2 rounded-full bg-emerald-400"></span>
-              <span>Presente</span>
+            <div class="inline-flex items-center justify-center gap-1.5 whitespace-nowrap min-w-[88px] px-2.5 py-1 rounded-xl bg-black border border-neutral-800 select-none text-[11px] text-neutral-300">
+              <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0"></span>
+              <span class="whitespace-nowrap">Presente</span>
             </div>
           </td>
 
@@ -804,15 +866,19 @@ function renderRosterTable(rosterData = null) {
               <select onchange="handleDiscordSelect(${p.id}, this.value)" title="Seleccionar usuario de Discord" 
                 class="discord-user-select bg-[#111111] hover:bg-[#1a1a1a] focus:bg-black border border-[#2a2a2a] hover:border-[#444] ${!p.discord ? 'text-neutral-500' : 'text-neutral-200'} font-mono text-xs rounded-lg px-2 py-0.5 outline-none cursor-pointer transition shrink-0">
                 <option value="" ${!p.discord ? 'selected' : ''}>Discord User</option>
+                ${(p.discord && !availableDiscordList.some(u => (u.user_id || u.id || '').toString().trim() === p.discord.toString().trim())) ? `<option value="${escapeHtml(p.discord)}" selected class="bg-[#121212] text-neutral-200">@${escapeHtml(p.player || p.discord)}</option>` : ''}
                 ${availableDiscordList.map(u => {
-                  const uid = (u.user_id || u.id || '').toString();
+                  const uid = (u.user_id || u.id || '').toString().trim();
                   const uname = u.username || u.display_name || 'Usuario';
-                  return `<option value="${escapeHtml(uid)}" ${uid === p.discord ? 'selected' : ''} class="bg-[#121212] text-neutral-200">@${escapeHtml(uname)}</option>`;
+                  const isSel = (p.discord && p.discord.toString().trim() === uid);
+                  return `<option value="${escapeHtml(uid)}" ${isSel ? 'selected' : ''} class="bg-[#121212] text-neutral-200">@${escapeHtml(uname)}</option>`;
                 }).join('')}
               </select>
-              <span class="text-neutral-600 text-[11px] select-none">(</span>
-              <input type="text" value="${escapeHtml(p.player)}" oninput="updatePlayerName(${p.id}, this.value)" placeholder="Jugador" class="player-name bg-transparent hover:bg-[#141414] focus:bg-black border border-transparent hover:border-[#2a2a2a] focus:border-neutral-500 rounded px-1 py-0 text-xs text-neutral-400 hover:text-neutral-200 focus:text-neutral-100 font-sans outline-none w-20 transition placeholder-neutral-600 truncate" title="Nombre del jugador">
-              <span class="text-neutral-600 text-[11px] select-none">)</span>
+              <div class="inline-flex items-center text-neutral-400 shrink-0 select-none">
+                <span class="text-neutral-500 font-mono text-[11px] leading-none">(</span>
+                <input type="text" value="${escapeHtml(p.player)}" oninput="this.style.width = (this.value ? (this.value.length + 1) : 6) + 'ch'; updatePlayerName(${p.id}, this.value)" placeholder="Jugador" style="width: ${p.player ? (p.player.length + 1) : 6}ch; min-width: 3ch; max-width: 18ch;" class="player-name bg-transparent hover:bg-neutral-900 focus:bg-black border border-transparent hover:border-neutral-800 focus:border-neutral-700 rounded px-0.5 py-0 text-xs text-neutral-300 hover:text-neutral-100 focus:text-white font-sans outline-none transition placeholder-neutral-600 text-center" title="Nombre del jugador">
+                <span class="text-neutral-500 font-mono text-[11px] leading-none">)</span>
+              </div>
             </div>
           </div>
         </td>
@@ -881,9 +947,9 @@ function renderRosterTable(rosterData = null) {
         <!-- Asistencia -->
         <td class="py-3 px-2 text-center align-middle">
           <button type="button" onclick="toggleAbsence(${p.id})"
-            class="px-2.5 py-1 rounded-xl border text-[11px] font-semibold transition active:scale-95 cursor-pointer select-none ${p.isAbsent ? 'bg-[#151515] border-[#2a2a2a] text-neutral-500 hover:text-neutral-300' : 'bg-black border-[#262626] text-emerald-400 hover:border-emerald-500/40'}">
-            <span class="inline-block w-1.5 h-1.5 rounded-full mr-1 ${p.isAbsent ? 'bg-neutral-600' : 'bg-emerald-400'}"></span>
-            <span>${p.isAbsent ? 'Ausente' : 'Presente'}</span>
+            class="inline-flex items-center justify-center gap-1.5 whitespace-nowrap min-w-[88px] px-2.5 py-1 rounded-xl border text-[11px] font-semibold transition active:scale-95 cursor-pointer select-none ${p.isAbsent ? 'bg-[#151515] border-neutral-800 text-neutral-500 hover:text-neutral-300' : 'bg-black border-neutral-800 text-emerald-400 hover:border-emerald-500/40'}">
+            <span class="w-1.5 h-1.5 rounded-full shrink-0 ${p.isAbsent ? 'bg-neutral-600' : 'bg-emerald-400'}"></span>
+            <span class="whitespace-nowrap">${p.isAbsent ? 'Ausente' : 'Presente'}</span>
           </button>
         </td>
 
@@ -1468,18 +1534,40 @@ async function loadCampaignRoster(campName) {
   try {
     const res = await fetch(`/api/campaigns/${encodeURIComponent(campName)}`);
     if (res.ok) {
-      const data = await res.json();
-      const dmItem = {
-        player_name: data.dm_name || "",
-        character_name: "(DM)",
-        species: "(N/A - DM)",
-        role: "Dungeon Master (DM)",
-        subclass: "N/A",
-        discord_user_id: data.dm_discord_user_id || "",
-        is_user_character: false
-      };
-      const playerList = Array.isArray(data.players) ? data.players : (Array.isArray(data.roster) ? data.roster : []);
-      renderRosterTable([dmItem, ...playerList]);
+      const respData = await res.json();
+      const state = respData.campaign_state || respData;
+      let rawList = Array.isArray(state.roster) ? state.roster : (Array.isArray(state.players) ? state.players : []);
+
+      const dmName = state.dm_name || state.dm || state.dungeon_master || "";
+      const dmDiscord = state.dm_discord_id || state.dm_discord_user_id || state.dm_discord || "";
+
+      if (rawList.length === 0) {
+        renderRosterTable();
+        return;
+      }
+
+      const hasDM = rawList.some((m, idx) => (idx === 0 && (m.character_name === "(DM)" || m.role === "Dungeon Master (DM)")) || m.character_name === "(DM)" || m.role === "Dungeon Master (DM)");
+      if (!hasDM) {
+        const dmItem = {
+          player_name: dmName || "Dungeon Master",
+          character_name: "(DM)",
+          species: "(N/A - DM)",
+          role: "Dungeon Master (DM)",
+          subclass: "N/A",
+          discord_user_id: dmDiscord,
+          is_user_character: false
+        };
+        rawList = [dmItem, ...rawList];
+      } else {
+        const dmIdx = rawList.findIndex((m, idx) => (idx === 0) || m.character_name === "(DM)" || m.role === "Dungeon Master (DM)");
+        if (dmIdx !== -1) {
+          if (dmName && !rawList[dmIdx].player_name) rawList[dmIdx].player_name = dmName;
+          if (dmDiscord && !(rawList[dmIdx].discord_user_id || rawList[dmIdx].discord_id)) {
+            rawList[dmIdx].discord_user_id = dmDiscord;
+          }
+        }
+      }
+      renderRosterTable(rawList);
     }
   } catch (err) {
     console.warn("Error loading campaign roster:", err);

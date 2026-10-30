@@ -25,6 +25,7 @@ async function loadAcademicNotesHistory(showToast = false) {
     if (countBadge) {
       countBadge.textContent = `${academicNotesList.length} nota${academicNotesList.length === 1 ? '' : 's'}`;
     }
+    if (typeof updateAcademicNotesKpis === "function") updateAcademicNotesKpis(academicNotesList);
     renderAcademicNotesList(academicNotesList);
     if (showToast && typeof showAlert === "function") {
       showAlert(`✓ Se cargaron ${academicNotesList.length} apuntes.`);
@@ -103,11 +104,15 @@ function renderAcademicNotesList(notes) {
     const dateStr = formatNoteCardDate(note);
     const wordCount = note.word_count !== undefined ? note.word_count : 0;
     const excerpt = note.excerpt || "Sin extracto.";
+    const readMinutes = Math.max(1, Math.ceil(wordCount / 200));
+    const isExecutive = (title.toLowerCase().includes("reunión") || title.toLowerCase().includes("reunion") || title.toLowerCase().includes("sprint") || title.toLowerCase().includes("minuta") || (note.filename && note.filename.toLowerCase().includes("meeting")));
+    const badgeType = isExecutive ? `<span class="px-1.5 py-0.5 rounded text-[10px] font-medium bg-indigo-500/15 text-indigo-300 border border-indigo-500/25">💼 Minuta</span>` : `<span class="px-1.5 py-0.5 rounded text-[10px] font-medium bg-sky-500/15 text-sky-300 border border-sky-500/25">🎓 Académica</span>`;
 
     card.innerHTML = `
       <div class="min-w-0 flex-1">
-        <div class="font-semibold truncate text-slate-200">${escapeHtml(title)}</div>
-        <div class="text-[11px] text-slate-500 font-mono mt-0.5">${escapeHtml(dateStr)} • ${wordCount.toLocaleString()} palabras</div>
+        <div class="flex items-center gap-1.5 mb-1">${badgeType}</div>
+        <div class="font-semibold truncate text-slate-200 text-xs sm:text-sm">${escapeHtml(title)}</div>
+        <div class="text-[11px] text-slate-500 font-mono mt-0.5 tabular-nums">${escapeHtml(dateStr)} • ${readMinutes} min lectura</div>
         <p class="text-[11px] text-slate-400 mt-1 line-clamp-2 leading-relaxed">${escapeHtml(excerpt)}</p>
       </div>
       <button type="button" onclick="event.stopPropagation(); deleteAcademicNoteFile('${escapeHtml(note.filename)}')" title="Eliminar apunte"
@@ -122,6 +127,7 @@ function renderAcademicNotesList(notes) {
 function filterAcademicNotes(query) {
   const q = (query || "").trim().toLowerCase();
   if (!q) {
+    if (typeof updateAcademicNotesKpis === "function") updateAcademicNotesKpis(academicNotesList);
     renderAcademicNotesList(academicNotesList);
     return;
   }
@@ -200,7 +206,7 @@ function renderNoteDetailBody() {
               </button>
             </div>
           </div>
-          <div id="noteGlossaryContainer" class="prose-dnd text-slate-300 text-xs sm:text-sm leading-relaxed overflow-x-auto space-y-3 font-sans">
+          <div id="noteGlossaryContainer" class="prose-academic text-neutral-200 text-base leading-relaxed overflow-x-auto space-y-3 font-sans">
             ${renderMarkdownWithKaTeX(keypoints)}
           </div>
         </div>
@@ -239,7 +245,7 @@ function renderNoteDetailBody() {
                     span.classList.add('text-slate-200');
                   }
                 " class="mt-0.5 w-4 h-4 rounded bg-slate-950 border-slate-700 text-sky-500 focus:ring-0 cursor-pointer">
-                <span class="text-xs leading-relaxed text-slate-200 transition-all select-none">${escapeHtml(item)}</span>
+                <span class="text-sm leading-relaxed text-slate-200 transition-all select-none">${escapeHtml(item)}</span>
               </label>
             `).join('')}
           </div>
@@ -295,6 +301,12 @@ async function selectAcademicNote(filename) {
   const wordCount = note.word_count !== undefined ? note.word_count : 0;
   if (metaEl) {
     metaEl.textContent = `${formatNoteCardDate(note)} • ${wordCount.toLocaleString()} palabras • ${note.filename}`;
+  }
+
+  const readTimeEl = document.getElementById("noteViewReadingTime");
+  if (readTimeEl) {
+    const mins = Math.max(1, Math.ceil(wordCount / 200));
+    readTimeEl.textContent = `⏱️ ${mins} min de lectura`;
   }
 
   const docxFile = note.docx_filename || note.filename.replace(/\.md$/, ".docx");
@@ -381,7 +393,8 @@ async function deleteAcademicNoteFile(filename) {
         if (emptyEl) emptyEl.classList.remove("hidden");
         if (contentEl) contentEl.classList.add("hidden");
       }
-      renderAcademicNotesList(academicNotesList);
+      if (typeof updateAcademicNotesKpis === "function") updateAcademicNotesKpis(academicNotesList);
+    renderAcademicNotesList(academicNotesList);
       const countBadge = document.getElementById("notesCountBadge");
       if (countBadge) {
         countBadge.textContent = `${academicNotesList.length} nota${academicNotesList.length === 1 ? '' : 's'}`;
@@ -744,3 +757,169 @@ window.filterGlossaryItemsInContainer = filterGlossaryItemsInContainer;
 window.openAddGlossaryModal = openAddGlossaryModal;
 window.closeAddGlossaryModal = closeAddGlossaryModal;
 window.saveNewGlossaryTerm = saveNewGlossaryTerm;
+
+
+// =========================================================================
+// ENHANCED WORK & STUDY ANALYTICS, FILTERING & PRINT TOOLS
+// =========================================================================
+
+var currentAcademicFilter = 'all';
+
+function updateAcademicNotesKpis(notes) {
+  const totalNotesEl = document.getElementById("kpiTotalNotes");
+  const totalAudioEl = document.getElementById("kpiTotalAudioHours");
+  const totalTasksEl = document.getElementById("kpiTotalTasks");
+  const totalKpEl = document.getElementById("kpiTotalKeypoints");
+
+  const list = notes || academicNotesList || [];
+  if (totalNotesEl) totalNotesEl.textContent = list.length;
+
+  let totalWords = 0;
+  let totalTasksCount = 0;
+  let totalKeypointsCount = 0;
+
+  list.forEach(n => {
+    totalWords += (n.word_count || 0);
+    if (Array.isArray(n.action_items)) {
+      totalTasksCount += n.action_items.length;
+    } else if (n.content && n.content.includes('- [ ]')) {
+      const matches = n.content.match(/- \[[ xX]\]/g);
+      if (matches) totalTasksCount += matches.length;
+    }
+    if (n.key_points && typeof n.key_points === "string") {
+      const kpLines = n.key_points.split('\n').filter(l => l.trim().startsWith('-') || l.trim().startsWith('*'));
+      totalKeypointsCount += kpLines.length || 1;
+    }
+  });
+
+  if (totalAudioEl) {
+    const minutes = Math.round(totalWords / 140);
+    const hrs = Math.floor(minutes / 60);
+    const mins = minutes % 60;
+    totalAudioEl.textContent = `${hrs}h ${String(mins).padStart(2, '0')}m`;
+  }
+
+  if (totalTasksEl) totalTasksEl.textContent = totalTasksCount;
+  if (totalKpEl) totalKpEl.textContent = totalKeypointsCount;
+}
+
+function setNotesCategoryFilter(filterType) {
+  currentAcademicFilter = filterType || 'all';
+  const container = document.getElementById("notesFilterChipsContainer");
+  if (container) {
+    const buttons = container.querySelectorAll(".note-filter-chip");
+    buttons.forEach(btn => {
+      const matches = (btn.getAttribute("data-filter") === currentAcademicFilter);
+      if (matches) {
+        btn.classList.add("active-filter");
+        btn.classList.add("bg-sky-500/20", "text-sky-300", "border-sky-500/40");
+        btn.classList.remove("bg-slate-900", "text-slate-300", "border-slate-800");
+      } else {
+        btn.classList.remove("active-filter");
+        btn.classList.remove("bg-sky-500/20", "text-sky-300", "border-sky-500/40");
+        btn.classList.add("bg-slate-900", "text-slate-300", "border-slate-800");
+      }
+    });
+  }
+
+  applyCurrentNotesFilter();
+}
+
+function applyCurrentNotesFilter() {
+  const searchInput = document.getElementById("notesSearchInput");
+  const query = (searchInput ? searchInput.value : "").trim().toLowerCase();
+
+  let list = academicNotesList || [];
+
+  if (currentAcademicFilter === 'academic') {
+    list = list.filter(n => {
+      const t = (n.title || n.topic || n.filename || "").toLowerCase();
+      return t.includes("clase") || t.includes("guía") || t.includes("guia") || t.includes("estudio") || t.includes("universitaria") || t.includes("tesis");
+    });
+  } else if (currentAcademicFilter === 'executive') {
+    list = list.filter(n => {
+      const t = (n.title || n.topic || n.filename || "").toLowerCase();
+      return t.includes("reunión") || t.includes("reunion") || t.includes("minuta") || t.includes("sprint") || t.includes("ejecutiva") || t.includes("acuerdo");
+    });
+  } else if (currentAcademicFilter === 'has_tasks') {
+    list = list.filter(n => {
+      return (Array.isArray(n.action_items) && n.action_items.length > 0) || (n.content && n.content.includes('- [ ]'));
+    });
+  } else if (currentAcademicFilter === 'has_glossary') {
+    list = list.filter(n => {
+      return (n.key_points && n.key_points.trim().length > 0) || (n.content && (n.content.includes("### Glosario") || n.content.includes("### Puntos Clave")));
+    });
+  }
+
+  if (query) {
+    list = list.filter(n => {
+      const topic = (n.topic || "").toLowerCase();
+      const fname = (n.filename || "").toLowerCase();
+      const date = (n.date || "").toLowerCase();
+      const exc = (n.excerpt || "").toLowerCase();
+      return topic.includes(query) || fname.includes(query) || date.includes(query) || exc.includes(query);
+    });
+  }
+
+  renderAcademicNotesList(list);
+}
+
+function printCurrentAcademicNote() {
+  if (!currentActiveNoteData) {
+    if (typeof showAlert === "function") showAlert("⚠️ Selecciona un apunte primero para imprimir.");
+    return;
+  }
+  const bodyEl = document.getElementById("noteViewBody");
+  const title = currentActiveNoteData.title || currentActiveNoteData.topic || "Apunte Académico";
+  const meta = document.getElementById("noteViewMeta")?.textContent || "";
+
+  const printWindow = window.open('', '_blank', 'width=800,height=900');
+  if (!printWindow) {
+    window.print();
+    return;
+  }
+
+  printWindow.document.write(`
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <title>${escapeHtml(title)} - WhisperApp</title>
+      <meta charset="utf-8">
+      <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.css">
+      <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; line-height: 1.6; color: #111827; padding: 2.5rem; max-width: 800px; margin: 0 auto; }
+        h1 { font-size: 1.75rem; border-bottom: 2px solid #0284c7; padding-bottom: 0.5rem; color: #0369a1; }
+        h2 { font-size: 1.3rem; margin-top: 1.5rem; color: #1e293b; border-left: 3px solid #0284c7; padding-left: 0.5rem; }
+        h3 { font-size: 1.1rem; margin-top: 1.25rem; color: #334155; }
+        .meta { color: #64748b; font-size: 0.85rem; font-family: monospace; margin-bottom: 1.5rem; }
+        table { width: 100%; border-collapse: collapse; margin: 1rem 0; }
+        th, td { border: 1px solid #cbd5e1; padding: 0.5rem 0.75rem; text-align: left; }
+        th { background: #f8fafc; color: #0f172a; }
+        code { background: #f1f5f9; padding: 0.2rem 0.4rem; border-radius: 4px; font-size: 0.85em; font-family: monospace; }
+        pre { background: #f8fafc; border: 1px solid #e2e8f0; padding: 1rem; border-radius: 6px; overflow-x: auto; }
+        blockquote { border-left: 3px solid #0284c7; margin: 1rem 0; padding-left: 1rem; color: #475569; font-style: italic; }
+        @media print {
+          body { padding: 0; }
+          @page { margin: 2cm; }
+        }
+      </style>
+    </head>
+    <body>
+      <h1>${escapeHtml(title)}</h1>
+      <div class="meta">${escapeHtml(meta)}</div>
+      <div>${bodyEl.innerHTML}</div>
+      <script>
+        window.onload = function() {
+          setTimeout(function() { window.print(); }, 250);
+        };
+      </script>
+    </body>
+    </html>
+  `);
+  printWindow.document.close();
+}
+
+window.updateAcademicNotesKpis = updateAcademicNotesKpis;
+window.setNotesCategoryFilter = setNotesCategoryFilter;
+window.applyCurrentNotesFilter = applyCurrentNotesFilter;
+window.printCurrentAcademicNote = printCurrentAcademicNote;
