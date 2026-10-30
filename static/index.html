@@ -1,8 +1,8 @@
 <!DOCTYPE html>
-<html lang="es" class="dark">
+<html lang="es" class="dark" data-theme="copper">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#090a0f">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
@@ -16,44 +16,24 @@
   <link rel="apple-touch-icon" sizes="180x180" href="/static/apple-touch-icon.png">
   <link rel="apple-touch-icon" sizes="512x512" href="/static/icon-512.png">
   <title>WhisperDnD & Study - Diario de Campañas y Asistente Académico</title>
-  <!-- Tailwind CSS via CDN -->
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script>
-tailwind.config = {
-  darkMode: 'class',
-  theme: {
-extend: {
-  colors: {
-brand: {
-  50: '#eef2ff',
-  500: '#6366f1',
-  600: '#4f46e5',
-  700: '#4338ca',
-},
-dnd: {
-  red: '#e11d48',
-  gold: '#f59e0b',
-}
-  }
-}
-  }
-}
-  </script>
+  <link rel="stylesheet" href="/static/vendor/tailwind.css?v=desktop1">
   <!-- Marked.js for rendering markdown chronicles -->
-  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <script src="/static/vendor/marked.umd.js"></script>
   <!-- KaTeX for math and formula rendering -->
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.css">
-  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.js"></script>
-  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/contrib/auto-render.min.js"></script>
+  <link rel="stylesheet" href="/static/vendor/katex.min.css">
+  <script defer src="/static/vendor/katex.min.js"></script>
+  <script defer src="/static/vendor/auto-render.min.js"></script>
   <script>
 window.addEventListener('error', function(e) {
   console.warn('[WhisperDnD Global Error Listener]:', e.message, 'at', e.filename, 'line', e.lineno);
 });
   </script>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700;800&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/static/styles.css">
+
+  <link rel="stylesheet" href="/static/styles.css?v=desktop1">
+  <link rel="stylesheet" href="/static/desktop.css?v=desktop1">
+  <script>
+  try { var t = localStorage.getItem('whisper_desktop_theme'); if (['copper','graphite','midnight','wine','paper','sky'].includes(t)) document.documentElement.dataset.theme = t; } catch (_) {}
+  </script>
 </head>
 <body class="bg-slate-950 text-slate-100 h-screen overflow-hidden flex flex-col md:flex-row selection:bg-indigo-500 selection:text-white theme-dnd">
 
@@ -2616,14 +2596,16 @@ Cancelar
   <div id="floatingToastContainer" class="fixed top-5 right-5 z-[9999] flex flex-col gap-2.5 max-w-sm sm:max-w-md w-full pointer-events-none px-3 sm:px-0" aria-live="assertive"></div>
 
   <!-- Modularized Application Scripts -->
-  <script src="/static/js/utils.js?v=20261015_1"></script>
-  <script src="/static/js/api.js?v=20261015_1"></script>
-  <script src="/static/js/progress.js?v=20261015_1"></script>
-  <script src="/static/js/audio.js?v=20261015_1"></script>
-  <script src="/static/js/drive.js?v=20261015_1"></script>
-  <script src="/static/js/roster.js?v=20261015_1"></script>
-  <script src="/static/js/wiki.js?v=20261015_1"></script>
-  <script src="/static/js/notes.js?v=20261015_1"></script>
-  <script src="/static/js/app.js?v=20261015_1"></script>
+  <script src="/static/js/utils.js?v=desktop1"></script>
+  <script src="/static/js/api.js?v=desktop1"></script>
+  <script src="/static/js/progress.js?v=desktop1"></script>
+  <script src="/static/js/audio.js?v=desktop1"></script>
+  <script src="/static/js/drive.js?v=desktop1"></script>
+  <script src="/static/js/roster.js?v=desktop1"></script>
+  <script src="/static/js/wiki.js?v=desktop1"></script>
+  <script src="/static/js/notes.js?v=desktop1"></script>
+  <script src="/static/js/desktop-core.js?v=desktop1"></script>
+  <script src="/static/js/app.js?v=desktop1"></script>
+  <script src="/static/js/desktop.js?v=desktop1"></script>
 </body>
 </html>

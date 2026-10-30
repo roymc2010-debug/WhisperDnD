@@ -20,6 +20,7 @@ function showProcessingCard(title = "", desc = "") {
   const card = document.getElementById("processingCard");
   if (card) {
     card.classList.remove("hidden");
+    if (document.getElementById("viewProcess")) setActiveView("process");
     card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   }
   if (title) {

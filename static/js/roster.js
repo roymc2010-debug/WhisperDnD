@@ -503,88 +503,25 @@ function findClassByIdOrName(val) {
 // Inicializar Roster por Defecto
 const DEFAULT_ROSTER = [
   {
-    id: 0,
-    isDM: true,
-    player: "Beta",
-    char: "Dungeon Master",
-    discord: "",
-    speciesId: "dm",
-    speciesText: "(N/A - DM)",
-    isCustomSpecies: false,
-    isUserChar: false,
-    primaryClass: { classId: "dm", subclassId: "dm", isCustom: false, customText: "Árbitro & Narrador" },
-    secondaryClass: { active: false },
-    isAbsent: false
-  },
-  {
-    id: 1,
-    isDM: false,
-    player: "Roymc89",
-    char: "Markus Veyl",
-    discord: "",
-    speciesId: "human",
-    speciesText: "Humano",
-    isCustomSpecies: false,
-    isUserChar: true,
-    primaryClass: { classId: "paladin", subclassId: "veng", isCustom: false, customText: "" },
-    secondaryClass: { active: true, classId: "warlock", subclassId: "hexblade", isCustom: false, customText: "" },
-    isAbsent: false
-  },
-  {
-    id: 2,
-    isDM: false,
-    player: "IDarkLink",
-    char: "Atou Shadowgrace",
-    discord: "",
-    speciesId: "elf_high",
-    speciesText: "Alto Elfo",
-    isCustomSpecies: false,
-    isUserChar: false,
-    primaryClass: { classId: "monk", subclassId: "shadow", isCustom: false, customText: "" },
-    secondaryClass: { active: false },
-    isAbsent: false
-  },
-  {
-    id: 3,
-    isDM: false,
-    player: "Drowser45",
-    char: "Meg'lax",
-    discord: "",
-    speciesId: "lizardfolk",
-    speciesText: "Hombre Lagarto",
-    isCustomSpecies: false,
-    isUserChar: false,
-    primaryClass: { classId: "sorcerer", subclassId: "wild_magic", isCustom: false, customText: "" },
-    secondaryClass: { active: false },
-    isAbsent: false
-  },
-  {
-    id: 4,
-    isDM: false,
-    player: "Acher08",
-    char: "Selen",
-    discord: "",
-    speciesId: "shifter_wildhunt",
-    speciesText: "Cambiante (Shifter)",
-    isCustomSpecies: false,
-    isUserChar: false,
-    primaryClass: { classId: "rogue", subclassId: "phantom", isCustom: false, customText: "" },
-    secondaryClass: { active: false },
-    isAbsent: false
-  },
-  {
-    id: 5,
-    isDM: false,
-    player: "moonixb",
-    char: "Velith",
-    discord: "",
-    speciesId: "tiefling_infernal",
-    speciesText: "Tiefling Infernal",
-    isCustomSpecies: false,
-    isUserChar: false,
-    primaryClass: { classId: "bard", subclassId: "lore", isCustom: false, customText: "" },
-    secondaryClass: { active: false },
-    isAbsent: false
+    "id": 0,
+    "isDM": true,
+    "player": "",
+    "char": "Dungeon Master",
+    "discord": "",
+    "speciesId": "dm",
+    "speciesText": "(N/A - DM)",
+    "isCustomSpecies": false,
+    "isUserChar": false,
+    "primaryClass": {
+      "classId": "dm",
+      "subclassId": "dm",
+      "isCustom": false,
+      "customText": "Árbitro & Narrador"
+    },
+    "secondaryClass": {
+      "active": false
+    },
+    "isAbsent": false
   }
 ];
 
@@ -606,7 +543,7 @@ function parseRawRosterToParty(rawList) {
       party.push({
         id: rowId,
         isDM: true,
-        player: m.player_name || m.dm_name || "Beta",
+        player: m.player_name || m.dm_name || "",
         char: "Dungeon Master",
         discord: discordUid,
         speciesId: "dm",
@@ -668,6 +605,23 @@ function parseRawRosterToParty(rawList) {
     });
   });
 
+  // Structured UI metadata preserves each subclass and homebrew label independently.
+  party.forEach((member, index) => {
+    const saved = rawList[index]?.ui_class_config;
+    if (member.isDM || !saved || typeof saved !== "object") return;
+    for (const [key, target] of [["primary", "primaryClass"], ["secondary", "secondaryClass"]]) {
+      const slot = saved[key];
+      if (!slot || typeof slot !== "object" || !DND_DATABASE.classes.some(c => c.id === slot.classId)) continue;
+      member[target] = {
+        ...member[target],
+        classId: slot.classId,
+        subclassId: typeof slot.subclassId === "string" ? slot.subclassId : member[target].subclassId,
+        isCustom: slot.isCustom === true,
+        customText: typeof slot.customText === "string" ? slot.customText : "",
+        ...(key === "secondary" ? {active: slot.active === true} : {})
+      };
+    }
+  });
   return party;
 }
 
@@ -712,6 +666,7 @@ function partyToStorageList(party) {
       subclass: subName,
       discord_user_id: p.discord || "",
       discord_id: p.discord || "",
+      ui_class_config: { primary: { ...p.primaryClass }, secondary: { ...p.secondaryClass } },
       is_user: Boolean(p.isUserChar),
       is_user_character: Boolean(p.isUserChar),
       is_absent: Boolean(p.isAbsent)
@@ -1236,9 +1191,7 @@ function openClassModal(rowId, initialSlot = 'primary') {
   const p = activeParty.find(x => x.id === rowId);
   if (!p) return;
 
-  updateClassModalHeaderTabs(p);
-  renderClassCategories();
-  renderSubclassItems();
+  switchClassModalTab(initialSlot);
   const modal = document.getElementById("classModal");
   if (modal) modal.classList.remove("hidden");
 }
@@ -1259,14 +1212,20 @@ function updateClassModalHeaderTabs(p) {
 
   const pCls = DND_DATABASE.classes.find(c => c.id === p.primaryClass.classId) || DND_DATABASE.classes[0];
   if (primLabel) primLabel.textContent = pCls.name[currentLang];
-  if (primIcon) primIcon.innerHTML = getClassVectorLogo(pCls.id);
+  if (primIcon) {
+    primIcon.innerHTML = getClassVectorLogo(pCls.id);
+    primIcon.style.color = DND_BEYOND_COLORS[pCls.id];
+  }
 
   const sActive = p.secondaryClass && p.secondaryClass.active;
   if (sActive && tabSec) {
     tabSec.classList.remove("hidden");
     const sCls = DND_DATABASE.classes.find(c => c.id === p.secondaryClass.classId) || DND_DATABASE.classes[1];
     if (secLabel) secLabel.textContent = sCls.name[currentLang];
-    if (secIcon) secIcon.innerHTML = getClassVectorLogo(sCls.id);
+    if (secIcon) {
+      secIcon.innerHTML = getClassVectorLogo(sCls.id);
+      secIcon.style.color = DND_BEYOND_COLORS[sCls.id];
+    }
 
     if (activeClassSlot === 'secondary') {
       tabSec.className = "px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-2 bg-white text-black shadow-md cursor-pointer";
@@ -1487,31 +1446,39 @@ function getRosterFromTable(includeDM = true) {
 
 async function saveRoster() {
   const campName = getSelectedCampaignName();
-  if (!campName) return;
+  if (!campName) return false;
   const storageData = gatherRosterData();
-  const dm = storageData[0] || {};
-  const players = storageData.slice(1);
-
+  const dm = storageData.find(m => m.role === "Dungeon Master (DM)") || {};
   const payload = {
     campaign_name: campName,
     dm_name: dm.player_name || "Dungeon Master",
     dm_discord_user_id: dm.discord_user_id || "",
-    players: players
+    roster: storageData
   };
-
+  const badge = document.getElementById("saveStatusBadge");
   try {
-    const res = await fetch(`/api/campaigns/${encodeURIComponent(campName)}/roster`, {
+    const res = await fetch("/api/campaigns", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload)
     });
-    const badge = document.getElementById("saveStatusBadge");
+    if (!res.ok) throw new Error("HTTP " + res.status);
     if (badge) {
+      badge.textContent = "✓ Guardado";
+      badge.dataset.saveState = "saved";
       badge.classList.remove("hidden");
       setTimeout(() => badge.classList.add("hidden"), 2500);
     }
+    return true;
   } catch (err) {
     console.warn("Error saving roster to backend:", err);
+    if (badge) {
+      badge.textContent = "No se pudo guardar. Reintenta Guardar Grupo.";
+      badge.dataset.saveState = "error";
+      badge.classList.remove("hidden");
+    }
+    if (typeof showFloatingToast === "function") showFloatingToast("No se guardó la party. Revisa la conexión local y vuelve a pulsar Guardar Grupo.", "error");
+    return false;
   }
 }
 
@@ -1522,11 +1489,13 @@ function saveCurrentRoster() {
   }, 400);
 }
 
-function manualSaveRoster() {
-  saveRoster();
-  if (typeof showAlert === "function") {
+async function manualSaveRoster() {
+  clearTimeout(_rosterDebounceTimer);
+  const saved = await saveRoster();
+  if (saved && typeof showAlert === "function") {
     showAlert("✓ Roster oficial de campaña guardado con éxito.", "success");
   }
+  return saved;
 }
 
 async function loadCampaignRoster(campName) {

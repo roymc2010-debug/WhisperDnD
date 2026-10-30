@@ -1,0 +1,7 @@
+{
+  "name":"whisperdnd-interface",
+  "version":"3.0.0",
+  "private":true,
+  "scripts":{"build":"node scripts/build-frontend.cjs","test":"node --test tests/frontend/*.test.cjs"},
+  "devDependencies":{"tailwindcss":"3.4.19"}
+}

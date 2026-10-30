@@ -359,3 +359,7 @@ WhisperDnD/
 ## 📄 Licencia
 
 Este proyecto está distribuido bajo la licencia MIT. Consulta el archivo [LICENSE](LICENSE) para más detalles.
+
+## Rama de rediseño de escritorio
+
+Para probar esta interfaz con una copia aislada de tus campañas y apuntes, consulta [la guía del rediseño](docs/design/PROBAR.md). La dirección visual y la verificación técnica están en [docs/design](docs/design).

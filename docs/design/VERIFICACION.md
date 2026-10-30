@@ -1,0 +1,49 @@
+# Verificación del rediseño
+
+Fecha: 30 de octubre de 2026. Base: rama local laboratorio, b1f46ac, más sus nueve archivos locales, preservados en c879379.
+
+## Resultado
+
+- Antes de integrar: 234 pruebas Python correctas, 11 fallos, 38 subpruebas correctas.
+- Después: 237 pruebas Python correctas, los mismos 11 fallos, 40 subpruebas correctas.
+- Frontend: 9 pruebas Node correctas para temas, validación de regrabación, selección y color de clases, campañas vacías, endpoint de guardado, errores de guardado y conservación de multiclase/homebrew.
+- Lanzador: 3 pruebas Python para copia sin sobrescrituras, exclusión de credenciales/audio, contención de rutas y configuración aislada. Están incluidas en las 237 anteriores.
+- Compilación local de Tailwind y sintaxis de los scripts verificadas. El aviso de Browserslist sobre su base local antigua no impide compilar.
+
+## Comprobaciones en la app real
+
+Servidor FastAPI de esta rama en 127.0.0.1:8081, con una campaña ficticia aislada. Navegador normal de 1280×720 y verificación adicional de 390×844.
+
+- Seis temas: selección, estado accesible, persistencia tras recargar y conservación entre D&D y Work & Study.
+- Party dentro de grabación, abierta por defecto y plegable. Identidad agrupada, especie, clases en una sola celda, estado y eliminación conservados.
+- Clérigo/Guerrero multiclase, colores originales y SVG del clérigo; sin relieve ni placas detrás.
+- Menús flotantes de especies y clases. Clase correcta al abrir; cierre con Escape y devolución del foco.
+- Selección de mi personaje, guardado mediante el endpoint vigente y persistencia comprobada tras recargar y en disco.
+- Regrabar: sesiones existentes, preparación de sesión 2 y cancelación sin procesar ni eliminar datos.
+- Campañas e importación dentro de Wiki; sesiones y controles de exportación accesibles.
+- Work & Study sin party; plantillas académicas y ejecutivas y selección de fuente de audio.
+- Audio y ganancias accesibles desde la vista Audio; ajustes y campos de API conservados.
+- Barra de fuentes e idioma corregida a 390px: el ancho del contenido principal coincide con su ancho visible. La tabla de party tiene desplazamiento interno intencional.
+- Ningún error de consola en la verificación final. Servidor y pestaña temporales cerrados al terminar.
+
+## Límites
+
+No se inició una grabación real ni se consumieron llamadas de transcripción, Gemini o YouTube. No se conectaron cuentas de Drive/Discord ni se verificó una sincronización remota. Estos flujos conservan sus módulos y requieren una prueba manual con las claves y permisos del usuario. El shell sigue siendo la aplicación local existente; esta rama no añade un instalador nativo.
+
+## Fallos que ya existían
+
+No fueron introducidos por el rediseño. Deben resolverse en una tarea de backend/pruebas separada.
+
+- tests/test_api.py::TestAPIEndpoints::test_upload_with_telemetry_class_mode
+- tests/test_api.py::TestAPIEndpoints::test_upload_with_telemetry_missing_audio
+- tests/test_api.py::TestAPIEndpoints::test_upload_with_telemetry_roleplay_success
+- tests/test_campaign_api.py::TestCampaignApi::test_deduplicate_campaign_endpoint
+- tests/test_campaign_manager.py::TestCampaignManager::test_multi_session_continuity_and_merging
+- tests/test_campaign_manager.py::TestCampaignManager::test_record_session_with_existing_universal_pc_player_matching_no_name_error
+- tests/test_campaign_manager.py::TestCampaignManager::test_retroactive_deduplicate_campaign_entities_octus
+- tests/test_groq_whisper.py::TestGroqWhisperTranscriber::test_chunk_percentage_calibration
+- tests/test_groq_whisper.py::TestGroqWhisperTranscriber::test_transcribe_chunked_survives_failed_chunk
+- tests/test_groq_whisper.py::TestTranscriptionPipeline::test_slice_audio_for_groq_ffmpeg_call
+- tests/test_youtube_downloader.py::TestYouTubeDownloader::test_download_youtube_audio_progress_hook
+
+Los tres casos de telemetría reciben 401 con las claves ficticias de las pruebas. Los demás afectan deduplicación/continuidad de campañas, calibración de progreso y un archivo de audio ficticio ausente. La suite completa sigue sin pasar.

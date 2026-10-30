@@ -45,6 +45,7 @@ var selectedLocalRecordingFilename = null;
 // VIEW CONTROLLER & NAVIGATION (Dual Workspace + Decoupled Views)
 // =========================================================================
 function setActiveView(viewId) {
+  if (viewId === "roster") viewId = "ingest";
   currentActiveView = viewId;
   const views = {
     ingest: document.getElementById("viewIngest"),
@@ -53,6 +54,10 @@ function setActiveView(viewId) {
     roster: document.getElementById("viewRoster"),
     history: document.getElementById("viewHistory"),
     settings: document.getElementById("viewSettings"),
+    audio: document.getElementById("viewAudio"),
+    process: document.getElementById("viewProcess"),
+    chronicle: document.getElementById("viewChronicle"),
+    appearance: document.getElementById("viewAppearance"),
   };
 
   Object.entries(views).forEach(([id, el]) => {
@@ -157,6 +162,8 @@ function setActiveView(viewId) {
     }
   }
 
+  if (typeof syncDesktopNavigation === "function") syncDesktopNavigation();
+  if (viewId === "audio" && typeof refreshAudioDevices === "function") refreshAudioDevices();
   const mainEl = document.querySelector("main");
   if (mainEl) mainEl.scrollTop = 0;
 }
@@ -422,6 +429,9 @@ function setWorkspace(workspace) {
   const btnSwitchLanguage = document.getElementById("btnSwitchLanguage");
   const btnReprocessCampaignText = document.getElementById("btnReprocessCampaignText");
 
+  if (isDnd && !currentCampaignState && (document.getElementById("campaignNameInput")?.value || "").trim()) {
+    loadCurrentCampaign();
+  }
   syncResultTabsForWorkspace(isDnd ? "roleplay" : "class");
 
   if (isDnd) {
@@ -842,8 +852,13 @@ async function loadCurrentCampaign() {
   }
 }
 
+var campaignRosterLoadVersion = 0;
 async function onCampaignChange() {
   if (currentWorkspace === "work_and_study") return;
+  const version = ++campaignRosterLoadVersion;
+  const rosterCard = document.getElementById("rosterFullCard");
+  if (rosterCard) { rosterCard.inert = true; rosterCard.setAttribute("aria-busy", "true"); }
+  try {
 
   if (typeof _rosterDebounceTimer !== "undefined" && _rosterDebounceTimer) {
     clearTimeout(_rosterDebounceTimer);
@@ -873,9 +888,15 @@ async function onCampaignChange() {
   if (typeof loadCampaignRoster === "function") {
     await loadCampaignRoster(rawCampName);
   }
+  if (version !== campaignRosterLoadVersion) return;
   await loadCurrentCampaign();
   if (typeof syncWikiCampaignSelector === "function") {
     syncWikiCampaignSelector(rawCampName);
+  }
+  } finally {
+    if (version === campaignRosterLoadVersion && rosterCard) {
+      rosterCard.inert = false; rosterCard.setAttribute("aria-busy", "false");
+    }
   }
 }
 
@@ -1954,6 +1975,7 @@ function displayResults(data, options = {}) {
   const resultsCard = document.getElementById("resultsCard");
   if (resultsCard) {
     resultsCard.classList.remove("hidden");
+    if (document.getElementById("viewChronicle")) setActiveView("chronicle");
     resultsCard.scrollIntoView({ behavior: "smooth" });
   }
   if (typeof fetchApiQuota === "function") fetchApiQuota();
@@ -3067,10 +3089,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
-  if (campInput) {
-    campInput.addEventListener("input", () => onCampaignChange());
-    campInput.addEventListener("change", () => onCampaignChange());
-  }
+  // campaignNameInput already declares input/change handlers in the HTML.
 
   if (typeof loadAudioDevices === "function") loadAudioDevices();
   if (typeof setAudioSourceMode === "function" && typeof audioSourceMode !== "undefined") setAudioSourceMode(audioSourceMode);

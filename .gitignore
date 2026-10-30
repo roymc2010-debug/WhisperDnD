@@ -257,3 +257,8 @@ scratch/
 clean_html.py
 
 
+
+# Isolated desktop design snapshots and frontend tooling
+.design-preview/
+.design-qa/
+node_modules/

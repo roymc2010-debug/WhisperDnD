@@ -1,10 +1,15 @@
 // Service Worker para WhisperDnD & Study PWA
-const CACHE_NAME = 'whisper-dnd-study-v15';
+importScripts('/static/vendor/precache.js');
+const CACHE_NAME = 'whisper-desktop-redesign-1';
 const ASSETS_TO_CACHE = [
   '/',
   '/manifest.json',
   '/static/manifest.json',
+  ...self.DESKTOP_ASSETS,
   '/static/styles.css',
+  '/static/desktop.css',
+  '/static/js/desktop-core.js',
+  '/static/js/desktop.js',
   '/static/js/utils.js',
   '/static/js/api.js',
   '/static/js/progress.js',
