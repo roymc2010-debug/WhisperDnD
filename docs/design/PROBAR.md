@@ -3,7 +3,7 @@
 Esta rama se creó a partir del Laboratorio local y sus cambios sin commit. La copia del rediseño es independiente: no cambies la rama dentro de WhisperDnD-Lab para esta prueba.
 
 1. Abre esta carpeta en el Explorador y haz doble clic en **probar_redisenio.bat**.
-2. El navegador abrirá **http://127.0.0.1:8081/**. Es una dirección distinta a la versión habitual de 8080.
+2. El navegador abrirá la **URL que muestre el lanzador**, después de que el servidor del rediseño esté listo. Prefiere 8081; si otra copia lo ocupa, elige 8082 u otro puerto libre. No abre la versión que ya estaba usando el puerto ocupado.
 3. Selecciona una campaña y prueba sus menús. Los seis temas están en **Apariencia**.
 4. Para cerrar, vuelve a la ventana del lanzador y pulsa **Ctrl+C**.
 

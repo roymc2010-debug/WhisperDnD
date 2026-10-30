@@ -43,3 +43,30 @@ def test_preview_environment_does_not_reuse_external_paths_or_cloud_tokens(tmp_p
     assert 'GOOGLE_TOKEN_JSON' not in os.environ
     assert 'GOOGLE_CREDENTIALS_JSON' not in os.environ
     assert 'GROQ_API_KEY' not in os.environ
+
+
+def test_preview_uses_a_free_port_when_requested_port_belongs_to_another_copy():
+    import socket
+    with socket.socket() as occupied:
+        occupied.bind(('127.0.0.1', 0))
+        occupied.listen()
+        old_port = occupied.getsockname()[1]
+        with preview.bind_preview_socket(old_port) as selected:
+            assert selected.getsockname()[0] == '127.0.0.1'
+            assert selected.getsockname()[1] != old_port
+            assert selected.fileno() >= 0
+
+@pytest.mark.parametrize('started,exiting', [(False, False), (True, True)])
+def test_browser_does_not_open_an_old_server_when_preview_startup_fails(started, exiting, monkeypatch):
+    from types import SimpleNamespace
+    opened = []
+    monkeypatch.setattr(preview.webbrowser, 'open', lambda url: opened.append(url))
+    assert preview.open_preview_browser(SimpleNamespace(started=started, should_exit=exiting), 'http://127.0.0.1:8082') is False
+    assert opened == []
+
+def test_browser_opens_the_actual_preview_url_only_after_startup(monkeypatch):
+    from types import SimpleNamespace
+    opened = []
+    monkeypatch.setattr(preview.webbrowser, 'open', lambda url: opened.append(url) or True)
+    assert preview.open_preview_browser(SimpleNamespace(started=True, should_exit=False), 'http://127.0.0.1:8082') is True
+    assert opened == ['http://127.0.0.1:8082']

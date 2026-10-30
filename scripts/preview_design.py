@@ -1,12 +1,13 @@
 """Run the design branch with an isolated, first-run snapshot of local documents."""
 from __future__ import annotations
 import argparse
+import errno
 import json
 import os
 from pathlib import Path
 import shutil
 import sys
-import threading
+import socket
 import webbrowser
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -56,6 +57,31 @@ def configure_environment(destination: Path) -> None:
         path.mkdir(parents=True, exist_ok=True)
         os.environ['WHISPER_' + name + '_DIR'] = str(path)
 
+def bind_preview_socket(preferred_port: int) -> socket.socket:
+    """Reserve the actual loopback listener before announcing or opening a URL."""
+    if not 0 <= preferred_port <= 65535:
+        raise ValueError('El puerto debe estar entre 0 y 65535.')
+    ports = [0] if preferred_port == 0 else range(preferred_port, min(preferred_port + 20, 65536))
+    for port in ports:
+        listener = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        try:
+            if hasattr(socket, 'SO_EXCLUSIVEADDRUSE'):
+                listener.setsockopt(socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE, 1)
+            listener.bind(('127.0.0.1', port))
+            listener.listen(128)
+            listener.setblocking(False)
+            return listener
+        except OSError as exc:
+            listener.close()
+            if exc.errno not in (errno.EADDRINUSE, errno.EACCES) and getattr(exc, 'winerror', None) not in (10048, 10013):
+                raise
+    raise RuntimeError('No hay un puerto libre para la vista previa. Cierra otra copia o usa --port con otro número.')
+
+def open_preview_browser(server, url: str) -> bool:
+    if not server.started or server.should_exit:
+        return False
+    return bool(webbrowser.open(url))
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--source', type=Path, default=Path.home() / 'WhisperDnD-Lab')
@@ -79,16 +105,25 @@ def main() -> None:
         raise RuntimeError("La prueba aislada requiere python-dotenv 1.2 o posterior. Actualiza esa dependencia antes de continuar.")
     import uvicorn
     from src.api.server import app
-    url = 'http://127.0.0.1:' + str(args.port)
-    print('\nWhisperDnD - rama de rediseño')
-    print('URL:', url)
-    print('Datos de prueba:', destination)
-    print('Ctrl+C para cerrar. Los archivos de Laboratorio no se modifican.\n')
-    if not args.no_browser:
-        timer = threading.Timer(1.5, lambda: webbrowser.open(url))
-        timer.daemon = True
-        timer.start()
-    uvicorn.run(app, host='127.0.0.1', port=args.port, log_level='info')
+    with bind_preview_socket(args.port) as listener:
+        actual_port = listener.getsockname()[1]
+        url = 'http://127.0.0.1:' + str(actual_port)
+        print('\nWhisperDnD - vista previa del rediseño')
+        if actual_port != args.port:
+            print('El puerto solicitado está ocupado. Esta copia usará:', actual_port)
+        print('URL:', url)
+        print('Código del rediseño:', ROOT)
+        print('Datos de prueba:', destination)
+        print('Ctrl+C para cerrar. Los archivos de Laboratorio no se modifican.\n', flush=True)
+
+        class PreviewServer(uvicorn.Server):
+            async def startup(self, sockets=None):
+                await super().startup(sockets=sockets)
+                if not args.no_browser:
+                    open_preview_browser(self, url)
+
+        config = uvicorn.Config(app, host='127.0.0.1', port=actual_port, log_level='info')
+        PreviewServer(config).run(sockets=[listener])
 
 if __name__ == '__main__':
     main()

@@ -5,9 +5,9 @@ Fecha: 30 de octubre de 2026. Base: rama local laboratorio, b1f46ac, más sus nu
 ## Resultado
 
 - Antes de integrar: 234 pruebas Python correctas, 11 fallos, 38 subpruebas correctas.
-- Después: 237 pruebas Python correctas, los mismos 11 fallos, 40 subpruebas correctas.
+- Después de corregir también el lanzador: 241 pruebas Python correctas, los mismos 11 fallos, 40 subpruebas correctas.
 - Frontend: 9 pruebas Node correctas para temas, validación de regrabación, selección y color de clases, campañas vacías, endpoint de guardado, errores de guardado y conservación de multiclase/homebrew.
-- Lanzador: 3 pruebas Python para copia sin sobrescrituras, exclusión de credenciales/audio, contención de rutas y configuración aislada. Están incluidas en las 237 anteriores.
+- Lanzador: 7 pruebas Python para copia sin sobrescrituras, exclusión de credenciales/audio, configuración aislada, puerto ocupado y apertura del navegador solo después del arranque. Están incluidas en las 241 anteriores.
 - Compilación local de Tailwind y sintaxis de los scripts verificadas. El aviso de Browserslist sobre su base local antigua no impide compilar.
 
 ## Comprobaciones en la app real
@@ -47,3 +47,9 @@ No fueron introducidos por el rediseño. Deben resolverse en una tarea de backen
 - tests/test_youtube_downloader.py::TestYouTubeDownloader::test_download_youtube_audio_progress_hook
 
 Los tres casos de telemetría reciben 401 con las claves ficticias de las pruebas. Los demás afectan deduplicación/continuidad de campañas, calibración de progreso y un archivo de audio ficticio ausente. La suite completa sigue sin pasar.
+
+## Corrección de arranque con otra copia abierta
+
+Se observó un proceso main.py en 8081 que devolvía el HTML antiguo y 404 para /static/desktop.css. El temporizador del lanzador podía abrir esa dirección incluso si el servidor nuevo no lograba iniciar.
+
+El lanzador reserva ahora un socket exclusivo en loopback, elige el siguiente puerto disponible y abre únicamente su URL cuando Uvicorn confirma el arranque. Se probó la selección de puerto con un socket real ocupado y se verificó el servidor corregido: HTML con desktop.js/desktop.css y respuesta 200 para esos estilos. El servidor temporal se cerró después de verificarlo.

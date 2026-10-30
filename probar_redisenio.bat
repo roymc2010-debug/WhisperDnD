@@ -1,7 +1,7 @@
 @echo off
 setlocal
 cd /d "%~dp0"
-title WhisperDnD - Rediseño (8081)
+title WhisperDnD - Vista previa del rediseño
 if exist "%~dp0.venv\Scripts\python.exe" (
   "%~dp0.venv\Scripts\python.exe" "%~dp0scripts\preview_design.py" %*
 ) else if exist "%USERPROFILE%\WhisperDnD-Lab\.venv\Scripts\python.exe" (
