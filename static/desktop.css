@@ -315,3 +315,7 @@ body .desktop-number-stepper>button:last-child{border-radius:0 .375rem .375rem 0
 body .desktop-number-stepper>input{width:3rem;min-width:3rem;min-height:2.375rem;border-radius:0!important;border-inline:0!important;padding:.25rem!important;font-variant-numeric:tabular-nums;text-align:center;-moz-appearance:textfield}
 .desktop-number-stepper input::-webkit-inner-spin-button,.desktop-number-stepper input::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}
 @media(max-width:900px){.desktop-work-fields,.desktop-work-option-fields{grid-template-columns:1fr}.desktop-work-form{padding:1rem}}
+
+/* Keep the own-character badge beside the name, including narrow columns. */
+#roster-table .roster-character-identity{min-width:0}
+#roster-table .roster-character-identity .character-name{flex:0 1 auto;min-width:3ch;max-width:100%;box-sizing:content-box;field-sizing:content}

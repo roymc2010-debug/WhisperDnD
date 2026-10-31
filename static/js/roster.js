@@ -714,11 +714,12 @@ function renderRosterTable(rosterData = null) {
           <!-- Personaje & Discord -->
           <td class="py-3 px-4 align-middle">
             <div class="space-y-1">
-              <div class="text-xs font-bold text-neutral-100 font-fantasy flex items-center gap-1.5">
+              <div class="roster-character-identity text-xs font-bold text-neutral-100 font-fantasy flex items-center gap-1.5">
                 <input type="text" value="${escapeHtml(p.char)}" 
-                  oninput="updateCharName(${p.id}, this.value)"
+                  oninput="this.style.width = (this.value.length + 1) + 'ch'; updateCharName(${p.id}, this.value)"
+                style="width: ${p.char.length + 1}ch;"
                   placeholder="Dungeon Master"
-                  class="bg-transparent hover:bg-[#141414] focus:bg-black border border-transparent hover:border-[#2a2a2a] focus:border-neutral-500 rounded-md px-1.5 py-0.5 text-xs font-bold text-neutral-100 outline-none w-full transition placeholder-neutral-600 truncate font-fantasy tracking-wide">
+                  class="bg-transparent hover:bg-[#141414] focus:bg-black border border-transparent hover:border-[#2a2a2a] focus:border-neutral-500 rounded-md px-1.5 py-0.5 text-xs font-bold text-neutral-100 outline-none character-name transition placeholder-neutral-600 truncate font-fantasy tracking-wide">
               </div>
               <div class="flex items-center gap-1.5 whitespace-nowrap min-w-0">
                 <select onchange="handleDiscordSelect(${p.id}, this.value)" title="Seleccionar usuario de Discord del DM" 
@@ -808,12 +809,13 @@ function renderRosterTable(rosterData = null) {
         <!-- Personaje & Discord -->
         <td class="py-3 px-4 align-middle">
           <div class="space-y-1">
-            <div class="flex items-center gap-1.5">
+            <div class="roster-character-identity flex items-center gap-1.5">
               <input type="text" value="${escapeHtml(p.char)}" 
-                oninput="updateCharName(${p.id}, this.value)"
+                oninput="this.style.width = (this.value.length + 1) + 'ch'; updateCharName(${p.id}, this.value)"
+                style="width: ${p.char.length + 1}ch;"
                 placeholder="Nombre del personaje..."
                 title="Clic para editar el nombre del personaje"
-                class="bg-transparent hover:bg-[#141414] focus:bg-black border border-transparent hover:border-[#2a2a2a] focus:border-neutral-500 rounded-md px-1.5 py-0.5 text-xs font-bold text-neutral-100 outline-none w-full transition placeholder-neutral-600 truncate">
+                class="bg-transparent hover:bg-[#141414] focus:bg-black border border-transparent hover:border-[#2a2a2a] focus:border-neutral-500 rounded-md px-1.5 py-0.5 text-xs font-bold text-neutral-100 outline-none character-name transition placeholder-neutral-600 truncate">
               ${p.isUserChar ? '<span class="text-[9px] font-mono font-bold text-amber-300 bg-amber-500/15 px-1.5 py-0.5 rounded-full border border-amber-500/30 shrink-0 select-none">Tú</span>' : ''}
             </div>
 
