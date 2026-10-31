@@ -77,4 +77,17 @@ La guía funcional está en [GUIA_DND.md](GUIA_DND.md). La verificación comprue
 
 ## Terminología de Work & Study
 
-El formato para reuniones se presenta como **Resumen de reunión**, con la descripción **Acuerdos, decisiones y tareas**. En la biblioteca se usa **Resúmenes de reunión**. Las acciones comunes a ambos formatos hablan de **documento** o de **resumen y apuntes**. Los identificadores internos academic/executive y la lectura de documentos antiguos se conservan para compatibilidad. La conexión del enfoque con el procesamiento sigue pendiente; esta revisión cambia las etiquetas de interfaz.
+El formato para reuniones se presenta como **Resumen de reunión**, con la descripción **Acuerdos, decisiones y tareas**. En la biblioteca se usa **Resúmenes de reunión**. Las acciones comunes a ambos formatos hablan de **documento** o de **resumen y apuntes**. Los identificadores internos academic/executive y la lectura de documentos antiguos se conservan para compatibilidad. El selector de tipo de documento envía document_format al procesamiento. Las peticiones antiguas conservan el formato académico por defecto.
+
+## Simplificación de captura — 31 de octubre de 2026
+
+Work & Study usa un selector con dos formatos: Apuntes de estudio y Resumen de reunión. Se eliminaron el selector de enfoque duplicado y las cinco plantillas que rellenaban ejemplos. La fecha, numeración e idioma se agrupan en Más opciones, cerrado por defecto. El título es opcional. En reposo se muestra Iniciar grabación; durante la captura, Detener y generar ocupa su lugar.
+
+| Antes | Ahora | Motivo |
+| --- | --- | --- |
+| Dos botones de enfoque y cinco plantillas | Un selector de tipo de documento | Evitar dos decisiones solapadas |
+| Metadatos e idioma siempre visibles | Más opciones plegable | Dar prioridad a aportar el audio y procesarlo |
+| El enfoque no llegaba al backend | Formato validado en los seis flujos de captura/regeneración | Producir apuntes o resúmenes con instrucciones diferentes |
+| Sesión de D&D sin botones de paso | −/+, con mínimo 1 y bloqueo durante captura | Compartir un control consistente sin reemplazos accidentales |
+
+El formato se mantiene al regenerar y cambiar idioma. Los resúmenes guardados usan el prefijo apuntes_reunion_, se reconocen en la biblioteca incluso cuando son breves y se exportan con encabezados de reunión. Las sesiones de D&D siguen siendo automáticas en vivo; los botones se habilitan en Archivo/YouTube o al preparar Regrabar. En regrabación recorren solo números existentes. No se modificó ningún integrante ni documento de las campañas originales.

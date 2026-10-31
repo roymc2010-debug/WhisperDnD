@@ -472,12 +472,12 @@ function setLiveMode(mode) {
     if (campaignCard) campaignCard.classList.add("hidden");
     if (deviceSpeakerContainer) deviceSpeakerContainer.classList.add("hidden");
     if (meterSpeakerRow) meterSpeakerRow.classList.add("hidden");
-    if (startBtnText) startBtnText.textContent = "Iniciar Grabación de Clase";
-    if (stopBtnText) stopBtnText.textContent = "Detener y Generar Apuntes";
+    if (startBtnText) startBtnText.textContent = "Iniciar grabación";
+    if (stopBtnText) stopBtnText.textContent = "Detener y generar";
     if (statusText && !document.getElementById("btnStopRecording")?.disabled) {
       statusText.textContent = "Grabación de clase en curso (Micrófono Mono)";
     } else if (statusText) {
-      statusText.textContent = "Listo para grabar la clase universitaria";
+      statusText.textContent = "Listo para grabar";
     }
   } else {
     if (btnRoleplay) btnRoleplay.className = "px-3.5 py-1.5 rounded-lg text-xs font-semibold transition flex items-center gap-2 bg-gradient-to-r from-rose-600/20 to-indigo-600/20 text-rose-300 border border-rose-500/40 shadow-sm";
@@ -750,7 +750,8 @@ async function loadCurrentCampaign() {
 
   if (overrideCheck) overrideCheck.disabled = false;
   if (sessionInput) {
-    sessionInput.disabled = isOverridden ? false : true;
+    sessionInput.disabled = !isOverridden && currentActiveMainTab === "live";
+    if (!sessionInput.disabled) sessionInput.removeAttribute("readonly");
     sessionInput.placeholder = "";
   }
   if (badge) {
@@ -1032,7 +1033,7 @@ function setRecordingUI(isRecording) {
       if (typeof audioSourceMode !== "undefined" && audioSourceMode === "browser_mic") {
         statusText.textContent = "Listo para grabar desde el micrófono de este dispositivo";
       } else if (currentLiveMode === "class") {
-        statusText.textContent = "Listo para grabar la clase universitaria o reunión";
+        statusText.textContent = "Listo para grabar o reunión";
       } else {
         statusText.textContent = "Listo para iniciar la sesión de juego";
       }
@@ -1143,6 +1144,7 @@ async function transcribeYoutube() {
                   "Reunión / Clase";
     const subject = (document.getElementById("lectureSubjectInput") ? document.getElementById("lectureSubjectInput").value.trim() : "") ||
                     topic;
+    bodyPayload.document_format = getWorkStudyDocumentFormat();
     bodyPayload.subject = subject;
     bodyPayload.topic = topic;
     bodyPayload.campaign_name = null;
@@ -1605,7 +1607,8 @@ async function transcribeFile() {
                     "Reunión / Clase";
       const subject = (document.getElementById("lectureSubjectInput") ? document.getElementById("lectureSubjectInput").value.trim() : "") ||
                       topic;
-      formData.append("subject", subject);
+      formData.append("document_format", getWorkStudyDocumentFormat());
+    formData.append("subject", subject);
       formData.append("topic", topic);
     } else {
       formData.append("campaign_name", campaignName);
@@ -2015,11 +2018,12 @@ function syncResultTabsForWorkspace(mode = null) {
 
   if (isWork) {
     if (btnChronicle) { btnChronicle.classList.remove("hidden"); btnChronicle.style.display = ""; }
-    if (txtChronicle) txtChronicle.textContent = "Resumen y apuntes";
+    const isMeeting = getWorkStudyDocumentFormat(currentResult) === "executive";
+    if (txtChronicle) txtChronicle.textContent = isMeeting ? "Resumen de reunión" : "Apuntes de estudio";
     if (iconChronicle) WhisperIcons.set(iconChronicle, "file");
 
     if (btnKeyPoints) { btnKeyPoints.classList.remove("hidden"); btnKeyPoints.style.display = ""; }
-    if (txtKeyPoints) txtKeyPoints.textContent = "Puntos Clave y Glosario";
+    if (txtKeyPoints) txtKeyPoints.textContent = isMeeting ? "Decisiones y acuerdos" : "Conceptos y glosario";
     if (iconKeyPoints) WhisperIcons.set(iconKeyPoints, "star");
 
     if (btnQuests) { btnQuests.classList.remove("hidden"); btnQuests.style.display = ""; }
@@ -2588,6 +2592,7 @@ async function switchSummaryLanguage() {
       roster: isClass ? [] : (currentResult.roster || (typeof getRosterFromTable === "function" ? getRosterFromTable(true) : [])),
       subject: isClass ? (currentResult.subject || document.getElementById("lectureSubjectInput")?.value.trim() || "") : "",
       topic: isClass ? (currentResult.topic || document.getElementById("lectureTopicInput")?.value.trim() || "") : "",
+      document_format: isClass ? getWorkStudyDocumentFormat(currentResult) : undefined,
       custom_date: (document.getElementById("workStudyDateInput") ? document.getElementById("workStudyDateInput").value.trim() : "") || null,
       client_timezone_offset: new Date().getTimezoneOffset(),
     };
@@ -2670,6 +2675,7 @@ async function reprocessCampaignChronicle() {
       roster: isClass ? [] : (currentResult.roster || (typeof getRosterFromTable === "function" ? getRosterFromTable(true) : [])),
       subject: isClass ? (currentResult.subject || document.getElementById("lectureSubjectInput")?.value.trim() || "") : "",
       topic: isClass ? (currentResult.topic || document.getElementById("lectureTopicInput")?.value.trim() || "") : "",
+      document_format: isClass ? getWorkStudyDocumentFormat(currentResult) : undefined,
       custom_date: (document.getElementById("workStudyDateInput") ? document.getElementById("workStudyDateInput").value.trim() : "") || null,
       client_timezone_offset: new Date().getTimezoneOffset(),
     };
@@ -3022,6 +3028,9 @@ document.addEventListener("DOMContentLoaded", () => {
   }
   initEngineSelector();
   initLanguageSelector();
+  let documentFormat = "academic";
+  try { documentFormat = localStorage.getItem("whisper_document_format") || "academic"; } catch (_) {}
+  setWorkStudyDocumentFormat(documentFormat);
   if (typeof updateStepperMode === "function") updateStepperMode(false);
   if (typeof loadUserApiKeys === "function") loadUserApiKeys();
   if (typeof checkApiKeysStatus === "function") checkApiKeysStatus();
@@ -3187,101 +3196,19 @@ window.getSelectedCampaignName = getSelectedCampaignName;
 // WORK & STUDY WORKSPACE ENHANCED CONTROLLERS (Crafted UI Suite)
 // =========================================================================
 
-function setWorkStudySubMode(mode) {
-  const btnAcademic = document.getElementById("btnWorkModeAcademic");
-  const btnExecutive = document.getElementById("btnWorkModeExecutive");
-  const subModeInput = document.getElementById("workStudySubModeInput");
-  const modeDesc = document.getElementById("workStudyModeDesc");
-  const labelTopic = document.getElementById("labelWorkStudyTopic");
-  const labelSession = document.getElementById("labelWorkStudySession");
-
-  const isAcademic = (mode === 'academic');
-  if (subModeInput) subModeInput.value = isAcademic ? 'academic' : 'executive';
-
-  if (isAcademic) {
-    if (btnAcademic) {
-      btnAcademic.className = "min-h-[34px] px-3 py-1 rounded-lg font-semibold transition-all duration-150 flex items-center gap-1.5 bg-sky-500/20 text-sky-300 border border-sky-500/30 shadow-sm cursor-pointer active:scale-[0.98]";
-    }
-    if (btnExecutive) {
-      btnExecutive.className = "min-h-[34px] px-3 py-1 rounded-lg font-medium transition-all duration-150 flex items-center gap-1.5 text-slate-400 hover:text-slate-200 border border-transparent cursor-pointer active:scale-[0.98]";
-    }
-    if (modeDesc) {
-      modeDesc.innerHTML = `<span class="text-sky-400"><span data-ui-icon=lightbulb aria-hidden=true></span></span> <span>Gemini generará: <strong>Glosario conceptual, fórmulas KaTeX y guía estructurada</strong>.</span>`;
-    }
-    if (labelTopic) labelTopic.textContent = "Materia o Tema de Estudio:";
-    if (labelSession) labelSession.textContent = "Clase / Módulo #:";
-  } else {
-    if (btnExecutive) {
-      btnExecutive.className = "min-h-[34px] px-3 py-1 rounded-lg font-semibold transition-all duration-150 flex items-center gap-1.5 bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 shadow-sm cursor-pointer active:scale-[0.98]";
-    }
-    if (btnAcademic) {
-      btnAcademic.className = "min-h-[34px] px-3 py-1 rounded-lg font-medium transition-all duration-150 flex items-center gap-1.5 text-slate-400 hover:text-slate-200 border border-transparent cursor-pointer active:scale-[0.98]";
-    }
-    if (modeDesc) {
-      modeDesc.innerHTML = `<span class="text-indigo-400"><span data-ui-icon=briefcase aria-hidden=true></span></span> <span>Acuerdos, decisiones y tareas.</span>`;
-    }
-    if (labelTopic) labelTopic.textContent = "Nombre de la Reunión / Sprint:";
-    if (labelSession) labelSession.textContent = "Sesión / Sprint #:";
-  }
+function getWorkStudyDocumentFormat(result = null) {
+  const storedFormat = (result?.md_filename || result?.filename || "").startsWith("apuntes_reunion_") ? "executive" : null;
+  const value = result?.document_format || storedFormat || document.getElementById("workStudyDocumentFormat")?.value;
+  return value === "executive" ? "executive" : "academic";
 }
 
-function applyWorkStudyPreset(presetKey) {
-  const topicInput = document.getElementById("workStudyTopicInput");
-  const subjectDisplay = document.getElementById("workStudySubjectDisplay");
-  const subjectInput = document.getElementById("lectureSubjectInput");
-  const topicLegacy = document.getElementById("lectureTopicInput");
-
-  const presets = {
-    university: {
-      subMode: 'academic',
-      topic: 'Sistemas de Control y Dinámica',
-      subject: 'Ingeniería',
-      desc: 'Clase Universitaria'
-    },
-    meeting: {
-      subMode: 'executive',
-      topic: 'Reunión Semanal de Alineación Operativa',
-      subject: 'Operaciones',
-      desc: 'Reunión de Equipo'
-    },
-    research: {
-      subMode: 'academic',
-      topic: 'Metodología de Investigación y Estado del Arte',
-      subject: 'Tesis Doctoral',
-      desc: 'Tesis & Investigación'
-    },
-    keynote: {
-      subMode: 'academic',
-      topic: 'Conferencia Principal: Inteligencia Artificial Multimodal',
-      subject: 'Tecnología',
-      desc: 'Conferencia / Keynote'
-    },
-    sprint: {
-      subMode: 'executive',
-      topic: 'Sprint Planning & Priorización de Backlog',
-      subject: 'Desarrollo de Producto',
-      desc: 'Sprint Planning'
-    }
-  };
-
-  const p = presets[presetKey];
-  if (!p) return;
-
-  setWorkStudySubMode(p.subMode);
-
-  if (topicInput) {
-    topicInput.value = p.topic;
-    topicInput.focus();
-  }
-  if (subjectDisplay) subjectDisplay.value = p.subject;
-  if (subjectInput) subjectInput.value = p.subject;
-  if (topicLegacy) topicLegacy.value = p.topic;
-
-  setWorkStudyNowDate();
-
-  if (typeof showAlert === "function") {
-    showSuccessAlert(`Plantilla "${p.desc}" aplicada.`);
-  }
+function setWorkStudyDocumentFormat(value) {
+  const format = value === "executive" ? "executive" : "academic";
+  const select = document.getElementById("workStudyDocumentFormat");
+  const description = document.getElementById("workStudyFormatDescription");
+  if (select) select.value = format;
+  if (description) description.textContent = format === "executive" ? "Acuerdos, decisiones y tareas." : "Explicaciones, conceptos y material de repaso.";
+  try { localStorage.setItem("whisper_document_format", format); } catch (_) {}
 }
 
 function stepWorkStudySession(delta) {
@@ -3299,21 +3226,7 @@ function setWorkStudyNowDate() {
   dateInput.value = getLocalFormattedDateTime(new Date());
 }
 
-function syncWorkStudySubject(val) {
-  const subEl = document.getElementById("lectureSubjectInput");
-  if (subEl) subEl.value = val || "";
-}
-
-function clearWorkStudyTopic() {
-  const topicInput = document.getElementById("workStudyTopicInput");
-  const topicLegacy = document.getElementById("lectureTopicInput");
-  if (topicInput) topicInput.value = "";
-  if (topicLegacy) topicLegacy.value = "";
-}
-
-window.setWorkStudySubMode = setWorkStudySubMode;
-window.applyWorkStudyPreset = applyWorkStudyPreset;
+window.getWorkStudyDocumentFormat = getWorkStudyDocumentFormat;
+window.setWorkStudyDocumentFormat = setWorkStudyDocumentFormat;
 window.stepWorkStudySession = stepWorkStudySession;
 window.setWorkStudyNowDate = setWorkStudyNowDate;
-window.syncWorkStudySubject = syncWorkStudySubject;
-window.clearWorkStudyTopic = clearWorkStudyTopic;

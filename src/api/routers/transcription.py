@@ -9,13 +9,14 @@ import shutil
 import time
 import traceback
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Annotated, Any, Dict, List, Optional, Tuple, Union
 
 from fastapi import APIRouter, File, Form, HTTPException, Query, UploadFile, Request
 from pydantic import BaseModel, Field, ConfigDict
 from starlette.concurrency import run_in_threadpool
 
 from src.api import server
+from src.summarizer.document_formats import DocumentFormat
 
 router = APIRouter(tags=["transcription"])
 
@@ -38,6 +39,7 @@ class YouTubeTranscribeRequest(BaseModel):
     workspace: Optional[str] = Field(default="dnd", description="Workspace mode ('dnd' or 'work_and_study')")
     subject: Optional[str] = Field(default="", description="Materia / Asignatura for university lecture")
     topic: Optional[str] = Field(default="", description="Tema de la clase for university lecture")
+    document_format: DocumentFormat = "academic"
     target_language: str = Field(default="es", description="Target language ('es' or 'en')")
     audio_language: Optional[str] = Field(default=None, description="Explicit audio language or None for Whisper auto-detection")
     custom_date: Optional[str] = Field(default=None, description="Client local date string (e.g. DD/MM/YYYY HH:MM)")
@@ -71,6 +73,7 @@ class TranscribeResponse(BaseModel):
     recording_mode: Optional[str] = "roleplay"
     subject: Optional[str] = None
     topic: Optional[str] = None
+    document_format: Optional[DocumentFormat] = None
     wav_filename: Optional[str] = None
     target_language: Optional[str] = "es"
     detected_party: Optional[List[Dict[str, Any]]] = None
@@ -91,6 +94,7 @@ class SwitchLanguageRequest(BaseModel):
     roster: Optional[List[server.PlayerMetadata]] = Field(default_factory=list, description="Party roster")
     subject: Optional[str] = Field(default="", description="Subject for lecture")
     topic: Optional[str] = Field(default="", description="Topic for lecture")
+    document_format: DocumentFormat = "academic"
     custom_date: Optional[str] = Field(default=None, description="Client local date string (e.g. DD/MM/YYYY HH:MM)")
     client_timezone_offset: Optional[Union[int, str]] = Field(default=None, description="Client timezone offset in minutes")
 
@@ -109,6 +113,7 @@ class ReprocessCampaignRequest(BaseModel):
     workspace: Optional[str] = Field(default="dnd", description="'dnd' or 'work_and_study'")
     subject: Optional[str] = Field(default="", description="Subject for lecture")
     topic: Optional[str] = Field(default="", description="Topic for lecture")
+    document_format: DocumentFormat = "academic"
     is_youtube: Optional[bool] = Field(default=False, description="Whether this session was ingested from YouTube")
     custom_date: Optional[str] = Field(default=None, description="Client local date string (e.g. DD/MM/YYYY HH:MM)")
     client_timezone_offset: Optional[Union[int, str]] = Field(default=None, description="Client timezone offset in minutes")
@@ -286,8 +291,8 @@ async def transcribe_youtube(payload: YouTubeTranscribeRequest, request: Request
     top = (payload.topic or "").strip() or "Tema de Clase"
 
     if is_academic:
-        server.update_task_progress(task_id, 70.0, "Extrayendo conceptos clave de la clase con Gemini...", "Analizando transcripción de YouTube...", stage="analyzing")
-        server.update_task_progress(task_id, 76.0, "Redactando guía de estudio y apuntes con Gemini...", "Sintetizando conceptos teóricos y fórmulas...", stage="analyzing")
+        server.update_task_progress(task_id, 70.0, "Analizando el contenido con Gemini...", "Analizando transcripción de YouTube...", stage="analyzing")
+        server.update_task_progress(task_id, 76.0, "Redactando el documento con Gemini...", "Organizando la información...", stage="analyzing")
         subj = (payload.subject or "").strip() or "Materia Universitaria"
         top = (payload.topic or "").strip() or "Tema de Clase"
         now_str, now_formatted, _ = server.parse_client_datetime(
@@ -304,6 +309,7 @@ async def transcribe_youtube(payload: YouTubeTranscribeRequest, request: Request
                 topic=top,
                 date_str=now_formatted,
                 target_language=payload.target_language,
+                document_format=payload.document_format,
             )
             server.update_task_progress(task_id, 95.0, "Compilando documentos Word (.docx) y Markdown (.md)...", "Generando archivos de apuntes...", stage="analyzing")
             clean_subj = re.sub(r'[\\/*?:"<>|]', "", subj.strip()) or "Materia"
@@ -311,9 +317,9 @@ async def transcribe_youtube(payload: YouTubeTranscribeRequest, request: Request
             clean_top = re.sub(r'[\\/*?:"<>|]', "", top.strip()) or "Tema"
             safe_top = re.sub(r"\s+", "_", clean_top)
 
-            docx_filename = f"apuntes_youtube_{safe_subj}_{now_str}.docx"
-            md_filename = f"apuntes_youtube_{safe_subj}_{now_str}.md"
-            txt_filename = f"apuntes_youtube_{safe_subj}_{now_str}_transcripcion.txt"
+            docx_filename = f"apuntes_{'reunion_' if payload.document_format == 'executive' else ''}youtube_{safe_subj}_{now_str}.docx"
+            md_filename = f"apuntes_{'reunion_' if payload.document_format == 'executive' else ''}youtube_{safe_subj}_{now_str}.md"
+            txt_filename = f"apuntes_{'reunion_' if payload.document_format == 'executive' else ''}youtube_{safe_subj}_{now_str}_transcripcion.txt"
             docx_out_path = server.get_data_output_dir() / docx_filename
             md_out_path = server.get_data_output_dir() / md_filename
             txt_out_path = server.get_data_output_dir() / txt_filename
@@ -324,7 +330,7 @@ async def transcribe_youtube(payload: YouTubeTranscribeRequest, request: Request
             (server.get_data_output_dir() / f"{safe_top}_transcripcion.txt").write_text(transcript_text, encoding="utf-8")
             file_path_str = str(docx_out_path.resolve())
         except Exception as exc:
-            chronicle_md = f"# ⚠️ Error generando guía académica con Gemini:\n\n> {exc}\n\n**Texto:**\n\n{transcript_text}"
+            chronicle_md = f"# ⚠️ Error generando el documento con Gemini:\n\n> {exc}\n\n**Texto:**\n\n{transcript_text}"
             print(f"[transcribe_youtube] Warning: academic notes export failed: {exc}")
 
         server.update_task_progress(task_id, 98.0, "Documentos generados. Sincronizando con Drive y limpiando...", "Finalizando exportación...", stage="analyzing")
@@ -433,7 +439,7 @@ async def transcribe_youtube(payload: YouTubeTranscribeRequest, request: Request
     action_items = None
     key_points = None
     if is_work_study:
-        action_items, key_points = server.extract_academic_sections(chronicle_md or "")
+        action_items, key_points = server.extract_academic_sections(chronicle_md or "", document_format=payload.document_format)
 
     return TranscribeResponse(
         text=transcript_text,
@@ -455,6 +461,7 @@ async def transcribe_youtube(payload: YouTubeTranscribeRequest, request: Request
         detected_pcs=detected_pcs or [],
         chronicle=chronicle_md,
         recording_mode="class" if is_work_study else "roleplay",
+        document_format=payload.document_format,
         subject=subj if is_work_study else None,
         topic=top if is_work_study else None,
         target_language=payload.target_language,
@@ -479,6 +486,7 @@ async def transcribe_file(
     recording_mode: str = Form(default="roleplay"),
     subject: Optional[str] = Form(default=None),
     topic: Optional[str] = Form(default=None),
+    document_format: Annotated[DocumentFormat, Form()] = "academic",
     target_language: str = Form(default="es"),
     audio_language: Optional[str] = Form(default=None),
     custom_date: Optional[str] = Form(default=None),
@@ -675,8 +683,8 @@ async def transcribe_file(
     chronicle_md = None
 
     if recording_mode == "class":
-        server.update_task_progress(task_id, 55.0, "Extrayendo conceptos clave y glosario con Gemini...", "Analizando transcripción...", stage="analyzing")
-        server.update_task_progress(task_id, 65.0, "Redactando apuntes detallados y guía de estudio con Gemini...", "Sintetizando conceptos teóricos y fórmulas...", stage="analyzing")
+        server.update_task_progress(task_id, 55.0, "Analizando el contenido con Gemini...", "Analizando transcripción...", stage="analyzing")
+        server.update_task_progress(task_id, 65.0, "Redactando el documento con Gemini...", "Organizando la información...", stage="analyzing")
         subj = (subject or "").strip() or "Materia Universitaria"
         top = (topic or "").strip() or "Tema de Clase"
         now_str, now_formatted, _ = server.parse_client_datetime(
@@ -693,17 +701,18 @@ async def transcribe_file(
                 topic=top,
                 date_str=now_formatted,
                 target_language=target_language,
+                document_format=document_format,
             )
             server.update_task_progress(task_id, 87.0, "Extrayendo tareas, entregables y puntos clave...", "Organizando resumen ejecutivo...", stage="analyzing")
         except Exception as exc:
-            chronicle_md = f"# ⚠️ Error generando guía académica con Gemini:\n\n> {exc}\n\n**Texto:**\n\n{transcript_text}"
+            chronicle_md = f"# ⚠️ Error generando el documento con Gemini:\n\n> {exc}\n\n**Texto:**\n\n{transcript_text}"
 
         server.update_task_progress(task_id, 95.0, "Compilando documentos Word (.docx) y Markdown (.md)...", "Creando archivos de apuntes...", stage="analyzing")
         clean_subj = re.sub(r'[\\/*?:"<>|]', "", subj.strip()) or "Materia"
         safe_subj = re.sub(r"\s+", "_", clean_subj)
-        docx_filename = f"apuntes_file_{safe_subj}_{now_str}.docx"
-        md_filename = f"apuntes_file_{safe_subj}_{now_str}.md"
-        txt_filename = f"apuntes_file_{safe_subj}_{now_str}_transcripcion.txt"
+        docx_filename = f"apuntes_{'reunion_' if document_format == 'executive' else ''}file_{safe_subj}_{now_str}.docx"
+        md_filename = f"apuntes_{'reunion_' if document_format == 'executive' else ''}file_{safe_subj}_{now_str}.md"
+        txt_filename = f"apuntes_{'reunion_' if document_format == 'executive' else ''}file_{safe_subj}_{now_str}_transcripcion.txt"
         docx_out_path = server.get_data_output_dir() / docx_filename
         md_out_path = server.get_data_output_dir() / md_filename
         txt_out_path = server.get_data_output_dir() / txt_filename
@@ -731,8 +740,8 @@ async def transcribe_file(
         except Exception as exc:
             print(f"[transcribe_file] Warning triggering drive sync: {exc}")
 
-        server.update_task_progress(task_id, 100.0, "¡Completado!", "Guía de estudio generada exitosamente.", stage="done")
-        action_items, key_points = server.extract_academic_sections(chronicle_md or "")
+        server.update_task_progress(task_id, 100.0, "¡Completado!", "Documento generado correctamente.", stage="done")
+        action_items, key_points = server.extract_academic_sections(chronicle_md or "", document_format=document_format)
         return TranscribeResponse(
             text=transcript_text,
             segments=result["segments"],
@@ -745,6 +754,7 @@ async def transcribe_file(
             md_filename=md_filename,
             txt_filename=txt_filename,
             recording_mode="class",
+            document_format=document_format,
             subject=subj,
             topic=top,
             chronicle=chronicle_md,
@@ -909,6 +919,7 @@ async def upload_session_with_telemetry(
     groq_api_key: Optional[str] = Form(default=None),
     subject: Optional[str] = Form(default=None),
     topic: Optional[str] = Form(default=None),
+    document_format: Annotated[DocumentFormat, Form()] = "academic",
     audio_language: Optional[str] = Form(default=None),
     custom_date: Optional[str] = Form(default=None),
     client_timezone_offset: Optional[Union[int, str]] = Form(default=None),
@@ -1089,8 +1100,8 @@ async def upload_session_with_telemetry(
     session_title = None
 
     if recording_mode == "class":
-        server.update_task_progress(task_id, 55.0, "Extrayendo conceptos clave y glosario con Gemini...", "Analizando transcripción...", stage="analyzing")
-        server.update_task_progress(task_id, 65.0, "Redactando apuntes académicos y guía de estudio con Gemini...", "Sintetizando conceptos teóricos...", stage="analyzing")
+        server.update_task_progress(task_id, 55.0, "Analizando el contenido con Gemini...", "Analizando transcripción...", stage="analyzing")
+        server.update_task_progress(task_id, 65.0, "Redactando el documento con Gemini...", "Organizando la información...", stage="analyzing")
         subj = (subject or "").strip() or "Materia Universitaria"
         top = (topic or "").strip() or "Tema de Clase"
         now_str, now_formatted, _ = server.parse_client_datetime(
@@ -1107,17 +1118,18 @@ async def upload_session_with_telemetry(
                 topic=top,
                 date_str=now_formatted,
                 target_language=target_language,
+                document_format=document_format,
             )
             server.update_task_progress(task_id, 87.0, "Extrayendo tareas, entregables y puntos clave...", "Organizando resumen ejecutivo...", stage="analyzing")
         except Exception as exc:
-            chronicle_md = f"# ⚠️ Error generando guía académica con Gemini:\n\n> {exc}\n\n**Texto:**\n\n{transcript_text}"
+            chronicle_md = f"# ⚠️ Error generando el documento con Gemini:\n\n> {exc}\n\n**Texto:**\n\n{transcript_text}"
 
         server.update_task_progress(task_id, 95.0, "Compilando documentos Word (.docx) y Markdown (.md)...", "Creando archivos de apuntes...", stage="analyzing")
         clean_subj = re.sub(r'[\\/*?:"<>|]', "", subj.strip()) or "Materia"
         safe_subj = re.sub(r"\s+", "_", clean_subj)
-        docx_filename = f"apuntes_telemetria_{safe_subj}_{now_str}.docx"
-        md_filename = f"apuntes_telemetria_{safe_subj}_{now_str}.md"
-        txt_filename = f"apuntes_telemetria_{safe_subj}_{now_str}_transcripcion.txt"
+        docx_filename = f"apuntes_{'reunion_' if document_format == 'executive' else ''}telemetria_{safe_subj}_{now_str}.docx"
+        md_filename = f"apuntes_{'reunion_' if document_format == 'executive' else ''}telemetria_{safe_subj}_{now_str}.md"
+        txt_filename = f"apuntes_{'reunion_' if document_format == 'executive' else ''}telemetria_{safe_subj}_{now_str}_transcripcion.txt"
         docx_out_path = server.get_data_output_dir() / docx_filename
         md_out_path = server.get_data_output_dir() / md_filename
         txt_out_path = server.get_data_output_dir() / txt_filename
@@ -1143,8 +1155,8 @@ async def upload_session_with_telemetry(
         except Exception as exc:
             print(f"[upload-with-telemetry] Warning triggering drive sync: {exc}")
 
-        server.update_task_progress(task_id, 100.0, "¡Completado!", "Guía de estudio generada exitosamente.", stage="done")
-        action_items, key_points = server.extract_academic_sections(chronicle_md or "")
+        server.update_task_progress(task_id, 100.0, "¡Completado!", "Documento generado correctamente.", stage="done")
+        action_items, key_points = server.extract_academic_sections(chronicle_md or "", document_format=document_format)
         return TranscribeResponse(
             text=transcript_text,
             segments=result["segments"],
@@ -1157,6 +1169,7 @@ async def upload_session_with_telemetry(
             md_filename=md_filename,
             txt_filename=txt_filename,
             recording_mode="class",
+            document_format=document_format,
             subject=subj,
             topic=top,
             chronicle=chronicle_md,
@@ -1324,12 +1337,13 @@ async def switch_summary_language(payload: SwitchLanguageRequest, request: Reque
             topic=top,
             date_str=now_formatted,
             target_language=target_lang,
+                document_format=payload.document_format,
         )
         clean_subj = re.sub(r'[\\/*?:"<>|]', "", subj.strip()) or "Materia"
         safe_subj = re.sub(r"\s+", "_", clean_subj)
-        docx_filename = f"apuntes_{safe_subj}_{target_lang}_{now_str}.docx"
-        md_filename = f"apuntes_{safe_subj}_{target_lang}_{now_str}.md"
-        txt_filename = f"apuntes_{safe_subj}_{target_lang}_{now_str}_transcripcion.txt"
+        docx_filename = f"apuntes_{'reunion_' if payload.document_format == 'executive' else ''}{safe_subj}_{target_lang}_{now_str}.docx"
+        md_filename = f"apuntes_{'reunion_' if payload.document_format == 'executive' else ''}{safe_subj}_{target_lang}_{now_str}.md"
+        txt_filename = f"apuntes_{'reunion_' if payload.document_format == 'executive' else ''}{safe_subj}_{target_lang}_{now_str}_transcripcion.txt"
         docx_out_path = server.get_data_output_dir() / docx_filename
         md_out_path = server.get_data_output_dir() / md_filename
         (server.get_data_output_dir() / txt_filename).write_text(transcript_text, encoding="utf-8")
@@ -1402,7 +1416,7 @@ async def switch_summary_language(payload: SwitchLanguageRequest, request: Reque
     action_items = None
     key_points = None
     if is_class_mode:
-        action_items, key_points = server.extract_academic_sections(chronicle_md or "")
+        action_items, key_points = server.extract_academic_sections(chronicle_md or "", document_format=payload.document_format)
 
     # Background Drive Sync
     try:
@@ -1453,6 +1467,7 @@ async def switch_summary_language(payload: SwitchLanguageRequest, request: Reque
         detected_pcs=detected_pcs,
         chronicle=chronicle_md,
         recording_mode=payload.recording_mode,
+        document_format=payload.document_format,
         subject=payload.subject,
         topic=payload.topic,
         target_language=target_lang,
@@ -1510,12 +1525,13 @@ async def reprocess_campaign(payload: ReprocessCampaignRequest, request: Request
             topic=top,
             date_str=now_formatted,
             target_language=target_lang,
+                document_format=payload.document_format,
         )
         clean_subj = re.sub(r'[\\/*?:"<>|]', "", subj.strip()) or "Materia"
         safe_subj = re.sub(r"\s+", "_", clean_subj)
-        docx_filename = f"apuntes_{safe_subj}_{target_lang}_{now_str}.docx"
-        md_filename = f"apuntes_{safe_subj}_{target_lang}_{now_str}.md"
-        txt_filename = f"apuntes_{safe_subj}_{target_lang}_{now_str}_transcripcion.txt"
+        docx_filename = f"apuntes_{'reunion_' if payload.document_format == 'executive' else ''}{safe_subj}_{target_lang}_{now_str}.docx"
+        md_filename = f"apuntes_{'reunion_' if payload.document_format == 'executive' else ''}{safe_subj}_{target_lang}_{now_str}.md"
+        txt_filename = f"apuntes_{'reunion_' if payload.document_format == 'executive' else ''}{safe_subj}_{target_lang}_{now_str}_transcripcion.txt"
         docx_out_path = server.get_data_output_dir() / docx_filename
         md_out_path = server.get_data_output_dir() / md_filename
         (server.get_data_output_dir() / txt_filename).write_text(transcript_text, encoding="utf-8")
@@ -1567,7 +1583,7 @@ async def reprocess_campaign(payload: ReprocessCampaignRequest, request: Request
     action_items = None
     key_points = None
     if is_class_mode:
-        action_items, key_points = server.extract_academic_sections(chronicle_md or "")
+        action_items, key_points = server.extract_academic_sections(chronicle_md or "", document_format=payload.document_format)
 
     # Background Drive Sync
     try:
@@ -1618,6 +1634,7 @@ async def reprocess_campaign(payload: ReprocessCampaignRequest, request: Request
         detected_pcs=detected_pcs,
         chronicle=chronicle_md,
         recording_mode="class" if is_class_mode else "roleplay",
+        document_format=payload.document_format,
         subject=subj if is_class_mode else None,
         topic=top if is_class_mode else None,
         target_language=target_lang,

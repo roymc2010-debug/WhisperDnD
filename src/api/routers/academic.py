@@ -121,7 +121,7 @@ def extract_clean_note_title(filename: str, content: str = "") -> str:
                 while prev_cleaned != cleaned:
                     prev_cleaned = cleaned
                     cleaned = re.sub(
-                        r"^(?:BRIEFING EJECUTIVO Y GU[ÍI]A DE ESTUDIO PROFUNDA|EXECUTIVE BRIEFING & DEEP STUDY GUIDE|GU[ÍI]A DE ESTUDIO PROFUNDA|DEEP STUDY GUIDE|GU[ÍI]A DE ESTUDIO|STUDY GUIDE|BRIEFING EJECUTIVO|EXECUTIVE BRIEFING|APUNTES DE CLASE|APUNTES|NOTAS DE CLASE|TOPIC|MATERIA|TEMA|RESUMEN EJECUTIVO|EXECUTIVE SUMMARY)[\s:–—\-]+",
+                        r"^(?:BRIEFING EJECUTIVO Y GU[ÍI]A DE ESTUDIO PROFUNDA|EXECUTIVE BRIEFING & DEEP STUDY GUIDE|GU[ÍI]A DE ESTUDIO PROFUNDA|DEEP STUDY GUIDE|GU[ÍI]A DE ESTUDIO|STUDY GUIDE|BRIEFING EJECUTIVO|EXECUTIVE BRIEFING|APUNTES DE CLASE|APUNTES|NOTAS DE CLASE|TOPIC|MATERIA|TEMA|RESUMEN DE REUNI[ÓO]N|MEETING SUMMARY|RESUMEN EJECUTIVO|EXECUTIVE SUMMARY)[\s:–—\-]+",
                         "",
                         cleaned,
                         flags=re.IGNORECASE,
@@ -210,13 +210,13 @@ def update_consolidated_academic_notes_file() -> Path:
                 continue
             try:
                 stat = md_file.stat()
-                if stat.st_size < 500:
+                if stat.st_size < 500 and not md_file.name.startswith("apuntes_reunion_"):
                     continue
                 content = md_file.read_text(encoding="utf-8", errors="replace")
                 if not is_academic_study_note(md_file.name, content):
                     continue
                 words = len(content.split())
-                if words < 100:
+                if words < 100 and not md_file.name.startswith("apuntes_reunion_"):
                     continue
                 title = extract_clean_note_title(md_file.name, content)
                 formatted_date = format_note_date(stat.st_mtime, md_file.name)
@@ -243,6 +243,7 @@ def update_consolidated_academic_notes_file() -> Path:
                     "word_count": words,
                     "timestamp": stat.st_mtime,
                     "size_bytes": stat.st_size,
+                    "document_format": "executive" if md_file.name.startswith("apuntes_reunion_") else None,
                     "docx_filename": docx_filename,
                     "txt_filename": txt_filename if txt_filename and (o_dir / txt_filename).is_file() else None,
                     "excerpt": excerpt,
@@ -259,7 +260,7 @@ def update_consolidated_academic_notes_file() -> Path:
                 continue
             old_size = int(old_note.get("size_bytes") or len(old_note.get("content", "").encode("utf-8")))
             old_words = int(old_note.get("word_count") or len(old_note.get("content", "").split()))
-            if old_size < 500 or old_words < 100:
+            if (old_size < 500 or old_words < 100) and not fname.startswith("apuntes_reunion_"):
                 continue
             old_note["title"] = extract_clean_note_title(fname, old_note.get("content", ""))
             old_note["topic"] = old_note["title"]
@@ -313,7 +314,7 @@ async def list_academic_notes():
                         continue
                     n_size = int(n.get("size_bytes") or len(n["content"].encode("utf-8")))
                     n_words = int(n.get("word_count") or len(n["content"].split()))
-                    if n_size >= 500 and n_words >= 100:
+                    if (n_size >= 500 and n_words >= 100) or n["filename"].startswith("apuntes_reunion_"):
                         n["title"] = extract_clean_note_title(n["filename"], n.get("content", ""))
                         n["topic"] = n["title"]
                         historial_notes.append(n)
@@ -357,13 +358,13 @@ async def list_academic_notes():
                 continue
             try:
                 stat = md_file.stat()
-                if stat.st_size < 500:
+                if stat.st_size < 500 and not md_file.name.startswith("apuntes_reunion_"):
                     continue
                 content = md_file.read_text(encoding="utf-8", errors="replace")
                 if not is_academic_study_note(md_file.name, content):
                     continue
                 words = len(content.split())
-                if words < 100:
+                if words < 100 and not md_file.name.startswith("apuntes_reunion_"):
                     continue
                 seen_filenames.add(md_file.name)
                 title = extract_clean_note_title(md_file.name, content)
@@ -391,6 +392,7 @@ async def list_academic_notes():
                     "word_count": words,
                     "timestamp": stat.st_mtime,
                     "size_bytes": stat.st_size,
+                    "document_format": "executive" if md_file.name.startswith("apuntes_reunion_") else None,
                     "docx_filename": docx_filename,
                     "txt_filename": txt_filename if txt_filename and (c_dir / txt_filename).is_file() else None,
                     "excerpt": excerpt,
@@ -635,6 +637,7 @@ async def save_academic_note_endpoint(payload: server.SaveAcademicNoteRequest):
         await run_in_threadpool(
             server.export_academic_notes_docx,
             notes_md=content,
+            document_format="executive" if safe_filename.startswith("apuntes_reunion_") else "academic",
             subject=clean_title,
             topic=clean_title,
             lecture_date=formatted_date,
@@ -842,6 +845,7 @@ async def download_academic_note_docx(filename: str):
         await run_in_threadpool(
             server.export_academic_notes_docx,
             notes_md=content,
+            document_format="executive" if safe_filename.startswith("apuntes_reunion_") else "academic",
             subject=clean_title,
             topic=clean_title,
             lecture_date=formatted_date,

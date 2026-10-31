@@ -1,3 +1,10 @@
+function isMeetingNote(note) {
+  if(note.document_format === "executive")return true;
+  if(note.document_format === "academic")return false;
+  if((note.filename || "").startsWith("apuntes_reunion_"))return true;
+  return /reuni[oó]n|minuta|sprint|ejecutiva|acuerdo|meeting/i.test(note.title || note.topic || note.filename || "");
+}
+
 // =========================================================================
 // WhisperDnD - notes.js
 // Historial de Apuntes Académicos, Glosario, Tareas y Modal de Términos
@@ -67,7 +74,7 @@ function cleanNoteDisplayTitle(titleStr, filename) {
   let prev = "";
   while (prev !== t) {
     prev = t;
-    t = t.replace(/^(?:BRIEFING EJECUTIVO Y GU[ÍI]A DE ESTUDIO PROFUNDA|EXECUTIVE BRIEFING & DEEP STUDY GUIDE|GU[ÍI]A DE ESTUDIO PROFUNDA|DEEP STUDY GUIDE|GU[ÍI]A DE ESTUDIO|STUDY GUIDE|BRIEFING EJECUTIVO|EXECUTIVE BRIEFING|APUNTES DE CLASE|APUNTES|NOTAS DE CLASE|TOPIC|MATERIA|TEMA|RESUMEN EJECUTIVO|EXECUTIVE SUMMARY)[\s:–—\-]+/i, '').trim();
+    t = t.replace(/^(?:BRIEFING EJECUTIVO Y GU[ÍI]A DE ESTUDIO PROFUNDA|EXECUTIVE BRIEFING & DEEP STUDY GUIDE|GU[ÍI]A DE ESTUDIO PROFUNDA|DEEP STUDY GUIDE|GU[ÍI]A DE ESTUDIO|STUDY GUIDE|BRIEFING EJECUTIVO|EXECUTIVE BRIEFING|APUNTES DE CLASE|APUNTES|NOTAS DE CLASE|TOPIC|MATERIA|TEMA|RESUMEN DE REUNI[ÓO]N|MEETING SUMMARY|RESUMEN EJECUTIVO|EXECUTIVE SUMMARY)[\s:–—\-]+/i, '').trim();
   }
   if (t.includes(':')) {
     const parts = t.split(':').map(p => p.trim()).filter(Boolean);
@@ -105,7 +112,7 @@ function renderAcademicNotesList(notes) {
     const wordCount = note.word_count !== undefined ? note.word_count : 0;
     const excerpt = note.excerpt || "Sin extracto.";
     const readMinutes = Math.max(1, Math.ceil(wordCount / 200));
-    const isExecutive = (title.toLowerCase().includes("reunión") || title.toLowerCase().includes("reunion") || title.toLowerCase().includes("sprint") || title.toLowerCase().includes("minuta") || (note.filename && note.filename.toLowerCase().includes("meeting")));
+    const isExecutive = isMeetingNote(note);
     const badgeType = isExecutive ? `<span class="px-1.5 py-0.5 rounded text-[10px] font-medium bg-indigo-500/15 text-indigo-300 border border-indigo-500/25"><span data-ui-icon=briefcase aria-hidden=true></span> Resumen de reunión</span>` : `<span class="px-1.5 py-0.5 rounded text-[10px] font-medium bg-sky-500/15 text-sky-300 border border-sky-500/25"><span data-ui-icon=graduation aria-hidden=true></span> Académica</span>`;
 
     card.innerHTML = `
@@ -832,15 +839,9 @@ function applyCurrentNotesFilter() {
   let list = academicNotesList || [];
 
   if (currentAcademicFilter === 'academic') {
-    list = list.filter(n => {
-      const t = (n.title || n.topic || n.filename || "").toLowerCase();
-      return t.includes("clase") || t.includes("guía") || t.includes("guia") || t.includes("estudio") || t.includes("universitaria") || t.includes("tesis");
-    });
+    list = list.filter(n => !isMeetingNote(n));
   } else if (currentAcademicFilter === 'executive') {
-    list = list.filter(n => {
-      const t = (n.title || n.topic || n.filename || "").toLowerCase();
-      return t.includes("reunión") || t.includes("reunion") || t.includes("minuta") || t.includes("sprint") || t.includes("ejecutiva") || t.includes("acuerdo");
-    });
+    list = list.filter(isMeetingNote);
   } else if (currentAcademicFilter === 'has_tasks') {
     list = list.filter(n => {
       return (Array.isArray(n.action_items) && n.action_items.length > 0) || (n.content && n.content.includes('- [ ]'));

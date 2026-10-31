@@ -1143,6 +1143,7 @@ def export_academic_notes_docx(
     topic: str = "Tema de Clase",
     lecture_date: Optional[str] = None,
     output_path: Optional[str] = None,
+    document_format: str = "academic",
 ) -> str:
     """
     Export an Academic Study Guide into a cleanly formatted university-style Word .docx document.
@@ -1176,11 +1177,14 @@ def export_academic_notes_docx(
         section.left_margin = Inches(1)
         section.right_margin = Inches(1)
 
-    # University Header: Subject
+    is_meeting = document_format == "executive"
+    document_label = "Resumen de reunión" if is_meeting else "Apuntes de Clase"
+
+    # Document header
     title_p = doc.add_paragraph()
     title_p.paragraph_format.space_before = Pt(0)
     title_p.paragraph_format.space_after = Pt(2)
-    title_run = title_p.add_run(f"🎓 {subject}")
+    title_run = title_p.add_run(subject if is_meeting else f"🎓 {subject}")
     title_run.font.name = "Georgia"
     title_run.font.size = Pt(22)
     title_run.font.bold = True
@@ -1189,7 +1193,7 @@ def export_academic_notes_docx(
     # Subtitle: Topic
     sub_p = doc.add_paragraph()
     sub_p.paragraph_format.space_after = Pt(6)
-    sub_run = sub_p.add_run(f"Apuntes de Clase • {topic}")
+    sub_run = sub_p.add_run(f"{document_label} • {topic}")
     sub_run.font.name = "Calibri"
     sub_run.font.size = Pt(14)
     sub_run.font.bold = True
@@ -1199,7 +1203,7 @@ def export_academic_notes_docx(
     date_val = lecture_date or datetime.datetime.now().strftime("%d/%m/%Y")
     meta_p = doc.add_paragraph()
     meta_p.paragraph_format.space_after = Pt(16)
-    meta_run = meta_p.add_run(f"Fecha de la sesión: {date_val} • Guía de Estudio Universitaria")
+    meta_run = meta_p.add_run(f"Fecha de la sesión: {date_val} • {'Resumen de reunión' if is_meeting else 'Guía de Estudio Universitaria'}")
     meta_run.font.name = "Calibri"
     meta_run.font.size = Pt(10)
     meta_run.font.italic = True

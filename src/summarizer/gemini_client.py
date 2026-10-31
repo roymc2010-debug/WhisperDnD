@@ -4,6 +4,7 @@ import os
 import time
 from typing import Any, Dict, List, Optional
 from dotenv import load_dotenv
+from src.summarizer.document_formats import DocumentFormat
 
 load_dotenv()
 
@@ -11,6 +12,7 @@ load_dotenv()
 from src.summarizer.prompts import (
     build_continuity_session_prompt,
     build_academic_lecture_prompt,
+    build_meeting_summary_prompt,
 )
 import json
 import re
@@ -270,6 +272,7 @@ class GeminiTTRPGSummarizer:
         topic: str = "Tema de Clase",
         date_str: Optional[str] = None,
         target_language: str = "es",
+        document_format: DocumentFormat = "academic",
     ) -> str:
         """
         Generate a structured Academic Study Guide from a university lecture transcript:
@@ -287,6 +290,8 @@ class GeminiTTRPGSummarizer:
         :param target_language: Target output language ('es' or 'en').
         :return: Formatted Markdown Academic Study Guide.
         """
+        if document_format not in ("academic", "executive"):
+            raise ValueError("Unsupported document format")
         if not transcript_text or not transcript_text.strip():
             return "No hay transcripción de audio disponible para generar la guía de estudio."
 
@@ -296,7 +301,8 @@ class GeminiTTRPGSummarizer:
         except Exception:
             pass
 
-        prompt = build_academic_lecture_prompt(
+        prompt_builder = build_meeting_summary_prompt if document_format == "executive" else build_academic_lecture_prompt
+        prompt = prompt_builder(
             subject=subject,
             topic=topic,
             transcript_text=transcript_text,
@@ -309,7 +315,7 @@ class GeminiTTRPGSummarizer:
             generation_config["temperature"] = 0.0
             generation_config["top_p"] = 0.95
         raw_notes = self._generate_with_retry(prompt, config=generation_config or None)
-        notes_md = normalize_academic_sections(raw_notes)
+        notes_md = raw_notes.strip() if document_format == "executive" else normalize_academic_sections(raw_notes)
         if transcript_text and transcript_text.strip() and "# 📝" not in notes_md and "Transcripción" not in notes_md:
             is_en = str(target_language).lower().startswith("en")
             transcript_header = (

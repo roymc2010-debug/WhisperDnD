@@ -262,13 +262,23 @@ class PlayerMetadata(BaseModel):
 
 
 
-def extract_academic_sections(chronicle_md: str) -> Tuple[List[str], str]:
+def extract_academic_sections(chronicle_md: str, document_format: str = "academic") -> Tuple[List[str], str]:
     """
     Extract action items / tasks list and key points / glossary from academic markdown.
     Key points contains strictly Glossary and Techniques without repeating Section 5 or Section 6.
     """
     if not chronicle_md:
         return [], ""
+
+    if document_format == "executive":
+        tasks_match = re.search(r"(?m)^#{1,2}\s*3\.\s*[^\n]+\n([\s\S]*?)(?=^#{1,2}\s|\Z)", chronicle_md)
+        decisions_match = re.search(r"(?m)^#{1,2}\s*2\.\s*[^\n]+\n([\s\S]*?)(?=^#{1,2}\s|\Z)", chronicle_md)
+        tasks = []
+        for line in (tasks_match.group(1) if tasks_match else "").splitlines():
+            match = re.match(r"^\s*[-*+]\s*(?:\[[ xX]\]\s*)?(.+)$", line)
+            if match and not match.group(1).lower().startswith(("no se", "no hay", "ninguna", "none", "no tasks")):
+                tasks.append(match.group(1).strip())
+        return tasks, decisions_match.group(1).strip() if decisions_match else ""
 
     chronicle_md = normalize_academic_sections(chronicle_md)
 

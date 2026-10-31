@@ -120,5 +120,15 @@
   if(!Number.isSafeInteger(session)||!sessions.includes(session)) return 'Elige una sesión existente.';
   return '';
  }
- return {themes,normalizeTheme,sessionNumbers,validateRerecord};
+ function stepSessionNumber({value,delta,locked=false,recording=false,sessions=null}) {
+  const parsed=Number(value),current=Number.isSafeInteger(parsed)&&parsed>0?parsed:1;
+  if(locked||recording||![-1,1].includes(delta))return current;
+  if(Array.isArray(sessions)){
+   const saved=[...new Set(sessions)].filter(n=>Number.isSafeInteger(n)&&n>0).sort((a,b)=>a-b);
+   return delta>0?(saved.find(n=>n>current)??current):([...saved].reverse().find(n=>n<current)??current);
+  }
+  if(!value)return 1;
+  return Math.max(1,Math.min(Number.MAX_SAFE_INTEGER,current+delta));
+ }
+ return {themes,normalizeTheme,sessionNumbers,validateRerecord,stepSessionNumber};
 });

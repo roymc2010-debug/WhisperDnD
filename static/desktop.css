@@ -292,3 +292,26 @@ body a[download]:hover{border-color:var(--ui-transfer)!important;background:colo
 #resultsCard button[onclick*="toggleResultTab"]{font-size:.875rem;padding:.375rem .625rem}
 #viewWiki button[onclick*="switchWikiSessionSubtab"]{border:1px solid var(--ui-control)!important;border-radius:.375rem;background:var(--ui-canvas)!important}
 #viewWiki button[onclick*="switchWikiSessionSubtab"][aria-pressed="true"]{background:var(--ui-raised)!important;border-color:var(--ui-accent)!important;color:var(--ui-text)!important}
+
+/* A single document choice; less common metadata stays collapsed. */
+.desktop-work-form{padding:1.25rem 1.375rem;background:var(--ui-surface);border:1px solid var(--ui-line);border-radius:.75rem}
+.desktop-work-fields{display:grid;grid-template-columns:minmax(14rem,1fr) minmax(16rem,1.6fr);gap:1.25rem}
+.desktop-work-form label{display:block;font-size:.8125rem;font-weight:500;margin-bottom:.5rem}
+.desktop-work-form input,.desktop-work-form select{width:100%;padding:.5rem .625rem}
+.desktop-work-form .desktop-optional,.desktop-work-fields p{color:var(--ui-muted);font-weight:400;font-size:.75rem}
+.desktop-work-fields p{margin:.375rem 0 0}
+.desktop-work-options{margin-top:1rem;border-top:1px solid var(--ui-line);padding-top:.75rem}
+.desktop-work-options>summary{display:flex;align-items:center;justify-content:space-between;cursor:pointer;font-size:.8125rem;list-style:none;padding:.25rem 0}
+.desktop-work-options>summary::-webkit-details-marker{display:none}
+.desktop-work-options[open]>summary>svg{transform:rotate(90deg)}
+.desktop-work-option-fields{display:grid;grid-template-columns:minmax(15rem,1.5fr) minmax(9rem,.8fr) minmax(10rem,1fr);gap:1rem;align-items:end;padding-top:1rem}
+.desktop-work-date{display:flex;gap:.5rem;align-items:center;flex-wrap:wrap}
+.desktop-work-date input{flex:1 1 11rem;min-width:0}
+#workStudyLanguageOptions>div{margin:0;flex-wrap:wrap}
+.desktop-number-stepper{display:inline-flex;align-items:stretch;flex-shrink:0}
+body .desktop-number-stepper>button[data-button-role]{width:2rem;min-width:2rem;min-height:2.375rem;margin:0;border-radius:0!important;padding:.375rem;transform:none!important}
+body .desktop-number-stepper>button:first-child{border-radius:.375rem 0 0 .375rem!important}
+body .desktop-number-stepper>button:last-child{border-radius:0 .375rem .375rem 0!important}
+body .desktop-number-stepper>input{width:3rem;min-width:3rem;min-height:2.375rem;border-radius:0!important;border-inline:0!important;padding:.25rem!important;font-variant-numeric:tabular-nums;text-align:center;-moz-appearance:textfield}
+.desktop-number-stepper input::-webkit-inner-spin-button,.desktop-number-stepper input::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}
+@media(max-width:900px){.desktop-work-fields,.desktop-work-option-fields{grid-template-columns:1fr}.desktop-work-form{padding:1rem}}

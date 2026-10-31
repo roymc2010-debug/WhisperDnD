@@ -748,7 +748,8 @@ async function stopSessionAndProcess() {
           const dateEl = document.getElementById("workStudyDateInput");
           const customDate = (dateEl && dateEl.value.trim()) ? dateEl.value.trim() : (typeof getLocalFormattedDateTime === "function" ? getLocalFormattedDateTime() : "");
           formData.append("recording_mode", "class");
-          formData.append("subject", subject);
+          formData.append("document_format", getWorkStudyDocumentFormat());
+    formData.append("subject", subject);
           formData.append("topic", topic);
           if (customDate) formData.append("custom_date", customDate);
           formData.append("client_timezone_offset", String(new Date().getTimezoneOffset()));
@@ -835,6 +836,7 @@ async function stopSessionAndProcess() {
     bodyPayload = {
       task_id: taskId,
       recording_mode: "class",
+      document_format: getWorkStudyDocumentFormat(),
       subject: subject,
       topic: topic,
       custom_date: customDate || null,
@@ -847,7 +849,7 @@ async function stopSessionAndProcess() {
     if (typeof startProgressTracking === "function") {
       startProgressTracking(
         taskId,
-        "Deteniendo grabación y sintetizando apuntes...",
+        "Deteniendo grabación y generando el documento...",
         `Transcribiendo con ${engineName} y generando el documento con Gemini para "${topic}".`
       );
     }

@@ -83,3 +83,29 @@ No se modifica lógica Python o JavaScript. Los cambios quedan limitados al HTML
 - Ajustes mantiene ocultas sincronización y desconexión de Drive cuando no hay una conexión. No se introdujeron llaves ni se inició una grabación o petición de procesamiento.
 - Sin errores de consola registrados durante las comprobaciones. Capturas en outputs/ui-controls del directorio de trabajo del chat, fuera del repositorio. La pestaña temporal se cerró y se restableció el tamaño del navegador. No se inició ningún servidor adicional.
 - Backend: se intentó ejecutar pytest con el venv de WhisperDnD-Lab, pero su Python base ya no está disponible en C:/Users/HP/AppData/Local/Programs/Python/Python311/python.exe. No se llegó a ejecutar la suite; esto no cambia el registro anterior de fallos pendientes.
+
+## Simplificación y controles −/+ — 31 de octubre de 2026
+
+- Frontend: 15 pruebas aprobadas; sintaxis de todos los módulos JS y CSS comprobada.
+- Formatos y generación/exportación: 44 pruebas aprobadas en test_document_formats.py, test_gemini_client.py y test_docx_exporter.py. Incluyen 11 casos nuevos: seis flujos de procesamiento, validación del formato, prompt de reunión, extracción de acuerdos y tareas, biblioteca de resúmenes breves y Word.
+- Suite completa: 252 aprobadas, 11 fallidas, 41 subtests aprobados. Los 11 fallos coinciden con la línea de base, antes de implementar este cambio. Los errores temporales de pytest se resolvieron usando un basetemp nuevo dentro del workspace.
+- Compilación: scripts/build-frontend.cjs completado con Tailwind 3.4.19, usando la dependencia ya instalada en la copia design-current; 67 recursos locales. Se mantiene un aviso de Browserslist desactualizado.
+- Python 3.11.9 sí está instalado. La restricción de acceso del entorno de ejecución causaba el fallo de la comprobación anterior; las pruebas se ejecutaron con acceso al intérprete existente y PYTHON_DOTENV_DISABLED=1. No se instalaron dependencias.
+- Vista aislada en 127.0.0.1:64702, desde el directorio exacto de esta rama. El puerto 8081 estaba sirviendo otra copia anterior. Se verificó el selector único, conservación de título al cambiar formato, Más opciones cerrado/abierto y traslado del idioma entre los modos.
+- D&D: botones comprobados con la campaña Candlekeep 2.0 de la copia de prueba; en Archivo cambian 4→5→4. Al preparar Regrabar avanzan entre sesiones guardadas y no superan la última; Cancelar reemplazo vuelve a la sesión siguiente. No se procesó audio ni se reemplazó ningún archivo.
+- Capturas en outputs/simplified-ingest del directorio del chat. No hubo errores de consola originados por el puerto aislado; apareció un error anterior de fetch del puerto 8081 en el historial de la pestaña.
+- La pestaña temporal y el servidor de prueba se cerraron. El servidor informó Application shutdown complete y Finished server process. El servidor ajeno del puerto 8081 no se detuvo.
+
+### Fallos previos que permanecen
+
+- tests/test_api.py::TestAPIEndpoints::test_upload_with_telemetry_class_mode
+- tests/test_api.py::TestAPIEndpoints::test_upload_with_telemetry_missing_audio
+- tests/test_api.py::TestAPIEndpoints::test_upload_with_telemetry_roleplay_success
+- tests/test_campaign_api.py::TestCampaignApi::test_deduplicate_campaign_endpoint
+- tests/test_campaign_manager.py::TestCampaignManager::test_multi_session_continuity_and_merging
+- tests/test_campaign_manager.py::TestCampaignManager::test_record_session_with_existing_universal_pc_player_matching_no_name_error
+- tests/test_campaign_manager.py::TestCampaignManager::test_retroactive_deduplicate_campaign_entities_octus
+- tests/test_groq_whisper.py::TestGroqWhisperTranscriber::test_chunk_percentage_calibration
+- tests/test_groq_whisper.py::TestGroqWhisperTranscriber::test_transcribe_chunked_survives_failed_chunk
+- tests/test_groq_whisper.py::TestTranscriptionPipeline::test_slice_audio_for_groq_ffmpeg_call
+- tests/test_youtube_downloader.py::TestYouTubeDownloader::test_download_youtube_audio_progress_hook

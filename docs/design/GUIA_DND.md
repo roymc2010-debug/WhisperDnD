@@ -62,3 +62,7 @@ Puntos Clave y Glosario pertenece a Work & Study y permanece oculto en D&D. Resu
 | El estilo base podía hacer visibles acciones con clase hidden | Regla explícita para conservar acciones ocultas | Mantener los flujos condicionales de Drive y otros controles |
 
 Los logos de clase y sus colores no se sustituyen por este sistema de iconos. No se reintroducen contornos, relieves ni fondos. Los textos y archivos personales no se recorren ni se reescriben para retirar emojis. Los lectores conservan el contenido que proporcionan los datos.
+
+## Número de sesión con −/+
+
+Los botones se habilitan donde se permite editar el número. En vivo se calcula automáticamente la siguiente sesión; durante la grabación quedan bloqueados. En Archivo y YouTube se puede ajustar desde 1. Al preparar Regrabar, −/+ recorren las sesiones guardadas y se detienen en sus extremos. Cambiar de número no reemplaza documentos hasta procesar el audio.

@@ -7,7 +7,7 @@ import re
 import time
 import traceback
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Annotated, Any, Dict, List, Optional, Tuple, Union
 
 from fastapi import APIRouter, File, HTTPException, Query, UploadFile, Request
 from fastapi.responses import FileResponse
@@ -15,6 +15,7 @@ from pydantic import BaseModel, Field, ConfigDict
 from starlette.concurrency import run_in_threadpool
 
 from src.api import server
+from src.summarizer.document_formats import DocumentFormat
 
 router = APIRouter(tags=["audio"])
 
@@ -43,6 +44,7 @@ class StopAndProcessRequest(BaseModel):
     recording_mode: str = Field(default="roleplay", description="Recording mode ('roleplay' or 'class')")
     subject: Optional[str] = Field(default="", description="Materia / Asignatura for university lecture")
     topic: Optional[str] = Field(default="", description="Tema de la clase for university lecture")
+    document_format: DocumentFormat = "academic"
     target_language: str = Field(default="es", description="Target language ('es' or 'en')")
     audio_language: Optional[str] = Field(default=None, description="Explicit audio language or None for auto-detection")
     custom_date: Optional[str] = Field(default=None, description="Client local date string (e.g. DD/MM/YYYY HH:MM)")
@@ -301,8 +303,8 @@ async def stop_and_process(payload: StopAndProcessRequest, request: Request = No
     # 3. Check Mode: In-Person University Lecture vs D&D Roleplay
     is_class_mode = (payload.recording_mode == "class") or (getattr(server.active_recorder, "mode", "roleplay") == "class")
     if is_class_mode:
-        server.update_task_progress(task_id, 55.0, "Extrayendo conceptos clave y glosario con Gemini...", "Analizando transcripción...", stage="analyzing")
-        server.update_task_progress(task_id, 65.0, "Redactando guía académica y apuntes con Gemini...", "Sintetizando conceptos teóricos y fórmulas...", stage="analyzing")
+        server.update_task_progress(task_id, 55.0, "Analizando el contenido con Gemini...", "Analizando transcripción...", stage="analyzing")
+        server.update_task_progress(task_id, 65.0, "Redactando el documento con Gemini...", "Organizando la información...", stage="analyzing")
         subj = (payload.subject or "").strip() or "Materia Universitaria"
         top = (payload.topic or "").strip() or "Tema de Clase"
         now_str, now_formatted, _ = server.parse_client_datetime(
@@ -319,20 +321,21 @@ async def stop_and_process(payload: StopAndProcessRequest, request: Request = No
                 topic=top,
                 date_str=now_formatted,
                 target_language=payload.target_language,
+                document_format=payload.document_format,
             )
             server.update_task_progress(task_id, 87.0, "Extrayendo tareas, entregables y puntos clave...", "Organizando resumen ejecutivo...", stage="analyzing")
         except Exception as exc:
             chronicle_md = (
-                f"# ⚠️ Error generando guía académica con Gemini:\n\n> {exc}\n\n"
+                f"# ⚠️ Error generando el documento con Gemini:\n\n> {exc}\n\n"
                 f"**Transcripción obtenida:**\n\n{transcript_text}"
             )
 
         server.update_task_progress(task_id, 95.0, "Compilando documentos Word (.docx) y Markdown (.md)...", "Creando archivos de apuntes...", stage="analyzing")
         clean_subj = re.sub(r'[\\/*?:"<>|]', "", subj.strip()) or "Materia"
         safe_subj = re.sub(r"\s+", "_", clean_subj)
-        docx_filename = f"apuntes_{safe_subj}_{now_str}.docx"
-        md_filename = f"apuntes_{safe_subj}_{now_str}.md"
-        txt_filename = f"apuntes_{safe_subj}_{now_str}_transcripcion.txt"
+        docx_filename = f"apuntes_{'reunion_' if payload.document_format == 'executive' else ''}{safe_subj}_{now_str}.docx"
+        md_filename = f"apuntes_{'reunion_' if payload.document_format == 'executive' else ''}{safe_subj}_{now_str}.md"
+        txt_filename = f"apuntes_{'reunion_' if payload.document_format == 'executive' else ''}{safe_subj}_{now_str}_transcripcion.txt"
         docx_out_path = server.get_data_output_dir() / docx_filename
         md_out_path = server.get_data_output_dir() / md_filename
         txt_out_path = server.get_data_output_dir() / txt_filename
@@ -359,7 +362,7 @@ async def stop_and_process(payload: StopAndProcessRequest, request: Request = No
         if files_to_sync:
             server.trigger_drive_sync_background(files_to_sync)
 
-        server.update_task_progress(task_id, 100.0, "¡Completado!", "Guía de estudio generada exitosamente.", stage="done")
+        server.update_task_progress(task_id, 100.0, "¡Completado!", "Documento generado correctamente.", stage="done")
         elapsed_time = round(time.time() - start_time, 2)
         language_code = transcription_result.get("language_code") or (
             transcription_result["language"]["code"]
@@ -367,10 +370,11 @@ async def stop_and_process(payload: StopAndProcessRequest, request: Request = No
             else str(transcription_result.get("language", ""))
         )
 
-        action_items, key_points = server.extract_academic_sections(chronicle_md)
+        action_items, key_points = server.extract_academic_sections(chronicle_md, document_format=payload.document_format)
         return {
             "status": "completed",
             "recording_mode": "class",
+            "document_format": payload.document_format,
             "subject": subj,
             "topic": top,
             "engine_used": transcription_result.get("engine_used", engine),
@@ -578,6 +582,7 @@ async def download_docx(filename: str = Query(..., description="Name of the docx
                     subj = clean_subj.replace("_", " ").strip() or "Materia Universitaria"
                     server.export_academic_notes_docx(
                         notes_md=md_content,
+                        document_format="executive" if safe_filename.startswith("apuntes_reunion_") else "academic",
                         subject=subj,
                         topic="Apuntes de Clase",
                         output_path=str(file_path),
