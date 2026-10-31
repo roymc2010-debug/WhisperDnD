@@ -74,3 +74,7 @@ La revisión del 30 de octubre conserva Inter y la escala general existente. Los
 Los emojis decorativos del frontend se sustituyen por SVG locales de ui-icons.js. Los estados escritos siguen describiendo su significado; los botones de solo icono reciben nombres accesibles. No se recorren datos personales para eliminar símbolos, y los lectores siguen mostrando su contenido. Las expresiones que reconocen documentos y avisos antiguos conservan compatibilidad con emojis antiguos. Los SVG de clase y sus colores permanecen iguales.
 
 La guía funcional está en [GUIA_DND.md](GUIA_DND.md). La verificación comprueba también que las acciones con clase hidden no aparezcan por el estilo común de botón.
+
+## Terminología de Work & Study
+
+El formato para reuniones se presenta como **Resumen de reunión**, con la descripción **Acuerdos, decisiones y tareas**. En la biblioteca se usa **Resúmenes de reunión**. Las acciones comunes a ambos formatos hablan de **documento** o de **resumen y apuntes**. Los identificadores internos academic/executive y la lectura de documentos antiguos se conservan para compatibilidad. La conexión del enfoque con el procesamiento sigue pendiente; esta revisión cambia las etiquetas de interfaz.

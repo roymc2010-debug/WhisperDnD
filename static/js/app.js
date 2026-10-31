@@ -440,7 +440,7 @@ function setWorkspace(workspace) {
     if (btnSwitchLanguage) btnSwitchLanguage.classList.remove("hidden");
     if (btnReprocessCampaignText) btnReprocessCampaignText.textContent = "Regenerar Crónica (Gemini)";
   } else {
-    if (btnDownloadDocxText) btnDownloadDocxText.textContent = "Briefing .docx";
+    if (btnDownloadDocxText) btnDownloadDocxText.textContent = "Documento .docx";
     if (btnDownloadMd) btnDownloadMd.classList.remove("hidden");
     if (btnSwitchLanguage) btnSwitchLanguage.classList.add("hidden");
     if (btnReprocessCampaignText) btnReprocessCampaignText.textContent = "Regenerar Apuntes (Gemini)";
@@ -1720,7 +1720,7 @@ function displayResults(data, options = {}) {
   syncResultTabsForWorkspace(isClassMode ? "class" : "roleplay");
 
   if (isClassMode) {
-    if (docxText) docxText.textContent = "Briefing .docx";
+    if (docxText) docxText.textContent = "Documento .docx";
     if (mdText) mdText.textContent = "Notas .md";
 
     if (data.docx_filename && btnDocx) {
@@ -2015,7 +2015,7 @@ function syncResultTabsForWorkspace(mode = null) {
 
   if (isWork) {
     if (btnChronicle) { btnChronicle.classList.remove("hidden"); btnChronicle.style.display = ""; }
-    if (txtChronicle) txtChronicle.textContent = "Executive Briefing / Apuntes";
+    if (txtChronicle) txtChronicle.textContent = "Resumen y apuntes";
     if (iconChronicle) WhisperIcons.set(iconChronicle, "file");
 
     if (btnKeyPoints) { btnKeyPoints.classList.remove("hidden"); btnKeyPoints.style.display = ""; }
@@ -2746,7 +2746,7 @@ async function uploadCampaignToDrive() {
   const fileNameEl = document.getElementById("driveUploadedFileName");
 
   if (btn) btn.disabled = true;
-  if (btnText) btnText.textContent = isWorkStudy ? "Subiendo Briefing..." : "Subiendo Grimorio...";
+  if (btnText) btnText.textContent = isWorkStudy ? "Subiendo documento..." : "Subiendo Grimorio...";
   if (banner) banner.classList.add("hidden");
 
   try {
@@ -2768,7 +2768,7 @@ async function uploadCampaignToDrive() {
     if (fileNameEl) fileNameEl.textContent = data.file_name;
     if (link) link.href = data.web_view_link;
     if (banner) banner.classList.remove("hidden");
-    if (btnText) btnText.textContent = isWorkStudy ? "Briefing en Drive" : "Grimorio en Drive";
+    if (btnText) btnText.textContent = isWorkStudy ? "Documento en Drive" : "Grimorio en Drive";
     setTimeout(() => {
       if (btnText) btnText.textContent = "Subir a Drive";
       if (btn) btn.disabled = false;
@@ -3218,7 +3218,7 @@ function setWorkStudySubMode(mode) {
       btnAcademic.className = "min-h-[34px] px-3 py-1 rounded-lg font-medium transition-all duration-150 flex items-center gap-1.5 text-slate-400 hover:text-slate-200 border border-transparent cursor-pointer active:scale-[0.98]";
     }
     if (modeDesc) {
-      modeDesc.innerHTML = `<span class="text-indigo-400"><span data-ui-icon=briefcase aria-hidden=true></span></span> <span>Gemini generará: <strong>Minuta ejecutiva, matriz de compromisos y acuerdos clave</strong>.</span>`;
+      modeDesc.innerHTML = `<span class="text-indigo-400"><span data-ui-icon=briefcase aria-hidden=true></span></span> <span>Acuerdos, decisiones y tareas.</span>`;
     }
     if (labelTopic) labelTopic.textContent = "Nombre de la Reunión / Sprint:";
     if (labelSession) labelSession.textContent = "Sesión / Sprint #:";

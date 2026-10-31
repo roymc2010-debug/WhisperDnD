@@ -848,7 +848,7 @@ async function stopSessionAndProcess() {
       startProgressTracking(
         taskId,
         "Deteniendo grabación y sintetizando apuntes...",
-        `Transcribiendo con ${engineName} y generando Síntesis Ejecutiva con Gemini para "${topic}".`
+        `Transcribiendo con ${engineName} y generando el documento con Gemini para "${topic}".`
       );
     }
   } else {

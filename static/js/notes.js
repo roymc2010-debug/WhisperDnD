@@ -106,7 +106,7 @@ function renderAcademicNotesList(notes) {
     const excerpt = note.excerpt || "Sin extracto.";
     const readMinutes = Math.max(1, Math.ceil(wordCount / 200));
     const isExecutive = (title.toLowerCase().includes("reunión") || title.toLowerCase().includes("reunion") || title.toLowerCase().includes("sprint") || title.toLowerCase().includes("minuta") || (note.filename && note.filename.toLowerCase().includes("meeting")));
-    const badgeType = isExecutive ? `<span class="px-1.5 py-0.5 rounded text-[10px] font-medium bg-indigo-500/15 text-indigo-300 border border-indigo-500/25"><span data-ui-icon=briefcase aria-hidden=true></span> Minuta</span>` : `<span class="px-1.5 py-0.5 rounded text-[10px] font-medium bg-sky-500/15 text-sky-300 border border-sky-500/25"><span data-ui-icon=graduation aria-hidden=true></span> Académica</span>`;
+    const badgeType = isExecutive ? `<span class="px-1.5 py-0.5 rounded text-[10px] font-medium bg-indigo-500/15 text-indigo-300 border border-indigo-500/25"><span data-ui-icon=briefcase aria-hidden=true></span> Resumen de reunión</span>` : `<span class="px-1.5 py-0.5 rounded text-[10px] font-medium bg-sky-500/15 text-sky-300 border border-sky-500/25"><span data-ui-icon=graduation aria-hidden=true></span> Académica</span>`;
 
     card.innerHTML = `
       <div class="min-w-0 flex-1">

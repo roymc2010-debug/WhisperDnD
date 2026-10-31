@@ -457,7 +457,7 @@ async function uploadCampaignToDrive() {
   const fileNameEl = document.getElementById("driveUploadedFileName");
 
   if (btn) btn.disabled = true;
-  if (btnText) btnText.textContent = isWorkStudy ? "Subiendo Briefing..." : "Subiendo Grimorio...";
+  if (btnText) btnText.textContent = isWorkStudy ? "Subiendo documento..." : "Subiendo Grimorio...";
   if (banner) banner.classList.add("hidden");
 
   try {
@@ -479,7 +479,7 @@ async function uploadCampaignToDrive() {
     if (fileNameEl) fileNameEl.textContent = data.file_name;
     if (link) link.href = data.web_view_link;
     if (banner) banner.classList.remove("hidden");
-    if (btnText) btnText.textContent = isWorkStudy ? "Briefing en Drive" : "Grimorio en Drive";
+    if (btnText) btnText.textContent = isWorkStudy ? "Documento en Drive" : "Grimorio en Drive";
     setTimeout(() => {
       if (btnText) btnText.textContent = "Subir a Drive";
       if (btn) btn.disabled = false;
