@@ -61,3 +61,13 @@ Verificado con la app real y la campaña ficticia aislada a 1919×897: raíz de 
 A 1280×720 se conserva la raíz de 16px y Work & Study no muestra la party ni desborda horizontalmente. A 390×844, el contenido principal tiene 380px visibles y 380px de ancho total; solo la tabla conserva su desplazamiento interno de 810px. Las seis paletas no cambiaron.
 
 La modificación es de CSS y la referencia de caché del stylesheet. No se modificó lógica Python o JavaScript. La suite de frontend se vuelve a ejecutar; los resultados generales de backend anteriores siguen documentados arriba.
+
+## Escala intermedia y corrección de solapamientos
+
+La expansión anterior de 20px fue reemplazada por 18px desde 1600px y 16px en ventanas menores, con contenido máximo independiente de 1480px. La Wiki separa título, campaña y exportaciones en filas; el selector de sesión acepta títulos largos sin imponer su ancho intrínseco. Los filtros pasan a dos columnas y el explorador se apila bajo 1100px. Apuntes recibe cabecera y columnas adaptables.
+
+Se reprodujo el fallo a 1536×720: el título de Wiki se comprimía a unos 101px, existía desbordamiento horizontal y algunos filtros tenían 108px visibles para 143px de contenido. En la comprobación tras el ajuste, el título ocupó unos 568px en una línea, el contenido principal midió 1308px tanto visible como total y los seis filtros tuvieron 163px visibles y 163px de contenido.
+
+También se recorrieron Sesión, Audio, Personaje, Proceso, Resultado, Apariencia y Ajustes a 1536px sin desbordamiento del contenido principal. Se inspeccionaron visualmente Wiki y Apuntes a 390×844, y Wiki a 1919×898. Tras agrupar el botón de recarga junto a la campaña, la conexión del navegador de prueba falló durante la última confirmación: esa comprobación final no pudo completarse. Las verificaciones de código comprueban CSS válido, paletas conservadas, IDs originales presentes y ninguna duplicación; las nueve pruebas de frontend pasan.
+
+No se modifica lógica Python o JavaScript. Los cambios quedan limitados al HTML de distribución, CSS y esta documentación.

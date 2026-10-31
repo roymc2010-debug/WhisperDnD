@@ -52,15 +52,17 @@ Los recursos de interfaz se sirven localmente: Tailwind compilado, Inter, Marked
 
 Consulta VERIFICACION.md para resultados y límites de la prueba.
 
-## Proporciones de la referencia de escritorio
+## Escala y distribución equilibradas
 
-La captura aportada por el usuario establece una escala de lectura mayor y un contenido más ancho. En pantallas de al menos 1440px se usa una raíz de 20px; por debajo se conserva 16px. Las medidas de componentes se expresan en rem para que texto, controles, iconos y espacio crezcan juntos. Los breakpoints permanecen en px.
+La escala anterior de 20px se moderó: raíz de 18px desde 1600px de ancho y 16px por debajo. El contenido conserva un máximo independiente de 1480px, para aprovechar la pantalla sin ampliar todos los controles al mismo tiempo. Las medidas de componentes continúan en rem y los breakpoints en px.
 
-| Antes | Después en escritorio amplio | Motivo |
+| Antes | Después | Motivo |
 | --- | --- | --- |
-| Barra lateral de 218px | 272,5px | Igualar la proporción de la referencia |
-| Contenido máximo de 1180px | 1475px | Aprovechar el ancho y acercar la pantalla de sesión al menú |
-| Título de 27px | 33,75px | Recuperar la jerarquía y legibilidad de la captura |
-| Controles e iconos con medidas rígidas mezcladas | Escala común en rem | Mantener alineación de campos, botones y multiclases |
+| Raíz de 20px desde 1440px | 18px desde 1600px; 16px en ventanas menores | Escala intermedia con margen para ventanas ampliadas |
+| Ancho máximo ligado a la escala tipográfica | Máximo de 1480px independiente | Conservar el contenido amplio sin agrandar los controles |
+| Título de Wiki junto a todos los selectores y exportaciones | Título, campaña y exportaciones en filas propias | Impedir que el título quede comprimido en una columna estrecha |
+| Sesión con ancho intrínseco según su título | Selector flexible con ancho mínimo cero | Admitir títulos largos sin desbordar ni perder el valor completo |
+| Seis filtros en tres columnas estrechas | Dos columnas con espacio para icono, nombre y contador | Impedir solapamientos |
+| Columnas de lectura con anchos rígidos | Columnas acotadas y apiladas por debajo de 1100px | Mantener legibilidad de Wiki y Apuntes |
 
-La ampliación es del diseño, sin modificar el zoom del navegador ni transformar el documento. Los colores, el orden de los controles y los handlers permanecen iguales.
+El botón de recarga queda junto al selector de campaña. En ventanas estrechas los controles de sesión pasan a varias filas. Los seis filtros y todas las exportaciones permanecen accesibles. Los colores, datos y handlers no cambian.
