@@ -56,3 +56,22 @@ test('compact quota distinguishes low capacity and exhausted capacity with text'
   assert.equal(nodes.get('quotaPercentDisplay').textContent,'0%');
   assert.equal(nodes.get('apiQuotaContainer').dataset.state,'critical');
 });
+
+test('API setup warning belongs to Settings and does not require optional Drive', () => {
+  const nodes = new Map();
+  const document = {getElementById(id) {
+    if (id==='apiOnboardingBanner') return null;
+    if (!nodes.has(id)) nodes.set(id,{hidden:false,textContent:'',innerHTML:'',dataset:{},setAttribute(k,v){this[k]=v;}});
+    return nodes.get(id);
+  }};
+  document.getElementById('settingsApiWarning');
+  const context = vm.createContext({window:{},document,localStorage:{getItem(){return null;}}});
+  vm.runInContext(fs.readFileSync(require.resolve('../../static/js/api.js'),'utf8'),context);
+  context.updateSystemStatusIndicator();
+  assert.equal(nodes.get('settingsApiWarning').hidden,false);
+  assert.match(nodes.get('btnSettingsSidebar').title,/Groq.*Gemini/);
+  assert.equal(nodes.get('systemStatusContainer').innerHTML,'');
+  vm.runInContext('serverHasGroq=true; serverHasGemini=true; isGoogleDriveConnected=false;',context);
+  context.updateSystemStatusIndicator();
+  assert.equal(nodes.get('settingsApiWarning').hidden,true);
+});

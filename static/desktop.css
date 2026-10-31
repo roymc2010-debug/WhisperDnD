@@ -320,21 +320,43 @@ body .desktop-number-stepper>input{width:3rem;min-width:3rem;min-height:2.375rem
 #roster-table .roster-character-identity{min-width:0}
 #roster-table .roster-character-identity .character-name{flex:0 1 auto;min-width:3ch;max-width:100%;box-sizing:content-box;field-sizing:content}
 
-/* Quota is a quiet disclosure; detailed figures stay out of the main navigation. */
-#apiQuotaContainer{--quota-color:var(--ui-muted);margin:0!important;padding:0!important;border:1px solid var(--ui-line)!important;background:transparent!important;font-size:.6875rem}
+/* Recording services sit beside the campaign, with an always-visible quota bar. */
+#campaignHeaderCard>.desktop-campaign-overview{display:grid!important;grid-template-columns:minmax(0,1fr) minmax(15rem,18rem);column-gap:2rem;row-gap:1.25rem;align-items:start}
+#campaignHeaderCard .desktop-campaign-intro{grid-column:1;min-width:0;width:auto!important}
+#campaignHeaderCard .desktop-campaign-controls{grid-column:1;display:flex;flex-wrap:wrap;width:100%;gap:.75rem;align-items:center}
+#desktopServiceStatus{grid-column:2;grid-row:1 / span 2;display:flex;flex-direction:column;align-items:stretch;gap:.75rem;min-width:0;align-self:center}
+#desktopServiceStatus #campaignDriveSyncIndicator{margin:0;align-self:flex-end;font-size:.6875rem;padding:.375rem .5rem;max-width:100%;white-space:normal}
+#apiQuotaContainer{--quota-color:var(--ui-accent);margin:0!important;padding:0!important;border:0!important;background:transparent!important;border-radius:0;font-size:.75rem;min-width:0}
+#apiQuotaContainer[data-state="unknown"]{--quota-color:var(--ui-muted)}
 #apiQuotaContainer[data-state="low"]{--quota-color:var(--ui-review)}
 #apiQuotaContainer[data-state="critical"]{--quota-color:var(--ui-danger)}
-#apiQuotaContainer>summary{display:flex;align-items:center;gap:.5rem;min-height:2.5rem;padding:.5rem .625rem;cursor:pointer;list-style:none;border-radius:.4375rem;color:var(--ui-muted)}
-#apiQuotaContainer>summary::-webkit-details-marker{display:none}
-#apiQuotaContainer>summary:hover{background:var(--ui-raised)}
-#apiQuotaContainer .quota-label{display:inline-flex;align-items:center;gap:.4375rem;flex:1;min-width:0}
+#apiQuotaContainer .quota-heading{display:flex;justify-content:space-between;align-items:center;gap:1rem}
+#apiQuotaContainer .quota-label{display:inline-flex;align-items:center;gap:.375rem;font-weight:600;color:var(--ui-text);flex-wrap:wrap}
 #quotaStatusDot{display:inline-block;width:.375rem!important;height:.375rem!important;border-radius:50%;flex:none;background:var(--quota-color)!important;animation:none!important}
-#quotaPercentDisplay{color:var(--quota-color)!important;font:inherit!important;font-weight:600!important;white-space:nowrap;font-variant-numeric:tabular-nums}
-#apiQuotaContainer .quota-chevron{width:.875rem;height:.875rem;flex:none}
-#apiQuotaContainer[open] .quota-chevron{transform:rotate(180deg)}
-#apiQuotaContainer .quota-details{padding:.25rem .625rem .625rem;border-top:1px solid var(--ui-line);color:var(--ui-muted);line-height:1.5}
-#apiQuotaContainer .quota-details p{margin:.375rem 0}
-#apiQuotaContainer .quota-track{height:.1875rem;background:var(--ui-line);overflow:hidden;border-radius:1rem;margin:.5rem 0}
+#apiQuotaContainer .quota-estimate{font-size:.625rem;font-weight:400;color:var(--ui-muted)}
+#apiQuotaContainer .quota-percent{display:flex;align-items:baseline;justify-content:flex-end;gap:.375rem;flex-wrap:wrap}
+#quotaPercentDisplay{color:var(--ui-text)!important;font-family:Inter,system-ui,sans-serif!important;font-size:1.25rem!important;font-weight:600!important;line-height:1.2;font-variant-numeric:tabular-nums;white-space:nowrap}
+#apiQuotaContainer .quota-available{font-size:.625rem;color:var(--ui-muted)}
+#apiQuotaContainer[data-state="unknown"] .quota-available{display:none}
+#apiQuotaContainer .quota-track{height:.375rem;background:var(--ui-line);overflow:hidden;border-radius:1rem;margin:.625rem 0 .5rem}
 #quotaProgressBar{height:100%;background:var(--quota-color)!important;transition:width 150ms}
-#apiQuotaContainer .quota-values{display:flex;flex-wrap:wrap;justify-content:space-between;gap:.25rem .5rem;font-variant-numeric:tabular-nums}
+#apiQuotaContainer .quota-values{display:flex;flex-wrap:wrap;justify-content:space-between;gap:.25rem .5rem;font-size:.6875rem;color:var(--ui-muted);font-variant-numeric:tabular-nums}
 #quotaStatusSummary{color:var(--quota-color)!important;font-size:inherit}
+#apiQuotaContainer .quota-footnote{margin:.375rem 0 0;font-size:.625rem;color:var(--ui-muted)}
+.settings-api-warning{display:inline-flex;align-items:center;justify-content:center;color:var(--ui-review)!important;flex-shrink:0}
+.settings-api-warning svg{width:1rem;height:1rem}
+#btnSettingsSidebar[data-needs-setup="true"]{color:var(--ui-review)!important}
+#btnMobileSettings{position:relative}
+#mobileSettingsApiWarning{position:absolute;right:-.25rem;top:-.25rem;background:var(--ui-surface);border-radius:.25rem;padding:.125rem}
+#desktopWorkServiceSlot{display:flex;justify-content:flex-end;margin-bottom:1.25rem}
+#desktopWorkServiceSlot #desktopServiceStatus{width:18rem}
+@media(max-width:1100px){#campaignHeaderCard>.desktop-campaign-overview{grid-template-columns:minmax(0,1fr)}#desktopServiceStatus{grid-column:1;grid-row:auto;width:min(100%,22rem);justify-self:end}}
+@media(max-width:600px){#desktopServiceStatus,#desktopWorkServiceSlot #desktopServiceStatus{width:100%}#campaignHeaderCard>.desktop-campaign-overview{row-gap:1rem}#desktopServiceStatus #campaignDriveSyncIndicator{align-self:flex-start}}
+
+@media(min-width:1101px) and (max-width:1450px){#campaignHeaderCard #campaignNameInput{width:12rem}#campaignHeaderCard .desktop-campaign-controls{gap:.625rem}}
+
+#mobileQuotaIndicator{display:none!important}
+.desktop-page-heading.desktop-work-heading{display:grid;grid-template-columns:minmax(0,1fr) 18rem;column-gap:2rem;align-items:start}
+.desktop-work-heading>h2,.desktop-work-heading>p{grid-column:1}
+.desktop-work-heading #desktopWorkServiceSlot{grid-column:2;grid-row:1 / span 2;margin:0}
+@media(max-width:767px){.desktop-page-heading.desktop-work-heading{grid-template-columns:minmax(0,1fr)}.desktop-work-heading #desktopWorkServiceSlot{grid-column:1;grid-row:auto;margin-top:1rem}}

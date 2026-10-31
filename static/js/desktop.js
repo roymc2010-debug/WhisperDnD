@@ -19,6 +19,9 @@
  const heading=document.createElement('div');heading.className='desktop-page-heading';
  heading.innerHTML='<h2 id="desktopPageTitle">Sesión y grabación</h2><p id="desktopPageDescription">Prepara la campaña, reúne a tu party y conserva la sesión.</p>';
  $('viewIngest').prepend(heading);
+ const workServiceSlot=document.createElement('div');workServiceSlot.id='desktopWorkServiceSlot';workServiceSlot.hidden=true;heading.after(workServiceSlot);
+ const serviceStatus=$('desktopServiceStatus'), serviceHome=$('campaignHeaderCard')?.firstElementChild;
+ if(serviceHome&&serviceStatus){serviceHome.classList.add('desktop-campaign-overview');serviceHome.children[0].classList.add('desktop-campaign-intro');serviceHome.children[1].classList.add('desktop-campaign-controls');serviceHome.append(serviceStatus);}
  const audio=section('viewAudio','Audio y dispositivos','Elige tus canales y calibra los niveles antes de grabar.');
  const audioDetails=$('audioDeviceSection');
  if(audioDetails){audio.append(audioDetails);audioDetails.open=true;}
@@ -146,6 +149,11 @@
  }
  window.syncDesktopNavigation=()=>{
   const dnd=window.currentWorkspace!=='work_and_study',view=window.currentActiveView||'ingest';
+  workServiceSlot.hidden=dnd;
+  heading.classList.toggle("desktop-work-heading",!dnd);
+  if(!dnd&&workServiceSlot.parentElement!==heading)heading.append(workServiceSlot);
+  else if(dnd&&workServiceSlot.parentElement===heading)heading.after(workServiceSlot);
+  if(serviceStatus){const target=dnd?serviceHome:workServiceSlot;if(target&&serviceStatus.parentElement!==target)target.append(serviceStatus);}
   text($('desktopPageTitle'),dnd?'Sesión y grabación':'Grabación y apuntes');
   text($('desktopPageDescription'),dnd?'Prepara la campaña, reúne a tu party y conserva la sesión.':'Graba una clase o reunión y organiza sus ideas en apuntes.');
   text($('navBtnIngestText'),dnd?'Sesión y grabación':'Grabar');text($('navBtnWikiText'),'Wiki y campañas');text($('navBtnHistoryText'),'Apuntes');

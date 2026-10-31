@@ -92,10 +92,12 @@ Work & Study usa un selector con dos formatos: Apuntes de estudio y Resumen de r
 
 El formato se mantiene al regenerar y cambiar idioma. Los resúmenes guardados usan el prefijo apuntes_reunion_, se reconocen en la biblioteca incluso cuando son breves y se exportan con encabezados de reunión. Las sesiones de D&D siguen siendo automáticas en vivo; los botones se habilitan en Archivo/YouTube o al preparar Regrabar. En regrabación recorren solo números existentes. No se modificó ningún integrante ni documento de las campañas originales.
 
-## Cuota compacta — 31 de octubre de 2026
+## Servicios y cuota en la cabecera — 31 de octubre de 2026
 
-El indicador de Gemini es un disclosure nativo cerrado por defecto. La fila muestra proveedor y porcentaje disponible estimado; al abrir aparecen barra, tokens y estado. Se explicita que no incluye Groq. En estado normal usa tonos neutros; cuota baja y crítica usan los tokens de aviso y peligro del tema. No hay animación pulsante en escritorio.
+El bloque de cuota sale de la barra lateral y aparece en el lado derecho de Campaña activa, con Drive arriba. La barra queda siempre visible, con el porcentaje destacado, tokens restantes, estado y la aclaración de que Gemini no incluye Groq. Usa el acento del tema para disponibilidad normal y colores de aviso/peligro cuando es baja o crítica. Sin datos se conserva un estado neutral.
 
-Sin datos válidos o al fallar una consulta se eliminan la lectura y el título previos, y se muestra Sin datos en escritorio y móvil. No se presenta un 100 % inventado. Se conserva la comprobación anterior a procesar.
+La cabecera reserva columnas para preparación y servicios; en ventanas estrechas los bloques se apilan. El mismo nodo de servicios se coloca en la cabecera de Work & Study al cambiar de modo, conservando IDs y actualizaciones. No hay una cuota duplicada en la cabecera móvil.
 
-Verificación: 17 pruebas frontend, compilación local y revisión en navegador. El control cerrado mide 41,6 px de alto con raíz de 16 px; detalles accesibles mediante clic y Enter, sin desbordar la barra lateral. Vista previa con datos de muestra; no se consultaron cuotas reales de proveedores.
+Se elimina el letrero Configurar APIs. Ajustes y APIs muestra un icono de advertencia y una descripción accesible cuando faltan claves de Groq o Gemini; el mismo aviso aparece en el botón móvil. La falta de Drive no activa ese aviso, porque es opcional.
+
+Verificación: 18 pruebas frontend, compilación y sintaxis JavaScript; revisión visual a 1280, 1600 y 540 px, cambio entre D&D y Work & Study, barra sin desbordamiento y retorno del único indicador a la campaña. Vista previa con datos de muestra, sin consultas a cuotas reales ni modificaciones de campañas originales.

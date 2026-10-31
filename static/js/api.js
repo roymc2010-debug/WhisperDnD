@@ -180,20 +180,21 @@ function updateOnboardingBannerState() {
 }
 
 function updateSystemStatusIndicator() {
-  const hasGroq = !!(localStorage.getItem('user_groq_key') || serverHasGroq);
-  const hasGemini = !!(localStorage.getItem('user_gemini_key') || serverHasGemini);
-  const hasDrive = typeof isGoogleDriveConnected !== "undefined" ? !!isGoogleDriveConnected : false;
-  const isFullyReady = hasGroq && hasGemini && hasDrive;
-
+  const hasGroq = Boolean((localStorage.getItem('user_groq_key') || '').trim() || serverHasGroq);
+  const hasGemini = Boolean((localStorage.getItem('user_gemini_key') || '').trim() || serverHasGemini);
+  const missing = [!hasGroq && 'Groq', !hasGemini && 'Gemini'].filter(Boolean);
+  const needsSetup = missing.length > 0;
+  const label = needsSetup ? 'Ajustes y APIs: falta configurar ' + missing.join(' y ') : 'Ajustes y APIs';
   updateOnboardingBannerState();
-
-  const container = document.getElementById("systemStatusContainer");
-  if (!container) return;
-
-  if (isFullyReady) {
-    container.innerHTML = `<div class="px-3 py-2 text-xs text-emerald-400 font-medium">● Systems Ready</div>`;
-  } else {
-    container.innerHTML = `<button onclick="setActiveView('settings')" class="w-full text-left px-3 py-2 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-400 text-xs font-medium hover:bg-amber-500/20"><span data-ui-icon=warning aria-hidden=true></span> Configurar APIs</button>`;
+  const container = document.getElementById('systemStatusContainer');
+  if (container) { container.innerHTML = ''; container.hidden = true; }
+  for (const id of ['settingsApiWarning', 'mobileSettingsApiWarning']) {
+    const badge = document.getElementById(id);
+    if (badge) badge.hidden = !needsSetup;
+  }
+  for (const id of ['btnSettingsSidebar', 'btnMobileSettings']) {
+    const button = document.getElementById(id);
+    if (button) { button.title = label; button.setAttribute('aria-label', label); button.dataset.needsSetup = String(needsSetup); }
   }
 }
 
