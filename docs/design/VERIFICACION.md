@@ -71,3 +71,15 @@ Se reprodujo el fallo a 1536×720: el título de Wiki se comprimía a unos 101px
 También se recorrieron Sesión, Audio, Personaje, Proceso, Resultado, Apariencia y Ajustes a 1536px sin desbordamiento del contenido principal. Se inspeccionaron visualmente Wiki y Apuntes a 390×844, y Wiki a 1919×898. Tras agrupar el botón de recarga junto a la campaña, la conexión del navegador de prueba falló durante la última confirmación: esa comprobación final no pudo completarse. Las verificaciones de código comprueban CSS válido, paletas conservadas, IDs originales presentes y ninguna duplicación; las nueve pruebas de frontend pasan.
 
 No se modifica lógica Python o JavaScript. Los cambios quedan limitados al HTML de distribución, CSS y esta documentación.
+
+## Botones e iconos — 30 de octubre de 2026
+
+- Frontend: node --test tests/frontend/*.test.cjs — 11 pruebas aprobadas. Incluye las 9 existentes y regresiones para nombres de iconos no confiables y detección de audífonos mediante metadatos. Se observó primero el fallo de las nuevas pruebas y después su paso.
+- Todos los módulos JS analizados con node:vm sin errores de sintaxis; desktop.css analizado con PostCSS. git diff --check sin errores de espacios (Git informa conversión de LF a CRLF).
+- Contraste calculado para los seis temas y los colores de acción en reposo, hover y pulsado: mínimo de texto 4.57:1, mínimo de borde en reposo 3.29:1 y mínimo de acción principal 7.53:1. Estas cifras cubren los estilos de acción calculados, no una certificación de toda la aplicación.
+- Navegador local: Wiki con la campaña Candlekeep 2.0, 3 sesiones y sus entidades; tema oscuro a 1920 px y Papel y tinta a 1280 px. La cabecera no presenta desbordamiento horizontal en ninguna de esas dos comprobaciones.
+- Navegación comprobada hacia Audio, Proceso, Resultado, Mi Personaje, Apariencia y Ajustes. Work & Study no muestra party; volver a D&D carga la party de seis integrantes.
+- Selectores flotantes de clase y especie abiertos/cerrados sin cambiar las selecciones; cero emojis en sus botones y cero botones visibles sin nombre accesible. Los SVG de clase mantienen el mismo contenido que antes del cambio.
+- Ajustes mantiene ocultas sincronización y desconexión de Drive cuando no hay una conexión. No se introdujeron llaves ni se inició una grabación o petición de procesamiento.
+- Sin errores de consola registrados durante las comprobaciones. Capturas en outputs/ui-controls del directorio de trabajo del chat, fuera del repositorio. La pestaña temporal se cerró y se restableció el tamaño del navegador. No se inició ningún servidor adicional.
+- Backend: se intentó ejecutar pytest con el venv de WhisperDnD-Lab, pero su Python base ya no está disponible en C:/Users/HP/AppData/Local/Programs/Python/Python311/python.exe. No se llegó a ejecutar la suite; esto no cambia el registro anterior de fallos pendientes.

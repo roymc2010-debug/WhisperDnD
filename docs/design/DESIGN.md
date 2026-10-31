@@ -66,3 +66,11 @@ La escala anterior de 20px se moderó: raíz de 18px desde 1600px de ancho y 16p
 | Columnas de lectura con anchos rígidos | Columnas acotadas y apiladas por debajo de 1100px | Mantener legibilidad de Wiki y Apuntes |
 
 El botón de recarga queda junto al selector de campaña. En ventanas estrechas los controles de sesión pasan a varias filas. Los seis filtros y todas las exportaciones permanecen accesibles. Los colores, datos y handlers no cambian.
+
+## Botones reconocibles e iconos locales
+
+La revisión del 30 de octubre conserva Inter y la escala general existente. Los botones de acción usan texto de .875rem, superficie y borde visibles, colores por función y estados hover, pulsado, deshabilitado y foco. Las acciones neutrales también tienen aspecto de botón. Los selectores de especies/clases, la navegación y las pestañas conservan su jerarquía específica.
+
+Los emojis decorativos del frontend se sustituyen por SVG locales de ui-icons.js. Los estados escritos siguen describiendo su significado; los botones de solo icono reciben nombres accesibles. No se recorren datos personales para eliminar símbolos, y los lectores siguen mostrando su contenido. Las expresiones que reconocen documentos y avisos antiguos conservan compatibilidad con emojis antiguos. Los SVG de clase y sus colores permanecen iguales.
+
+La guía funcional está en [GUIA_DND.md](GUIA_DND.md). La verificación comprueba también que las acciones con clase hidden no aparezcan por el estilo común de botón.

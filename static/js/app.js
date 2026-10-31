@@ -472,10 +472,10 @@ function setLiveMode(mode) {
     if (campaignCard) campaignCard.classList.add("hidden");
     if (deviceSpeakerContainer) deviceSpeakerContainer.classList.add("hidden");
     if (meterSpeakerRow) meterSpeakerRow.classList.add("hidden");
-    if (startBtnText) startBtnText.textContent = "🔴 Iniciar Grabación de Clase";
+    if (startBtnText) startBtnText.textContent = "Iniciar Grabación de Clase";
     if (stopBtnText) stopBtnText.textContent = "Detener y Generar Apuntes";
     if (statusText && !document.getElementById("btnStopRecording")?.disabled) {
-      statusText.textContent = "🔴 Grabación de clase en curso (Micrófono Mono)";
+      statusText.textContent = "Grabación de clase en curso (Micrófono Mono)";
     } else if (statusText) {
       statusText.textContent = "Listo para grabar la clase universitaria";
     }
@@ -489,10 +489,10 @@ function setLiveMode(mode) {
     if (campaignCard) campaignCard.classList.remove("hidden");
     if (deviceSpeakerContainer) deviceSpeakerContainer.classList.remove("hidden");
     if (meterSpeakerRow) meterSpeakerRow.classList.remove("hidden");
-    if (startBtnText) startBtnText.textContent = "🔴 Iniciar Sesión de D&D";
+    if (startBtnText) startBtnText.textContent = "Iniciar Sesión de D&D";
     if (stopBtnText) stopBtnText.textContent = "Detener y Procesar al Grimorio";
     if (statusText && !document.getElementById("btnStopRecording")?.disabled) {
-      statusText.textContent = "🔴 Grabación en curso (Canal Izq: Mic | Canal Der: Discord)";
+      statusText.textContent = "Grabación en curso (Canal Izq: Mic | Canal Der: Discord)";
     } else if (statusText) {
       const campVal = (document.getElementById("campaignNameInput")?.value || "").trim();
       statusText.textContent = campVal ? "Listo para iniciar la sesión de juego" : "Selecciona o crea una campaña arriba para poder grabar";
@@ -627,7 +627,7 @@ function renderCampaignManagerList(campaigns) {
   if (list.length === 0) {
     listEl.innerHTML = `
       <div class="text-center py-8 text-slate-400 space-y-2">
-        <p class="text-2xl">📭</p>
+        <p class="text-2xl"><span data-ui-icon=folder aria-hidden=true></span></p>
         <p class="font-medium">No hay campañas guardadas todavía.</p>
         <p class="text-[11px] text-slate-500">Escribe un nombre en el campo de Campaña para comenzar una nueva aventura.</p>
       </div>
@@ -647,7 +647,7 @@ function renderCampaignManagerList(campaigns) {
     row.innerHTML = `
       <button type="button" onclick="selectCampaignFromManager('${escapeHtml(cName)}')" 
         class="flex items-center gap-2.5 text-left flex-1 hover:text-amber-300 transition group cursor-pointer">
-        <span class="text-base group-hover:scale-110 transition shrink-0">📜</span>
+        <span class="text-base group-hover:scale-110 transition shrink-0"><span data-ui-icon=file aria-hidden=true></span></span>
         <div class="truncate">
           <span class="font-semibold text-slate-200 group-hover:text-amber-300 text-xs block truncate">${escapeHtml(cName)}</span>
           ${lastUpdated ? `<span class="text-[10px] text-slate-500">Actualizada: ${escapeHtml(lastUpdated)}</span>` : ""}
@@ -659,11 +659,11 @@ function renderCampaignManagerList(campaigns) {
         </span>
         <button type="button" onclick="exportCampaignByName('${escapeHtml(cName)}')" title="Exportar paquete ZIP de la campaña (${escapeHtml(cName)})"
           class="w-7 h-7 flex items-center justify-center rounded-lg bg-indigo-950/40 hover:bg-indigo-900/80 text-indigo-300 hover:text-white border border-indigo-800/40 transition cursor-pointer text-xs active:scale-95">
-          📤
+          <span data-ui-icon=upload aria-hidden=true></span>
         </button>
         <button type="button" onclick="confirmDeleteCampaign('${escapeHtml(cName)}')" title="Eliminar campaña y todo su historial"
           class="w-7 h-7 flex items-center justify-center rounded-lg bg-rose-950/40 hover:bg-rose-900/80 text-rose-300 hover:text-white border border-rose-800/40 transition cursor-pointer text-xs active:scale-95">
-          🗑️
+          <span data-ui-icon=trash aria-hidden=true></span>
         </button>
       </div>
     `;
@@ -942,7 +942,7 @@ async function onSelectHistoricalSession(sessionNum) {
   if (!sessionNum) return;
   const campName = (document.getElementById("campaignNameInput")?.value || "").trim() || (currentCampaignState && currentCampaignState.campaign_name) || "";
   if (!campName) {
-    showAlert("⚠️ Selecciona o abre una campaña primero.");
+    showAlert("Selecciona o abre una campaña primero.");
     return;
   }
   const num = parseInt(sessionNum, 10);
@@ -1008,11 +1008,11 @@ function setRecordingUI(isRecording) {
     if (badge) badge.classList.remove("hidden");
     if (statusText) {
       if (typeof audioSourceMode !== "undefined" && audioSourceMode === "browser_mic") {
-        statusText.textContent = "🔴 Grabación en curso con Micrófono del Móvil / Navegador";
+        statusText.textContent = "Grabación en curso con Micrófono del Móvil / Navegador";
       } else if (currentLiveMode === "class") {
-        statusText.textContent = "🔴 Grabación de clase en curso (Micrófono Mono 16 kHz)";
+        statusText.textContent = "Grabación de clase en curso (Micrófono Mono 16 kHz)";
       } else {
-        statusText.textContent = "🔴 Grabación en curso (Canal Izq: Mic | Canal Der: Discord)";
+        statusText.textContent = "Grabación en curso (Canal Izq: Mic | Canal Der: Discord)";
       }
       statusText.className = "text-xs text-rose-400 font-semibold animate-pulse";
     }
@@ -1079,7 +1079,7 @@ async function transcribeYoutube() {
   const isClass = (currentWorkspace === "work_and_study" || currentLiveMode === "class");
   const campaignName = (document.getElementById("campaignNameInput")?.value || "").trim();
   if (!isClass && !campaignName) {
-    showAlert("⚠️ Debes seleccionar o crear una campaña antes de transcribir.");
+    showAlert("Debes seleccionar o crear una campaña antes de transcribir.");
     const campInput = document.getElementById("campaignNameInput");
     if (campInput) {
       campInput.focus();
@@ -1114,7 +1114,7 @@ async function transcribeYoutube() {
   const btnYt = document.getElementById("btnYoutube");
   const origBtnHtml = btnYt ? btnYt.innerHTML : "Descargar y Procesar";
   if (btnYt) {
-    btnYt.innerHTML = `<span class="inline-block animate-spin">⏳</span> Procesando...`;
+    btnYt.innerHTML = `<span class="inline-block animate-spin"><span data-ui-icon=clock aria-hidden=true></span></span> Procesando...`;
   }
 
   if (typeof lastActionCallback !== "undefined") lastActionCallback = () => transcribeYoutube();
@@ -1476,12 +1476,12 @@ async function loadLocalRecordingsList() {
             <div class="flex items-center gap-1.5 flex-wrap">
               <span class="font-mono text-xs text-slate-200 group-hover:text-amber-400 font-medium truncate">${f.filename}</span>
               ${isLatest ? '<span class="text-[9px] px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-400 font-semibold border border-emerald-500/30">MÁS RECIENTE</span>' : ''}
-              ${f.has_timeline ? '<span class="text-[9px] px-1.5 py-0.5 rounded bg-indigo-500/20 text-indigo-300 font-semibold border border-indigo-500/30">🎧 Con Timeline</span>' : ''}
+              ${f.has_timeline ? '<span class="text-[9px] px-1.5 py-0.5 rounded bg-indigo-500/20 text-indigo-300 font-semibold border border-indigo-500/30"><span data-ui-icon=headphones aria-hidden=true></span> Con Timeline</span>' : ''}
             </div>
             <div class="text-[10px] text-slate-500 flex items-center gap-2 mt-0.5">
-              <span>📅 ${displayDate}</span>
-              <span>💾 ${f.size_mb} MB</span>
-              ${f.folder ? `<span class="text-indigo-400/80">📁 ${f.folder}</span>` : ''}
+              <span><span data-ui-icon=calendar aria-hidden=true></span> ${displayDate}</span>
+              <span><span data-ui-icon=save aria-hidden=true></span> ${f.size_mb} MB</span>
+              ${f.folder ? `<span class="text-indigo-400/80"><span data-ui-icon=folder aria-hidden=true></span> ${f.folder}</span>` : ''}
             </div>
           </div>
           <button type="button" class="shrink-0 text-xs px-2.5 py-1 rounded-lg bg-indigo-600/30 hover:bg-indigo-600 text-indigo-300 hover:text-white font-medium border border-indigo-500/30 transition cursor-pointer">
@@ -1502,9 +1502,9 @@ async function transcribeFile() {
   if (!hasAudio) {
     if (selectedTimelineFile) {
       if (typeof showAlert === "function") {
-        showAlert("⚠️ Has seleccionado el archivo de timeline (.timeline.json), pero falta el archivo de audio (.wav o .mp3). Por favor selecciona o arrastra el archivo de audio correspondiente, o elige una grabación local de la lista.");
+        showAlert("Has seleccionado el archivo de timeline (.timeline.json), pero falta el archivo de audio (.wav o .mp3). Por favor selecciona o arrastra el archivo de audio correspondiente, o elige una grabación local de la lista.");
       } else {
-        alert("⚠️ Has seleccionado el archivo de timeline (.timeline.json), pero falta el archivo de audio (.wav o .mp3). Por favor selecciona o arrastra el archivo de audio correspondiente, o elige una grabación local de la lista.");
+        alert("Has seleccionado el archivo de timeline (.timeline.json), pero falta el archivo de audio (.wav o .mp3). Por favor selecciona o arrastra el archivo de audio correspondiente, o elige una grabación local de la lista.");
       }
     } else {
       if (typeof showAlert === "function") {
@@ -1521,7 +1521,7 @@ async function transcribeFile() {
   const isClass = (currentWorkspace === "work_and_study" || currentLiveMode === "class");
   const campaignName = (document.getElementById("campaignNameInput") ? document.getElementById("campaignNameInput").value.trim() : "");
   if (!isClass && !campaignName) {
-    if (typeof showAlert === "function") showAlert("⚠️ Debes seleccionar o crear una campaña antes de transcribir un archivo.");
+    if (typeof showAlert === "function") showAlert("Debes seleccionar o crear una campaña antes de transcribir un archivo.");
     const campInput = document.getElementById("campaignNameInput");
     if (campInput) {
       campInput.focus();
@@ -1567,7 +1567,7 @@ async function transcribeFile() {
   const origBtnFHtml = btnF ? btnF.innerHTML : "Procesar Grabación";
   if (btnF) {
     btnF.disabled = true;
-    btnF.innerHTML = `<span class="inline-block animate-spin">⏳</span> Procesando...`;
+    btnF.innerHTML = `<span class="inline-block animate-spin"><span data-ui-icon=clock aria-hidden=true></span></span> Procesando...`;
   }
 
   if (window.currentActiveAbortController) {
@@ -1690,7 +1690,7 @@ function displayResults(data, options = {}) {
   const engineUsed = data.engine_used || document.getElementById("transcriptionEngine")?.value || "groq";
   const engineBadgeEl = document.getElementById("resEngineUsed");
   if (engineBadgeEl) {
-    engineBadgeEl.textContent = (engineUsed === "groq") ? "⚡ Groq Large-v3" : "🔒 Local (faster-whisper)";
+    engineBadgeEl.textContent = (engineUsed === "groq") ? "Groq Large-v3" : "Local (faster-whisper)";
   }
 
   const activeLang = (data.target_language || data.language || currentTargetLanguage || "es").toUpperCase();
@@ -1823,7 +1823,7 @@ function displayResults(data, options = {}) {
     const hasProto = chronicleContent.includes("Compañía de Aventureros") || chronicleContent.includes("Adventuring Company");
     if (!hasProto) {
       const pcs = data.detected_pcs || data.detected_party || [];
-      let protoMd = "### 🎭 Compañía de Aventureros (Protagonistas Detectados)\n\n| Personaje | Jugador / Rol | Clase / Especie | Rol en la Sesión |\n|---|---|---|---|\n";
+      let protoMd = "###  Compañía de Aventureros (Protagonistas Detectados)\n\n| Personaje | Jugador / Rol | Clase / Especie | Rol en la Sesión |\n|---|---|---|---|\n";
       pcs.forEach(p => {
         const char = p.personaje || p.character_name || "-";
         const jug = p.jugador || p.player_name || "-";
@@ -1843,11 +1843,11 @@ function displayResults(data, options = {}) {
     } else {
       chronicleEl.innerHTML = `
         <div class="py-10 text-center space-y-4">
-          <div class="text-3xl">⚠️</div>
+          <div class="text-3xl"><span data-ui-icon=warning aria-hidden=true></span></div>
           <p class="text-slate-300 font-medium">${isClassMode ? 'No se generaron apuntes para esta clase.' : 'La crónica y el análisis de la sesión no se pudieron procesar.'}</p>
           <p class="text-slate-500 text-xs max-w-md mx-auto">La transcripción está disponible en memoria. Puedes reintentar la generación con Gemini en pocos segundos sin volver a procesar el audio.</p>
           <button onclick="reprocessCampaignChronicle()" class="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold shadow-lg shadow-indigo-600/30 transition">
-            <span>🔄</span> <span>Regenerar con Crónica Profunda (Español)</span>
+            <span><span data-ui-icon=refresh aria-hidden=true></span></span> <span>Regenerar con Crónica Profunda (Español)</span>
           </button>
         </div>
       `;
@@ -1889,15 +1889,15 @@ function displayResults(data, options = {}) {
           <div class="space-y-4">
             <div class="flex flex-wrap items-center justify-between gap-2 p-2.5 rounded-xl bg-slate-900/80 border border-slate-800">
               <div class="flex items-center gap-2 text-xs text-slate-300">
-                <span class="text-base">📖</span>
+                <span class="text-base"><span data-ui-icon=book aria-hidden=true></span></span>
                 <span class="font-semibold text-sky-300">Glosario & Técnicas Clave</span>
               </div>
               <div class="flex items-center gap-2">
-                <input type="text" placeholder="🔍 Buscar término..." oninput="filterGlossaryItemsInContainer(this.value, 'keyPointsItemsContainer')"
+                <input type="text" placeholder=" Buscar término..." oninput="filterGlossaryItemsInContainer(this.value, 'keyPointsItemsContainer')"
                   class="px-2.5 py-1 text-xs rounded-lg bg-slate-950 border border-slate-700 text-slate-200 placeholder-slate-500 focus:border-sky-500 focus:outline-none w-44 sm:w-56">
                 <button type="button" onclick="openAddGlossaryModal()"
                   class="px-3 py-1 rounded-lg bg-sky-600/30 hover:bg-sky-600/50 text-sky-200 border border-sky-500/40 text-xs font-medium flex items-center gap-1.5 transition cursor-pointer">
-                  <span>➕</span> <span>Agregar Término</span>
+                  <span><span data-ui-icon=plus aria-hidden=true></span></span> <span>Agregar Término</span>
                 </button>
               </div>
             </div>
@@ -2016,15 +2016,15 @@ function syncResultTabsForWorkspace(mode = null) {
   if (isWork) {
     if (btnChronicle) { btnChronicle.classList.remove("hidden"); btnChronicle.style.display = ""; }
     if (txtChronicle) txtChronicle.textContent = "Executive Briefing / Apuntes";
-    if (iconChronicle) iconChronicle.textContent = "📄";
+    if (iconChronicle) WhisperIcons.set(iconChronicle, "file");
 
     if (btnKeyPoints) { btnKeyPoints.classList.remove("hidden"); btnKeyPoints.style.display = ""; }
     if (txtKeyPoints) txtKeyPoints.textContent = "Puntos Clave y Glosario";
-    if (iconKeyPoints) iconKeyPoints.textContent = "⭐";
+    if (iconKeyPoints) WhisperIcons.set(iconKeyPoints, "star");
 
     if (btnQuests) { btnQuests.classList.remove("hidden"); btnQuests.style.display = ""; }
     if (txtQuests) txtQuests.textContent = "Tareas y Encargos";
-    if (iconQuests) iconQuests.textContent = "✅";
+    if (iconQuests) WhisperIcons.set(iconQuests, "check");
 
     if (btnTranscript) { btnTranscript.classList.remove("hidden"); btnTranscript.style.display = ""; }
 
@@ -2033,7 +2033,7 @@ function syncResultTabsForWorkspace(mode = null) {
     if (btnJournal) { btnJournal.classList.add("hidden"); btnJournal.style.display = "none"; }
 
     if (questsViewHeading) questsViewHeading.textContent = "Tareas y Encargos";
-    if (questsViewIcon) questsViewIcon.textContent = "✅";
+    if (questsViewIcon) WhisperIcons.set(questsViewIcon, "check");
     if (questsViewSubtitle) questsViewSubtitle.textContent = "Action items y pendientes extraídos de la sesión";
     if (questsViewTitle) questsViewTitle.className = "text-sm font-bold text-sky-300 font-sans flex items-center gap-2";
 
@@ -2043,11 +2043,11 @@ function syncResultTabsForWorkspace(mode = null) {
   } else {
     if (btnChronicle) { btnChronicle.classList.remove("hidden"); btnChronicle.style.display = ""; }
     if (txtChronicle) txtChronicle.textContent = "Crónica";
-    if (iconChronicle) iconChronicle.textContent = "📖";
+    if (iconChronicle) WhisperIcons.set(iconChronicle, "book");
 
     if (btnQuests) { btnQuests.classList.remove("hidden"); btnQuests.style.display = ""; }
     if (txtQuests) txtQuests.textContent = "Misiones";
-    if (iconQuests) iconQuests.textContent = "🗺️";
+    if (iconQuests) WhisperIcons.set(iconQuests, "map");
 
     if (btnNpcs) { btnNpcs.classList.remove("hidden"); btnNpcs.style.display = ""; }
     if (btnPcs) { btnPcs.classList.remove("hidden"); btnPcs.style.display = ""; }
@@ -2057,7 +2057,7 @@ function syncResultTabsForWorkspace(mode = null) {
     if (btnKeyPoints) { btnKeyPoints.classList.add("hidden"); btnKeyPoints.style.display = "none"; }
 
     if (questsViewHeading) questsViewHeading.textContent = "Registro Maestro de Misiones (Master Quest Log)";
-    if (questsViewIcon) questsViewIcon.textContent = "🗺️";
+    if (questsViewIcon) WhisperIcons.set(questsViewIcon, "map");
     if (questsViewSubtitle) questsViewSubtitle.textContent = "Marca los sub-objetivos conforme la mesa avance";
     if (questsViewTitle) questsViewTitle.className = "text-sm font-bold text-amber-300 font-fantasy flex items-center gap-2";
 
@@ -2175,7 +2175,7 @@ function downloadSessionDocx(sessionNum = null, cleanMode = false) {
                    (campInput && campInput.value && campInput.value.trim());
 
   if (!campName) {
-    showAlert("⚠️ No hay campaña seleccionada para descargar la sesión.");
+    showAlert("No hay campaña seleccionada para descargar la sesión.");
     return;
   }
 
@@ -2205,7 +2205,7 @@ function downloadSessionMd(sessionNum = null, cleanMode = false) {
                    (campInput && campInput.value && campInput.value.trim());
 
   if (!campName) {
-    showAlert("⚠️ No hay campaña seleccionada para descargar la sesión.");
+    showAlert("No hay campaña seleccionada para descargar la sesión.");
     return;
   }
 
@@ -2257,7 +2257,7 @@ function downloadCampaignDocx() {
   const campInput = document.getElementById("campaignNameInput");
   const campName = (wikiSel && wikiSel.value && wikiSel.value.trim()) || (campInput && campInput.value && campInput.value.trim());
   if (!campName) {
-    showAlert("⚠️ Selecciona o abre una campaña para descargar el documento.");
+    showAlert("Selecciona o abre una campaña para descargar el documento.");
     return;
   }
   navigateToDownload(`/api/campaigns/${encodeURIComponent(campName)}/download-docx`);
@@ -2268,7 +2268,7 @@ function downloadCampaignMd() {
   const campInput = document.getElementById("campaignNameInput");
   const campName = (wikiSel && wikiSel.value && wikiSel.value.trim()) || (campInput && campInput.value && campInput.value.trim());
   if (!campName) {
-    showAlert("⚠️ Selecciona o abre una campaña para descargar el documento.");
+    showAlert("Selecciona o abre una campaña para descargar el documento.");
     return;
   }
   navigateToDownload(`/api/campaigns/${encodeURIComponent(campName)}/download-md`);
@@ -2337,7 +2337,7 @@ async function handleCampaignImportFile(event) {
   const origText = importBtn ? importBtn.innerHTML : "";
   if (importBtn) {
     importBtn.disabled = true;
-    importBtn.innerHTML = `<span class="inline-block animate-spin">⏳</span><span>Importando...</span>`;
+    importBtn.innerHTML = `<span class="inline-block animate-spin"><span data-ui-icon=clock aria-hidden=true></span></span><span>Importando...</span>`;
   }
 
   try {
@@ -2399,7 +2399,7 @@ function downloadTranscriptTxt() {
   }
   const campName = (currentResult && currentResult.campaign_name) || (document.getElementById("campaignNameInput")?.value || "").trim();
   if (!campName) {
-    showAlert("⚠️ No hay campaña seleccionada para descargar la transcripción.");
+    showAlert("No hay campaña seleccionada para descargar la transcripción.");
     return;
   }
   const sessNum = (currentResult && currentResult.session_number) ? currentResult.session_number : (parseInt(document.getElementById("sessionNumberInput")?.value) || 1);
@@ -2447,7 +2447,7 @@ async function deleteOriginalAudio() {
     const btnDlAudio = document.getElementById("btnDownloadAudio");
     if (btnDlAudio) btnDlAudio.classList.add("hidden");
     if (btn) {
-      if (btnText) btnText.textContent = "✓ Audio eliminado";
+      if (btnText) btnText.textContent = "Audio eliminado";
       setTimeout(() => {
         btn.classList.add("hidden");
       }, 2000);
@@ -2570,13 +2570,13 @@ async function switchSummaryLanguage() {
   const btn = document.getElementById("btnSwitchLanguage");
   const btnText = document.getElementById("btnSwitchLanguageText");
   if (btn) btn.disabled = true;
-  if (btnText) btnText.innerHTML = `<span class="inline-block animate-spin">⏳</span> Cambiando idioma...`;
+  if (btnText) btnText.innerHTML = `<span class="inline-block animate-spin"><span data-ui-icon=clock aria-hidden=true></span></span> Cambiando idioma...`;
 
   try {
     const isClass = (currentResult.recording_mode === "class" || currentLiveMode === "class");
     const campName = isClass ? null : ((currentResult.campaign_name || document.getElementById("campaignNameInput")?.value || "").trim());
     if (!isClass && !campName) {
-      showAlert("⚠️ Debes seleccionar o crear una campaña antes de cambiar el idioma.");
+      showAlert("Debes seleccionar o crear una campaña antes de cambiar el idioma.");
       return;
     }
     const payload = {
@@ -2650,13 +2650,13 @@ async function reprocessCampaignChronicle() {
   const btn = document.getElementById("btnReprocessCampaign");
   const btnText = document.getElementById("btnReprocessCampaignText");
   if (btn) btn.disabled = true;
-  if (btnText) btnText.innerHTML = `<span class="inline-block animate-spin">⏳</span> Regenerando con Gemini...`;
+  if (btnText) btnText.innerHTML = `<span class="inline-block animate-spin"><span data-ui-icon=clock aria-hidden=true></span></span> Regenerando con Gemini...`;
 
   try {
     const activeLang = currentResult.target_language || currentTargetLanguage || "es";
     const campName = isClass ? null : ((currentResult.campaign_name || document.getElementById("campaignNameInput")?.value || "").trim());
     if (!isClass && !campName) {
-      showAlert("⚠️ Debes seleccionar o crear una campaña antes de regenerar la crónica.");
+      showAlert("Debes seleccionar o crear una campaña antes de regenerar la crónica.");
       return;
     }
     const payload = {
@@ -2736,7 +2736,7 @@ async function uploadCampaignToDrive() {
   const campName = (wikiSel && wikiSel.value && wikiSel.value.trim()) || (campInput && campInput.value && campInput.value.trim());
   const isWorkStudy = (currentWorkspace === "work_and_study" || (currentResult && currentResult.recording_mode === "class"));
   if (!isWorkStudy && !campName) {
-    showAlert("⚠️ Selecciona o abre una campaña antes de subir a Google Drive.");
+    showAlert("Selecciona o abre una campaña antes de subir a Google Drive.");
     return;
   }
   const btn = document.getElementById("btnExportDrive");
@@ -2768,7 +2768,7 @@ async function uploadCampaignToDrive() {
     if (fileNameEl) fileNameEl.textContent = data.file_name;
     if (link) link.href = data.web_view_link;
     if (banner) banner.classList.remove("hidden");
-    if (btnText) btnText.textContent = isWorkStudy ? "✓ Briefing en Drive" : "✓ Grimorio en Drive";
+    if (btnText) btnText.textContent = isWorkStudy ? "Briefing en Drive" : "Grimorio en Drive";
     setTimeout(() => {
       if (btnText) btnText.textContent = "Subir a Drive";
       if (btn) btn.disabled = false;
@@ -3206,7 +3206,7 @@ function setWorkStudySubMode(mode) {
       btnExecutive.className = "min-h-[34px] px-3 py-1 rounded-lg font-medium transition-all duration-150 flex items-center gap-1.5 text-slate-400 hover:text-slate-200 border border-transparent cursor-pointer active:scale-[0.98]";
     }
     if (modeDesc) {
-      modeDesc.innerHTML = `<span class="text-sky-400">💡</span> <span>Gemini generará: <strong>Glosario conceptual, fórmulas KaTeX y guía estructurada</strong>.</span>`;
+      modeDesc.innerHTML = `<span class="text-sky-400"><span data-ui-icon=lightbulb aria-hidden=true></span></span> <span>Gemini generará: <strong>Glosario conceptual, fórmulas KaTeX y guía estructurada</strong>.</span>`;
     }
     if (labelTopic) labelTopic.textContent = "Materia o Tema de Estudio:";
     if (labelSession) labelSession.textContent = "Clase / Módulo #:";
@@ -3218,7 +3218,7 @@ function setWorkStudySubMode(mode) {
       btnAcademic.className = "min-h-[34px] px-3 py-1 rounded-lg font-medium transition-all duration-150 flex items-center gap-1.5 text-slate-400 hover:text-slate-200 border border-transparent cursor-pointer active:scale-[0.98]";
     }
     if (modeDesc) {
-      modeDesc.innerHTML = `<span class="text-indigo-400">💼</span> <span>Gemini generará: <strong>Minuta ejecutiva, matriz de compromisos y acuerdos clave</strong>.</span>`;
+      modeDesc.innerHTML = `<span class="text-indigo-400"><span data-ui-icon=briefcase aria-hidden=true></span></span> <span>Gemini generará: <strong>Minuta ejecutiva, matriz de compromisos y acuerdos clave</strong>.</span>`;
     }
     if (labelTopic) labelTopic.textContent = "Nombre de la Reunión / Sprint:";
     if (labelSession) labelSession.textContent = "Sesión / Sprint #:";
@@ -3280,7 +3280,7 @@ function applyWorkStudyPreset(presetKey) {
   setWorkStudyNowDate();
 
   if (typeof showAlert === "function") {
-    showAlert(`✓ Plantilla "${p.desc}" aplicada.`);
+    showSuccessAlert(`Plantilla "${p.desc}" aplicada.`);
   }
 }
 

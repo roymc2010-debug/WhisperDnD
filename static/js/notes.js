@@ -28,7 +28,7 @@ async function loadAcademicNotesHistory(showToast = false) {
     if (typeof updateAcademicNotesKpis === "function") updateAcademicNotesKpis(academicNotesList);
     renderAcademicNotesList(academicNotesList);
     if (showToast && typeof showAlert === "function") {
-      showAlert(`✓ Se cargaron ${academicNotesList.length} apuntes.`);
+      showSuccessAlert(`Se cargaron ${academicNotesList.length} apuntes.`);
     }
   } catch (err) {
     console.error("Error al cargar notas académicas:", err);
@@ -106,7 +106,7 @@ function renderAcademicNotesList(notes) {
     const excerpt = note.excerpt || "Sin extracto.";
     const readMinutes = Math.max(1, Math.ceil(wordCount / 200));
     const isExecutive = (title.toLowerCase().includes("reunión") || title.toLowerCase().includes("reunion") || title.toLowerCase().includes("sprint") || title.toLowerCase().includes("minuta") || (note.filename && note.filename.toLowerCase().includes("meeting")));
-    const badgeType = isExecutive ? `<span class="px-1.5 py-0.5 rounded text-[10px] font-medium bg-indigo-500/15 text-indigo-300 border border-indigo-500/25">💼 Minuta</span>` : `<span class="px-1.5 py-0.5 rounded text-[10px] font-medium bg-sky-500/15 text-sky-300 border border-sky-500/25">🎓 Académica</span>`;
+    const badgeType = isExecutive ? `<span class="px-1.5 py-0.5 rounded text-[10px] font-medium bg-indigo-500/15 text-indigo-300 border border-indigo-500/25"><span data-ui-icon=briefcase aria-hidden=true></span> Minuta</span>` : `<span class="px-1.5 py-0.5 rounded text-[10px] font-medium bg-sky-500/15 text-sky-300 border border-sky-500/25"><span data-ui-icon=graduation aria-hidden=true></span> Académica</span>`;
 
     card.innerHTML = `
       <div class="min-w-0 flex-1">
@@ -194,15 +194,15 @@ function renderNoteDetailBody() {
         <div class="space-y-4">
           <div class="flex flex-wrap items-center justify-between gap-2 p-2.5 rounded-xl bg-slate-900/80 border border-slate-800">
             <div class="flex items-center gap-2 text-xs text-slate-300">
-              <span class="text-base">📖</span>
+              <span class="text-base"><span data-ui-icon=book aria-hidden=true></span></span>
               <span class="font-semibold text-sky-300">Glosario & Técnicas Clave</span>
             </div>
             <div class="flex items-center gap-2">
-              <input type="text" placeholder="🔍 Buscar concepto..." oninput="filterGlossaryItemsInContainer(this.value, 'noteGlossaryContainer')"
+              <input type="text" placeholder=" Buscar concepto..." oninput="filterGlossaryItemsInContainer(this.value, 'noteGlossaryContainer')"
                 class="px-2.5 py-1 text-xs rounded-lg bg-slate-950 border border-slate-700 text-slate-200 placeholder-slate-500 focus:border-sky-500 focus:outline-none w-44 sm:w-56">
               <button type="button" onclick="openAddGlossaryModal()"
                 class="px-3 py-1 rounded-lg bg-sky-600/30 hover:bg-sky-600/50 text-sky-200 border border-sky-500/40 text-xs font-medium flex items-center gap-1.5 transition cursor-pointer">
-                <span>➕</span> <span>Agregar Término</span>
+                <span><span data-ui-icon=plus aria-hidden=true></span></span> <span>Agregar Término</span>
               </button>
             </div>
           </div>
@@ -214,11 +214,11 @@ function renderNoteDetailBody() {
     } else {
       bodyEl.innerHTML = `
         <div class="p-8 text-center space-y-3 bg-slate-900/40 rounded-xl border border-dashed border-slate-800">
-          <span class="text-3xl">⭐</span>
+          <span class="text-3xl"><span data-ui-icon=star aria-hidden=true></span></span>
           <p class="text-xs text-slate-300 font-medium">No se detectaron secciones específicas de glosario o técnicas.</p>
           <p class="text-[11px] text-slate-500">Puedes agregar tus propios conceptos o técnicas a esta nota con el botón a continuación:</p>
           <button type="button" onclick="openAddGlossaryModal()" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-sky-600 hover:bg-sky-500 text-white text-xs font-semibold shadow-md transition cursor-pointer">
-            <span>➕</span> <span>Agregar Término al Glosario</span>
+            <span><span data-ui-icon=plus aria-hidden=true></span></span> <span>Agregar Término al Glosario</span>
           </button>
         </div>
       `;
@@ -254,7 +254,7 @@ function renderNoteDetailBody() {
     } else {
       bodyEl.innerHTML = `
         <div class="p-8 text-center space-y-2 bg-slate-900/40 rounded-xl border border-dashed border-slate-800">
-          <span class="text-2xl">📋</span>
+          <span class="text-2xl"><span data-ui-icon=clipboard aria-hidden=true></span></span>
           <p class="text-xs text-slate-300 font-medium">No se detectaron tareas ni fechas límite en esta nota.</p>
           <p class="text-[11px] text-slate-500">No se encontraron entregables pendientes en la sección de avisos o compromisos.</p>
         </div>
@@ -306,7 +306,7 @@ async function selectAcademicNote(filename) {
   const readTimeEl = document.getElementById("noteViewReadingTime");
   if (readTimeEl) {
     const mins = Math.max(1, Math.ceil(wordCount / 200));
-    readTimeEl.textContent = `⏱️ ${mins} min de lectura`;
+    readTimeEl.textContent = `${mins} min de lectura`;
   }
 
   const docxFile = note.docx_filename || note.filename.replace(/\.md$/, ".docx");
@@ -370,7 +370,7 @@ function copyCurrentNoteContent() {
   navigator.clipboard.writeText(text).then(() => {
     if (btnText) {
       const old = btnText.textContent;
-      btnText.textContent = "✓ ¡Copiado!";
+      btnText.textContent = "¡Copiado!";
       setTimeout(() => btnText.textContent = old, 2000);
     }
   }).catch(err => {
@@ -430,7 +430,7 @@ async function handleAcademicNoteImport(event) {
       throw new Error(data.detail || "Error al importar el apunte.");
     }
     if (typeof showAlert === "function") {
-      showAlert(`✓ ${data.message || 'Apunte importado exitosamente.'}`);
+      showSuccessAlert(`${data.message || 'Apunte importado exitosamente.'}`);
     }
     if (typeof notifyDriveSaveEvent === "function") {
       notifyDriveSaveEvent();
@@ -468,7 +468,7 @@ function renderAcademicTasks(tasks) {
   if (taskList.length === 0) {
     container.innerHTML = `
       <div class="p-8 text-center space-y-2">
-        <span class="text-2xl">📋</span>
+        <span class="text-2xl"><span data-ui-icon=clipboard aria-hidden=true></span></span>
         <p class="text-xs text-slate-500 italic">No se detectaron tareas ni fechas límite en esta grabación.</p>
       </div>
     `;
@@ -551,7 +551,7 @@ function extractKeyPointsFromMarkdown(md) {
     parts.push(sec2Body);
   } else {
     const bodyClean = sec2Body.replace(/^(?:A continuación[^\n]+\n+|To understand[^\n]+\n+)/i, "").trim();
-    parts.push(`### 📖 Glosario Conceptual\n${bodyClean}`);
+    parts.push(`###  Glosario Conceptual\n${bodyClean}`);
   }
 
   if (!hasTech) {
@@ -566,7 +566,7 @@ function extractKeyPointsFromMarkdown(md) {
       }
     }
     if (techSnippets.length > 0) {
-      parts.push("### 🛠️ Técnicas y Procedimientos Clave\n" + techSnippets.slice(0, 2).join("\n\n"));
+      parts.push("###  Técnicas y Procedimientos Clave\n" + techSnippets.slice(0, 2).join("\n\n"));
     }
   }
 
@@ -671,7 +671,7 @@ async function saveNewGlossaryTerm() {
           md = md.slice(0, insertIdx) + entryLine + "\n" + md.slice(insertIdx);
         } else {
           const insertIdx = sec2HeaderMatch.index + sec2HeaderMatch[0].length;
-          md = md.slice(0, insertIdx) + "### 🛠️ Técnicas, Métodos y Cuándo se Usan\n" + entryLine + "\n\n" + md.slice(insertIdx);
+          md = md.slice(0, insertIdx) + "###  Técnicas, Métodos y Cuándo se Usan\n" + entryLine + "\n\n" + md.slice(insertIdx);
         }
       } else {
         const glossMatch = md.match(/###\s*(?:📖\s*)?(?:Glosario|Conceptual Glossary).*?\n/i);
@@ -680,11 +680,11 @@ async function saveNewGlossaryTerm() {
           md = md.slice(0, insertIdx) + entryLine + "\n" + md.slice(insertIdx);
         } else {
           const insertIdx = sec2HeaderMatch.index + sec2HeaderMatch[0].length;
-          md = md.slice(0, insertIdx) + "### 📖 Glosario Conceptual\n" + entryLine + "\n" + md.slice(insertIdx);
+          md = md.slice(0, insertIdx) + "###  Glosario Conceptual\n" + entryLine + "\n" + md.slice(insertIdx);
         }
       }
     } else {
-      md += `\n\n# 2. Conceptos Teóricos Fundamentales y Glosario\n### 📖 Glosario Conceptual\n${entryLine}\n`;
+      md += `\n\n# 2. Conceptos Teóricos Fundamentales y Glosario\n###  Glosario Conceptual\n${entryLine}\n`;
     }
 
     currentActiveNoteData.content = md;
@@ -707,9 +707,9 @@ async function saveNewGlossaryTerm() {
     closeAddGlossaryModal();
     renderNoteDetailBody();
     if (typeof showSuccessAlert === "function") {
-      showSuccessAlert(`✓ Término "${term}" guardado en el glosario.`);
+      showSuccessAlert(`Término "${term}" guardado en el glosario.`);
     } else if (typeof showAlert === "function") {
-      showAlert(`✓ Término "${term}" guardado en el glosario.`);
+      showSuccessAlert(`Término "${term}" guardado en el glosario.`);
     }
     return;
   }
@@ -721,7 +721,7 @@ async function saveNewGlossaryTerm() {
       const insertIdx = sec2HeaderMatch.index + sec2HeaderMatch[0].length;
       md = md.slice(0, insertIdx) + entryLine + "\n" + md.slice(insertIdx);
     } else {
-      md += `\n\n# 2. Conceptos Teóricos Fundamentales y Glosario\n### 📖 Glosario Conceptual\n${entryLine}\n`;
+      md += `\n\n# 2. Conceptos Teóricos Fundamentales y Glosario\n###  Glosario Conceptual\n${entryLine}\n`;
     }
     currentResult.chronicle_markdown = md;
     currentResult.chronicle = md;
@@ -730,7 +730,7 @@ async function saveNewGlossaryTerm() {
       displayResults(currentResult);
     }
     if (typeof showSuccessAlert === "function") {
-      showSuccessAlert(`✓ Término "${term}" guardado en el glosario.`);
+      showSuccessAlert(`Término "${term}" guardado en el glosario.`);
     }
     return;
   }
@@ -866,7 +866,7 @@ function applyCurrentNotesFilter() {
 
 function printCurrentAcademicNote() {
   if (!currentActiveNoteData) {
-    if (typeof showAlert === "function") showAlert("⚠️ Selecciona un apunte primero para imprimir.");
+    if (typeof showAlert === "function") showAlert("Selecciona un apunte primero para imprimir.");
     return;
   }
   const bodyEl = document.getElementById("noteViewBody");

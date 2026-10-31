@@ -48,7 +48,7 @@ function setAudioSourceMode(mode) {
       btnBrowser.className = "min-h-[44px] px-3.5 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-2 transition-all duration-150 bg-sky-600 text-white shadow-sm cursor-pointer active:scale-[0.98]";
     }
     if (badgeCurrent) {
-      badgeCurrent.textContent = "📱 Mic Móvil / Navegador";
+      badgeCurrent.textContent = "Mic Móvil / Navegador";
       badgeCurrent.className = "px-2 py-0.5 rounded-full text-[10px] font-mono font-medium bg-sky-500/20 text-sky-300 border border-sky-500/30";
     }
     if (pcDevicesContainer) pcDevicesContainer.classList.add("opacity-40", "pointer-events-none");
@@ -64,7 +64,7 @@ function setAudioSourceMode(mode) {
       btnBrowser.className = "min-h-[44px] px-3.5 py-1.5 rounded-lg text-xs font-medium flex items-center gap-2 transition-all duration-150 text-slate-400 hover:text-slate-200 cursor-pointer active:scale-[0.98]";
     }
     if (badgeCurrent) {
-      badgeCurrent.textContent = "💻 PC Host (Dual)";
+      badgeCurrent.textContent = "PC Host (Dual)";
       badgeCurrent.className = "px-2 py-0.5 rounded-full text-[10px] font-mono font-medium bg-indigo-500/20 text-indigo-300 border border-indigo-500/30";
     }
     if (pcDevicesContainer) pcDevicesContainer.classList.remove("opacity-40", "pointer-events-none");
@@ -104,7 +104,7 @@ function startBrowserVuMeter() {
     }
     if (hint) {
       if (level > 5) {
-        hint.textContent = "🟢 Señal de micrófono móvil detectada";
+        hint.textContent = "Señal de micrófono móvil detectada";
         hint.className = "text-[10px] text-emerald-400 font-mono font-semibold";
       } else {
         hint.textContent = "Habla al micrófono de tu dispositivo";
@@ -180,7 +180,7 @@ async function loadAudioDevices(forceRefresh = false) {
         const opt = document.createElement("option");
         opt.value = m.id;
         const isDefault = (data.default_mic_id && m.id === data.default_mic_id);
-        opt.textContent = `🎤 ${m.name}${isDefault ? " (Predeterminado)" : ""}`;
+        opt.textContent = `${m.name}${isDefault ? " (Predeterminado)" : ""}`;
         micSelect.appendChild(opt);
       });
     }
@@ -204,8 +204,8 @@ async function loadAudioDevices(forceRefresh = false) {
         opt.value = s.id;
         const isDefault = (data.default_speaker_id && s.id === data.default_speaker_id);
         const isHeadphone = s.is_headphone;
-        const icon = isHeadphone ? "🎧 " : "🔊 ";
-        opt.textContent = `${icon}${s.name}${isDefault ? " (Predeterminado)" : ""}`;
+        opt.dataset.headphone = String(Boolean(isHeadphone));
+        opt.textContent = `${s.name}${isDefault ? " (Predeterminado)" : ""}`;
         spkSelect.appendChild(opt);
       });
     }
@@ -248,9 +248,9 @@ function checkSpeakerSelection() {
 
   const selectedOpt = spkSelect.options[spkSelect.selectedIndex];
   const text = (selectedOpt ? selectedOpt.textContent : "").toLowerCase();
-  const isAltavoz = text.includes("altavoz") || text.includes("speaker");
+  const isAltavoz = text.includes("altavoz") || text.includes("altavoc") || text.includes("speaker");
   const hasHeadphonesInOptions = Array.from(spkSelect.options).some(o =>
-    o.textContent.includes("🎧") || o.textContent.toLowerCase().includes("auricular") || o.textContent.toLowerCase().includes("headphone")
+    o.dataset?.headphone === "true" || o.textContent.toLowerCase().includes("auricular") || o.textContent.toLowerCase().includes("headphone")
   );
 
   if (isAltavoz && hasHeadphonesInOptions && window.currentLiveMode === "roleplay") {
@@ -409,7 +409,7 @@ function updateVuMeter(micRms, spkRms) {
   }
   if (hint) {
     if (hasActivity) {
-      hint.textContent = "🟢 Señal de audio detectada";
+      hint.textContent = "Señal de audio detectada";
       hint.className = "text-[10px] text-emerald-400 font-mono font-semibold";
     } else {
       hint.textContent = "Habla o reproduce audio para probar señal";
@@ -441,7 +441,7 @@ function onRecordingInterrupted(durationSec) {
   }
 
   if (statusText) {
-    statusText.textContent = `⚠️ Grabación detenida en el servidor (${formatTime(secondsElapsed)} grabados)`;
+    statusText.textContent = `Grabación detenida en el servidor (${formatTime(secondsElapsed)} grabados)`;
     statusText.className = "text-xs text-amber-400 font-semibold";
   }
 
@@ -534,11 +534,11 @@ function setRecordingUI(isRecording) {
     if (badge) badge.classList.remove("hidden");
     if (statusText) {
       if (audioSourceMode === "browser_mic") {
-        statusText.textContent = "🔴 Grabación en curso con Micrófono del Móvil / Navegador";
+        statusText.textContent = "Grabación en curso con Micrófono del Móvil / Navegador";
       } else if (window.currentLiveMode === "class") {
-        statusText.textContent = "🔴 Grabación de clase en curso (Micrófono Mono 16 kHz)";
+        statusText.textContent = "Grabación de clase en curso (Micrófono Mono 16 kHz)";
       } else {
-        statusText.textContent = "🔴 Grabación en curso (Canal Izq: Mic | Canal Der: Discord)";
+        statusText.textContent = "Grabación en curso (Canal Izq: Mic | Canal Der: Discord)";
       }
       statusText.className = "text-xs text-rose-400 font-semibold animate-pulse";
     }
@@ -581,7 +581,7 @@ async function startSessionRecording() {
     const campName = (document.getElementById("campaignNameInput")?.value || "").trim();
     if (!campName) {
       if (typeof showAlert === "function") {
-        showAlert("⚠️ Debes seleccionar o crear una campaña antes de iniciar la grabación.");
+        showAlert("Debes seleccionar o crear una campaña antes de iniciar la grabación.");
       }
       const campInput = document.getElementById("campaignNameInput");
       if (campInput) {
@@ -756,7 +756,7 @@ async function stopSessionAndProcess() {
           formData.append("client_timezone_offset", String(new Date().getTimezoneOffset()));
           const campaignName = (document.getElementById("campaignNameInput")?.value || "").trim();
           if (!campaignName) {
-            if (typeof showAlert === "function") showAlert("⚠️ Debes seleccionar o crear una campaña para procesar la sesión.");
+            if (typeof showAlert === "function") showAlert("Debes seleccionar o crear una campaña para procesar la sesión.");
             const campInput = document.getElementById("campaignNameInput");
             if (campInput) {
               campInput.focus();
@@ -854,7 +854,7 @@ async function stopSessionAndProcess() {
   } else {
     const campaignName = (document.getElementById("campaignNameInput")?.value || "").trim();
     if (!campaignName) {
-      if (typeof showAlert === "function") showAlert("⚠️ Debes seleccionar o crear una campaña para procesar la sesión.");
+      if (typeof showAlert === "function") showAlert("Debes seleccionar o crear una campaña para procesar la sesión.");
       const campInput = document.getElementById("campaignNameInput");
       if (campInput) {
         campInput.focus();
@@ -960,7 +960,7 @@ async function deleteOriginalAudio() {
     const btnDlAudio = document.getElementById("btnDownloadAudio");
     if (btnDlAudio) btnDlAudio.classList.add("hidden");
     if (btn) {
-      if (btnText) btnText.textContent = "✓ Audio eliminado";
+      if (btnText) btnText.textContent = "Audio eliminado";
       setTimeout(() => {
         btn.classList.add("hidden");
       }, 2000);

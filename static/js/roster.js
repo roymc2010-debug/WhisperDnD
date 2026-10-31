@@ -32,7 +32,7 @@ const DND_DATABASE = {
     {
       id: 'classic',
       name: { es: 'Especies Clásicas (PHB)', en: 'Classic Species (PHB)' },
-      icon: '🛡️',
+      icon: 'shield',
       items: [
         { id: 'human', name: { es: 'Humano', en: 'Human' } },
         { id: 'elf_high', name: { es: 'Alto Elfo', en: 'High Elf' } },
@@ -62,7 +62,7 @@ const DND_DATABASE = {
     {
       id: 'beast',
       name: { es: 'Bestiales & Antropomórficas', en: 'Beastfolk & Anthropomorphic' },
-      icon: '🐾',
+      icon: 'paw',
       items: [
         { id: 'tabaxi', name: { es: 'Tabaxi (Felino)', en: 'Tabaxi' } },
         { id: 'leonin', name: { es: 'Leonin (León de Theros)', en: 'Leonin' } },
@@ -88,7 +88,7 @@ const DND_DATABASE = {
     {
       id: 'planar',
       name: { es: 'Planares, Celestiales & Fiends', en: 'Planar, Celestials & Fiends' },
-      icon: '🔥',
+      icon: 'process',
       items: [
         { id: 'tiefling_infernal', name: { es: 'Tiefling Infernal', en: 'Infernal Tiefling' } },
         { id: 'tiefling_abyssal', name: { es: 'Tiefling Abisal', en: 'Abyssal Tiefling' } },
@@ -111,7 +111,7 @@ const DND_DATABASE = {
     {
       id: 'monstrous',
       name: { es: 'Monstruosas & Goblinoides', en: 'Monstrous & Goblinoids' },
-      icon: '👺',
+      icon: 'users',
       items: [
         { id: 'goblin', name: { es: 'Goblin', en: 'Goblin' } },
         { id: 'hobgoblin', name: { es: 'Hobgoblin', en: 'Hobgoblin' } },
@@ -124,7 +124,7 @@ const DND_DATABASE = {
     {
       id: 'exotic',
       name: { es: 'Constructos & Configuraciones Espaciales', en: 'Constructs & Space Settings' },
-      icon: '⚙️',
+      icon: 'settings',
       items: [
         { id: 'warforged', name: { es: 'Forjado (Warforged de Eberron)', en: 'Warforged' } },
         { id: 'plasmoid', name: { es: 'Plasmoide (Limo Viviente)', en: 'Plasmoid' } },
@@ -143,7 +143,7 @@ const DND_DATABASE = {
     {
       id: 'lineages',
       name: { es: 'Dracónidos & Linajes Sobrenaturales', en: 'Dragonborn & Supernatural Lineages' },
-      icon: '🐉',
+      icon: 'shield',
       items: [
         { id: 'dragonborn_chromatic', name: { es: 'Dracónido Cromático', en: 'Chromatic Dragonborn' } },
         { id: 'dragonborn_metallic', name: { es: 'Dracónido Metálico', en: 'Metallic Dragonborn' } },
@@ -162,7 +162,7 @@ const DND_DATABASE = {
     {
       id: 'fighter',
       name: { es: 'Guerrero', en: 'Fighter' },
-      icon: '⚔️',
+      icon: 'swords',
       subclasses: [
         { id: 'bm', name: { es: 'Battle Master (Maestro de Batalla)', en: 'Battle Master' } },
         { id: 'champ', name: { es: 'Campeón (Champion)', en: 'Champion' } },
@@ -179,7 +179,7 @@ const DND_DATABASE = {
     {
       id: 'paladin',
       name: { es: 'Paladín', en: 'Paladin' },
-      icon: '🛡️',
+      icon: 'shield',
       subclasses: [
         { id: 'devot', name: { es: 'Juramento de Devoción', en: 'Oath of Devotion' } },
         { id: 'veng', name: { es: 'Juramento de Venganza', en: 'Oath of Vengeance' } },
@@ -195,7 +195,7 @@ const DND_DATABASE = {
     {
       id: 'warlock',
       name: { es: 'Brujo', en: 'Warlock' },
-      icon: '👁️',
+      icon: 'eye',
       subclasses: [
         { id: 'hexblade', name: { es: 'Filo Maldito (The Hexblade)', en: 'The Hexblade' } },
         { id: 'fiend', name: { es: 'El Infernal (The Fiend)', en: 'The Fiend' } },
@@ -211,7 +211,7 @@ const DND_DATABASE = {
     {
       id: 'rogue',
       name: { es: 'Pícaro', en: 'Rogue' },
-      icon: '🗡️',
+      icon: 'swords',
       subclasses: [
         { id: 'at', name: { es: 'Bribón Arcano (Arcane Trickster)', en: 'Arcane Trickster' } },
         { id: 'assassin', name: { es: 'Asesino (Assassin)', en: 'Assassin' } },
@@ -227,7 +227,7 @@ const DND_DATABASE = {
     {
       id: 'wizard',
       name: { es: 'Mago', en: 'Wizard' },
-      icon: '📜',
+      icon: 'file',
       subclasses: [
         { id: 'evoc', name: { es: 'Escuela de Evocación', en: 'School of Evocation' } },
         { id: 'abjur', name: { es: 'Escuela de Abjuración (Abjurer)', en: 'School of Abjuration' } },
@@ -247,7 +247,7 @@ const DND_DATABASE = {
     {
       id: 'cleric',
       name: { es: 'Clérigo', en: 'Cleric' },
-      icon: '✨',
+      icon: 'process',
       subclasses: [
         { id: 'life', name: { es: 'Dominio de la Vida', en: 'Life Domain' } },
         { id: 'light', name: { es: 'Dominio de la Luz', en: 'Light Domain' } },
@@ -268,7 +268,7 @@ const DND_DATABASE = {
     {
       id: 'bard',
       name: { es: 'Bardo', en: 'Bard' },
-      icon: '🪕',
+      icon: 'music',
       subclasses: [
         { id: 'lore', name: { es: 'Colegio del Saber (Lore)', en: 'College of Lore' } },
         { id: 'valor', name: { es: 'Colegio del Valor', en: 'College of Valor' } },
@@ -283,7 +283,7 @@ const DND_DATABASE = {
     {
       id: 'monk',
       name: { es: 'Monje', en: 'Monk' },
-      icon: '👊',
+      icon: 'shield',
       subclasses: [
         { id: 'open_hand', name: { es: 'Camino de la Mano Abierta', en: 'Way of the Open Hand' } },
         { id: 'shadow', name: { es: 'Camino de las Sombras', en: 'Way of Shadow' } },
@@ -300,7 +300,7 @@ const DND_DATABASE = {
     {
       id: 'sorcerer',
       name: { es: 'Hechicero', en: 'Sorcerer' },
-      icon: '🔮',
+      icon: 'compass',
       subclasses: [
         { id: 'draconic', name: { es: 'Linaje Dracónico', en: 'Draconic Bloodline' } },
         { id: 'wild_magic', name: { es: 'Magia Salvaje', en: 'Wild Magic' } },
@@ -315,7 +315,7 @@ const DND_DATABASE = {
     {
       id: 'barbarian',
       name: { es: 'Bárbaro', en: 'Barbarian' },
-      icon: '🪓',
+      icon: 'swords',
       subclasses: [
         { id: 'berserker', name: { es: 'Camino del Berserker', en: 'Path of the Berserker' } },
         { id: 'totem', name: { es: 'Camino del Guerrero Totémico', en: 'Path of the Totem Warrior' } },
@@ -331,7 +331,7 @@ const DND_DATABASE = {
     {
       id: 'druid',
       name: { es: 'Druida', en: 'Druid' },
-      icon: '🌿',
+      icon: 'leaf',
       subclasses: [
         { id: 'moon', name: { es: 'Círculo de la Luna', en: 'Circle of the Moon' } },
         { id: 'stars', name: { es: 'Círculo de las Estrellas', en: 'Circle of Stars' } },
@@ -346,7 +346,7 @@ const DND_DATABASE = {
     {
       id: 'ranger',
       name: { es: 'Explorador', en: 'Ranger' },
-      icon: '🏹',
+      icon: 'target',
       subclasses: [
         { id: 'gloom', name: { es: 'Acechador Sombrío (Gloom Stalker)', en: 'Gloom Stalker' } },
         { id: 'hunter', name: { es: 'Cazador (Hunter)', en: 'Hunter' } },
@@ -361,7 +361,7 @@ const DND_DATABASE = {
     {
       id: 'artificer',
       name: { es: 'Artífice', en: 'Artificer' },
-      icon: '🔧',
+      icon: 'tool',
       subclasses: [
         { id: 'armorer', name: { es: 'Armero (Armorer)', en: 'Armorer' } },
         { id: 'artillerist', name: { es: 'Artillero (Artillerist)', en: 'Artillerist' } },
@@ -372,7 +372,7 @@ const DND_DATABASE = {
     {
       id: 'blood_hunter',
       name: { es: 'Cazador de Sangre', en: 'Blood Hunter' },
-      icon: '🩸',
+      icon: 'record',
       subclasses: [
         { id: 'ghostslayer', name: { es: 'Orden del Cazador Fantasma (Ghostslayer)', en: 'Order of the Ghostslayer' } },
         { id: 'profane_soul', name: { es: 'Orden del Alma Profana (Profane Soul)', en: 'Order of the Profane Soul' } },
@@ -383,7 +383,7 @@ const DND_DATABASE = {
     {
       id: 'mystic',
       name: { es: 'Místico (Psion)', en: 'Mystic (Psion)' },
-      icon: '👁️',
+      icon: 'eye',
       subclasses: [
         { id: 'avatar', name: { es: 'Orden del Avatar (Avatar)', en: 'Order of the Avatar' } },
         { id: 'awakened', name: { es: 'Orden del Despertado (Awakened)', en: 'Order of the Awakened' } },
@@ -396,7 +396,7 @@ const DND_DATABASE = {
     {
       id: 'pugilist',
       name: { es: 'Pugilista', en: 'Pugilist' },
-      icon: '🥊',
+      icon: 'shield',
       subclasses: [
         { id: 'boxing', name: { es: 'Rey del Cuadrilátero (Squared Circle)', en: 'Squared Circle' } },
         { id: 'street', name: { es: 'Luchador Callejero (Sweet Science)', en: 'Sweet Science' } },
@@ -412,7 +412,7 @@ const DND_DATABASE = {
     {
       id: 'illrigger',
       name: { es: 'Illrigger (Caballero Diabólico)', en: 'Illrigger' },
-      icon: '🔱',
+      icon: 'swords',
       subclasses: [
         { id: 'shadowmaster', name: { es: 'Sombra de Dispater (Shadowmaster)', en: 'Shadowmaster' } },
         { id: 'painkiller', name: { es: 'Caballero de Hierro (Painkiller)', en: 'Painkiller' } },
@@ -423,7 +423,7 @@ const DND_DATABASE = {
     {
       id: 'sidekick',
       name: { es: 'Acompañante (Sidekick)', en: 'Sidekick' },
-      icon: '🛡️',
+      icon: 'shield',
       subclasses: [
         { id: 'warrior', name: { es: 'Guerrero / Protector (Warrior)', en: 'Warrior' } },
         { id: 'expert', name: { es: 'Experto / Rastreador (Expert)', en: 'Expert' } },
@@ -867,7 +867,7 @@ function renderRosterTable(rosterData = null) {
                     <span class="text-xs font-bold text-neutral-100 group-hover:text-white">${pCls.name[currentLang]}</span>
                     <span class="text-[10px] font-medium" style="color: ${pColor};">(${escapeHtml(pSubLabel)})</span>
                   </div>
-                  <span class="text-[9px] text-neutral-500 font-mono">⚙️</span>
+                  <span class="text-[9px] text-neutral-500 font-mono"><span data-ui-icon=settings aria-hidden=true></span></span>
                 </button>
 
                 <button type="button" onclick="openClassModal(${p.id}, 'secondary')"
@@ -876,7 +876,7 @@ function renderRosterTable(rosterData = null) {
                     <span class="text-xs font-bold text-neutral-100 group-hover:text-white">${sCls.name[currentLang]}</span>
                     <span class="text-[10px] font-medium" style="color: ${sColor};">(${escapeHtml(sSubLabel)})</span>
                   </div>
-                  <span class="text-[9px] text-neutral-500 font-mono">⚙️</span>
+                  <span class="text-[9px] text-neutral-500 font-mono"><span data-ui-icon=settings aria-hidden=true></span></span>
                 </button>
               </div>
             </div>
@@ -892,7 +892,7 @@ function renderRosterTable(rosterData = null) {
                     <span class="text-xs font-bold text-neutral-100 group-hover:text-white">${pCls.name[currentLang]}</span>
                     <span class="text-[10px] font-medium" style="color: ${pColor};">(${escapeHtml(pSubLabel)})</span>
                   </div>
-                  <span class="text-[9px] text-neutral-500 font-mono">⚙️</span>
+                  <span class="text-[9px] text-neutral-500 font-mono"><span data-ui-icon=settings aria-hidden=true></span></span>
                 </button>
               </div>
             </div>
@@ -912,7 +912,7 @@ function renderRosterTable(rosterData = null) {
         <td class="py-3 px-2 text-center align-middle">
           <button type="button" onclick="deletePlayer(${p.id})" title="Eliminar fila de jugador"
             class="text-neutral-500 hover:text-rose-400 p-1.5 rounded-lg hover:bg-rose-500/10 active:scale-90 transition cursor-pointer">
-            ✕
+            <span data-ui-icon=trash aria-hidden=true></span>
           </button>
         </td>
       </tr>
@@ -954,7 +954,7 @@ function renderPartyChips() {
 
     chip.innerHTML = `
       <div class="flex items-center gap-1.5">
-        ${p.isDM ? '<span>👑</span>' : (isUser ? '<span class="text-amber-400">⭐</span>' : '')}
+        ${p.isDM ? '<span><span data-ui-icon=crown aria-hidden=true></span></span>' : (isUser ? '<span class="text-amber-400"><span data-ui-icon=star aria-hidden=true></span></span>' : '')}
         <span class="font-semibold">${charName}</span>
         ${playerName ? `<span class="text-[10px] text-neutral-400">(${playerName})</span>` : ''}
         ${p.discord ? `<span class="text-[9px] font-mono text-sky-400 bg-sky-500/10 px-1.5 py-0.5 rounded border border-sky-500/20">@${escapeHtml(p.discord)}</span>` : ''}
@@ -1070,7 +1070,7 @@ function renderSpeciesCategories() {
     <button type="button" onclick="selectSpeciesCategory(${idx})"
       class="w-full text-left p-2.5 rounded-xl transition flex items-center justify-between cursor-pointer ${idx === activeSpeciesCatIndex ? 'bg-[#1c1c1c] text-white border border-[#333333] font-bold' : 'text-neutral-400 hover:text-white hover:bg-[#121212] border border-transparent'}">
       <div class="flex items-center gap-2 truncate">
-        <span class="text-sm shrink-0">${fam.icon}</span>
+        <span class="text-sm shrink-0">${WhisperIcons.markup(fam.icon)}</span>
         <span class="text-xs truncate">${fam.name[currentLang]}</span>
       </div>
       <span class="text-[10px] text-neutral-500 font-mono font-semibold">${fam.items.length}</span>
@@ -1101,7 +1101,7 @@ function renderSpeciesItems(filterQuery = "") {
           <p class="text-xs">No se encontraron especies para "<strong>${escapeHtml(q)}</strong>".</p>
           <button type="button" onclick="selectCustomSpeciesFromModal('${escapeHtml(q)}')"
             class="px-3 py-1.5 rounded-lg bg-[#181818] text-neutral-200 border border-[#333333] text-xs font-semibold hover:bg-[#222222] cursor-pointer">
-            ✨ Usar "${escapeHtml(q)}" como especie Homebrew
+             Usar "${escapeHtml(q)}" como especie Homebrew
           </button>
         </div>
       `;
@@ -1140,7 +1140,7 @@ function renderSpeciesItems(filterQuery = "") {
           <div class="text-xs font-semibold text-neutral-200 group-hover:text-white">${it.name[currentLang]}</div>
           <div class="text-[10px] text-neutral-500 font-mono">${currentLang === 'es' ? it.name.en : it.name.es}</div>
         </div>
-        <span class="text-xs text-white opacity-0 group-hover:opacity-100 font-bold">✓</span>
+        <span class="text-xs text-white opacity-0 group-hover:opacity-100 font-bold"><span data-ui-icon=check aria-hidden=true></span></span>
       </button>
     `).join("")}
   `;
@@ -1240,7 +1240,7 @@ function updateClassModalHeaderTabs(p) {
         <button type="button" onclick="disableMulticlassFromModal()"
           class="px-2.5 py-1.5 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 border border-rose-500/30 text-xs font-semibold transition flex items-center gap-1.5 cursor-pointer"
           title="Quitar multiclase y regresar a clase única">
-          <span>✕</span>
+          <span><span data-ui-icon=close aria-hidden=true></span></span>
           <span>Quitar Multiclase</span>
         </button>
       `;
@@ -1253,7 +1253,7 @@ function updateClassModalHeaderTabs(p) {
       toggleContainer.innerHTML = `
         <button type="button" onclick="enableMulticlassFromModal()"
           class="px-3 py-1.5 rounded-xl bg-[#1c1c1c] hover:bg-[#252525] text-white border border-[#333333] text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-sm">
-          <span>⚡ + Habilitar Multiclase</span>
+          <span><span data-ui-icon=process aria-hidden=true></span> + Habilitar Multiclase</span>
         </button>
       `;
     }
@@ -1346,7 +1346,7 @@ function renderSubclassItems(filterQuery = "") {
           <p class="text-xs">No se encontraron subclases para "<strong>${escapeHtml(q)}</strong>".</p>
           <button type="button" onclick="selectCustomClassFromModal('${escapeHtml(q)}')"
             class="px-3 py-1.5 rounded-lg bg-[#181818] text-neutral-200 border border-[#333333] text-xs font-semibold hover:bg-[#222222] cursor-pointer">
-            ✨ Usar "${escapeHtml(q)}" como subclase Homebrew
+             Usar "${escapeHtml(q)}" como subclase Homebrew
           </button>
         </div>
       `;
@@ -1391,7 +1391,7 @@ function renderSubclassItems(filterQuery = "") {
           <div class="text-xs font-semibold text-neutral-200 group-hover:text-white">${sub.name[currentLang]}</div>
           <div class="text-[10px] text-neutral-500 font-mono">${currentLang === 'es' ? sub.name.en : sub.name.es}</div>
         </div>
-        <span class="text-xs text-white opacity-0 group-hover:opacity-100 font-bold">✓</span>
+        <span class="text-xs text-white opacity-0 group-hover:opacity-100 font-bold"><span data-ui-icon=check aria-hidden=true></span></span>
       </button>
     `).join("")}
   `;
@@ -1464,7 +1464,7 @@ async function saveRoster() {
     });
     if (!res.ok) throw new Error("HTTP " + res.status);
     if (badge) {
-      badge.textContent = "✓ Guardado";
+      badge.textContent = "Guardado";
       badge.dataset.saveState = "saved";
       badge.classList.remove("hidden");
       setTimeout(() => badge.classList.add("hidden"), 2500);
@@ -1493,7 +1493,7 @@ async function manualSaveRoster() {
   clearTimeout(_rosterDebounceTimer);
   const saved = await saveRoster();
   if (saved && typeof showAlert === "function") {
-    showAlert("✓ Roster oficial de campaña guardado con éxito.", "success");
+    showSuccessAlert("Roster oficial de campaña guardado con éxito.", "success");
   }
   return saved;
 }
@@ -1555,7 +1555,7 @@ async function refreshDiscordParticipants(manual = false) {
       cachedDiscordParticipants = Array.isArray(data.participants) ? data.participants : [];
       renderRosterTable();
       if (manual && typeof showAlert === "function") {
-        showAlert(`🎧 Discord actualizado (${cachedDiscordParticipants.length} participantes detectados).`, "info");
+        showAlert(`Discord actualizado (${cachedDiscordParticipants.length} participantes detectados).`, "info");
       }
     }
   } catch (err) {
@@ -1570,7 +1570,7 @@ async function resetDiscordAuth() {
     const res = await fetch("/api/discord/reset-auth", { method: "POST" });
     if (res.ok) {
       if (typeof showAlert === "function") {
-        showAlert("🔔 Token de Discord reiniciado. Por favor abre tu aplicación de Discord para autorizar.", "info");
+        showAlert("Token de Discord reiniciado. Por favor abre tu aplicación de Discord para autorizar.", "info");
       }
       await refreshDiscordParticipants(true);
     }

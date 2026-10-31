@@ -200,7 +200,7 @@ function renderCharacterSelectDropdown(charList, selectedName) {
   charList.forEach(c => {
     const opt = document.createElement("option");
     opt.value = c.name;
-    const star = c.is_user ? "⭐ " : "";
+    const star = c.is_user ? "Mi personaje · " : "";
     const roleInfo = [c.role, c.species].filter(Boolean).join(", ");
     const playerInfo = c.player ? ` [${c.player}]` : "";
     const details = roleInfo ? ` (${roleInfo}${playerInfo})` : (playerInfo ? ` (${playerInfo.trim()})` : "");
@@ -540,7 +540,7 @@ function renderWikiEntityList() {
       card.onclick = () => selectWikiEntity("quest", q.id, q);
 
       const badge = isCompleted
-        ? '<span class="text-xs font-mono font-semibold px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">✓ Hecha</span>'
+        ? '<span class="text-xs font-mono font-semibold px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/40"><span data-ui-icon=check aria-hidden=true></span> Hecha</span>'
         : '<span class="text-xs font-mono font-semibold px-3 py-1 rounded-full bg-white/10 text-white border border-white/20">● Activa</span>';
 
       card.innerHTML = `
@@ -910,7 +910,7 @@ function buildAllPcsGridHtml() {
     return `
       <div class="h-full min-h-[350px] flex flex-col items-center justify-center text-center p-8 space-y-3">
         <div class="w-12 h-12 rounded-2xl bg-slate-950 border border-slate-800 flex items-center justify-center text-slate-500">
-          <span class="text-2xl">🛡️</span>
+          <span class="text-2xl"><span data-ui-icon=shield aria-hidden=true></span></span>
         </div>
         <h4 class="text-sm font-bold text-slate-300">Directorio de Protagonistas (PCs)</h4>
         <p class="text-xs text-slate-500 max-w-sm leading-relaxed">
@@ -925,7 +925,7 @@ function buildAllPcsGridHtml() {
       <div class="flex items-center justify-between border-b border-slate-800 pb-3">
         <div>
           <h3 class="text-base font-bold text-slate-100 font-fantasy flex items-center gap-2">
-            <span>🛡️</span> Protagonistas de la Campaña (${pcs.length})
+            <span><span data-ui-icon=shield aria-hidden=true></span></span> Protagonistas de la Campaña (${pcs.length})
           </h3>
           <p class="text-xs text-slate-400">Cuadrícula maestra de personajes jugadores activos</p>
         </div>
@@ -963,7 +963,7 @@ function buildAllPcsGridHtml() {
               </div>
               <div class="flex items-center justify-end gap-1.5 pt-2 border-t border-slate-900">
                 <button type="button" onclick="openMergeEntityModal('pc', '${escapeHtml(charName)}')" class="px-2 py-1 rounded-lg text-[11px] bg-slate-900 hover:bg-slate-800 text-slate-400 hover:text-amber-300 border border-slate-800 transition active:scale-95 cursor-pointer" title="Fusionar con otro personaje">
-                  🔗
+                  <span data-ui-icon=link aria-hidden=true></span>
                 </button>
                 <button type="button" onclick="findAndSelectWikiEntity('pc', '${escapeHtml(charName)}')" class="px-2.5 py-1 rounded-lg text-xs font-semibold bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/30 transition active:scale-95 cursor-pointer">
                   Ver Ficha
@@ -1043,7 +1043,7 @@ function buildLocationDossierHtml(loc) {
           ${assoc.map(charName => {
             const isPc = (state.universal_pcs || []).some(p => (p.name || p.nombre || p.personaje || "").toLowerCase().trim() === charName.toLowerCase().trim());
             const type = isPc ? 'pc' : 'npc';
-            const icon = isPc ? '🛡️' : '🗣️';
+            const icon = WhisperIcons.markup(isPc ? 'shield' : 'message');
             return `<button type="button" onclick="findAndSelectWikiEntity('${type}', '${escapeHtml(charName)}')" class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-xs bg-[#121212] hover:bg-[#1a1a1a] text-amber-300 border border-[#262626] hover:border-amber-500/50 transition cursor-pointer active:scale-95 shadow-sm">
               <span>${icon}</span>
               <span class="font-medium">${escapeHtml(charName)}</span>
@@ -1055,10 +1055,10 @@ function buildLocationDossierHtml(loc) {
   }
 
   const statusBadges = {
-    explorado: '<span class="text-[10px] font-mono px-2.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">✓ Explorado</span>',
+    explorado: '<span class="text-[10px] font-mono px-2.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-300 border border-emerald-500/30"><span data-ui-icon=check aria-hidden=true></span> Explorado</span>',
     en_progreso: '<span class="text-[10px] font-mono px-2.5 py-0.5 rounded-full bg-amber-500/15 text-amber-300 border border-amber-500/30">● En Progreso</span>',
-    destruido: '<span class="text-[10px] font-mono px-2.5 py-0.5 rounded-full bg-rose-500/15 text-rose-300 border border-rose-500/30">✕ Destruido</span>',
-    no_visitado: '<span class="text-[10px] font-mono px-2.5 py-0.5 rounded-full bg-[#121212] text-neutral-400 border border-[#262626]">🧭 No Visitado</span>',
+    destruido: '<span class="text-[10px] font-mono px-2.5 py-0.5 rounded-full bg-rose-500/15 text-rose-300 border border-rose-500/30"><span data-ui-icon=close aria-hidden=true></span> Destruido</span>',
+    no_visitado: '<span class="text-[10px] font-mono px-2.5 py-0.5 rounded-full bg-[#121212] text-neutral-400 border border-[#262626]"><span data-ui-icon=compass aria-hidden=true></span> No Visitado</span>',
   };
   const badge = statusBadges[loc.status] || `<span class="text-[10px] font-mono px-2.5 py-0.5 rounded-full bg-[#121212] text-neutral-300 border border-[#262626]">${escapeHtml(loc.status || 'Ubicación')}</span>`;
 
@@ -1086,7 +1086,7 @@ function buildItemDossierHtml(item) {
   if (holder && holder !== "-") {
     const isPc = (state.universal_pcs || []).some(p => (p.name || p.nombre || p.personaje || "").toLowerCase().trim() === holder.toLowerCase());
     const type = isPc ? 'pc' : 'npc';
-    const icon = isPc ? '🛡️' : '🗣️';
+    const icon = WhisperIcons.markup(isPc ? 'shield' : 'message');
     holderChipHtml = `
       <div class="pt-2 border-t border-[#222222] space-y-1.5">
         <span class="text-[11px] font-semibold text-neutral-400 block uppercase font-mono">Portador Actual / Custodio:</span>
@@ -1281,20 +1281,20 @@ function buildQuestDossierHtml(q) {
   const isFailed = q.status === "failed";
   const tipo = (q.tipo || "principal").toLowerCase();
   
-  let tipoBadge = '<span class="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-500/15 text-amber-300 border border-amber-500/30">⭐ Misión Principal</span>';
+  let tipoBadge = '<span class="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-500/15 text-amber-300 border border-amber-500/30"><span data-ui-icon=star aria-hidden=true></span> Misión Principal</span>';
   if (tipo === "secundaria") {
-    tipoBadge = '<span class="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-indigo-500/15 text-indigo-300 border border-indigo-500/30">⚔️ Misión Secundaria</span>';
+    tipoBadge = '<span class="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-indigo-500/15 text-indigo-300 border border-indigo-500/30"><span data-ui-icon=swords aria-hidden=true></span> Misión Secundaria</span>';
   } else if (tipo === "opcional") {
-    tipoBadge = '<span class="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">🧭 Tarea Opcional</span>';
+    tipoBadge = '<span class="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-500/15 text-emerald-300 border border-emerald-500/30"><span data-ui-icon=compass aria-hidden=true></span> Tarea Opcional</span>';
   } else if (tipo === "misterios_abiertos" || tipo === "misterio") {
-    tipoBadge = '<span class="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-purple-500/15 text-purple-300 border border-purple-500/30">🔮 Misterios Abiertos</span>';
+    tipoBadge = '<span class="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-purple-500/15 text-purple-300 border border-purple-500/30"><span data-ui-icon=compass aria-hidden=true></span> Misterios Abiertos</span>';
   }
 
   let statusBadge = "";
   if (isCompleted) {
-    statusBadge = `<button type="button" onclick="toggleWikiQuestStatus('${escapeHtml(q.id)}', '${q.status}')" title="Clic para alternar estado" class="cursor-pointer hover:opacity-80 active:scale-95 transition px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">✓ COMPLETADA</button>`;
+    statusBadge = `<button type="button" onclick="toggleWikiQuestStatus('${escapeHtml(q.id)}', '${q.status}')" title="Clic para alternar estado" class="cursor-pointer hover:opacity-80 active:scale-95 transition px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-500/15 text-emerald-300 border border-emerald-500/30"><span data-ui-icon=check aria-hidden=true></span> COMPLETADA</button>`;
   } else if (isFailed) {
-    statusBadge = `<button type="button" onclick="toggleWikiQuestStatus('${escapeHtml(q.id)}', '${q.status}')" title="Clic para alternar estado" class="cursor-pointer hover:opacity-80 active:scale-95 transition px-2.5 py-0.5 rounded-full text-xs font-bold bg-rose-500/15 text-rose-300 border border-rose-500/30">🔴 FRACASADA</button>`;
+    statusBadge = `<button type="button" onclick="toggleWikiQuestStatus('${escapeHtml(q.id)}', '${q.status}')" title="Clic para alternar estado" class="cursor-pointer hover:opacity-80 active:scale-95 transition px-2.5 py-0.5 rounded-full text-xs font-bold bg-rose-500/15 text-rose-300 border border-rose-500/30"><span data-ui-icon=record aria-hidden=true></span> FRACASADA</button>`;
   } else {
     statusBadge = `<button type="button" onclick="toggleWikiQuestStatus('${escapeHtml(q.id)}', '${q.status}')" title="Clic para alternar estado" class="cursor-pointer hover:opacity-80 active:scale-95 transition px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-500/15 text-amber-300 border border-amber-500/30">EN PROGRESO</button>`;
   }
@@ -1304,7 +1304,7 @@ function buildQuestDossierHtml(q) {
     subobjectivesHtml = `
       <div class="space-y-2 pt-3 border-t border-[#222222]">
         <h5 class="text-xs font-bold text-neutral-300 uppercase tracking-wider flex items-center gap-2 font-mono">
-          <span>🎯</span> Sub-objetivos & Hitos Concretos
+          <span><span data-ui-icon=target aria-hidden=true></span></span> Sub-objetivos & Hitos Concretos
         </h5>
         <div class="space-y-1.5 bg-[#0a0a0d] p-3.5 rounded-xl border border-[#222222]">
           ${q.subobjectives.map((sub, sIdx) => `
@@ -1343,7 +1343,7 @@ function buildQuestDossierHtml(q) {
       ${q.lifecycle_notes ? `
       <div class="space-y-1.5 pt-2 border-t border-[#222222]">
         <h5 class="text-xs font-bold text-amber-400/90 uppercase tracking-wider flex items-center gap-1.5 font-mono">
-          <span>📜</span> Registro Cronológico / Notas de Sesión
+          <span><span data-ui-icon=file aria-hidden=true></span></span> Registro Cronológico / Notas de Sesión
         </h5>
         <div class="bg-amber-950/20 border border-amber-500/20 p-3.5 rounded-xl text-sm text-amber-200/90 font-mono leading-relaxed">
           ${escapeHtml(q.lifecycle_notes)}
@@ -1462,7 +1462,7 @@ function openMergeEntityModal(type, entityName) {
   const errEl = document.getElementById("mergeEntityError");
   if (errEl) errEl.classList.add("hidden");
   if (sourceEl) {
-    const badge = type === 'pc' ? '🛡️ Protagonista (PC)' : '🗣️ PNJ';
+    const badge = type === 'pc' ? 'Protagonista (PC)' : 'PNJ';
     sourceEl.innerHTML = `
       <div class="flex items-center justify-between">
         <span class="font-bold text-amber-300 text-sm font-fantasy">${escapeHtml(entityName)}</span>
@@ -1559,7 +1559,7 @@ async function submitMergeEntity() {
   const origBtnHtml = btn ? btn.innerHTML : "";
   if (btn) {
     btn.disabled = true;
-    btn.innerHTML = `<span>⏳</span><span>Fusionando...</span>`;
+    btn.innerHTML = `<span><span data-ui-icon=clock aria-hidden=true></span></span><span>Fusionando...</span>`;
   }
   if (errEl) errEl.classList.add("hidden");
 
@@ -1620,11 +1620,11 @@ async function submitMergeEntity() {
 
 function buildNpcDossierHtml(n) {
   const tipo = (n.tipo || n.type || "interaccion_contexto").toLowerCase();
-  let tipoBadge = '<span class="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">🗣️ Interacción Directa & Contexto</span>';
+  let tipoBadge = '<span class="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30"><span data-ui-icon=message aria-hidden=true></span> Interacción Directa & Contexto</span>';
   if (tipo === "importantes" || tipo === "importante") {
-    tipoBadge = '<span class="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-500/20 text-amber-300 border border-amber-500/30">⭐ Clave / Importante</span>';
+    tipoBadge = '<span class="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-500/20 text-amber-300 border border-amber-500/30"><span data-ui-icon=star aria-hidden=true></span> Clave / Importante</span>';
   } else if (tipo === "mencionados" || tipo === "mencionado") {
-    tipoBadge = '<span class="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-slate-800 text-slate-300 border border-slate-700">📜 Mencionado en la historia</span>';
+    tipoBadge = '<span class="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-slate-800 text-slate-300 border border-slate-700"><span data-ui-icon=file aria-hidden=true></span> Mencionado en la historia</span>';
   }
 
   const rawNpcName = n.name || n.nombre || n.personaje || n.character_name || 'Sin nombre';
@@ -1641,12 +1641,12 @@ function buildNpcDossierHtml(n) {
     locsHtml = `
       <div class="space-y-2 pt-2 border-t border-slate-800/80">
         <h5 class="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5 font-mono">
-          <span>📍</span> Lugares Vinculados
+          <span><span data-ui-icon=pin aria-hidden=true></span></span> Lugares Vinculados
         </h5>
         <div class="flex flex-wrap gap-2">
           ${assocLocs.map(l => `
             <button type="button" onclick="findAndSelectWikiEntity('location', '${escapeHtml(l.name)}')" class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs bg-slate-900 hover:bg-slate-800 text-amber-300 border border-slate-700 hover:border-amber-500/40 transition cursor-pointer active:scale-95 shadow-sm">
-              <span>📍</span>
+              <span><span data-ui-icon=pin aria-hidden=true></span></span>
               <span class="font-medium">${escapeHtml(l.name)}</span>
             </button>
           `).join("")}
@@ -1661,12 +1661,12 @@ function buildNpcDossierHtml(n) {
     itemsHtml = `
       <div class="space-y-2 pt-2 border-t border-[#222222]">
         <h5 class="text-xs font-bold text-neutral-400 uppercase tracking-wider flex items-center gap-1.5 font-mono">
-          <span>🗡️</span> Objetos y Artefactos en Custodia
+          <span><span data-ui-icon=swords aria-hidden=true></span></span> Objetos y Artefactos en Custodia
         </h5>
         <div class="flex flex-wrap gap-2">
           ${heldItems.map(it => `
             <button type="button" onclick="findAndSelectWikiEntity('item', '${escapeHtml(it.name)}')" class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-xs bg-[#121212] hover:bg-[#1a1a1a] text-purple-300 border border-purple-500/30 hover:border-purple-500/50 transition cursor-pointer active:scale-95 shadow-sm">
-              <span>💎</span>
+              <span><span data-ui-icon=gem aria-hidden=true></span></span>
               <span class="font-medium">${escapeHtml(it.name)}</span>
               <span class="text-[10px] text-neutral-400">(${escapeHtml(it.type || 'Artefacto')})</span>
             </button>
@@ -1687,7 +1687,7 @@ function buildNpcDossierHtml(n) {
             </span>
           </div>
           <button type="button" onclick="openMergeEntityModal('npc', '${escapeHtml(rawNpcName)}')" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-[#121212] hover:bg-[#1a1a1a] text-amber-300 border border-[#262626] hover:border-amber-500/50 shadow-sm transition active:scale-95 cursor-pointer" title="Fusionar con otro personaje de la campaña">
-            <span>🔗</span>
+            <span><span data-ui-icon=link aria-hidden=true></span></span>
             <span>Fusionar con otro personaje</span>
           </button>
         </div>
@@ -1703,7 +1703,7 @@ function buildNpcDossierHtml(n) {
 
       <div class="space-y-2">
         <h5 class="text-xs font-bold text-neutral-400 uppercase tracking-wider flex items-center gap-2 font-mono">
-          <span>📋</span> Registro Cronológico de Inteligencia & Pistas
+          <span><span data-ui-icon=clipboard aria-hidden=true></span></span> Registro Cronológico de Inteligencia & Pistas
         </h5>
         <div class="space-y-2">
           ${notes.map(note => `
@@ -1738,12 +1738,12 @@ function buildPcDossierHtml(p) {
     locsHtml = `
       <div class="space-y-2 pt-2 border-t border-[#222222]">
         <h5 class="text-xs font-bold text-neutral-400 uppercase tracking-wider flex items-center gap-1.5 font-mono">
-          <span>📍</span> Lugares Vinculados
+          <span><span data-ui-icon=pin aria-hidden=true></span></span> Lugares Vinculados
         </h5>
         <div class="flex flex-wrap gap-2">
           ${assocLocs.map(l => `
             <button type="button" onclick="findAndSelectWikiEntity('location', '${escapeHtml(l.name)}')" class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-xs bg-[#121212] hover:bg-[#1a1a1a] text-amber-300 border border-[#262626] hover:border-amber-500/50 transition cursor-pointer active:scale-95 shadow-sm">
-              <span>📍</span>
+              <span><span data-ui-icon=pin aria-hidden=true></span></span>
               <span class="font-medium">${escapeHtml(l.name)}</span>
             </button>
           `).join("")}
@@ -1758,12 +1758,12 @@ function buildPcDossierHtml(p) {
     itemsHtml = `
       <div class="space-y-2 pt-2 border-t border-[#222222]">
         <h5 class="text-xs font-bold text-neutral-400 uppercase tracking-wider flex items-center gap-1.5 font-mono">
-          <span>🗡️</span> Objetos y Artefactos en Posesión
+          <span><span data-ui-icon=swords aria-hidden=true></span></span> Objetos y Artefactos en Posesión
         </h5>
         <div class="flex flex-wrap gap-2">
           ${heldItems.map(it => `
             <button type="button" onclick="findAndSelectWikiEntity('item', '${escapeHtml(it.name)}')" class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-xs bg-[#121212] hover:bg-[#1a1a1a] text-purple-300 border border-purple-500/30 hover:border-purple-500/50 transition cursor-pointer active:scale-95 shadow-sm">
-              <span>💎</span>
+              <span><span data-ui-icon=gem aria-hidden=true></span></span>
               <span class="font-medium">${escapeHtml(it.name)}</span>
               <span class="text-[10px] text-neutral-400">(${escapeHtml(it.type || 'Artefacto')})</span>
             </button>
@@ -1777,18 +1777,18 @@ function buildPcDossierHtml(p) {
     <div class="space-y-4">
       <div class="flex items-center justify-between">
         <button type="button" onclick="selectWikiEntity(null, null, null)" class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-xs font-semibold bg-[#121212] hover:bg-[#1a1a1a] text-neutral-300 hover:text-white border border-[#262626] transition active:scale-95 cursor-pointer">
-          <span>⬅️</span>
+          <span><span data-ui-icon=back aria-hidden=true></span></span>
           <span>Ver Todos los Protagonistas</span>
         </button>
         <button type="button" onclick="openMergeEntityModal('pc', '${escapeHtml(rawCharName)}')" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-[#121212] hover:bg-[#1a1a1a] text-amber-300 border border-[#262626] hover:border-amber-500/50 shadow-sm transition active:scale-95 cursor-pointer" title="Fusionar con otro personaje de la campaña">
-          <span>🔗</span>
+          <span><span data-ui-icon=link aria-hidden=true></span></span>
           <span>Fusionar con otro personaje</span>
         </button>
       </div>
       <div class="border-b border-[#222222] pb-3 space-y-2">
         <div class="flex flex-wrap items-center gap-2">
           <span class="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-indigo-500/15 text-indigo-300 border border-indigo-500/30">
-            🛡️ Protagonista (PC)
+             Protagonista (PC)
           </span>
           <span class="text-xs px-2 py-0.5 rounded-lg bg-[#0d0d0d] border border-[#222222] text-neutral-400 font-mono">
             ${escapeHtml(debut)}
@@ -1821,7 +1821,7 @@ function buildPcDossierHtml(p) {
 
       <div class="space-y-2">
         <h5 class="text-xs font-bold text-neutral-400 uppercase tracking-wider flex items-center gap-2 font-mono">
-          <span>⚔️</span> Hitos & Hechos Destacados Acumulados
+          <span><span data-ui-icon=swords aria-hidden=true></span></span> Hitos & Hechos Destacados Acumulados
         </h5>
         <div class="space-y-2">
           ${hitos.map(h => `
@@ -1863,28 +1863,28 @@ function getNpcCategoryBadge(n) {
   const tipo = String(n.tipo || "").toLowerCase();
 
   if (cat === "clave" || tipo === "importantes" || tipo === "importante") {
-    return `<span class="px-2 py-0.5 rounded-full text-[10px] font-semibold font-mono bg-amber-500/15 text-amber-300 border border-amber-500/30">👑 Clave / Importante</span>`;
+    return `<span class="px-2 py-0.5 rounded-full text-[10px] font-semibold font-mono bg-amber-500/15 text-amber-300 border border-amber-500/30"><span data-ui-icon=crown aria-hidden=true></span> Clave / Importante</span>`;
   } else if (cat === "aliado") {
-    return `<span class="px-2 py-0.5 rounded-full text-[10px] font-semibold font-mono bg-sky-500/15 text-cyan-300 border border-sky-500/30">🛡️ Aliado / Compañero</span>`;
+    return `<span class="px-2 py-0.5 rounded-full text-[10px] font-semibold font-mono bg-sky-500/15 text-cyan-300 border border-sky-500/30"><span data-ui-icon=shield aria-hidden=true></span> Aliado / Compañero</span>`;
   } else if (cat === "invocacion") {
-    return `<span class="px-2 py-0.5 rounded-full text-[10px] font-semibold font-mono bg-purple-500/15 text-purple-300 border border-purple-500/30">🐾 Invocación / Familiar</span>`;
+    return `<span class="px-2 py-0.5 rounded-full text-[10px] font-semibold font-mono bg-purple-500/15 text-purple-300 border border-purple-500/30"><span data-ui-icon=paw aria-hidden=true></span> Invocación / Familiar</span>`;
   } else if (cat === "amenaza") {
-    return `<span class="px-2 py-0.5 rounded-full text-[10px] font-semibold font-mono bg-rose-500/15 text-rose-300 border border-rose-500/30">💀 Amenaza / Enemigo</span>`;
+    return `<span class="px-2 py-0.5 rounded-full text-[10px] font-semibold font-mono bg-rose-500/15 text-rose-300 border border-rose-500/30"><span data-ui-icon=warning aria-hidden=true></span> Amenaza / Enemigo</span>`;
   } else {
-    return `<span class="px-2 py-0.5 rounded-full text-[10px] font-semibold font-mono bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">⚔️ Interacción / Contexto</span>`;
+    return `<span class="px-2 py-0.5 rounded-full text-[10px] font-semibold font-mono bg-emerald-500/15 text-emerald-300 border border-emerald-500/30"><span data-ui-icon=swords aria-hidden=true></span> Interacción / Contexto</span>`;
   }
 }
 
 function getNpcStatusBadge(n) {
   const status = String(n.status || "activo").toLowerCase();
   if (status === "herido") {
-    return `<span class="px-1.5 py-0.5 rounded-md text-[10px] font-medium font-mono bg-amber-950/60 text-amber-300 border border-amber-800/40" title="Estado al final de la sesión: Herido o Revivido">🟡 Herido</span>`;
+    return `<span class="px-1.5 py-0.5 rounded-md text-[10px] font-medium font-mono bg-amber-950/60 text-amber-300 border border-amber-800/40" title="Estado al final de la sesión: Herido o Revivido"><span data-ui-icon=warning aria-hidden=true></span> Herido</span>`;
   } else if (status === "abatido") {
-    return `<span class="px-1.5 py-0.5 rounded-md text-[10px] font-medium font-mono bg-rose-950/60 text-rose-300 border border-rose-800/40" title="Estado al final de la sesión: Abatido o Muerto">🔴 Abatido</span>`;
+    return `<span class="px-1.5 py-0.5 rounded-md text-[10px] font-medium font-mono bg-rose-950/60 text-rose-300 border border-rose-800/40" title="Estado al final de la sesión: Abatido o Muerto"><span data-ui-icon=record aria-hidden=true></span> Abatido</span>`;
   } else if (status === "desvanecido") {
-    return `<span class="px-1.5 py-0.5 rounded-md text-[10px] font-medium font-mono bg-purple-950/60 text-purple-300 border border-purple-800/40" title="Estado al final de la sesión: Desvanecido">🟣 Desvanecido</span>`;
+    return `<span class="px-1.5 py-0.5 rounded-md text-[10px] font-medium font-mono bg-purple-950/60 text-purple-300 border border-purple-800/40" title="Estado al final de la sesión: Desvanecido"><span data-ui-icon=info aria-hidden=true></span> Desvanecido</span>`;
   } else {
-    return `<span class="px-1.5 py-0.5 rounded-md text-[10px] font-medium font-mono bg-emerald-950/60 text-emerald-300 border border-emerald-800/40" title="Estado al final de la sesión: Activo">🟢 Activo</span>`;
+    return `<span class="px-1.5 py-0.5 rounded-md text-[10px] font-medium font-mono bg-emerald-950/60 text-emerald-300 border border-emerald-800/40" title="Estado al final de la sesión: Activo"><span data-ui-icon=check aria-hidden=true></span> Activo</span>`;
   }
 }
 
@@ -2109,7 +2109,7 @@ async function submitEditNpc() {
   const origBtnText = btn ? btn.innerHTML : "";
   if (btn) {
     btn.disabled = true;
-    btn.innerHTML = `<span>⏳</span><span>Guardando...</span>`;
+    btn.innerHTML = `<span><span data-ui-icon=clock aria-hidden=true></span></span><span>Guardando...</span>`;
   }
   if (errEl) errEl.classList.add("hidden");
 
@@ -2152,7 +2152,7 @@ async function submitEditNpc() {
     if (typeof showTransientAlert === "function") {
       showTransientAlert(`PNJ '${newName}' actualizado correctamente`, "success");
     } else if (typeof showAlert === "function") {
-      showAlert(`✅ PNJ '${newName}' actualizado correctamente.`);
+      showSuccessAlert(`PNJ '${newName}' actualizado correctamente.`);
     }
   } catch (err) {
     if (errEl) {
@@ -2179,7 +2179,7 @@ function renderUniversalPcs(pcs) {
   if (list.length === 0) {
     container.innerHTML = `
       <div class="col-span-2 text-center py-8 text-slate-500 space-y-1">
-        <p class="text-2xl">🛡️</p>
+        <p class="text-2xl"><span data-ui-icon=shield aria-hidden=true></span></p>
         <p class="text-xs">No hay aventureros registrados en el Directorio de PCs todavía.</p>
         <p class="text-[11px] text-slate-600">Se registrarán automáticamente conforme se procesen las sesiones de la campaña.</p>
       </div>
@@ -2206,7 +2206,7 @@ function renderUniversalPcs(pcs) {
       hitosHtml = `
         <div class="pt-2.5 border-t border-slate-800/80 space-y-1.5">
           <span class="text-[11px] font-semibold text-amber-400 flex items-center gap-1.5">
-            <span>🏅</span> Hitos y Logros Acumulados:
+            <span><span data-ui-icon=star aria-hidden=true></span></span> Hitos y Logros Acumulados:
           </span>
           <ul class="text-[11px] text-slate-300 space-y-1 pl-4 list-disc">
             ${hitos.map(h => `<li>${escapeHtml(h)}</li>`).join('')}
@@ -2260,11 +2260,11 @@ function renderQuests(quests) {
   }
 
   const tipoBadges = {
-    principal: `<span class="px-2 py-0.5 rounded-full text-[10px] font-semibold font-mono bg-amber-500/15 text-amber-300 border border-amber-500/30">⭐ Principal</span>`,
-    secundaria: `<span class="px-2 py-0.5 rounded-full text-[10px] font-semibold font-mono bg-sky-500/15 text-sky-300 border border-sky-500/30">⚔️ Secundaria</span>`,
-    opcional: `<span class="px-2 py-0.5 rounded-full text-[10px] font-semibold font-mono bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">🧭 Opcional</span>`,
-    misterios_abiertos: `<span class="px-2 py-0.5 rounded-full text-[10px] font-semibold font-mono bg-purple-500/15 text-purple-300 border border-purple-500/30">🔮 Misterios Abiertos</span>`,
-    misterio: `<span class="px-2 py-0.5 rounded-full text-[10px] font-semibold font-mono bg-purple-500/15 text-purple-300 border border-purple-500/30">🔮 Misterios Abiertos</span>`,
+    principal: `<span class="px-2 py-0.5 rounded-full text-[10px] font-semibold font-mono bg-amber-500/15 text-amber-300 border border-amber-500/30"><span data-ui-icon=star aria-hidden=true></span> Principal</span>`,
+    secundaria: `<span class="px-2 py-0.5 rounded-full text-[10px] font-semibold font-mono bg-sky-500/15 text-sky-300 border border-sky-500/30"><span data-ui-icon=swords aria-hidden=true></span> Secundaria</span>`,
+    opcional: `<span class="px-2 py-0.5 rounded-full text-[10px] font-semibold font-mono bg-emerald-500/15 text-emerald-300 border border-emerald-500/30"><span data-ui-icon=compass aria-hidden=true></span> Opcional</span>`,
+    misterios_abiertos: `<span class="px-2 py-0.5 rounded-full text-[10px] font-semibold font-mono bg-purple-500/15 text-purple-300 border border-purple-500/30"><span data-ui-icon=compass aria-hidden=true></span> Misterios Abiertos</span>`,
+    misterio: `<span class="px-2 py-0.5 rounded-full text-[10px] font-semibold font-mono bg-purple-500/15 text-purple-300 border border-purple-500/30"><span data-ui-icon=compass aria-hidden=true></span> Misterios Abiertos</span>`,
   };
 
   container.innerHTML = "";
@@ -2280,9 +2280,9 @@ function renderQuests(quests) {
 
     let statusBadge = "";
     if (isCompleted) {
-      statusBadge = `<button type="button" onclick="toggleQuestStatus('${escapeHtml(q.id)}', '${q.status}')" title="Clic para alternar estado" class="cursor-pointer hover:opacity-90 active:scale-[0.98] transition px-2.5 py-0.5 rounded-full text-[10px] font-bold font-mono bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">✓ COMPLETADA</button>`;
+      statusBadge = `<button type="button" onclick="toggleQuestStatus('${escapeHtml(q.id)}', '${q.status}')" title="Clic para alternar estado" class="cursor-pointer hover:opacity-90 active:scale-[0.98] transition px-2.5 py-0.5 rounded-full text-[10px] font-bold font-mono bg-emerald-500/20 text-emerald-300 border border-emerald-500/30"><span data-ui-icon=check aria-hidden=true></span> COMPLETADA</button>`;
     } else if (isFailed) {
-      statusBadge = `<button type="button" onclick="toggleQuestStatus('${escapeHtml(q.id)}', '${q.status}')" title="Clic para alternar estado" class="cursor-pointer hover:opacity-90 active:scale-[0.98] transition px-2.5 py-0.5 rounded-full text-[10px] font-bold font-mono bg-rose-500/20 text-rose-300 border border-rose-500/30">🔴 FRACASADA</button>`;
+      statusBadge = `<button type="button" onclick="toggleQuestStatus('${escapeHtml(q.id)}', '${q.status}')" title="Clic para alternar estado" class="cursor-pointer hover:opacity-90 active:scale-[0.98] transition px-2.5 py-0.5 rounded-full text-[10px] font-bold font-mono bg-rose-500/20 text-rose-300 border border-rose-500/30"><span data-ui-icon=record aria-hidden=true></span> FRACASADA</button>`;
     } else {
       statusBadge = `<button type="button" onclick="toggleQuestStatus('${escapeHtml(q.id)}', '${q.status}')" title="Clic para alternar estado" class="cursor-pointer hover:opacity-90 active:scale-[0.98] transition px-2.5 py-0.5 rounded-full text-[10px] font-bold font-mono bg-sky-500/20 text-sky-300 border border-sky-500/30">EN PROGRESO</button>`;
     }
@@ -2428,7 +2428,7 @@ function hideNpcSpellcheck() {
 async function confirmNpcSpellcheck() {
   const campName = (document.getElementById("campaignNameInput")?.value || "").trim();
   if (!campName) {
-    if (typeof showAlert === "function") showAlert("⚠️ Debes seleccionar o crear una campaña antes de confirmar nombres de PNJs.");
+    if (typeof showAlert === "function") showAlert("Debes seleccionar o crear una campaña antes de confirmar nombres de PNJs.");
     return;
   }
   const inputs = document.querySelectorAll(".npc-spell-input");
@@ -2526,7 +2526,7 @@ async function confirmNpcSpellcheck() {
             displayResults(currentResult);
           }
         }
-        if (typeof showAlert === "function") showAlert("✅ Nombres de PNJs corregidos y actualizados en el documento y campaña.");
+        if (typeof showAlert === "function") showSuccessAlert("Nombres de PNJs corregidos y actualizados en el documento y campaña.");
       }
     } catch (err) {
       console.error("Error finalizing NPCs:", err);
@@ -2555,12 +2555,12 @@ function renderJournal(state) {
   const journalEl = document.getElementById("journalView");
   if (!state) return;
   let mdLines = [];
-  mdLines.push(`# 📜 Grimorio de Campaña: ${state.campaign_name || 'Campaña'}`);
+  mdLines.push(`#  Grimorio de Campaña: ${state.campaign_name || 'Campaña'}`);
   mdLines.push(`*Última sesión registrada: #${state.last_session || 0} &bull; Actualizado: ${state.updated_at ? state.updated_at.substring(0, 10) : ''}*\n`);
 
   const sessions = state.sessions || [];
   if (sessions.length > 0) {
-    mdLines.push(`## 📚 Capítulos de Campaña`);
+    mdLines.push(`##  Capítulos de Campaña`);
     sessions.forEach(s => {
       mdLines.push(`### Capítulo ${s.session_number}: ${s.title || ''}`);
       let secNum = 1;
@@ -2580,12 +2580,12 @@ function renderJournal(state) {
       }
       const synopsis = s.episode_synopsis;
       if (synopsis && synopsis.trim()) {
-        mdLines.push(`**📌 Sinopsis Ejecutiva del Episodio:**\n${synopsis}\n`);
+        mdLines.push(`** Sinopsis Ejecutiva del Episodio:**\n${synopsis}\n`);
       } else {
         const scriptText = s.next_session_script || s.recap_text;
         if (scriptText && scriptText.trim()) {
           const nextNum = (s.session_number || 1) + 1;
-          mdLines.push(`**${secNum}. 🎙️ Guion para abrir la Sesión #${nextNum} (Para leer en voz alta):**\n> ${scriptText}\n`);
+          mdLines.push(`**${secNum}.  Guion para abrir la Sesión #${nextNum} (Para leer en voz alta):**\n> ${scriptText}\n`);
         }
       }
       mdLines.push(`---\n`);
@@ -2714,7 +2714,7 @@ function downloadSelectedWikiSessionDocx(cleanMode = false) {
   const campInput = document.getElementById("campaignNameInput");
   const campName = (select && select.value && select.value.trim()) || (campInput && campInput.value && campInput.value.trim());
   if (!campName) {
-    if (typeof showAlert === "function") showAlert("⚠️ Selecciona una campaña primero para descargar la sesión.");
+    if (typeof showAlert === "function") showAlert("Selecciona una campaña primero para descargar la sesión.");
     else alert("Selecciona una campaña primero para descargar la sesión.");
     return;
   }

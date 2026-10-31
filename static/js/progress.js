@@ -256,13 +256,13 @@ function setStageElementState(el, state) {
 
   if (state === "active") {
     el.className = `${baseClasses} border border-amber-500/60 bg-amber-950/30 ring-1 ring-amber-500/50 shadow-md shadow-amber-900/20`;
-    if (icon) icon.textContent = "⚡";
+    if (icon) WhisperIcons.set(icon, "process");
   } else if (state === "completed") {
     el.className = `${baseClasses} border border-emerald-500/40 bg-emerald-950/20`;
-    if (icon) icon.textContent = "✓";
+    if (icon) WhisperIcons.set(icon, "check");
   } else {
     el.className = `${baseClasses} border border-slate-800 bg-slate-950/60 opacity-60`;
-    if (icon) icon.textContent = "⏳";
+    if (icon) WhisperIcons.set(icon, "clock");
   }
 
   if (isHidden) {
@@ -499,12 +499,12 @@ async function cancelCurrentTask() {
   const btnFile = document.getElementById("btnFile");
   if (btnFile) {
     btnFile.disabled = false;
-    btnFile.innerHTML = `<span>✨</span> <span>Procesar Grabación</span>`;
+    btnFile.innerHTML = `<span><span data-ui-icon=process aria-hidden=true></span></span> <span>Procesar Grabación</span>`;
   }
   const btnYt = document.getElementById("btnYoutube");
   if (btnYt) {
     btnYt.disabled = false;
-    btnYt.innerHTML = `<span>✨</span> <span>Descargar y Procesar</span>`;
+    btnYt.innerHTML = `<span><span data-ui-icon=process aria-hidden=true></span></span> <span>Descargar y Procesar</span>`;
   }
   const btnStop = document.getElementById("btnStopRecording");
   const btnStart = document.getElementById("btnStartRecording");

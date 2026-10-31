@@ -30,7 +30,7 @@ window.addEventListener('error', function(e) {
   </script>
 
   <link rel="stylesheet" href="/static/styles.css?v=desktop1">
-  <link rel="stylesheet" href="/static/desktop.css?v=desktop-balanced-20261030">
+  <link rel="stylesheet" href="/static/desktop.css?v=desktop-controls-20261030">
   <script>
   try { var t = localStorage.getItem('whisper_desktop_theme'); if (['copper','graphite','midnight','wine','paper','sky'].includes(t)) document.documentElement.dataset.theme = t; } catch (_) {}
   </script>
@@ -114,7 +114,7 @@ class="hidden w-full min-h-[44px] px-3 py-2.5 rounded-xl text-xs font-medium fle
 <!-- Sidebar Footer -->
 <div class="p-3 border-t border-slate-800 space-y-2 relative">
   <div id="systemStatusContainer" class="relative">
-<button onclick="setActiveView('settings')" class="w-full text-left px-3 py-2 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-400 text-xs font-medium hover:bg-amber-500/20">⚠️ Configuración Requerida</button>
+<button onclick="setActiveView('settings')" class="w-full text-left px-3 py-2 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-400 text-xs font-medium hover:bg-amber-500/20"><span data-ui-icon=warning aria-hidden=true></span> Configurar APIs</button>
   </div>
 
   <!-- Indicador de Cuota de API (Tokens & Presupuesto) -->
@@ -140,7 +140,7 @@ class="hidden w-full min-h-[44px] px-3 py-2.5 rounded-xl text-xs font-medium fle
 <button id="btnSettingsSidebar" onclick="setActiveView('settings')" type="button"
   title="Ajustes, credenciales de API y audio"
   class="w-full min-h-[44px] inline-flex items-center justify-center gap-2 px-3 py-2 rounded-xl text-xs font-medium text-slate-300 hover:text-amber-300 hover:bg-white/5 border border-white/10 transition-colors duration-150 cursor-pointer active:scale-[0.98]">
-  <span class="text-sm">⚙️</span>
+  <span class="text-sm"><span data-ui-icon=settings aria-hidden=true></span></span>
   <span>Ajustes & APIs</span>
 </button>
   </div>
@@ -165,7 +165,7 @@ class="hidden w-full min-h-[44px] px-3 py-2.5 rounded-xl text-xs font-medium fle
 <button id="mobileSwitchWork" onclick="setWorkspace('work_and_study')" type="button" class="min-h-[36px] px-2.5 py-1 rounded text-xs font-medium text-slate-400">Work</button>
   </div>
   <span id="mobileDriveSyncIndicator" class="hidden min-h-[36px] inline-flex items-center justify-center px-2 py-1 rounded-lg text-xs font-medium bg-slate-800 text-emerald-400 border border-white/10" title="Google Drive">
-☁️
+<span data-ui-icon=cloud aria-hidden=true></span>
   </span>
   <div id="mobileQuotaIndicator" class="min-h-[36px] inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-mono font-medium bg-slate-800 text-emerald-400 border border-white/10" title="Cuota de API disponible">
 <span id="mobileQuotaDot" class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
@@ -173,7 +173,7 @@ class="hidden w-full min-h-[44px] px-3 py-2.5 rounded-xl text-xs font-medium fle
   </div>
   <button id="btnMobileSettings" onclick="setActiveView('settings')" type="button" title="Ajustes de API y Audio"
 class="min-h-[36px] w-[36px] rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 flex items-center justify-center text-sm border border-white/10 active:scale-95 transition cursor-pointer">
-⚙️
+<span data-ui-icon=settings aria-hidden=true></span>
   </button>
   <span id="headerRecordingBadge" class="hidden min-h-[36px] inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-mono font-medium bg-rose-500/10 text-rose-400 border border-rose-500/20">
 <span class="w-2 h-2 rounded-full bg-rose-500 animate-pulse"></span>
@@ -268,7 +268,7 @@ class="btn-subtle min-h-[40px] inline-flex items-center gap-2 px-3.5 py-1.5 text
 <input type="number" id="sessionNumberInput" min="1" value="" placeholder="-" disabled
   title="Número de sesión. En Vivo se bloquea para avance continuo; en Archivo/URL es editable para reprocesar."
   class="w-16 min-h-[40px] bg-slate-950 border border-slate-800 rounded-xl px-2.5 py-2 text-xs text-slate-400 text-center font-bold font-mono cursor-not-allowed outline-none select-none transition duration-150">
-<span id="sessionLockBadge" class="hidden px-2 py-0.5 rounded-full text-[10px] font-mono font-semibold bg-slate-800 text-slate-400 border border-slate-700">🔒 En Vivo</span>
+<span id="sessionLockBadge" class="hidden px-2 py-0.5 rounded-full text-[10px] font-mono font-semibold bg-slate-800 text-slate-400 border border-slate-700"><span data-ui-icon=lock aria-hidden=true></span> En Vivo</span>
   </div>
 </div>
 <div class="flex items-center gap-1.5">
@@ -283,7 +283,7 @@ Regrabar / Reemplazar
 </button>
 <span id="campaignDriveSyncIndicator" class="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium bg-slate-950 border border-slate-800 text-slate-500 transition-colors select-none" title="Estado de persistencia con Google Drive">
   <span class="w-1.5 h-1.5 rounded-full bg-slate-600"></span>
-  <span>⚠️ Sin conexión a Drive</span>
+  <span><span data-ui-icon=warning aria-hidden=true></span> Sin conexión a Drive</span>
 </span>
   </div>
 </div>
@@ -307,10 +307,10 @@ Regrabar / Reemplazar
   class="w-full bg-slate-950 border border-slate-800 focus:border-amber-500/70 rounded-xl p-3 text-xs text-slate-200 placeholder-slate-500 outline-none leading-relaxed resize-y transition"></textarea>
 <div class="flex flex-wrap items-center justify-between gap-2 text-[11px] text-slate-500">
   <span class="flex items-center gap-1.5">
-<span>💡</span> Si tu partida va por la Sesión #7 o más, describe aquí el trasfondo para que Gemini mantenga la continuidad de tus quests y PNJs.
+<span><span data-ui-icon=lightbulb aria-hidden=true></span></span> Si tu partida va por la Sesión #7 o más, describe aquí el trasfondo para que Gemini mantenga la continuidad de tus quests y PNJs.
   </span>
   <div class="flex items-center gap-2">
-<span id="priorLoreStatusMsg" class="text-[11px] text-emerald-400 font-medium hidden">✓ Guardado</span>
+<span id="priorLoreStatusMsg" class="text-[11px] text-emerald-400 font-medium hidden"><span data-ui-icon=check aria-hidden=true></span> Guardado</span>
 <button type="button" onclick="saveCurrentCampaignLore(true)"
   class="px-3 py-1 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 text-xs font-semibold transition cursor-pointer">
   Guardar Lore
@@ -333,13 +333,13 @@ Regrabar / Reemplazar
   </button>
   <button type="button" onclick="addRosterRow()" class="btn-subtle min-h-[36px] px-3 py-1.5 text-xs font-medium flex items-center gap-1.5 cursor-pointer">
 <svg class="w-3.5 h-3.5 text-amber-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" x2="12" y1="5" y2="19"/><line x1="5" x2="19" y1="12" y2="12"/></svg>
-<span class="text-slate-300">+ Agregar Jugador</span>
+<span class="text-slate-300">Agregar Jugador</span>
   </button>
   <button type="button" onclick="manualSaveRoster()" class="btn-subtle min-h-[36px] px-3.5 py-1.5 text-xs font-semibold flex items-center gap-1.5 cursor-pointer border-emerald-500/30 hover:border-emerald-500/50">
 <svg class="w-3.5 h-3.5 text-emerald-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
 <span class="text-emerald-300">Guardar Grupo</span>
   </button>
-  <span id="saveStatusBadge" class="hidden text-emerald-400 text-xs font-semibold animate-pulse">✓ Guardado</span>
+  <span id="saveStatusBadge" class="hidden text-emerald-400 text-xs font-semibold animate-pulse"><span data-ui-icon=check aria-hidden=true></span> Guardado</span>
 </div>
   </div>
 
@@ -348,7 +348,7 @@ Regrabar / Reemplazar
   <table id="roster-table" class="w-full text-left text-xs border-collapse min-w-[700px]">
 <thead>
   <tr class="bg-neutral-950 text-neutral-400 border-b border-neutral-800 font-semibold font-mono text-[11px] uppercase tracking-wider">
-<th class="py-3 px-2 w-[5%] text-center" title="⭐ Mi Personaje: Selecciona cuál es tu personaje en esta campaña">⭐ Mi PJ</th>
+<th class="py-3 px-2 w-[5%] text-center" title=" Mi Personaje: Selecciona cuál es tu personaje en esta campaña"><span data-ui-icon=star aria-hidden=true></span> Mi PJ</th>
 <th class="py-3 px-4 w-[28%]">Personaje & Jugador</th>
 <th class="py-3 px-4 w-[18%]">Especie</th>
 <th class="py-3 px-4 w-[33%]">Clase & Subclase</th>
@@ -534,12 +534,12 @@ Regrabar / Reemplazar
 <div class="flex items-center p-1 bg-slate-950/80 rounded-xl border border-slate-800 text-xs">
   <button type="button" id="btnWorkModeAcademic" onclick="setWorkStudySubMode('academic')"
 class="min-h-[34px] px-3 py-1 rounded-lg font-semibold transition-all duration-150 flex items-center gap-1.5 bg-sky-500/20 text-sky-300 border border-sky-500/30 shadow-sm cursor-pointer active:scale-[0.98]">
-<span>🎓</span>
+<span><span data-ui-icon=graduation aria-hidden=true></span></span>
 <span>Guía Académica</span>
   </button>
   <button type="button" id="btnWorkModeExecutive" onclick="setWorkStudySubMode('executive')"
 class="min-h-[34px] px-3 py-1 rounded-lg font-medium transition-all duration-150 flex items-center gap-1.5 text-slate-400 hover:text-slate-200 border border-transparent cursor-pointer active:scale-[0.98]">
-<span>💼</span>
+<span><span data-ui-icon=briefcase aria-hidden=true></span></span>
 <span>Minuta Ejecutiva</span>
   </button>
 </div>
@@ -547,7 +547,7 @@ class="min-h-[34px] px-3 py-1 rounded-lg font-medium transition-all duration-150
   </div>
   
   <div id="workStudyModeDesc" class="text-xs text-slate-400 flex items-center gap-1.5 font-sans">
-<span class="text-sky-400">💡</span>
+<span class="text-sky-400"><span data-ui-icon=lightbulb aria-hidden=true></span></span>
 <span>Gemini generará: <strong>Glosario conceptual, fórmulas KaTeX y guía estructurada</strong>.</span>
   </div>
 </div>
@@ -560,23 +560,23 @@ class="min-h-[34px] px-3 py-1 rounded-lg font-medium transition-all duration-150
   </span>
   <button type="button" onclick="applyWorkStudyPreset('university')"
 class="work-preset-chip px-2.5 py-1 rounded-lg text-xs font-medium bg-slate-950/80 hover:bg-slate-900 text-slate-300 hover:text-sky-300 border border-slate-800 hover:border-sky-500/30 transition flex items-center gap-1.5 shrink-0 cursor-pointer active:scale-[0.98]">
-<span>🎓 Clase Universitaria</span>
+<span><span data-ui-icon=graduation aria-hidden=true></span> Clase Universitaria</span>
   </button>
   <button type="button" onclick="applyWorkStudyPreset('keynote')"
 class="work-preset-chip px-2.5 py-1 rounded-lg text-xs font-medium bg-slate-950/80 hover:bg-slate-900 text-slate-300 hover:text-sky-300 border border-slate-800 hover:border-sky-500/30 transition flex items-center gap-1.5 shrink-0 cursor-pointer active:scale-[0.98]">
-<span>🔬 Conferencia / Keynote</span>
+<span><span data-ui-icon=search aria-hidden=true></span> Conferencia / Keynote</span>
   </button>
   <button type="button" onclick="applyWorkStudyPreset('meeting')"
 class="work-preset-chip px-2.5 py-1 rounded-lg text-xs font-medium bg-slate-950/80 hover:bg-slate-900 text-slate-300 hover:text-indigo-300 border border-slate-800 hover:border-indigo-500/30 transition flex items-center gap-1.5 shrink-0 cursor-pointer active:scale-[0.98]">
-<span>💼 Daily / Sync</span>
+<span><span data-ui-icon=briefcase aria-hidden=true></span> Daily / Sync</span>
   </button>
   <button type="button" onclick="applyWorkStudyPreset('sprint')"
 class="work-preset-chip px-2.5 py-1 rounded-lg text-xs font-medium bg-slate-950/80 hover:bg-slate-900 text-slate-300 hover:text-indigo-300 border border-slate-800 hover:border-indigo-500/30 transition flex items-center gap-1.5 shrink-0 cursor-pointer active:scale-[0.98]">
-<span>🎯 Planificación Sprint</span>
+<span><span data-ui-icon=target aria-hidden=true></span> Planificación Sprint</span>
   </button>
   <button type="button" onclick="applyWorkStudyPreset('research')"
 class="work-preset-chip px-2.5 py-1 rounded-lg text-xs font-medium bg-slate-950/80 hover:bg-slate-900 text-slate-300 hover:text-sky-300 border border-slate-800 hover:border-sky-500/30 transition flex items-center gap-1.5 shrink-0 cursor-pointer active:scale-[0.98]">
-<span>📋 Tesis & Investigación</span>
+<span><span data-ui-icon=clipboard aria-hidden=true></span> Tesis & Investigación</span>
   </button>
 </div>
 <div class="grid grid-cols-1 md:grid-cols-12 gap-3 pt-1">
@@ -599,7 +599,7 @@ class="work-preset-chip px-2.5 py-1 rounded-lg text-xs font-medium bg-slate-950/
   <span>Fecha & Hora:</span>
 </label>
   <button type="button" onclick="setWorkStudyNowDate()" title="Fijar fecha y hora actual" class="text-[11px] font-mono text-sky-400 hover:text-sky-300 transition flex items-center gap-0.5 cursor-pointer">
-<span>⚡ Ahora</span>
+<span><span data-ui-icon=process aria-hidden=true></span> Ahora</span>
   </button>
 </div>
 <input type="text" id="workStudyDateInput"
@@ -608,7 +608,7 @@ class="work-preset-chip px-2.5 py-1 rounded-lg text-xs font-medium bg-slate-950/
 
   <div class="md:col-span-2">
 <label for="workStudySessionInput" id="labelWorkStudySession" class="block text-xs font-semibold text-slate-300 mb-1.5 flex items-center gap-1.5">
-  <span>🔢</span> Reunión / Clase #:
+  <span><span data-ui-icon=number aria-hidden=true></span></span> Reunión / Clase #:
 </label>
 <div class="flex items-center">
   <button type="button" onclick="stepWorkStudySession(-1)" title="Reducir número" class="min-h-[44px] min-w-[36px] bg-slate-900 hover:bg-slate-800 text-slate-300 border border-r-0 border-slate-700 rounded-l-xl flex items-center justify-center font-bold text-sm cursor-pointer active:scale-95 transition">−</button>
@@ -653,12 +653,12 @@ class="w-full min-h-[44px] bg-slate-950 border-y border-slate-700 focus:border-s
 <button id="langEsBtn" type="button" onclick="setTargetLanguage('es')" 
   title="Generar crónicas y resúmenes en Español"
   class="px-2.5 py-1.5 rounded-lg text-xs font-semibold transition flex items-center gap-1 bg-amber-500/15 text-amber-300 border border-amber-500/30 shadow-sm cursor-pointer">
-  <span>🇪🇸</span> <span class="font-medium">Español</span>
+   <span class="font-medium">Español</span>
 </button>
 <button id="langEnBtn" type="button" onclick="setTargetLanguage('en')" 
   title="Generate chronicles and summaries in English"
   class="px-2.5 py-1.5 rounded-lg text-xs font-medium transition flex items-center gap-1 text-slate-400 hover:text-slate-200 border border-transparent cursor-pointer">
-  <span>🇺🇸</span> <span class="font-medium">English</span>
+   <span class="font-medium">English</span>
 </button>
   </div>
   <input type="hidden" id="targetLanguage" value="es">
@@ -678,12 +678,12 @@ class="w-full min-h-[44px] bg-slate-950 border-y border-slate-700 focus:border-s
 <button id="btnModeRoleplay" type="button" onclick="setLiveMode('roleplay')"
   title="Modo Partida de Rol: Captura dual (Micrófono + Discord) con Roster y seguimiento de campaña"
   class="px-3.5 py-1.5 rounded-lg text-xs font-medium transition flex items-center gap-2 bg-slate-800 text-white border border-white/10 shadow-sm">
-  <span>🐉</span> Partida de Rol (D&D / Discord)
+  <span><span data-ui-icon=shield aria-hidden=true></span></span> Partida de Rol (D&D / Discord)
 </button>
 <button id="btnModeClass" type="button" onclick="setLiveMode('class')"
   title="Modo Clase Universitaria: Captura mono (Micrófono único) sin audio de sistema, generando guía académica"
   class="px-3.5 py-1.5 rounded-lg text-xs font-medium transition flex items-center gap-2 text-slate-400 hover:text-slate-200 border border-transparent">
-  <span>🎓</span> Clase Universitaria (En Persona)
+  <span><span data-ui-icon=graduation aria-hidden=true></span></span> Clase Universitaria (En Persona)
 </button>
   </div>
 </div>
@@ -693,7 +693,7 @@ class="w-full min-h-[44px] bg-slate-950 border-y border-slate-700 focus:border-s
   <summary class="cursor-pointer list-none flex items-center justify-between p-3.5 text-xs text-slate-400 hover:text-slate-200 transition select-none">
 <div class="flex items-center gap-2 font-medium">
   <svg class="w-4 h-4 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
-  <span>⚙️ Audio & Dispositivos</span>
+  <span><span data-ui-icon=settings aria-hidden=true></span> Audio & Dispositivos</span>
 </div>
 <div class="flex items-center gap-2 text-[11px] text-slate-500 font-mono">
   <span id="badgeCurrentSourceSummary">Canales & Calibración</span>
@@ -733,7 +733,7 @@ class="w-full min-h-[44px] bg-slate-950 border-y border-slate-700 focus:border-s
   <option value="">Cargando audífonos / altavoces...</option>
 </select>
 <p id="speakerWarningHint" class="hidden text-[10px] text-amber-400 mt-1 flex items-center gap-1 font-medium bg-amber-500/10 px-2 py-1 rounded-md border border-amber-500/20">
-  <span>⚠️ Has seleccionado altavoces. Si juegas con audífonos, selecciona tus audífonos aquí para capturar a Discord.</span>
+  <span><span data-ui-icon=warning aria-hidden=true></span> Has seleccionado altavoces. Si juegas con audífonos, selecciona tus audífonos aquí para capturar a Discord.</span>
 </p>
 <p class="text-[10px] text-slate-500 mt-1">Canal derecho (loopback del sistema).</p>
   </div>
@@ -756,18 +756,18 @@ class="text-[11px] text-slate-400 hover:text-slate-200 flex items-center gap-1 t
 <div id="discordLiveStatusBadge" class="text-[11px] px-3 py-1.5 rounded-lg bg-slate-900/90 border border-sky-500/20 flex items-center justify-between mt-2">
   <span id="discordLiveStatusText" class="text-sky-300 flex items-center gap-1.5">
 <span class="w-2 h-2 rounded-full bg-slate-500"></span>
-<span>🎧 Discord: Consultando estado...</span>
+<span><span data-ui-icon=headphones aria-hidden=true></span> Discord: Consultando estado...</span>
   </span>
   <button type="button" onclick="resetDiscordAuth()" title="Forzar reapertura del popup de autorización en Discord" class="text-[10px] text-sky-400 hover:text-sky-200 underline cursor-pointer ml-2">Reautorizar Discord</button>
 </div>
 
 <!-- Toned-down informative notes -->
 <div id="dualChannelBanner" class="text-[11px] text-slate-500 flex items-center justify-between pt-1 border-t border-white/5">
-  <span>🎧 Captura dual estéreo: Izquierda = Micrófono &bull; Derecha = Discord/Sistema</span>
+  <span><span data-ui-icon=headphones aria-hidden=true></span> Captura dual estéreo: Izquierda = Micrófono &bull; Derecha = Discord/Sistema</span>
   <span class="font-mono text-[10px]">16 kHz PCM WAV</span>
 </div>
 <div id="singleMicBanner" class="hidden text-[11px] text-slate-500 flex items-center justify-between pt-1 border-t border-white/5">
-  <span>🎤 Captura mono: Micrófono único optimizado para conferencias y clases</span>
+  <span><span data-ui-icon=mic aria-hidden=true></span> Captura mono: Micrófono único optimizado para conferencias y clases</span>
   <span class="font-mono text-[10px]">16 kHz PCM WAV</span>
 </div>
   </div>
@@ -896,7 +896,7 @@ La captura de audio en el servidor se detuvo. El audio grabado está seguro en e
 <div id="localRecordingsContainer" class="p-4 rounded-2xl bg-slate-950/70 border border-slate-800 space-y-3">
   <div class="flex items-center justify-between">
 <h4 class="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
-  <span>🎙️</span> <span>Grabaciones Locales Detectadas en tu PC</span>
+  <span><span data-ui-icon=mic aria-hidden=true></span></span> <span>Grabaciones Locales Detectadas en tu PC</span>
 </h4>
 <button type="button" onclick="loadLocalRecordingsList()" class="text-[11px] text-indigo-400 hover:text-indigo-300 font-medium cursor-pointer flex items-center gap-1">
   <span>↻</span> <span>Actualizar</span>
@@ -914,7 +914,7 @@ La captura de audio en el servidor se detuvo. El audio grabado está seguro en e
   ondrop="handleDrop(event)"
   class="border-2 border-dashed border-slate-700 hover:border-indigo-500 rounded-2xl p-6 text-center transition bg-slate-950/50 hover:bg-slate-950">
   <div class="flex flex-col items-center justify-center space-y-3">
-<span class="text-3xl">🎙️</span>
+<span class="text-3xl"><span data-ui-icon=mic aria-hidden=true></span></span>
 <div>
   <p class="text-sm text-slate-200 font-semibold">Arrastra aquí tu audio (.wav, .mp3) y su archivo <code class="text-indigo-300 text-xs bg-slate-900 px-1.5 py-0.5 rounded border border-slate-700">.timeline.json</code> juntos</p>
   <p class="text-xs text-slate-400 mt-1">Puedes arrastrar ambos archivos a la vez o presionar el botón para elegirlos en tu explorador</p>
@@ -922,10 +922,10 @@ La captura de audio en el servidor se detuvo. El audio grabado está seguro en e
 
 <div class="pt-1 flex flex-wrap items-center justify-center gap-2">
   <button type="button" onclick="document.getElementById('multiFileInput').click()" class="px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-medium text-xs shadow-md shadow-indigo-950/60 hover:shadow-indigo-500/20 transition flex items-center gap-2 cursor-pointer active:scale-95">
-<span>📁</span> <span>Seleccionar ambos archivos a la vez (.wav + .timeline.json)</span>
+<span><span data-ui-icon=folder aria-hidden=true></span></span> <span>Seleccionar ambos archivos a la vez (.wav + .timeline.json)</span>
   </button>
 </div>
-<p class="text-[11px] text-slate-500">💡 Tip: en Windows, mantén presionada la tecla <kbd class="px-1.5 py-0.5 bg-slate-800 border border-slate-700 rounded text-[10px] text-slate-300 font-mono">Ctrl</kbd> para seleccionar ambos archivos en la ventana de exploración.</p>
+<p class="text-[11px] text-slate-500"><span data-ui-icon=lightbulb aria-hidden=true></span> Tip: en Windows, mantén presionada la tecla <kbd class="px-1.5 py-0.5 bg-slate-800 border border-slate-700 rounded text-[10px] text-slate-300 font-mono">Ctrl</kbd> para seleccionar ambos archivos en la ventana de exploración.</p>
   </div>
 
   <!-- Inputs ocultos para selección nativa -->
@@ -959,11 +959,11 @@ onchange="handleTimelineOnlySelect(this)"
   <div id="slotAudioCard" class="p-3.5 rounded-2xl bg-slate-900/60 border border-slate-800 transition flex flex-col justify-between min-h-[92px]">
 <div class="flex items-center justify-between gap-2 mb-2">
   <span class="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
-<span>🎵</span> <span>Pista de Audio</span>
+<span><span data-ui-icon=music aria-hidden=true></span></span> <span>Pista de Audio</span>
 <span class="text-[10px] px-1.5 py-0.2 rounded bg-rose-500/20 text-rose-400 border border-rose-500/30 font-medium">Requerido</span>
   </span>
   <button id="btnClearAudio" type="button" onclick="clearSelectedAudio(event)" class="text-xs text-slate-400 hover:text-rose-400 font-semibold px-2 py-0.5 rounded hover:bg-slate-800 transition hidden cursor-pointer" title="Quitar audio">
-✕ Quitar
+<span data-ui-icon=close aria-hidden=true></span> Quitar
   </button>
 </div>
 
@@ -987,11 +987,11 @@ onchange="handleTimelineOnlySelect(this)"
   <div id="slotTimelineCard" class="p-3.5 rounded-2xl bg-slate-900/60 border border-slate-800 transition flex flex-col justify-between min-h-[92px]">
 <div class="flex items-center justify-between gap-2 mb-2">
   <span class="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
-<span>🎧</span> <span>Timeline Discord</span>
+<span><span data-ui-icon=headphones aria-hidden=true></span></span> <span>Timeline Discord</span>
 <span class="text-[10px] px-1.5 py-0.2 rounded bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 font-medium">Opcional</span>
   </span>
   <button id="btnClearTimeline" type="button" onclick="clearSelectedTimeline(event)" class="text-xs text-slate-400 hover:text-rose-400 font-semibold px-2 py-0.5 rounded hover:bg-slate-800 transition hidden cursor-pointer" title="Quitar timeline">
-✕ Quitar
+<span data-ui-icon=close aria-hidden=true></span> Quitar
   </button>
 </div>
 
@@ -1014,7 +1014,7 @@ onchange="handleTimelineOnlySelect(this)"
 
 <div class="flex justify-end">
   <button id="btnFile" onclick="transcribeFile()" disabled class="bg-indigo-600 hover:bg-indigo-500 text-white font-medium text-sm px-6 py-2.5 rounded-xl shadow-lg transition disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer flex items-center gap-2">
-<span>✨</span> <span>Procesar Grabación</span>
+<span><span data-ui-icon=process aria-hidden=true></span></span> <span>Procesar Grabación</span>
   </button>
 </div>
   </div>
@@ -1059,7 +1059,7 @@ onchange="handleTimelineOnlySelect(this)"
 <div id="stageAudio" class="hidden p-2.5 rounded-xl border border-slate-800 bg-slate-950/60 text-left space-y-1 transition-all" style="display: none;">
   <div class="flex items-center justify-between">
 <span id="stageAudioStep" class="text-[10px] font-mono text-slate-500 uppercase tracking-wider">Paso 1</span>
-<span class="stage-icon text-xs">⏳</span>
+<span class="stage-icon text-xs"><span data-ui-icon=clock aria-hidden=true></span></span>
   </div>
   <p id="stageAudioTitle" class="text-xs font-semibold text-slate-300">Descarga YouTube</p>
   <p id="stageAudioDesc" class="text-[10px] text-slate-400">0% &ndash; 25% (Extracción)</p>
@@ -1069,7 +1069,7 @@ onchange="handleTimelineOnlySelect(this)"
 <div id="stageTranscribe" class="p-2.5 rounded-xl border border-slate-800 bg-slate-950/60 text-left space-y-1 transition-all">
   <div class="flex items-center justify-between">
 <span id="stageTranscribeStep" class="text-[10px] font-mono text-slate-500 uppercase tracking-wider">Paso 1</span>
-<span class="stage-icon text-xs">⏳</span>
+<span class="stage-icon text-xs"><span data-ui-icon=clock aria-hidden=true></span></span>
   </div>
   <p id="stageTranscribeTitle" class="text-xs font-semibold text-slate-300">Transcripción Groq</p>
   <p id="stageTranscribeDesc" class="text-[10px] text-slate-400">0% &ndash; 70% (Whisper Large-v3)</p>
@@ -1079,7 +1079,7 @@ onchange="handleTimelineOnlySelect(this)"
 <div id="stageGemini" class="p-2.5 rounded-xl border border-slate-800 bg-slate-950/60 text-left space-y-1 transition-all">
   <div class="flex items-center justify-between">
 <span id="stageGeminiStep" class="text-[10px] font-mono text-slate-500 uppercase tracking-wider">Paso 2</span>
-<span class="stage-icon text-xs">⏳</span>
+<span class="stage-icon text-xs"><span data-ui-icon=clock aria-hidden=true></span></span>
   </div>
   <p id="stageGeminiTitle" class="text-xs font-semibold text-slate-300">Análisis Gemini</p>
   <p id="stageGeminiDesc" class="text-[10px] text-slate-400">70% &ndash; 95% (Crónica & Lore)</p>
@@ -1089,7 +1089,7 @@ onchange="handleTimelineOnlySelect(this)"
 <div id="stageDone" class="p-2.5 rounded-xl border border-slate-800 bg-slate-950/60 text-left space-y-1 transition-all">
   <div class="flex items-center justify-between">
 <span id="stageDoneStep" class="text-[10px] font-mono text-slate-500 uppercase tracking-wider">Paso 3</span>
-<span class="stage-icon text-xs">⏳</span>
+<span class="stage-icon text-xs"><span data-ui-icon=clock aria-hidden=true></span></span>
   </div>
   <p id="stageDoneTitle" class="text-xs font-semibold text-slate-300">Grimorio Listo</p>
   <p id="stageDoneDesc" class="text-[10px] text-slate-400">100%</p>
@@ -1101,7 +1101,7 @@ onchange="handleTimelineOnlySelect(this)"
 <div id="npcSpellcheckCard" class="hidden bg-slate-900 border border-amber-500/40 rounded-2xl p-5 shadow-2xl space-y-4 transform scale-95 opacity-0 transition-all duration-150 ease-out origin-center">
   <div class="flex items-center justify-between">
 <div class="flex items-center gap-2.5">
-  <span class="text-xl">✨</span>
+  <span class="text-xl"><span data-ui-icon=process aria-hidden=true></span></span>
   <div>
 <h3 class="text-sm font-bold text-amber-300 font-fantasy">Revisión Ortográfica de PNJs Detectados</h3>
 <p class="text-xs text-slate-400">Verifica o ajusta la ortografía de los personajes no jugadores detectados antes de guardarlos en el Directorio.</p>
@@ -1119,7 +1119,7 @@ onchange="handleTimelineOnlySelect(this)"
   Omitir Corrección
 </button>
 <button type="button" onclick="confirmNpcSpellcheck()" class="px-4 py-1.5 rounded-lg bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-500 hover:to-amber-400 active:scale-[0.98] text-white text-xs font-bold shadow-md shadow-amber-900/30 transition duration-150 flex items-center gap-1.5 cursor-pointer">
-  <span>✓</span> Confirmar y Actualizar Grimorio
+  <span><span data-ui-icon=check aria-hidden=true></span></span> Confirmar y Actualizar Grimorio
 </button>
   </div>
 </div>
@@ -1127,12 +1127,12 @@ onchange="handleTimelineOnlySelect(this)"
 <div id="errorCard" class="hidden bg-rose-950/90 border-2 border-rose-500 rounded-2xl p-6 shadow-2xl space-y-4 text-left transition-all">
   <div class="flex items-start gap-4">
 <div class="w-12 h-12 rounded-xl bg-rose-900/70 border border-rose-600 flex items-center justify-center text-2xl flex-shrink-0 text-rose-300">
-  ❌
+  <span data-ui-icon=close aria-hidden=true></span>
 </div>
 <div class="space-y-3 flex-1 min-w-0">
   <div class="flex flex-wrap items-center justify-between gap-2">
 <h3 id="errorCardStageTitle" class="text-base font-bold text-rose-100 flex items-center gap-2">
-  <span>❌</span> <span id="errorCardStageText">Error durante el procesamiento</span>
+  <span><span data-ui-icon=close aria-hidden=true></span></span> <span id="errorCardStageText">Error durante el procesamiento</span>
 </h3>
 <span id="errorCardTypeBadge" class="px-2.5 py-0.5 rounded-full text-[11px] font-mono font-bold bg-rose-900/80 text-rose-300 border border-rose-700">FALLO</span>
   </div>
@@ -1143,7 +1143,7 @@ onchange="handleTimelineOnlySelect(this)"
   <details id="errorTechDetails" class="group bg-slate-950/90 border border-rose-800/60 rounded-xl overflow-hidden text-xs">
 <summary class="cursor-pointer list-none flex items-center justify-between p-3 text-slate-300 hover:text-white font-mono select-none">
   <span class="flex items-center gap-2">
-<span>🔍</span> Detalles técnicos de depuración (Stacktrace)
+<span><span data-ui-icon=search aria-hidden=true></span></span> Detalles técnicos de depuración (Stacktrace)
   </span>
   <span class="text-[10px] text-slate-400 group-open:rotate-180 transition-transform">▼</span>
 </summary>
@@ -1151,7 +1151,7 @@ onchange="handleTimelineOnlySelect(this)"
   <pre id="errorCardTechnicalDetails" class="p-3 bg-black/70 rounded-lg text-slate-400 font-mono text-[11px] overflow-x-auto whitespace-pre-wrap max-h-48 select-all"></pre>
   <div class="flex justify-end">
 <button type="button" onclick="copyErrorDetails()" id="btnCopyErrorDetails" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-medium border border-slate-700 transition flex items-center gap-1.5 cursor-pointer">
-  <span>📋</span> <span id="btnCopyErrorDetailsText">Copiar Detalles</span>
+  <span><span data-ui-icon=clipboard aria-hidden=true></span></span> <span id="btnCopyErrorDetailsText">Copiar Detalles</span>
 </button>
   </div>
 </div>
@@ -1163,7 +1163,7 @@ onchange="handleTimelineOnlySelect(this)"
   Cerrar
 </button>
 <button id="btnRetryAction" onclick="retryLastAction()" type="button" class="px-5 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-xs font-bold text-white shadow-lg shadow-rose-900/40 transition flex items-center gap-2 cursor-pointer">
-  <span>🔄</span> <span>Reintentar</span>
+  <span><span data-ui-icon=refresh aria-hidden=true></span></span> <span>Reintentar</span>
 </button>
   </div>
 </div>
@@ -1196,20 +1196,20 @@ Procesado en: <strong id="resTime" class="text-white tabular-nums">--</strong>
   <!-- Grupo 1: Descargas Word (.docx) -->
   <div class="inline-flex items-center rounded-xl bg-slate-950 border border-slate-800 p-0.5 shadow-sm">
 <button id="btnDownloadCurrentSessionDocx" onclick="downloadSessionDocx(null, false)" class="min-h-[34px] px-3 py-1 text-amber-300 hover:text-amber-100 bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer active:scale-[0.98]" title="Descargar documento Word completo únicamente de esta sesión grabada">
-  <span>📄</span> <span id="btnDownloadCurrentSessionDocxText">Descargar Sesión (.docx)</span>
+  <span><span data-ui-icon=file aria-hidden=true></span></span> <span id="btnDownloadCurrentSessionDocxText">Descargar Sesión (.docx)</span>
 </button>
 <button id="btnDownloadSessionCleanDocx" onclick="downloadSessionDocx(null, true)" class="min-h-[34px] px-2.5 py-1 text-slate-300 hover:text-white hover:bg-slate-800/80 rounded-lg text-xs font-medium flex items-center gap-1 transition cursor-pointer active:scale-[0.98]" title="Descargar crónica limpia para los jugadores (sin consejos personales)">
-  <span>👥</span> <span>Para Jugadores</span>
+  <span><span data-ui-icon=users aria-hidden=true></span></span> <span>Para Jugadores</span>
 </button>
 <button id="btnDownloadDocx" onclick="downloadCampaignDocx()" class="min-h-[34px] px-2.5 py-1 text-slate-400 hover:text-sky-300 hover:bg-slate-800/80 rounded-lg text-xs font-medium flex items-center gap-1 transition cursor-pointer active:scale-[0.98]" title="Descargar Grimorio completo consolidado de toda la campaña (.docx)">
-  <span id="btnDownloadDocxIcon">📚</span> <span id="btnDownloadDocxText">Toda la Campaña</span>
+  <span id="btnDownloadDocxIcon"><span data-ui-icon=book aria-hidden=true></span></span> <span id="btnDownloadDocxText">Toda la Campaña</span>
 </button>
   </div>
 
   <!-- Grupo 2: Utilidades Rápidas -->
   <div class="inline-flex items-center gap-1">
 <button id="btnDownloadTxt" onclick="downloadTranscriptTxt()" class="min-h-[34px] px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 text-xs font-medium flex items-center gap-1 transition cursor-pointer active:scale-[0.98]" title="Descargar transcripción completa en formato .txt">
-  <span>⬇️</span> <span id="btnDownloadTxtText">.txt</span>
+  <span><span data-ui-icon=download aria-hidden=true></span></span> <span id="btnDownloadTxtText">.txt</span>
 </button>
 <button onclick="copyCurrentContent()" class="min-h-[34px] px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 text-xs font-medium flex items-center gap-1 transition cursor-pointer active:scale-[0.98]" title="Copiar contenido actual">
   <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg> <span id="copyBtnText">Copiar</span>
@@ -1219,11 +1219,11 @@ Procesado en: <strong id="resTime" class="text-white tabular-nums">--</strong>
   <!-- Grupo 3: Herramientas Avanzadas / Reintento de IA -->
   <div class="relative inline-block" id="aiToolsMenuContainer">
 <button type="button" id="btnAiToolsToggle" onclick="toggleAiToolsMenu()" class="min-h-[34px] px-2.5 py-1 rounded-lg bg-indigo-950/40 hover:bg-indigo-900/60 text-indigo-300 border border-indigo-800/50 text-xs font-medium flex items-center gap-1 transition cursor-pointer active:scale-[0.98]" title="Opciones avanzadas de IA (Re-generar crónica o cambiar idioma)">
-  <span>✨</span> <span>Herramientas IA</span> <svg class="w-3 h-3 ml-0.5 text-indigo-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg>
+  <span><span data-ui-icon=process aria-hidden=true></span></span> <span>Herramientas IA</span> <svg class="w-3 h-3 ml-0.5 text-indigo-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg>
 </button>
 <div id="aiToolsDropdown" class="hidden absolute right-0 mt-1.5 w-72 rounded-xl bg-slate-900 border border-slate-700 shadow-2xl p-1.5 z-50 space-y-1 backdrop-blur-md">
   <button type="button" id="btnReprocessCampaign" onclick="reprocessCampaignChronicle(); closeAiToolsMenu();" class="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-800 text-xs text-slate-200 hover:text-amber-300 flex items-start gap-2.5 cursor-pointer transition" title="Reintento de IA: Vuelve a generar la crónica con Gemini sin volver a transcribir el audio">
-<span id="btnReprocessCampaignIcon" class="mt-0.5 text-base">🔄</span>
+<span id="btnReprocessCampaignIcon" class="mt-0.5 text-base"><span data-ui-icon=refresh aria-hidden=true></span></span>
 <div>
   <div class="font-semibold text-amber-300" id="btnReprocessCampaignText">Regenerar con Gemini</div>
   <div class="text-[11px] text-slate-400 font-normal leading-tight mt-0.5">Vuelve a redactar la historia y extraer misiones sin volver a procesar el audio de 3 horas.</div>
@@ -1241,10 +1241,10 @@ Procesado en: <strong id="resTime" class="text-white tabular-nums">--</strong>
 
   <!-- Botones opcionales de audio -->
   <button id="btnDownloadMd" onclick="downloadCampaignMd()" class="hidden btn-subtle min-h-[34px] px-2.5 py-1 text-slate-200 text-xs font-medium">
-<span id="btnDownloadMdIcon">📑</span> <span id="btnDownloadMdText">Grimorio .md</span>
+<span id="btnDownloadMdIcon"><span data-ui-icon=file aria-hidden=true></span></span> <span id="btnDownloadMdText">Grimorio .md</span>
   </button>
   <button id="btnDownloadAudio" onclick="downloadAudioFile()" class="hidden min-h-[34px] px-2.5 py-1 text-slate-300 hover:text-white bg-slate-800 rounded-lg text-xs font-medium flex items-center gap-1.5 cursor-pointer" title="Descargar archivo de audio original (.wav)">
-<span>⬇️</span> <span id="btnDownloadAudioText">Audio</span>
+<span><span data-ui-icon=download aria-hidden=true></span></span> <span id="btnDownloadAudioText">Audio</span>
   </button>
   <button id="btnDeleteOriginalAudio" onclick="deleteOriginalAudio()" class="hidden min-h-[34px] px-2.5 py-1 text-rose-300 hover:text-rose-100 bg-rose-950/40 border border-rose-800/40 rounded-lg text-xs font-semibold flex items-center gap-1.5 cursor-pointer" title="Eliminar el archivo de audio original grabado en disco">
 <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg> <span id="btnDeleteOriginalAudioText">Eliminar audio</span>
@@ -1255,7 +1255,7 @@ Procesado en: <strong id="resTime" class="text-white tabular-nums">--</strong>
   <!-- Banner de Éxito en Google Drive -->
   <div id="driveResultBanner" class="hidden p-3 bg-emerald-950/40 border border-emerald-800/80 rounded-xl flex flex-wrap items-center justify-between gap-3 text-xs text-emerald-200 shadow-inner">
 <div class="flex items-center gap-2">
-  <span class="text-base">☁️</span>
+  <span class="text-base"><span data-ui-icon=cloud aria-hidden=true></span></span>
   <span>Grimorio consolidado guardado en <strong>Whisper AI - Transcripciones</strong> (<code id="driveUploadedFileName" class="text-emerald-300 font-mono">Grimorio.docx</code>):</span>
 </div>
 <a id="driveViewLink" href="#" target="_blank" rel="noopener noreferrer" class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold rounded-lg shadow transition flex items-center gap-1.5 text-xs">
@@ -1267,7 +1267,7 @@ Procesado en: <strong id="resTime" class="text-white tabular-nums">--</strong>
   <!-- Banner de Retención de Transcripción (YouTube / Archivo Local) -->
   <div id="transcriptRetentionPrompt" class="hidden p-3.5 bg-slate-900 border border-amber-500/40 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs shadow-md">
 <div class="flex items-start gap-2.5">
-  <span class="text-lg shrink-0">🗑️</span>
+  <span class="text-lg shrink-0"><span data-ui-icon=trash aria-hidden=true></span></span>
   <div>
 <div class="font-semibold text-amber-300">¿Deseas conservar la transcripción completa de este video/archivo o solo los apuntes estructurados?</div>
 <div class="text-slate-400 text-[11px] mt-0.5">Puedes descartar el texto en bruto para ahorrar espacio; tus apuntes y crónica estructurada ya están guardados.</div>
@@ -1287,16 +1287,16 @@ Conservar Todo
   <!-- Selector de Pestañas de Resultados -->
   <div class="flex items-center gap-1.5 border-b border-slate-800 pb-2 overflow-x-auto no-scrollbar">
 <button id="viewChronicleBtn" onclick="toggleResultTab('chronicle')" class="px-3 py-1.5 rounded-lg bg-indigo-600 text-white font-semibold transition flex items-center gap-1.5 text-xs shrink-0 cursor-pointer">
-  <span id="viewChronicleIcon">📖</span> <span id="viewChronicleText">Crónica</span>
+  <span id="viewChronicleIcon"><span data-ui-icon=book aria-hidden=true></span></span> <span id="viewChronicleText">Crónica</span>
 </button>
 <button id="viewKeyPointsBtn" onclick="toggleResultTab('keypoints')" class="hidden px-3 py-1.5 rounded-lg bg-slate-950 text-slate-400 hover:text-slate-200 font-medium transition flex items-center gap-1.5 border border-slate-800 text-xs shrink-0 cursor-pointer">
-  <span id="viewKeyPointsIcon">⭐</span> <span id="viewKeyPointsText">Puntos Clave</span>
+  <span id="viewKeyPointsIcon"><span data-ui-icon=star aria-hidden=true></span></span> <span id="viewKeyPointsText">Puntos Clave</span>
 </button>
 <button id="viewQuestsBtn" onclick="toggleResultTab('quests')" class="px-3 py-1.5 rounded-lg bg-slate-950 text-slate-400 hover:text-slate-200 font-medium transition flex items-center gap-1.5 border border-slate-800 text-xs shrink-0 cursor-pointer">
-  <span id="viewQuestsIcon">🗺️</span> <span id="viewQuestsText">Misiones</span> (<span id="questCountBadge">0</span>)
+  <span id="viewQuestsIcon"><span data-ui-icon=map aria-hidden=true></span></span> <span id="viewQuestsText">Misiones</span> (<span id="questCountBadge">0</span>)
 </button>
 <button id="viewNpcsBtn" onclick="toggleResultTab('npcs')" class="px-3 py-1.5 rounded-lg bg-slate-950 text-slate-400 hover:text-slate-200 font-medium transition flex items-center gap-1.5 border border-slate-800 text-xs shrink-0 cursor-pointer">
-  <span>🎭</span> PNJs (<span id="npcCountBadge">0</span>)
+  <span><span data-ui-icon=users aria-hidden=true></span></span> PNJs (<span id="npcCountBadge">0</span>)
 </button>
 <button id="viewPcsBtn" onclick="toggleResultTab('pcs')" class="px-3 py-1.5 rounded-lg bg-slate-950 text-slate-400 hover:text-slate-200 font-medium transition flex items-center gap-1.5 border border-slate-800 text-xs shrink-0 cursor-pointer">
   <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg> PCs (<span id="pcCountBadge">0</span>)
@@ -1323,7 +1323,7 @@ Conservar Todo
   <div id="questsView" class="hidden bg-slate-950 rounded-xl p-6 border border-slate-800 max-h-[600px] overflow-y-auto space-y-4">
 <div class="flex items-center justify-between border-b border-slate-800 pb-3">
   <h3 id="questsViewTitle" class="text-sm font-bold text-amber-300 font-fantasy flex items-center gap-2">
-<span id="questsViewIcon">🗺️</span> <span id="questsViewHeading">Registro Maestro de Misiones (Master Quest Log)</span>
+<span id="questsViewIcon"><span data-ui-icon=map aria-hidden=true></span></span> <span id="questsViewHeading">Registro Maestro de Misiones (Master Quest Log)</span>
   </h3>
   <span id="questsViewSubtitle" class="text-xs text-slate-400">Marca los sub-objetivos conforme la mesa avance</span>
 </div>
@@ -1336,11 +1336,11 @@ Conservar Todo
   <div id="npcsView" class="hidden bg-slate-950 rounded-xl p-6 border border-slate-800 max-h-[600px] overflow-y-auto space-y-4">
 <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border-b border-slate-800 pb-3">
   <h3 class="text-sm font-bold text-amber-300 font-fantasy flex items-center gap-2">
-<span>🎭</span> Directorio Universal de Personajes (NPCs)
+<span><span data-ui-icon=users aria-hidden=true></span></span> Directorio Universal de Personajes (NPCs)
   </h3>
   <div class="flex flex-wrap items-center gap-2">
 <button type="button" onclick="triggerManualNpcSpellcheck()" title="Revisar o ajustar ortografía de los PNJs registrados" class="px-2.5 py-1.5 rounded-lg bg-amber-500/15 hover:bg-amber-500/25 active:scale-95 text-amber-300 text-xs font-semibold border border-amber-500/30 transition flex items-center gap-1.5 cursor-pointer shadow-sm">
-  <span>✨</span> <span>Revisar Ortografía</span>
+  <span><span data-ui-icon=process aria-hidden=true></span></span> <span>Revisar Ortografía</span>
 </button>
 <input type="text" id="npcSearchInput" oninput="filterNpcs()" placeholder="Filtrar PNJ por nombre o rol..." 
   class="w-full sm:w-64 bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-slate-200 outline-none placeholder-slate-500">
@@ -1352,19 +1352,19 @@ Conservar Todo
 <span>Todos</span> <span id="npcCountAll" class="ml-1 px-1.5 py-0.2 text-[10px] rounded-full bg-slate-800/80 font-mono tabular-nums text-slate-300">0</span>
   </button>
   <button type="button" onclick="setNpcCategoryFilter('clave')" data-npc-filter="clave" class="npc-filter-chip px-2.5 py-1 rounded-full text-xs font-medium transition cursor-pointer border bg-slate-900/80 border-slate-800 text-slate-400 hover:text-amber-300 hover:border-amber-500/30 active:scale-95">
-<span>👑 Claves</span> <span id="npcCountClave" class="ml-1 px-1.5 py-0.2 text-[10px] rounded-full bg-slate-800/80 font-mono tabular-nums text-amber-400">0</span>
+<span><span data-ui-icon=crown aria-hidden=true></span> Claves</span> <span id="npcCountClave" class="ml-1 px-1.5 py-0.2 text-[10px] rounded-full bg-slate-800/80 font-mono tabular-nums text-amber-400">0</span>
   </button>
   <button type="button" onclick="setNpcCategoryFilter('aliado')" data-npc-filter="aliado" class="npc-filter-chip px-2.5 py-1 rounded-full text-xs font-medium transition cursor-pointer border bg-slate-900/80 border-slate-800 text-slate-400 hover:text-cyan-300 hover:border-cyan-500/30 active:scale-95">
-<span>🛡️ Aliados</span> <span id="npcCountAliado" class="ml-1 px-1.5 py-0.2 text-[10px] rounded-full bg-slate-800/80 font-mono tabular-nums text-cyan-400">0</span>
+<span><span data-ui-icon=shield aria-hidden=true></span> Aliados</span> <span id="npcCountAliado" class="ml-1 px-1.5 py-0.2 text-[10px] rounded-full bg-slate-800/80 font-mono tabular-nums text-cyan-400">0</span>
   </button>
   <button type="button" onclick="setNpcCategoryFilter('invocacion')" data-npc-filter="invocacion" class="npc-filter-chip px-2.5 py-1 rounded-full text-xs font-medium transition cursor-pointer border bg-slate-900/80 border-slate-800 text-slate-400 hover:text-purple-300 hover:border-purple-500/30 active:scale-95">
-<span>🐾 Invocaciones</span> <span id="npcCountInvocacion" class="ml-1 px-1.5 py-0.2 text-[10px] rounded-full bg-slate-800/80 font-mono tabular-nums text-purple-400">0</span>
+<span><span data-ui-icon=paw aria-hidden=true></span> Invocaciones</span> <span id="npcCountInvocacion" class="ml-1 px-1.5 py-0.2 text-[10px] rounded-full bg-slate-800/80 font-mono tabular-nums text-purple-400">0</span>
   </button>
   <button type="button" onclick="setNpcCategoryFilter('amenaza')" data-npc-filter="amenaza" class="npc-filter-chip px-2.5 py-1 rounded-full text-xs font-medium transition cursor-pointer border bg-slate-900/80 border-slate-800 text-slate-400 hover:text-rose-300 hover:border-rose-500/30 active:scale-95">
-<span>💀 Enemigos</span> <span id="npcCountAmenaza" class="ml-1 px-1.5 py-0.2 text-[10px] rounded-full bg-slate-800/80 font-mono tabular-nums text-rose-400">0</span>
+<span><span data-ui-icon=warning aria-hidden=true></span> Enemigos</span> <span id="npcCountAmenaza" class="ml-1 px-1.5 py-0.2 text-[10px] rounded-full bg-slate-800/80 font-mono tabular-nums text-rose-400">0</span>
   </button>
   <button type="button" onclick="setNpcCategoryFilter('interaccion_contexto')" data-npc-filter="interaccion_contexto" class="npc-filter-chip px-2.5 py-1 rounded-full text-xs font-medium transition cursor-pointer border bg-slate-900/80 border-slate-800 text-slate-400 hover:text-emerald-300 hover:border-emerald-500/30 active:scale-95">
-<span>⚔️ Interacción</span> <span id="npcCountInteraccion" class="ml-1 px-1.5 py-0.2 text-[10px] rounded-full bg-slate-800/80 font-mono tabular-nums text-emerald-400">0</span>
+<span><span data-ui-icon=swords aria-hidden=true></span> Interacción</span> <span id="npcCountInteraccion" class="ml-1 px-1.5 py-0.2 text-[10px] rounded-full bg-slate-800/80 font-mono tabular-nums text-emerald-400">0</span>
   </button>
 </div>
 <div id="npcsContainer" class="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -1482,7 +1482,7 @@ id="chkIsUserCharacter"
 checked
 class="w-4 h-4 rounded border-slate-700 bg-slate-900 text-amber-500 focus:ring-amber-500/50 accent-amber-500"
   />
-  <span>Marcar como mi personaje activo principal (⭐) en esta campaña</span>
+  <span>Marcar como mi personaje activo principal en esta campaña</span>
 </label>
   </div>
   <p class="text-[11px] text-slate-500">Puedes tener múltiples personajes en una campaña; cada uno conserva su propia historia individual.</p>
@@ -1492,7 +1492,7 @@ class="w-4 h-4 rounded border-slate-700 bg-slate-900 text-amber-500 focus:ring-a
 <div class="space-y-2">
   <div class="flex items-center justify-between">
 <label class="text-xs font-semibold text-slate-300 uppercase tracking-wider">Historia y Trasfondo</label>
-<span id="characterBackstorySavedBadge" class="hidden px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">✓ Guardado</span>
+<span id="characterBackstorySavedBadge" class="hidden px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30"><span data-ui-icon=check aria-hidden=true></span> Guardado</span>
   </div>
 
   <!-- Guía visual y de ayuda separada (no seleccionable en el fondo del textarea) -->
@@ -1530,7 +1530,7 @@ Guardar
 
   <!-- Nota -->
   <div class="rounded-xl border border-amber-500/20 bg-amber-500/5 p-4 text-xs text-amber-300/80 flex gap-3">
-<span class="text-base shrink-0">💡</span>
+<span class="text-base shrink-0"><span data-ui-icon=lightbulb aria-hidden=true></span></span>
 <div>
   <strong class="font-semibold text-amber-300">¿Cómo funciona?</strong> Cuando proceses una sesión de la campaña vinculada, Gemini usará este trasfondo para el coaching: te dirá si te saliste de personaje en alguna escena específica, y te sugerirá momentos del trasfondo que podías haber usado y no usaste.
 </div>
@@ -1581,7 +1581,7 @@ class="min-h-[36px] px-3 py-1.5 rounded-lg bg-amber-500/20 hover:bg-amber-500/30
   </button>
   <button type="button" id="btnWikiDownloadSelectedSessionCleanDocx" onclick="downloadSelectedWikiSessionDocx(true)" title="Descargar versión limpia para jugadores sin consejos personales"
 class="min-h-[36px] px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-semibold transition flex items-center gap-1 cursor-pointer active:scale-[0.98] shadow-sm">
-<span>👥</span>
+<span><span data-ui-icon=users aria-hidden=true></span></span>
 <span>Para Jugadores</span>
   </button>
 </div>
@@ -1777,23 +1777,23 @@ class="min-h-[44px] px-3.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate
   <div id="notesFilterChipsContainer" class="flex flex-wrap items-center gap-2">
 <button type="button" onclick="setNotesCategoryFilter('all')" data-filter="all"
   class="note-filter-chip active-filter px-3 py-1.5 rounded-xl text-xs font-semibold bg-sky-500/20 text-sky-300 border border-sky-500/40 transition flex items-center gap-1.5 cursor-pointer shadow-sm active:scale-95">
-  <span>📚 Todos</span>
+  <span><span data-ui-icon=book aria-hidden=true></span> Todos</span>
 </button>
 <button type="button" onclick="setNotesCategoryFilter('academic')" data-filter="academic"
   class="note-filter-chip px-3 py-1.5 rounded-xl text-xs font-medium bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white border border-slate-800 transition flex items-center gap-1.5 cursor-pointer active:scale-95">
-  <span>🎓 Guías Académicas</span>
+  <span><span data-ui-icon=graduation aria-hidden=true></span> Guías Académicas</span>
 </button>
 <button type="button" onclick="setNotesCategoryFilter('executive')" data-filter="executive"
   class="note-filter-chip px-3 py-1.5 rounded-xl text-xs font-medium bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white border border-slate-800 transition flex items-center gap-1.5 cursor-pointer active:scale-95">
-  <span>💼 Minutas Ejecutivas</span>
+  <span><span data-ui-icon=briefcase aria-hidden=true></span> Minutas Ejecutivas</span>
 </button>
 <button type="button" onclick="setNotesCategoryFilter('has_tasks')" data-filter="has_tasks"
   class="note-filter-chip px-3 py-1.5 rounded-xl text-xs font-medium bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white border border-slate-800 transition flex items-center gap-1.5 cursor-pointer active:scale-95">
-  <span>✅ Con Tareas</span>
+  <span><span data-ui-icon=check aria-hidden=true></span> Con Tareas</span>
 </button>
 <button type="button" onclick="setNotesCategoryFilter('has_glossary')" data-filter="has_glossary"
   class="note-filter-chip px-3 py-1.5 rounded-xl text-xs font-medium bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white border border-slate-800 transition flex items-center gap-1.5 cursor-pointer active:scale-95">
-  <span>📖 Con Glosario</span>
+  <span><span data-ui-icon=book aria-hidden=true></span> Con Glosario</span>
 </button>
   </div>
 
@@ -1832,7 +1832,7 @@ class="min-h-[44px] px-3.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate
 <h4 id="noteViewTitle" class="text-base font-bold text-white font-sans"></h4>
 <div class="flex items-center gap-2 mt-1">
   <p id="noteViewMeta" class="text-xs text-slate-400 font-mono"></p>
-  <span id="noteViewReadingTime" class="text-[11px] font-mono px-2 py-0.5 rounded-md bg-slate-800/80 text-sky-300 border border-slate-700">⏱️ ~1 min</span>
+  <span id="noteViewReadingTime" class="text-[11px] font-mono px-2 py-0.5 rounded-md bg-slate-800/80 text-sky-300 border border-slate-700"><span data-ui-icon=clock aria-hidden=true></span> ~1 min</span>
 </div>
   </div>
   <div class="flex flex-wrap items-center gap-2">
@@ -1841,19 +1841,19 @@ class="min-h-[44px] px-3.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate
   <button type="button" id="tabNoteViewFull" onclick="switchNoteDetailTab('full')"
 class="min-h-[36px] px-3 py-1.5 rounded-lg font-medium transition-all flex items-center gap-1.5 bg-sky-600/30 text-sky-200 border border-sky-500/40 shadow-sm cursor-pointer"
 title="Ver apunte académico completo">
-<span>📄</span>
+<span><span data-ui-icon=file aria-hidden=true></span></span>
 <span>Apunte</span>
   </button>
   <button type="button" id="tabNoteViewKeyPoints" onclick="switchNoteDetailTab('keypoints')"
 class="min-h-[36px] px-3 py-1.5 rounded-lg font-medium transition-all flex items-center gap-1.5 text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 border border-transparent cursor-pointer"
 title="Ver glosario conceptual y conclusiones clave">
-<span>⭐</span>
+<span><span data-ui-icon=star aria-hidden=true></span></span>
 <span>Puntos Clave & Glosario</span>
   </button>
   <button type="button" id="tabNoteViewTasks" onclick="switchNoteDetailTab('tasks')"
 class="min-h-[36px] px-3 py-1.5 rounded-lg font-medium transition-all flex items-center gap-1.5 text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 border border-transparent cursor-pointer"
 title="Ver lista de tareas y compromisos detectados">
-<span>✅</span>
+<span><span data-ui-icon=check aria-hidden=true></span></span>
 <span>Tareas</span>
 <span id="badgeNoteTasksCount" class="hidden px-1.5 py-0.2 rounded-full text-[10px] font-mono font-bold bg-sky-500/20 text-sky-300 border border-sky-500/30">0</span>
   </button>
@@ -1936,7 +1936,7 @@ class="w-full min-h-[44px] bg-slate-950 border border-slate-700 focus:border-amb
   <div class="space-y-2">
 <div>
   <div class="flex justify-between text-[11px] text-slate-400 mb-1">
-<span>🎤 Tu Voz (Micrófono)</span>
+<span><span data-ui-icon=mic aria-hidden=true></span> Tu Voz (Micrófono)</span>
 <span id="meterMicValSettings" class="font-mono text-emerald-400">0%</span>
   </div>
   <div class="w-full bg-slate-900 rounded-full h-2.5 overflow-hidden border border-slate-800">
@@ -1945,7 +1945,7 @@ class="w-full min-h-[44px] bg-slate-950 border border-slate-700 focus:border-amb
 </div>
 <div>
   <div class="flex justify-between text-[11px] text-slate-400 mb-1">
-<span>🎧 Mesa / Discord (Altavoces)</span>
+<span><span data-ui-icon=headphones aria-hidden=true></span> Mesa / Discord (Altavoces)</span>
 <span id="meterSpkValSettings" class="font-mono text-sky-400">0%</span>
   </div>
   <div class="w-full bg-slate-900 rounded-full h-2.5 overflow-hidden border border-slate-800">
@@ -1959,7 +1959,7 @@ class="w-full min-h-[44px] bg-slate-950 border border-slate-700 focus:border-amb
 <div class="space-y-4 pt-3 border-t border-slate-800">
   <div class="flex items-center justify-between">
 <div class="flex items-center gap-2">
-  <span class="text-base">🔑</span>
+  <span class="text-base"><span data-ui-icon=key aria-hidden=true></span></span>
   <div>
 <h3 class="text-xs font-semibold text-slate-200 uppercase tracking-wider font-mono">Credenciales de API (Bring Your Own Key)</h3>
 <p class="text-xs text-slate-400">Ingresa tus propias API keys para procesar audios y generar resúmenes. Se guardan en tu navegador (<span class="font-mono text-amber-400/90">localStorage</span>).</p>
@@ -1975,7 +1975,7 @@ class="w-full min-h-[44px] bg-slate-950 border border-slate-700 focus:border-amb
 <div class="bg-slate-950/80 border border-slate-800 rounded-xl p-3.5 space-y-2">
   <div class="flex items-center justify-between">
 <label for="userGroqKeyInput" class="text-xs text-slate-300 font-semibold flex items-center gap-1.5">
-  <span>⚡ Tu GROQ_API_KEY</span>
+  <span><span data-ui-icon=process aria-hidden=true></span> Tu GROQ_API_KEY</span>
   <span class="text-[10px] text-slate-500 font-normal">(Whisper)</span>
 </label>
 <span id="groqKeySavedIndicator" class="text-[11px] text-slate-500 font-mono">No configurada</span>
@@ -1983,8 +1983,8 @@ class="w-full min-h-[44px] bg-slate-950 border border-slate-700 focus:border-amb
   <div class="relative flex items-center">
 <input id="userGroqKeyInput" type="password" placeholder="gsk_..." autocomplete="off"
   class="w-full min-h-[42px] bg-slate-900 border border-slate-700 focus:border-amber-500 rounded-xl pl-3 pr-10 py-2 text-xs text-slate-200 font-mono outline-none" />
-<button type="button" onclick="togglePasswordVisibility('userGroqKeyInput', this)" class="absolute right-2 px-1.5 py-1 text-xs text-slate-400 hover:text-white cursor-pointer" title="Mostrar/Ocultar">
-  👁️
+<button type="button" onclick="togglePasswordVisibility('userGroqKeyInput', this)" class="absolute right-2 px-1.5 py-1 text-xs text-slate-400 hover:text-white cursor-pointer" title="Mostrar clave" aria-label="Mostrar clave" aria-pressed="false">
+  <span data-ui-icon=eye aria-hidden=true></span>
 </button>
   </div>
   <p class="text-[11px] text-slate-500">Requerida para la transcripción con Whisper Large-v3.</p>
@@ -1994,7 +1994,7 @@ class="w-full min-h-[44px] bg-slate-950 border border-slate-700 focus:border-amb
 <div class="bg-slate-950/80 border border-slate-800 rounded-xl p-3.5 space-y-2">
   <div class="flex items-center justify-between">
 <label for="userGeminiKeyInput" class="text-xs text-slate-300 font-semibold flex items-center gap-1.5">
-  <span>✨ Tu GEMINI_API_KEY</span>
+  <span><span data-ui-icon=process aria-hidden=true></span> Tu GEMINI_API_KEY</span>
   <span class="text-[10px] text-slate-500 font-normal">(Modelos de lenguaje)</span>
 </label>
 <span id="geminiKeySavedIndicator" class="text-[11px] text-slate-500 font-mono">No configurada</span>
@@ -2002,8 +2002,8 @@ class="w-full min-h-[44px] bg-slate-950 border border-slate-700 focus:border-amb
   <div class="relative flex items-center">
 <input id="userGeminiKeyInput" type="password" placeholder="AIzaSy..." autocomplete="off"
   class="w-full min-h-[42px] bg-slate-900 border border-slate-700 focus:border-amber-500 rounded-xl pl-3 pr-10 py-2 text-xs text-slate-200 font-mono outline-none" />
-<button type="button" onclick="togglePasswordVisibility('userGeminiKeyInput', this)" class="absolute right-2 px-1.5 py-1 text-xs text-slate-400 hover:text-white cursor-pointer" title="Mostrar/Ocultar">
-  👁️
+<button type="button" onclick="togglePasswordVisibility('userGeminiKeyInput', this)" class="absolute right-2 px-1.5 py-1 text-xs text-slate-400 hover:text-white cursor-pointer" title="Mostrar clave" aria-label="Mostrar clave" aria-pressed="false">
+  <span data-ui-icon=eye aria-hidden=true></span>
 </button>
   </div>
   <p class="text-[11px] text-slate-500">Requerida para crónicas de rol, apuntes universitarios y glosarios.</p>
@@ -2013,7 +2013,7 @@ class="w-full min-h-[44px] bg-slate-950 border border-slate-700 focus:border-amb
   <div class="flex flex-wrap items-center justify-between gap-3 pt-1">
 <span id="apiKeySaveFeedback" class="hidden text-xs text-emerald-400 font-medium"></span>
 <button onclick="saveUserApiKeys()" type="button" class="min-h-[44px] px-5 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 active:scale-[0.98] text-slate-950 font-bold text-xs shadow-lg shadow-amber-500/20 transition flex items-center gap-2 cursor-pointer ml-auto">
-  <span>💾</span>
+  <span><span data-ui-icon=save aria-hidden=true></span></span>
   <span>Guardar Llaves</span>
 </button>
   </div>
@@ -2060,7 +2060,7 @@ class="w-full min-h-[44px] bg-slate-950 border border-slate-700 focus:border-amb
 <button id="btnSyncDriveSettings" type="button" onclick="syncWithGoogleDrive()"
   class="hidden min-h-[36px] px-3 py-1 rounded-lg text-xs font-semibold bg-indigo-500/15 hover:bg-indigo-500/25 text-indigo-300 border border-indigo-500/30 transition flex items-center gap-1.5 cursor-pointer active:scale-95">
   <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
-  <span>🔄 Sincronizar Campañas</span>
+  <span><span data-ui-icon=refresh aria-hidden=true></span> Sincronizar Campañas</span>
 </button>
 <button id="btnDisconnectDriveSettings" type="button" onclick="disconnectGoogleDrive()"
   class="hidden min-h-[36px] px-3 py-1 rounded-lg text-xs font-semibold bg-rose-500/15 hover:bg-rose-500/25 text-rose-300 border border-rose-500/30 transition flex items-center gap-1.5 cursor-pointer active:scale-95"
@@ -2080,13 +2080,13 @@ class="w-full min-h-[44px] bg-slate-950 border border-slate-700 focus:border-amb
 <!-- Header -->
 <div class="flex items-center justify-between border-b border-slate-800 pb-3">
   <div class="flex items-center gap-2">
-<span class="text-xl">📂</span>
+<span class="text-xl"><span data-ui-icon=folder aria-hidden=true></span></span>
 <div>
   <h3 class="text-base font-bold text-amber-300 font-fantasy">Mis Campañas Guardadas</h3>
   <p class="text-xs text-slate-400">Selecciona una campaña para cargarla o elimínala del sistema</p>
 </div>
   </div>
-  <button type="button" onclick="toggleCampaignManagerModal(false)" class="text-slate-400 hover:text-white text-lg font-bold px-2 py-0.5 rounded-lg hover:bg-slate-800 active:scale-90 transition duration-150 cursor-pointer">✕</button>
+  <button type="button" onclick="toggleCampaignManagerModal(false)" class="text-slate-400 hover:text-white text-lg font-bold px-2 py-0.5 rounded-lg hover:bg-slate-800 active:scale-90 transition duration-150 cursor-pointer"><span data-ui-icon=close aria-hidden=true></span></button>
 </div>
 <!-- List Container -->
 <div id="campaignManagerList" class="flex-1 overflow-y-auto space-y-2 pr-1 min-h-[160px] text-xs">
@@ -2118,13 +2118,13 @@ class="w-full min-h-[44px] bg-slate-950 border border-slate-700 focus:border-amb
 <!-- Header -->
 <div class="flex items-center justify-between border-b border-slate-800 pb-3">
   <div class="flex items-center gap-2">
-<span class="text-xl">🔗</span>
+<span class="text-xl"><span data-ui-icon=link aria-hidden=true></span></span>
 <div>
   <h3 class="text-base font-bold text-amber-300 font-fantasy">Fusionar Personaje</h3>
   <p class="text-xs text-slate-400">Combina dos registros en uno solo sin perder hitos ni notas</p>
 </div>
   </div>
-  <button type="button" onclick="toggleMergeEntityModal(false)" class="text-slate-400 hover:text-white text-lg font-bold px-2 py-0.5 rounded-lg hover:bg-slate-800 active:scale-90 transition duration-150 cursor-pointer">✕</button>
+  <button type="button" onclick="toggleMergeEntityModal(false)" class="text-slate-400 hover:text-white text-lg font-bold px-2 py-0.5 rounded-lg hover:bg-slate-800 active:scale-90 transition duration-150 cursor-pointer"><span data-ui-icon=close aria-hidden=true></span></button>
 </div>
 <!-- Content -->
 <div class="space-y-3.5 text-xs">
@@ -2145,7 +2145,7 @@ class="w-full min-h-[44px] bg-slate-950 border border-slate-700 focus:border-amb
 <div class="border-t border-slate-800 pt-3 flex items-center justify-end gap-2">
   <button type="button" onclick="toggleMergeEntityModal(false)" class="px-4 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold transition cursor-pointer">Cancelar</button>
   <button type="button" id="confirmMergeBtn" onclick="submitMergeEntity()" class="px-4 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold transition flex items-center gap-1.5 cursor-pointer">
-<span>🔗</span>
+<span><span data-ui-icon=link aria-hidden=true></span></span>
 <span>Confirmar Fusión</span>
   </button>
 </div>
@@ -2158,13 +2158,13 @@ class="w-full min-h-[44px] bg-slate-950 border border-slate-700 focus:border-amb
 <!-- Header -->
 <div class="flex items-center justify-between border-b border-slate-800 pb-3">
   <div class="flex items-center gap-2">
-<span class="text-xl">✏️</span>
+<span class="text-xl"><span data-ui-icon=edit aria-hidden=true></span></span>
 <div>
   <h3 class="text-base font-bold text-amber-300 font-fantasy">Editar Personaje (PNJ)</h3>
   <p class="text-xs text-slate-400">Modifica nombre, rol, categoría o estado vital del personaje</p>
 </div>
   </div>
-  <button type="button" onclick="toggleEditNpcModal(false)" class="text-slate-400 hover:text-white text-lg font-bold px-2 py-0.5 rounded-lg hover:bg-slate-800 active:scale-90 transition duration-150 cursor-pointer">✕</button>
+  <button type="button" onclick="toggleEditNpcModal(false)" class="text-slate-400 hover:text-white text-lg font-bold px-2 py-0.5 rounded-lg hover:bg-slate-800 active:scale-90 transition duration-150 cursor-pointer"><span data-ui-icon=close aria-hidden=true></span></button>
 </div>
 <!-- Content -->
 <form id="editNpcForm" onsubmit="event.preventDefault(); submitEditNpc();" class="space-y-3.5 text-xs">
@@ -2181,20 +2181,20 @@ class="w-full min-h-[44px] bg-slate-950 border border-slate-700 focus:border-amb
 <div>
   <label for="editNpcCategorySelect" class="block text-slate-400 font-semibold mb-1">Categoría Semántica:</label>
   <select id="editNpcCategorySelect" class="w-full p-2.5 rounded-xl bg-slate-950 border border-slate-700 text-slate-200 text-xs focus:ring-1 focus:ring-amber-400 focus:outline-none">
-<option value="clave">👑 Clave / Importante</option>
-<option value="aliado">🛡️ Aliado / Compañero</option>
-<option value="invocacion">🐾 Invocación / Familiar</option>
-<option value="amenaza">💀 Amenaza / Enemigo</option>
-<option value="interaccion_contexto">⚔️ Interacción / Contexto</option>
+<option value="clave">Clave / Importante</option>
+<option value="aliado">Aliado / Compañero</option>
+<option value="invocacion">Invocación / Familiar</option>
+<option value="amenaza">Amenaza / Enemigo</option>
+<option value="interaccion_contexto">Interacción / Contexto</option>
   </select>
 </div>
 <div>
   <label for="editNpcStatusSelect" class="block text-slate-400 font-semibold mb-1">Estado al Final de Sesión:</label>
   <select id="editNpcStatusSelect" class="w-full p-2.5 rounded-xl bg-slate-950 border border-slate-700 text-slate-200 text-xs focus:ring-1 focus:ring-amber-400 focus:outline-none">
-<option value="activo">🟢 Activo</option>
-<option value="herido">🟡 Herido / Revivido</option>
-<option value="abatido">🔴 Abatido / Muerto</option>
-<option value="desvanecido">🟣 Desvanecido</option>
+<option value="activo">Activo</option>
+<option value="herido">Herido / Revivido</option>
+<option value="abatido">Abatido / Muerto</option>
+<option value="desvanecido">Desvanecido</option>
   </select>
 </div>
   </div>
@@ -2204,7 +2204,7 @@ class="w-full min-h-[44px] bg-slate-950 border border-slate-700 focus:border-amb
 <div class="border-t border-slate-800 pt-3 flex items-center justify-end gap-2">
   <button type="button" onclick="toggleEditNpcModal(false)" class="px-4 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold transition cursor-pointer">Cancelar</button>
   <button type="button" id="saveNpcBtn" onclick="submitEditNpc()" class="px-4 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold transition flex items-center gap-1.5 cursor-pointer">
-<span>💾</span>
+<span><span data-ui-icon=save aria-hidden=true></span></span>
 <span>Guardar Cambios</span>
   </button>
 </div>
@@ -2336,7 +2336,7 @@ Los navegadores de teléfonos (Chrome Android y Safari iOS) requieren estrictame
   <span>Captura de Audio con el Micrófono del Teléfono</span>
 </h4>
 <p class="text-slate-400 text-[11px] leading-relaxed">
-  En la pestaña <strong>En Vivo (Mic)</strong>, el selector se configurará en <strong class="text-sky-300">📱 Móvil / Mic Navegador</strong>. Al pulsar "Iniciar Grabación", tu teléfono solicitará permiso de micrófono y grabará de forma fluida y continua sin requerir la tarjeta de sonido de la PC.
+  En la pestaña <strong>En Vivo (Mic)</strong>, el selector se configurará en <strong class="text-sky-300"><span data-ui-icon=mic aria-hidden=true></span> Móvil / Mic Navegador</strong>. Al pulsar "Iniciar Grabación", tu teléfono solicitará permiso de micrófono y grabará de forma fluida y continua sin requerir la tarjeta de sonido de la PC.
 </p>
   </div>
 
@@ -2364,7 +2364,7 @@ Entendido, Cerrar
 <!-- Header -->
 <div class="p-4 border-b border-neutral-800 flex items-center justify-between">
   <div class="flex items-center gap-2.5">
-<span class="text-xl">🧬</span>
+<span class="text-xl"><span data-ui-icon=users aria-hidden=true></span></span>
 <div>
   <h3 class="text-sm font-bold text-white tracking-wide">Seleccionar Especie / Linaje</h3>
   <p class="text-[11px] text-neutral-400">85 especies oficiales D&D 2024 / 5e, multiverso y linajes especiales</p>
@@ -2397,7 +2397,7 @@ Entendido, Cerrar
 <!-- Footer -->
 <div class="p-3 border-t border-neutral-800 bg-neutral-950 flex items-center justify-between">
   <button type="button" onclick="selectCustomSpeciesFromModal()" class="px-3 py-1.5 rounded-xl bg-neutral-900 hover:bg-neutral-800 text-amber-300 hover:text-amber-200 border border-neutral-800 text-xs font-semibold transition cursor-pointer">
-✨ Especie Homebrew / Personalizada
+<span data-ui-icon=process aria-hidden=true></span> Especie Homebrew / Personalizada
   </button>
   <button type="button" onclick="closeSpeciesModal()" class="px-4 py-1.5 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-neutral-200 text-xs font-medium transition cursor-pointer">
 Cerrar
@@ -2414,7 +2414,7 @@ Cerrar
 <!-- Header con selector de Clase Principal / Multiclase -->
 <div class="p-4 border-b border-neutral-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
   <div class="flex items-center gap-3">
-<span class="text-xl">⚔️</span>
+<span class="text-xl"><span data-ui-icon=swords aria-hidden=true></span></span>
 <div>
   <h3 class="text-sm font-bold text-white tracking-wide">Clase & Subclase Oficial D&D</h3>
   <p class="text-[11px] text-neutral-400">18 clases oficiales & homebrew con paleta oficial D&D Beyond</p>
@@ -2464,7 +2464,7 @@ class="hidden px-3 py-1.5 rounded-xl text-xs font-semibold transition flex items
 <!-- Footer -->
 <div class="p-3 border-t border-neutral-800 bg-neutral-950 flex items-center justify-between">
   <button type="button" onclick="selectCustomClassFromModal()" class="px-3 py-1.5 rounded-xl bg-neutral-900 hover:bg-neutral-800 text-amber-300 hover:text-amber-200 border border-neutral-800 text-xs font-semibold transition cursor-pointer">
-✨ Subclase Homebrew / Personalizada
+<span data-ui-icon=process aria-hidden=true></span> Subclase Homebrew / Personalizada
   </button>
   <button type="button" onclick="closeClassModal()" class="px-4 py-1.5 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-neutral-200 text-xs font-medium transition cursor-pointer">
 Cerrar
@@ -2495,7 +2495,7 @@ Cerrar
 <!-- Notification Message Banner -->
 <div class="p-3.5 rounded-xl bg-amber-950/30 border border-amber-500/40 text-xs sm:text-sm text-amber-200 leading-relaxed space-y-2">
   <p class="font-medium flex items-start gap-2">
-<span class="text-amber-400 shrink-0">⚠️</span>
+<span class="text-amber-400 shrink-0"><span data-ui-icon=warning aria-hidden=true></span></span>
 <span>No se pudo contactar al servidor, pero tu grabación se descargó con éxito en tu teléfono. Podrás subir este archivo manualmente cuando haya conexión.</span>
   </p>
 </div>
@@ -2549,7 +2549,7 @@ Cerrar
 <!-- Header -->
 <div class="flex items-center justify-between border-b border-slate-800 pb-3">
   <div class="flex items-center gap-2.5">
-<span class="text-xl">📖</span>
+<span class="text-xl"><span data-ui-icon=book aria-hidden=true></span></span>
 <h3 id="modalGlossaryTitle" class="text-sm sm:text-base font-bold text-white tracking-tight">Agregar al Glosario / Técnicas</h3>
   </div>
   <button type="button" onclick="closeAddGlossaryModal()" class="text-slate-400 hover:text-white transition p-1 cursor-pointer">
@@ -2567,8 +2567,8 @@ Cerrar
   <div>
 <label class="block text-slate-300 font-medium mb-1">Tipo de Entrada:</label>
 <select id="selectGlossaryType" class="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-700 text-slate-100 focus:border-sky-500 focus:outline-none">
-  <option value="concept">📖 Glosario Conceptual (Definición)</option>
-  <option value="technique">🛠️ Técnica, Método o Procedimiento</option>
+  <option value="concept">Glosario Conceptual (Definición)</option>
+  <option value="technique">Técnica, Método o Procedimiento</option>
 </select>
   </div>
   <div>
@@ -2584,7 +2584,7 @@ Cerrar
 Cancelar
   </button>
   <button type="button" onclick="saveNewGlossaryTerm()" class="px-4 py-2 rounded-xl bg-sky-600 hover:bg-sky-500 text-white text-xs font-semibold shadow-md shadow-sky-900/30 transition flex items-center gap-1.5 cursor-pointer">
-<span>💾</span> <span>Guardar en Glosario</span>
+<span><span data-ui-icon=save aria-hidden=true></span></span> <span>Guardar en Glosario</span>
   </button>
 </div>
   </div>
@@ -2596,16 +2596,17 @@ Cancelar
   <div id="floatingToastContainer" class="fixed top-5 right-5 z-[9999] flex flex-col gap-2.5 max-w-sm sm:max-w-md w-full pointer-events-none px-3 sm:px-0" aria-live="assertive"></div>
 
   <!-- Modularized Application Scripts -->
-  <script src="/static/js/utils.js?v=desktop1"></script>
-  <script src="/static/js/api.js?v=desktop1"></script>
-  <script src="/static/js/progress.js?v=desktop1"></script>
-  <script src="/static/js/audio.js?v=desktop1"></script>
-  <script src="/static/js/drive.js?v=desktop1"></script>
-  <script src="/static/js/roster.js?v=desktop1"></script>
-  <script src="/static/js/wiki.js?v=desktop1"></script>
-  <script src="/static/js/notes.js?v=desktop1"></script>
-  <script src="/static/js/desktop-core.js?v=desktop1"></script>
-  <script src="/static/js/app.js?v=desktop1"></script>
-  <script src="/static/js/desktop.js?v=desktop1"></script>
+  <script src="/static/js/ui-icons.js?v=controls-20261030"></script>
+  <script src="/static/js/utils.js?v=controls-20261030"></script>
+  <script src="/static/js/api.js?v=controls-20261030"></script>
+  <script src="/static/js/progress.js?v=controls-20261030"></script>
+  <script src="/static/js/audio.js?v=controls-20261030"></script>
+  <script src="/static/js/drive.js?v=controls-20261030"></script>
+  <script src="/static/js/roster.js?v=controls-20261030"></script>
+  <script src="/static/js/wiki.js?v=controls-20261030"></script>
+  <script src="/static/js/notes.js?v=controls-20261030"></script>
+  <script src="/static/js/desktop-core.js?v=controls-20261030"></script>
+  <script src="/static/js/app.js?v=controls-20261030"></script>
+  <script src="/static/js/desktop.js?v=controls-20261030"></script>
 </body>
 </html>

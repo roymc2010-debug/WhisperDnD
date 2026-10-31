@@ -35,7 +35,7 @@
  appearance.insertAdjacentHTML('beforeend','<div id="desktopThemeGrid" class="desktop-theme-grid" role="group" aria-label="Elegir tema"></div><p id="desktopThemeStatus" class="desktop-status" role="status"></p><div class="desktop-appearance-note"><h3>Colores de las clases</h3><p>Los logos conservan su color original en todos los temas, sin fondos ni contornos añadidos.</p></div>');
  for(const theme of core.themes){
   const button=document.createElement('button');button.type='button';button.className='desktop-theme-option';button.dataset.themeOption=theme.id;
-  button.innerHTML='<span class="desktop-theme-preview" aria-hidden="true" style="--preview-canvas:'+theme.canvas+';--preview-surface:'+theme.surface+';--preview-raised:'+theme.raised+';--preview-accent:'+theme.accent+'"><i></i><span><b></b><em></em><small></small></span></span><span class="desktop-theme-name">'+theme.name+'<span class="desktop-theme-check" aria-hidden="true">✓</span></span><span class="desktop-theme-kind">'+(theme.mode==='light'?'Claro':'Oscuro')+'</span>';
+  button.innerHTML='<span class="desktop-theme-preview" aria-hidden="true" style="--preview-canvas:'+theme.canvas+';--preview-surface:'+theme.surface+';--preview-raised:'+theme.raised+';--preview-accent:'+theme.accent+'"><i></i><span><b></b><em></em><small></small></span></span><span class="desktop-theme-name">'+theme.name+'<span class="desktop-theme-check" aria-hidden="true"><span data-ui-icon=check aria-hidden=true></span></span></span><span class="desktop-theme-kind">'+(theme.mode==='light'?'Claro':'Oscuro')+'</span>';
   button.addEventListener('click',()=>applyTheme(theme.id,true));$('desktopThemeGrid').append(button);
  }
  function applyTheme(value,persist=false){
@@ -107,17 +107,25 @@
  const roleFor=button=>{
   if(button.closest('#roster-table')||button.closest('nav')||button.closest('#desktopThemeGrid')||button.dataset.desktopView)return null;
   const action=(button.getAttribute('onclick')||'')+' '+button.id;
+  if(/toggleQuestStatus|toggleWikiQuestStatus|^(select|applySpecies|applySubclass|setNpcCategory|setNotesCategory|setWikiCategory|setLiveMode|setTargetLanguage|setWorkspace|setWorkStudySubMode|switchClassModalTab|switchNoteDetailTab|switchWikiSessionSubtab|switchSummaryLanguage|toggleResultTab|selectCampaignFromManager)/.test(action.trim()))return null;
   if(/btnStartRecording|btnUploadFile|btnProcessYoutube|btnFile|btnYoutube/.test(action))return 'primary';
   if(/delete|remove|clearBackup|clearAll|clearUserApiKeys|disconnect|logout|resetDiscordAuth|btnStopRecording|stopSessionAndProcess|cancelCurrentTask/i.test(action))return 'danger';
   if(/reprocess|regenerate|retry|deduplicate|merge|translate|Reprocess/i.test(action))return 'review';
   if(/download|export|import|sync|refresh|copy|Drive|print/i.test(action))return 'transfer';
-  if(/save|create|addRoster|addPlayer|addGlossary|addNew|manualSave/i.test(action))return 'save';
-  return null;
+  if(/save|create|addRoster|addPlayer|addGlossary|addNew|manualSave|submitEditNpc|toggleNewCharacterMode|enableMulticlass/i.test(action))return 'save';
+  return 'neutral';
  };
  function enhanceButtons(){
+  WhisperIcons.mount(document);
   for(const b of document.querySelectorAll('button')){
    if(!b.hasAttribute('data-button-role')){const role=roleFor(b);if(role)b.dataset.buttonRole=role;}
-   if(!b.textContent.trim()&&!b.hasAttribute('aria-label')&&b.title)b.setAttribute('aria-label',b.title);
+   const iconOnly=!b.textContent.trim()&&Boolean(b.querySelector('svg'));
+   b.classList.toggle('desktop-icon-button',iconOnly);
+   if(iconOnly&&!b.getAttribute('aria-label')){
+    const action=b.getAttribute('onclick')||'';
+    const label=b.title||(/close|hide|Modal\(false\)/i.test(action)?'Cerrar diálogo':'');
+    if(label)b.setAttribute('aria-label',label);
+   }
   }
   for(const b of document.querySelectorAll('#roster-table button[onclick*="toggleUserChar"]')){
    b.setAttribute('aria-label','Marcar como mi personaje');b.setAttribute('aria-pressed',String(Boolean(b.querySelector('svg[fill="currentColor"]'))));
@@ -140,6 +148,9 @@
   const rerecord=$('desktopRerecord');if(rerecord){const disabled=!core.sessionNumbers(window.currentCampaignState).length||recording();if(rerecord.disabled!==disabled)rerecord.disabled=disabled;}
   const replacing=Boolean(override?.checked);setHidden(notice,!replacing);if(replacing)text($('desktopRerecordNoticeText'),'Reemplazo preparado · Sesión '+$('sessionNumberInput').value+'. Se aplicará al procesar el nuevo audio.');
   setHidden($('desktopProcessEmpty'),visible($('processingCard'))||visible($('npcSpellcheckCard')));setHidden($('desktopResultEmpty'),visible($('resultsCard')));
+  for(const [selector,value] of [['#resultsCard [onclick*="toggleResultTab"]',window.currentActiveResultTab],['#viewWiki [onclick*="setWikiCategory"]',window.activeWikiCategory],['#viewWiki [onclick*="switchWikiSessionSubtab"]',window.currentWikiSessionSubtab]]){
+   for(const b of document.querySelectorAll(selector)){const match=b.getAttribute('onclick')?.match(/\('([^']+)'/);b.setAttribute('aria-pressed',String(Boolean(match&&match[1]===value)));}
+  }
   enhanceButtons();syncModals();
  };
  // Existing custom pickers get keyboard focus containment and return focus to their opener.

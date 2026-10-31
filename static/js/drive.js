@@ -19,17 +19,17 @@ function updateDriveSyncIndicator(status) {
   if (status === "syncing") {
     if (campaignIndicator) {
       campaignIndicator.className = "inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium bg-amber-500/10 border border-amber-500/25 text-amber-300 transition-colors select-none";
-      campaignIndicator.innerHTML = `<span class="w-2 h-2 rounded-full bg-amber-400 animate-ping"></span><span>☁️ Sincronizando con Drive...</span>`;
+      campaignIndicator.innerHTML = `<span class="w-2 h-2 rounded-full bg-amber-400 animate-ping"></span><span><span data-ui-icon=cloud aria-hidden=true></span> Sincronizando con Drive...</span>`;
       campaignIndicator.title = "Sincronizando y guardando cambios en segundo plano con Google Drive ('WhisperDnD')";
     }
     if (widgetStatus) {
       widgetStatus.className = "inline-flex items-center gap-1 text-[11px] font-medium text-amber-300";
-      widgetStatus.innerHTML = `<span class="w-1.5 h-1.5 rounded-full bg-amber-400 animate-ping"></span><span>☁️ Sincronizando...</span>`;
+      widgetStatus.innerHTML = `<span class="w-1.5 h-1.5 rounded-full bg-amber-400 animate-ping"></span><span><span data-ui-icon=cloud aria-hidden=true></span> Sincronizando...</span>`;
       widgetStatus.classList.remove("hidden");
     }
     if (mobileIndicator) {
       mobileIndicator.className = "min-h-[36px] inline-flex items-center justify-center px-2 py-1 rounded-lg text-xs font-medium bg-amber-500/10 text-amber-300 border border-amber-500/20";
-      mobileIndicator.innerHTML = `<span class="animate-spin inline-block">🔄</span>`;
+      mobileIndicator.innerHTML = `<span class="animate-spin inline-block"><span data-ui-icon=refresh aria-hidden=true></span></span>`;
       mobileIndicator.classList.remove("hidden");
       mobileIndicator.title = "Sincronizando con Google Drive...";
     }
@@ -37,17 +37,17 @@ function updateDriveSyncIndicator(status) {
     _driveConnected = true;
     if (campaignIndicator) {
       campaignIndicator.className = "inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium bg-emerald-500/10 border border-emerald-500/20 text-emerald-400/90 transition-colors select-none";
-      campaignIndicator.innerHTML = `<span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span><span>☁️ Guardado en Drive</span>`;
+      campaignIndicator.innerHTML = `<span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span><span><span data-ui-icon=cloud aria-hidden=true></span> Guardado en Drive</span>`;
       campaignIndicator.title = "Todos los cambios locales están respaldados en Google Drive ('WhisperDnD')";
     }
     if (widgetStatus) {
       widgetStatus.className = "inline-flex items-center gap-1 text-[11px] font-medium text-emerald-400/90";
-      widgetStatus.innerHTML = `<span>☁️ Guardado en Drive</span>`;
+      widgetStatus.innerHTML = `<span><span data-ui-icon=cloud aria-hidden=true></span> Guardado en Drive</span>`;
       widgetStatus.classList.remove("hidden");
     }
     if (mobileIndicator) {
       mobileIndicator.className = "min-h-[36px] inline-flex items-center justify-center px-2 py-1 rounded-lg text-xs font-medium bg-emerald-500/10 text-emerald-300 border border-emerald-500/20";
-      mobileIndicator.innerHTML = `<span>☁️</span>`;
+      mobileIndicator.innerHTML = `<span><span data-ui-icon=cloud aria-hidden=true></span></span>`;
       mobileIndicator.classList.remove("hidden");
       mobileIndicator.title = "Guardado en Google Drive";
     }
@@ -55,7 +55,7 @@ function updateDriveSyncIndicator(status) {
     _driveConnected = false;
     if (campaignIndicator) {
       campaignIndicator.className = "inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium bg-slate-950 border border-slate-800 text-slate-500 transition-colors select-none";
-      campaignIndicator.innerHTML = `<span class="w-1.5 h-1.5 rounded-full bg-slate-600"></span><span>⚠️ Sin conexión a Drive</span>`;
+      campaignIndicator.innerHTML = `<span class="w-1.5 h-1.5 rounded-full bg-slate-600"></span><span><span data-ui-icon=warning aria-hidden=true></span> Sin conexión a Drive</span>`;
       campaignIndicator.title = "Google Drive no está conectado. Los datos se guardan de forma local en el servidor.";
     }
     if (widgetStatus) {
@@ -104,7 +104,7 @@ function updateDriveUIState(isConnected, userEmail = null, userName = null) {
     if (btn) btn.classList.add("hidden");
     if (badge) {
       badge.classList.remove("hidden");
-      badge.innerHTML = `<span class="w-2 h-2 rounded-full bg-emerald-400"></span> 🟢 Google Drive Conectado`;
+      badge.innerHTML = `<span class="w-2 h-2 rounded-full bg-emerald-400"></span> <span data-ui-icon=check aria-hidden=true></span> Google Drive Conectado`;
     }
     if (btnSyncHeader) btnSyncHeader.classList.remove("hidden");
     if (btnSyncSettings) btnSyncSettings.classList.remove("hidden");
@@ -127,7 +127,7 @@ function updateDriveUIState(isConnected, userEmail = null, userName = null) {
     if (btn) {
       btn.classList.remove("hidden");
       btn.disabled = false;
-      btn.innerHTML = `<span>🔗</span> Conectar Google Drive`;
+      btn.innerHTML = `<span><span data-ui-icon=link aria-hidden=true></span></span> Conectar Google Drive`;
     }
     if (badge) badge.classList.add("hidden");
     if (btnSyncHeader) btnSyncHeader.classList.add("hidden");
@@ -255,7 +255,7 @@ async function connectGoogleDriveUpfront() {
   const btnSettings = document.getElementById("btnConnectDriveSettings");
   if (btn) {
     btn.disabled = true;
-    btn.innerHTML = `<span class="inline-block animate-spin">⏳</span> Abriendo...`;
+    btn.innerHTML = `<span class="inline-block animate-spin"><span data-ui-icon=clock aria-hidden=true></span></span> Abriendo...`;
   }
   if (btnSettings) {
     btnSettings.disabled = true;
@@ -281,13 +281,13 @@ async function connectGoogleDriveUpfront() {
       userMsg = "La URL de este dominio aún no está autorizada en Google Cloud Console (Authorized Redirect URIs).";
     }
     if (typeof showAlert === "function") {
-      showAlert("⚠️ Conexión de Google Drive: " + userMsg);
+      showAlert("Conexión de Google Drive: " + userMsg);
     } else {
-      alert("⚠️ Conexión de Google Drive: " + userMsg);
+      alert("Conexión de Google Drive: " + userMsg);
     }
     if (btn) {
       btn.disabled = false;
-      btn.innerHTML = `<span>🔗</span> Conectar Google Drive`;
+      btn.innerHTML = `<span><span data-ui-icon=link aria-hidden=true></span></span> Conectar Google Drive`;
     }
     if (btnSettings) {
       btnSettings.disabled = false;
@@ -304,7 +304,7 @@ async function disconnectGoogleDrive() {
   const btn = document.getElementById("btnDisconnectDriveSettings");
   if (btn) {
     btn.disabled = true;
-    btn.innerHTML = `<span class="inline-block animate-spin">⏳</span> Cerrando...`;
+    btn.innerHTML = `<span class="inline-block animate-spin"><span data-ui-icon=clock aria-hidden=true></span></span> Cerrando...`;
   }
 
   try {
@@ -343,19 +343,19 @@ async function syncWithGoogleDrive(isSilent = false, isJustConnected = false) {
     if (btnHeader) {
       btnHeader.disabled = loading;
       btnHeader.innerHTML = loading
-        ? `<span class="inline-block animate-spin">⏳</span>`
+        ? `<span class="inline-block animate-spin"><span data-ui-icon=clock aria-hidden=true></span></span>`
         : `<svg class="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg><span>Sincronizar</span>`;
     }
     if (btnSettings) {
       btnSettings.disabled = loading;
       btnSettings.innerHTML = loading
-        ? `<span class="inline-block animate-spin">⏳</span> Buscando en Drive...`
-        : `<svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg><span>🔄 Sincronizar Campañas con Drive</span>`;
+        ? `<span class="inline-block animate-spin"><span data-ui-icon=clock aria-hidden=true></span></span> Buscando en Drive...`
+        : `<svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg><span><span data-ui-icon=refresh aria-hidden=true></span> Sincronizar Campañas con Drive</span>`;
     }
     if (btnModal) {
       btnModal.disabled = loading;
       btnModal.innerHTML = loading
-        ? `<span class="inline-block animate-spin">⏳</span> Buscando...`
+        ? `<span class="inline-block animate-spin"><span data-ui-icon=clock aria-hidden=true></span></span> Buscando...`
         : `<svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg><span>Sincronizar con Drive</span>`;
     }
   };
@@ -417,7 +417,7 @@ async function syncWithGoogleDrive(isSilent = false, isJustConnected = false) {
     } else if (!isSilent) {
       let msg = `Sincronización completada con éxito. `;
       if (downloaded > 0 || uploaded > 0 || notes > 0) {
-        msg += `(📥 ${downloaded} campañas descargadas, 📤 ${uploaded} campañas respaldadas, 📝 ${notes} notas restauradas)`;
+        msg += `( ${downloaded} campañas descargadas,  ${uploaded} campañas respaldadas,  ${notes} notas restauradas)`;
       } else {
         msg += `Tus campañas y notas locales están al día con Google Drive.`;
       }
@@ -447,7 +447,7 @@ async function uploadCampaignToDrive() {
   const campName = (wikiSel && wikiSel.value && wikiSel.value.trim()) || (campInput && campInput.value && campInput.value.trim());
   const isWorkStudy = (window.currentWorkspace === "work_and_study" || (window.currentResult && window.currentResult.recording_mode === "class"));
   if (!isWorkStudy && !campName) {
-    if (typeof showAlert === "function") showAlert("⚠️ Selecciona o abre una campaña antes de subir a Google Drive.");
+    if (typeof showAlert === "function") showAlert("Selecciona o abre una campaña antes de subir a Google Drive.");
     return;
   }
   const btn = document.getElementById("btnExportDrive");
@@ -479,7 +479,7 @@ async function uploadCampaignToDrive() {
     if (fileNameEl) fileNameEl.textContent = data.file_name;
     if (link) link.href = data.web_view_link;
     if (banner) banner.classList.remove("hidden");
-    if (btnText) btnText.textContent = isWorkStudy ? "✓ Briefing en Drive" : "✓ Grimorio en Drive";
+    if (btnText) btnText.textContent = isWorkStudy ? "Briefing en Drive" : "Grimorio en Drive";
     setTimeout(() => {
       if (btnText) btnText.textContent = "Subir a Drive";
       if (btn) btn.disabled = false;
@@ -505,17 +505,17 @@ async function copyDriveSessionToken() {
     }
     if (!token) {
       if (typeof showAlert === "function") {
-        showAlert("⚠️ No hay ninguna sesión activa de Google Drive en este momento para copiar.");
+        showAlert("No hay ninguna sesión activa de Google Drive en este momento para copiar.");
       } else {
-        alert("⚠️ No hay ninguna sesión activa de Google Drive en este momento para copiar.");
+        alert("No hay ninguna sesión activa de Google Drive en este momento para copiar.");
       }
       return;
     }
     await navigator.clipboard.writeText(token);
     if (typeof showSuccessAlert === "function") {
-      showSuccessAlert("📋 ¡Token de sesión copiado al portapapeles!\n\nPuedes pegarlo en tu otra computadora para conectar Google Drive al instante sin necesidad de volver a autorizar con Google.");
+      showSuccessAlert("¡Token de sesión copiado al portapapeles!\n\nPuedes pegarlo en tu otra computadora para conectar Google Drive al instante sin necesidad de volver a autorizar con Google.");
     } else {
-      alert("📋 ¡Token de sesión copiado al portapapeles!\n\nPuedes pegarlo en tu otra computadora para conectar Google Drive al instante.");
+      alert("¡Token de sesión copiado al portapapeles!\n\nPuedes pegarlo en tu otra computadora para conectar Google Drive al instante.");
     }
   } catch (err) {
     if (typeof showAlert === "function") showAlert("Error al copiar token: " + err.message);
@@ -552,7 +552,7 @@ async function submitPastedDriveSessionToken() {
   const input = document.getElementById("driveTokenPasteInput");
   const tokenStr = input ? input.value.trim() : "";
   if (!tokenStr) {
-    if (typeof showAlert === "function") showAlert("⚠️ Pega primero el JSON del token de sesión en el recuadro.");
+    if (typeof showAlert === "function") showAlert("Pega primero el JSON del token de sesión en el recuadro.");
     return;
   }
   await _restoreDriveTokenFromString(tokenStr);
@@ -578,9 +578,9 @@ async function _restoreDriveTokenFromString(tokenStr) {
     await checkDriveStatus();
     await syncWithGoogleDrive(false, true);
     if (typeof showSuccessAlert === "function") {
-      showSuccessAlert("🟢 ¡Google Drive conectado y sincronizado con éxito mediante el token importado!");
+      showSuccessAlert("¡Google Drive conectado y sincronizado con éxito mediante el token importado!");
     } else {
-      alert("🟢 ¡Google Drive conectado con éxito!");
+      alert("¡Google Drive conectado con éxito!");
     }
   } catch (err) {
     if (typeof showAlert === "function") showAlert("Error al importar token: " + err.message);
@@ -603,9 +603,9 @@ async function uploadCredentialsFile(fileInput) {
     if (!res.ok) throw new Error(data.detail || "Error al subir credentials.json");
 
     if (typeof showSuccessAlert === "function") {
-      showSuccessAlert("✅ credentials.json cargado con éxito en el servidor. Ya puedes hacer clic en 'Conectar Google Drive'.");
+      showSuccessAlert("credentials.json cargado con éxito en el servidor. Ya puedes hacer clic en 'Conectar Google Drive'.");
     } else {
-      alert("✅ credentials.json cargado con éxito.");
+      alert("credentials.json cargado con éxito.");
     }
     await checkDriveStatus();
   } catch (err) {

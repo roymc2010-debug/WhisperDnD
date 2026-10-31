@@ -120,19 +120,19 @@ function showFloatingToast(msg, type = "info", duration = 5000, actionLabel = nu
   toast.setAttribute("data-msg", msg);
   toast.className = "pointer-events-auto rounded-2xl p-4 shadow-2xl backdrop-blur-md border text-sm font-sans flex items-start gap-3 transition-all duration-200 transform translate-y-[-10px] opacity-0 select-none";
 
-  let iconHtml = "ℹ️";
+  let iconHtml = WhisperIcons.markup("info");
   if (type === "error") {
     toast.className += " bg-rose-950/95 border-rose-500/80 text-rose-100 shadow-rose-950/60";
-    iconHtml = `<div class="w-6 h-6 rounded-lg bg-rose-900/80 border border-rose-600 flex items-center justify-center text-xs font-bold shrink-0 text-rose-200">✕</div>`;
+    iconHtml = `<div class="w-6 h-6 rounded-lg bg-rose-900/80 border border-rose-600 flex items-center justify-center text-xs font-bold shrink-0 text-rose-200"><span data-ui-icon=close aria-hidden=true></span></div>`;
   } else if (type === "warning") {
     toast.className += " bg-amber-950/95 border-amber-500/80 text-amber-100 shadow-amber-950/60";
-    iconHtml = `<div class="w-6 h-6 rounded-lg bg-amber-900/80 border border-amber-600 flex items-center justify-center text-xs font-bold shrink-0 text-amber-200">⚠️</div>`;
+    iconHtml = `<div class="w-6 h-6 rounded-lg bg-amber-900/80 border border-amber-600 flex items-center justify-center text-xs font-bold shrink-0 text-amber-200"><span data-ui-icon=warning aria-hidden=true></span></div>`;
   } else if (type === "success") {
     toast.className += " bg-emerald-950/95 border-emerald-500/80 text-emerald-100 shadow-emerald-950/60";
-    iconHtml = `<div class="w-6 h-6 rounded-lg bg-emerald-900/80 border border-emerald-600 flex items-center justify-center text-xs font-bold shrink-0 text-emerald-200">✓</div>`;
+    iconHtml = `<div class="w-6 h-6 rounded-lg bg-emerald-900/80 border border-emerald-600 flex items-center justify-center text-xs font-bold shrink-0 text-emerald-200"><span data-ui-icon=check aria-hidden=true></span></div>`;
   } else {
     toast.className += " bg-slate-900/95 border-slate-700/80 text-slate-100 shadow-slate-950/60";
-    iconHtml = `<div class="w-6 h-6 rounded-lg bg-slate-800 border border-slate-700 flex items-center justify-center text-xs font-bold shrink-0 text-sky-300">ℹ</div>`;
+    iconHtml = `<div class="w-6 h-6 rounded-lg bg-slate-800 border border-slate-700 flex items-center justify-center text-xs font-bold shrink-0 text-sky-300"><span data-ui-icon=info aria-hidden=true></span></div>`;
   }
 
   const contentCol = document.createElement("div");
@@ -221,7 +221,7 @@ function showAlert(msg, type = "error") {
     const msgEl = document.getElementById("alertMessage");
     const iconEl = document.getElementById("alertIcon");
     if (msgEl) msgEl.textContent = msg;
-    if (iconEl) iconEl.innerHTML = `<span class="text-rose-400">⚠️</span>`;
+    if (iconEl) iconEl.innerHTML = `<span class="text-rose-400"><span data-ui-icon=warning aria-hidden=true></span></span>`;
     box.className = "rounded-xl border border-rose-800 bg-rose-950/40 p-4 text-sm flex items-start gap-3 text-rose-200 shadow-lg";
     box.classList.remove("hidden");
     clearTimeout(box._autoHideTimer);

@@ -49,7 +49,7 @@ function saveUserApiKeys() {
 
   const feedback = document.getElementById("apiKeySaveFeedback");
   if (feedback) {
-    feedback.textContent = "⏳ Guardando y verificando credenciales con Groq y Gemini...";
+    feedback.textContent = "Guardando y verificando credenciales con Groq y Gemini...";
     feedback.className = "text-xs text-amber-400 font-medium";
     feedback.classList.remove("hidden");
   }
@@ -68,7 +68,7 @@ function clearUserApiKeys() {
 
   const feedback = document.getElementById("apiKeySaveFeedback");
   if (feedback) {
-    feedback.textContent = "🗑️ Llaves locales eliminadas de este navegador.";
+    feedback.textContent = "Llaves locales eliminadas de este navegador.";
     feedback.className = "text-xs text-amber-400 font-medium";
     feedback.classList.remove("hidden");
     setTimeout(() => {
@@ -90,7 +90,7 @@ function resetToServerDefaultKeys() {
 
   const feedback = document.getElementById("apiKeySaveFeedback");
   if (feedback) {
-    feedback.textContent = "⚡ Conectando con las llaves predeterminadas del servidor (.env)...";
+    feedback.textContent = "Conectando con las llaves predeterminadas del servidor (.env)...";
     feedback.className = "text-xs text-amber-300 font-semibold";
     feedback.classList.remove("hidden");
   }
@@ -103,10 +103,10 @@ function togglePasswordVisibility(inputId, btnEl) {
   if (!input) return;
   if (input.type === "password") {
     input.type = "text";
-    if (btnEl) btnEl.textContent = "🙈";
+    if (btnEl) { WhisperIcons.set(btnEl, "eye-off"); btnEl.setAttribute("aria-label", "Ocultar clave"); btnEl.title = "Ocultar clave"; btnEl.setAttribute("aria-pressed", "true"); }
   } else {
     input.type = "password";
-    if (btnEl) btnEl.textContent = "👁️";
+    if (btnEl) { WhisperIcons.set(btnEl, "eye"); btnEl.setAttribute("aria-label", "Mostrar clave"); btnEl.title = "Mostrar clave"; btnEl.setAttribute("aria-pressed", "false"); }
   }
 }
 
@@ -118,7 +118,7 @@ function updateApiKeyStatusIndicators(groq, gemini) {
       groqIndicator.textContent = "Guardada en este navegador";
       groqIndicator.className = "text-[11px] text-emerald-400 font-mono";
     } else {
-      groqIndicator.textContent = "⚪ No configurada localmente";
+      groqIndicator.textContent = "No configurada localmente";
       groqIndicator.className = "text-[11px] text-slate-500 font-mono";
     }
   }
@@ -127,7 +127,7 @@ function updateApiKeyStatusIndicators(groq, gemini) {
       geminiIndicator.textContent = "Guardada en este navegador";
       geminiIndicator.className = "text-[11px] text-emerald-400 font-mono";
     } else {
-      geminiIndicator.textContent = "⚪ No configurada localmente";
+      geminiIndicator.textContent = "No configurada localmente";
       geminiIndicator.className = "text-[11px] text-slate-500 font-mono";
     }
   }
@@ -137,9 +137,9 @@ function checkAuthErrorAndRedirect(status, data) {
   if (status === 401 || (data && (data.error === "API_KEYS_REQUIRED" || data.status === 401))) {
     const msg = (data && data.message) || (data && data.detail && data.detail.message) || (typeof data.detail === "string" ? data.detail : "Por favor ingresa tus API keys de Groq y Gemini en la sección de Ajustes para continuar.");
     if (typeof showAlert === "function") {
-      showAlert(`⚠️ ${msg}`);
+      showAlert(`${msg}`);
     } else {
-      alert(`⚠️ ${msg}`);
+      alert(`${msg}`);
     }
     if (typeof setActiveView === "function") {
       setActiveView('settings');
@@ -193,7 +193,7 @@ function updateSystemStatusIndicator() {
   if (isFullyReady) {
     container.innerHTML = `<div class="px-3 py-2 text-xs text-emerald-400 font-medium">● Systems Ready</div>`;
   } else {
-    container.innerHTML = `<button onclick="setActiveView('settings')" class="w-full text-left px-3 py-2 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-400 text-xs font-medium hover:bg-amber-500/20">⚠️ Configuración Requerida</button>`;
+    container.innerHTML = `<button onclick="setActiveView('settings')" class="w-full text-left px-3 py-2 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-400 text-xs font-medium hover:bg-amber-500/20"><span data-ui-icon=warning aria-hidden=true></span> Configurar APIs</button>`;
   }
 }
 
@@ -272,32 +272,32 @@ async function checkApiKeysStatus(showToast = false) {
 
       if (groqIndicator) {
         if (hasGroqLocal && data.groq) {
-          groqIndicator.textContent = "🟢 Llave personal verificada";
+          groqIndicator.textContent = "Llave personal verificada";
           groqIndicator.className = "text-[11px] text-emerald-400 font-mono font-semibold";
         } else if (hasGroqLocal && !data.groq) {
-          groqIndicator.textContent = "🔴 Llave inválida o error";
+          groqIndicator.textContent = "Llave inválida o error";
           groqIndicator.className = "text-[11px] text-rose-400 font-mono font-semibold";
         } else if (!hasGroqLocal && data.groq) {
-          groqIndicator.textContent = "⚪ Sin llave local (Servidor activo)";
+          groqIndicator.textContent = "Sin llave local (Servidor activo)";
           groqIndicator.className = "text-[11px] text-amber-300/90 font-mono";
         } else {
-          groqIndicator.textContent = "⚪ No configurada";
+          groqIndicator.textContent = "No configurada";
           groqIndicator.className = "text-[11px] text-slate-500 font-mono";
         }
       }
 
       if (geminiIndicator) {
         if (hasGeminiLocal && data.gemini) {
-          geminiIndicator.textContent = "🟢 Llave personal verificada";
+          geminiIndicator.textContent = "Llave personal verificada";
           geminiIndicator.className = "text-[11px] text-emerald-400 font-mono font-semibold";
         } else if (hasGeminiLocal && !data.gemini) {
-          geminiIndicator.textContent = "🔴 Llave inválida o error";
+          geminiIndicator.textContent = "Llave inválida o error";
           geminiIndicator.className = "text-[11px] text-rose-400 font-mono font-semibold";
         } else if (!hasGeminiLocal && data.gemini) {
-          geminiIndicator.textContent = "⚪ Sin llave local (Servidor activo)";
+          geminiIndicator.textContent = "Sin llave local (Servidor activo)";
           geminiIndicator.className = "text-[11px] text-amber-300/90 font-mono";
         } else {
-          geminiIndicator.textContent = "⚪ No configurada";
+          geminiIndicator.textContent = "No configurada";
           geminiIndicator.className = "text-[11px] text-slate-500 font-mono";
         }
       }
@@ -311,18 +311,18 @@ async function checkApiKeysStatus(showToast = false) {
         feedback.classList.remove("hidden");
         if (data.groq && data.gemini) {
           const msg = (hasGroqLocal && hasGeminiLocal)
-            ? "✅ ¡Tus llaves personales de Groq y Gemini fueron guardadas y verificadas con éxito!"
-            : "✅ Conexión operativa con Groq y Gemini verificada.";
+            ? "¡Tus llaves personales de Groq y Gemini fueron guardadas y verificadas con éxito!"
+            : "Conexión operativa con Groq y Gemini verificada.";
           feedback.textContent = msg;
           feedback.className = "text-xs text-emerald-400 font-semibold";
           if (typeof showSuccessAlert === "function") showSuccessAlert(msg);
         } else if (!data.groq && !data.gemini) {
-          const msg = "⚠️ Ninguna de las llaves pudo autenticarse. Verifica que hayas copiado la llave completa (gsk_... y AIzaSy...).";
+          const msg = "Ninguna de las llaves pudo autenticarse. Verifica que hayas copiado la llave completa (gsk_... y AIzaSy...).";
           feedback.textContent = msg;
           feedback.className = "text-xs text-rose-400 font-semibold";
           if (typeof showAlert === "function") showAlert(msg);
         } else {
-          const msg = `⚠️ Estado parcial — Groq: ${data.groq ? '🟢 OK' : '🔴 Falla (' + (data.groq_message || 'revisar') + ')'} | Gemini: ${data.gemini ? '🟢 OK' : '🔴 Falla (' + (data.gemini_message || 'revisar') + ')'}`;
+          const msg = `Estado parcial — Groq: ${data.groq ? 'OK' : 'Falla (' + (data.groq_message || 'revisar') + ')'} | Gemini: ${data.gemini ? 'OK' : 'Falla (' + (data.gemini_message || 'revisar') + ')'}`;
           feedback.textContent = msg;
           feedback.className = "text-xs text-amber-400 font-semibold";
           if (typeof showAlert === "function") showAlert(msg);
@@ -339,10 +339,10 @@ async function checkApiKeysStatus(showToast = false) {
     const feedback = document.getElementById("apiKeySaveFeedback");
     if (feedback && showToast) {
       feedback.classList.remove("hidden");
-      feedback.textContent = "⚠️ Servidor no disponible (Failed to fetch). Inicia el servidor ejecutando 'start.bat' o 'python main.py' en http://localhost:8080.";
+      feedback.textContent = "Servidor no disponible (Failed to fetch). Inicia el servidor ejecutando 'start.bat' o 'python main.py' en http://localhost:8080.";
       feedback.className = "text-xs text-rose-400 font-semibold";
       if (typeof showAlert === "function") {
-        showAlert("⚠️ Error de conexión: El servidor WhisperDnD no está respondiendo en http://localhost:8080. Inícialo con 'start.bat' o 'python main.py'.");
+        showAlert("Error de conexión: El servidor WhisperDnD no está respondiendo en http://localhost:8080. Inícialo con 'start.bat' o 'python main.py'.");
       }
     }
   } finally {
@@ -507,7 +507,7 @@ async function checkQuotaBeforeAction(actionName = "este proceso") {
     if (isCritical) {
       const remainingPct = pctRemaining.toFixed(1);
       const userWantsToProceed = confirm(
-        `⚠️ ADVERTENCIA DE CUOTA DE API CRÍTICA (${remainingPct}% disponible)\n\n` +
+        `ADVERTENCIA DE CUOTA DE API CRÍTICA (${remainingPct}% disponible)\n\n` +
         `Te queda menos del 5% de tu cuota diaria de tokens de Gemini. Si inicias ${actionName}, existe riesgo de que los tokens se agoten y el proceso se interrumpa.\n\n` +
         `¿Deseas continuar de todas formas bajo tu propio riesgo?`
       );
