@@ -16,7 +16,7 @@
   <link rel="apple-touch-icon" sizes="180x180" href="/static/apple-touch-icon.png">
   <link rel="apple-touch-icon" sizes="512x512" href="/static/icon-512.png">
   <title>WhisperDnD & Study - Diario de Campañas y Asistente Académico</title>
-  <link rel="stylesheet" href="/static/vendor/tailwind.css?v=simplified-ingest-20261031">
+  <link rel="stylesheet" href="/static/vendor/tailwind.css?v=compact-quota-20261031">
   <!-- Marked.js for rendering markdown chronicles -->
   <script src="/static/vendor/marked.umd.js"></script>
   <!-- KaTeX for math and formula rendering -->
@@ -30,7 +30,7 @@ window.addEventListener('error', function(e) {
   </script>
 
   <link rel="stylesheet" href="/static/styles.css?v=desktop1">
-  <link rel="stylesheet" href="/static/desktop.css?v=simplified-ingest-20261031">
+  <link rel="stylesheet" href="/static/desktop.css?v=compact-quota-20261031">
   <script>
   try { var t = localStorage.getItem('whisper_desktop_theme'); if (['copper','graphite','midnight','wine','paper','sky'].includes(t)) document.documentElement.dataset.theme = t; } catch (_) {}
   </script>
@@ -117,23 +117,20 @@ class="hidden w-full min-h-[44px] px-3 py-2.5 rounded-xl text-xs font-medium fle
 <button onclick="setActiveView('settings')" class="w-full text-left px-3 py-2 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-400 text-xs font-medium hover:bg-amber-500/20"><span data-ui-icon=warning aria-hidden=true></span> Configurar APIs</button>
   </div>
 
-  <!-- Indicador de Cuota de API (Tokens & Presupuesto) -->
-  <div id="apiQuotaContainer" class="p-2.5 rounded-xl bg-slate-900/80 border border-slate-800 text-xs space-y-1.5 transition-all" title="Consumo y estado estimado de cuotas API de Gemini y Groq">
-<div class="flex items-center justify-between">
-  <span class="text-slate-400 flex items-center gap-1.5 text-[11px] font-medium">
-<span id="quotaStatusDot" class="w-2 h-2 rounded-full bg-emerald-400"></span>
-<span>Cuota APIs:</span>
-  </span>
-  <span id="quotaPercentDisplay" class="font-mono font-bold text-emerald-400 tabular-nums text-xs">100.0%</span>
-</div>
-<div class="w-full bg-slate-950 rounded-full h-1.5 overflow-hidden border border-slate-800/80">
-  <div id="quotaProgressBar" class="h-full bg-emerald-500 rounded-full transition-all duration-300" style="width: 100%;"></div>
-</div>
-<div class="flex items-center justify-between text-[10px] text-slate-500 font-mono">
-  <span id="quotaTokensSummary">Gemini + Groq</span>
-  <span id="quotaStatusSummary" class="text-emerald-400 font-semibold">Óptima</span>
-</div>
-  </div>
+  <!-- Compact quota: details are available without occupying the sidebar. -->
+  <details id="apiQuotaContainer" data-state="unknown" title="Cuota estimada de Gemini; abre para ver los detalles">
+    <summary>
+      <span class="quota-label"><span id="quotaStatusDot"></span>Cuota de Gemini</span>
+      <span id="quotaPercentDisplay">Sin datos</span>
+      <svg class="quota-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="m7 10 5 5 5-5"/></svg>
+    </summary>
+    <div class="quota-details">
+      <p>Disponibilidad estimada</p>
+      <div class="quota-track" aria-hidden="true"><div id="quotaProgressBar" style="width:0%"></div></div>
+      <div class="quota-values"><span id="quotaTokensSummary">Tokens no disponibles</span><span id="quotaStatusSummary">Sin datos</span></div>
+      <p>La cuota de Groq no está incluida en este indicador.</p>
+    </div>
+  </details>
 
   <!-- Botón de Ajustes -->
   <div>
@@ -168,8 +165,8 @@ class="hidden w-full min-h-[44px] px-3 py-2.5 rounded-xl text-xs font-medium fle
 <span data-ui-icon=cloud aria-hidden=true></span>
   </span>
   <div id="mobileQuotaIndicator" class="min-h-[36px] inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-mono font-medium bg-slate-800 text-emerald-400 border border-white/10" title="Cuota de API disponible">
-<span id="mobileQuotaDot" class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
-<span id="mobileQuotaPercent" class="tabular-nums">100%</span>
+<span id="mobileQuotaDot" class="w-1.5 h-1.5 rounded-full bg-slate-500"></span>
+<span id="mobileQuotaPercent" class="tabular-nums">Sin datos</span>
   </div>
   <button id="btnMobileSettings" onclick="setActiveView('settings')" type="button" title="Ajustes de API y Audio"
 class="min-h-[36px] w-[36px] rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 flex items-center justify-center text-sm border border-white/10 active:scale-95 transition cursor-pointer">
@@ -2525,17 +2522,17 @@ Cancelar
   <div id="floatingToastContainer" class="fixed top-5 right-5 z-[9999] flex flex-col gap-2.5 max-w-sm sm:max-w-md w-full pointer-events-none px-3 sm:px-0" aria-live="assertive"></div>
 
   <!-- Modularized Application Scripts -->
-  <script src="/static/js/ui-icons.js?v=simplified-ingest-20261031"></script>
-  <script src="/static/js/utils.js?v=simplified-ingest-20261031"></script>
-  <script src="/static/js/api.js?v=simplified-ingest-20261031"></script>
-  <script src="/static/js/progress.js?v=simplified-ingest-20261031"></script>
-  <script src="/static/js/audio.js?v=simplified-ingest-20261031"></script>
-  <script src="/static/js/drive.js?v=simplified-ingest-20261031"></script>
-  <script src="/static/js/roster.js?v=simplified-ingest-20261031"></script>
-  <script src="/static/js/wiki.js?v=simplified-ingest-20261031"></script>
-  <script src="/static/js/notes.js?v=simplified-ingest-20261031"></script>
-  <script src="/static/js/desktop-core.js?v=simplified-ingest-20261031"></script>
-  <script src="/static/js/app.js?v=simplified-ingest-20261031"></script>
-  <script src="/static/js/desktop.js?v=simplified-ingest-20261031"></script>
+  <script src="/static/js/ui-icons.js?v=compact-quota-20261031"></script>
+  <script src="/static/js/utils.js?v=compact-quota-20261031"></script>
+  <script src="/static/js/api.js?v=compact-quota-20261031"></script>
+  <script src="/static/js/progress.js?v=compact-quota-20261031"></script>
+  <script src="/static/js/audio.js?v=compact-quota-20261031"></script>
+  <script src="/static/js/drive.js?v=compact-quota-20261031"></script>
+  <script src="/static/js/roster.js?v=compact-quota-20261031"></script>
+  <script src="/static/js/wiki.js?v=compact-quota-20261031"></script>
+  <script src="/static/js/notes.js?v=compact-quota-20261031"></script>
+  <script src="/static/js/desktop-core.js?v=compact-quota-20261031"></script>
+  <script src="/static/js/app.js?v=compact-quota-20261031"></script>
+  <script src="/static/js/desktop.js?v=compact-quota-20261031"></script>
 </body>
 </html>

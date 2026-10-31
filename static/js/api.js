@@ -360,13 +360,19 @@ async function fetchApiQuota() {
     const res = await fetch("/api/system/quota", {
       headers: getUserApiHeaders()
     });
-    if (!res.ok) return null;
+    if (!res.ok) {
+      currentApiQuotaData = null;
+      renderApiQuota(null);
+      return null;
+    }
     const data = await res.json();
     currentApiQuotaData = data;
     renderApiQuota(data);
     return data;
   } catch (err) {
     console.warn("Could not fetch API quota:", err);
+    currentApiQuotaData = null;
+    renderApiQuota(null);
     return null;
   }
 }
@@ -396,44 +402,47 @@ function renderApiQuota(data) {
   const hasValidData = Boolean(
     data &&
     tokensLimit !== null &&
-    tokensLimit > 0 &&
-    tokensRem !== null &&
-    tokensRem >= 0
+    Number.isFinite(tokensLimit) && tokensLimit > 0 &&
+    Number.isFinite(tokensRem) && tokensRem >= 0
   );
 
-  // Si el límite o cuota no está disponible, mostrar estado neutral disponible (sin falsas alarmas)
+  // Unknown capacity is not a full quota. Clear old readings on refresh failure.
   if (!hasValidData) {
     if (percentDisplay) {
-      percentDisplay.textContent = "100.0%";
+      percentDisplay.textContent = "Sin datos";
       percentDisplay.className = "font-mono font-bold tabular-nums text-xs text-slate-400";
     }
     if (progressBar) {
-      progressBar.style.width = "100%";
+      progressBar.style.width = "0%";
       progressBar.className = "h-full rounded-full transition-all duration-300 bg-slate-700";
     }
     if (statusDot) {
       statusDot.className = "w-2 h-2 rounded-full bg-slate-500";
     }
     if (statusSummary) {
-      statusSummary.textContent = "Disponible";
+      statusSummary.textContent = "Sin datos";
       statusSummary.className = "font-semibold text-slate-400";
     }
     if (tokensSummary) {
-      tokensSummary.textContent = "Gemini Tokens";
+      tokensSummary.textContent = "Tokens no disponibles";
     }
     if (mobilePercent) {
-      mobilePercent.textContent = "100%";
+      mobilePercent.textContent = "Sin datos";
       mobilePercent.className = "tabular-nums text-slate-400";
     }
     if (mobileDot) {
       mobileDot.className = "w-1.5 h-1.5 rounded-full bg-slate-500";
+    }
+    if (quotaContainer) {
+      quotaContainer.dataset.state = "unknown";
+      quotaContainer.title = "No hay datos de cuota disponibles de Gemini";
     }
     return;
   }
 
   // Porcentaje DISPONIBLE real (tokens disponibles / límite total)
   const pctRemaining = Math.max(0.0, Math.min(100.0, (tokensRem / tokensLimit) * 100.0));
-  const pctStr = `${pctRemaining.toFixed(1)}%`;
+  const pctStr = `${Number(pctRemaining.toFixed(1))}%`;
 
   // Escala de estado según disponibilidad (100% es óptima/llena, <5% es crítica):
   let colorClass = "emerald";
@@ -484,8 +493,9 @@ function renderApiQuota(data) {
   }
 
   if (quotaContainer) {
+    quotaContainer.dataset.state = isCritical ? "critical" : pctRemaining < 15 ? "low" : "normal";
     const resetInfo = data.resets_in ? ` (se recarga en ~${data.resets_in} a las 00:00 UTC)` : ' (se recarga a las 00:00 UTC diariamente)';
-    quotaContainer.title = `Cuota disponible: ${pctStr} (~${Math.round(tokensRem / 1000)}k tokens restantes)${resetInfo}`;
+    quotaContainer.title = `Cuota estimada de Gemini disponible: ${pctStr} (~${Math.round(tokensRem / 1000)}k tokens restantes)${resetInfo}`;
   }
 }
 

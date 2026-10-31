@@ -319,3 +319,22 @@ body .desktop-number-stepper>input{width:3rem;min-width:3rem;min-height:2.375rem
 /* Keep the own-character badge beside the name, including narrow columns. */
 #roster-table .roster-character-identity{min-width:0}
 #roster-table .roster-character-identity .character-name{flex:0 1 auto;min-width:3ch;max-width:100%;box-sizing:content-box;field-sizing:content}
+
+/* Quota is a quiet disclosure; detailed figures stay out of the main navigation. */
+#apiQuotaContainer{--quota-color:var(--ui-muted);margin:0!important;padding:0!important;border:1px solid var(--ui-line)!important;background:transparent!important;font-size:.6875rem}
+#apiQuotaContainer[data-state="low"]{--quota-color:var(--ui-review)}
+#apiQuotaContainer[data-state="critical"]{--quota-color:var(--ui-danger)}
+#apiQuotaContainer>summary{display:flex;align-items:center;gap:.5rem;min-height:2.5rem;padding:.5rem .625rem;cursor:pointer;list-style:none;border-radius:.4375rem;color:var(--ui-muted)}
+#apiQuotaContainer>summary::-webkit-details-marker{display:none}
+#apiQuotaContainer>summary:hover{background:var(--ui-raised)}
+#apiQuotaContainer .quota-label{display:inline-flex;align-items:center;gap:.4375rem;flex:1;min-width:0}
+#quotaStatusDot{display:inline-block;width:.375rem!important;height:.375rem!important;border-radius:50%;flex:none;background:var(--quota-color)!important;animation:none!important}
+#quotaPercentDisplay{color:var(--quota-color)!important;font:inherit!important;font-weight:600!important;white-space:nowrap;font-variant-numeric:tabular-nums}
+#apiQuotaContainer .quota-chevron{width:.875rem;height:.875rem;flex:none}
+#apiQuotaContainer[open] .quota-chevron{transform:rotate(180deg)}
+#apiQuotaContainer .quota-details{padding:.25rem .625rem .625rem;border-top:1px solid var(--ui-line);color:var(--ui-muted);line-height:1.5}
+#apiQuotaContainer .quota-details p{margin:.375rem 0}
+#apiQuotaContainer .quota-track{height:.1875rem;background:var(--ui-line);overflow:hidden;border-radius:1rem;margin:.5rem 0}
+#quotaProgressBar{height:100%;background:var(--quota-color)!important;transition:width 150ms}
+#apiQuotaContainer .quota-values{display:flex;flex-wrap:wrap;justify-content:space-between;gap:.25rem .5rem;font-variant-numeric:tabular-nums}
+#quotaStatusSummary{color:var(--quota-color)!important;font-size:inherit}

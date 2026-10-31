@@ -91,3 +91,11 @@ Work & Study usa un selector con dos formatos: Apuntes de estudio y Resumen de r
 | Sesión de D&D sin botones de paso | −/+, con mínimo 1 y bloqueo durante captura | Compartir un control consistente sin reemplazos accidentales |
 
 El formato se mantiene al regenerar y cambiar idioma. Los resúmenes guardados usan el prefijo apuntes_reunion_, se reconocen en la biblioteca incluso cuando son breves y se exportan con encabezados de reunión. Las sesiones de D&D siguen siendo automáticas en vivo; los botones se habilitan en Archivo/YouTube o al preparar Regrabar. En regrabación recorren solo números existentes. No se modificó ningún integrante ni documento de las campañas originales.
+
+## Cuota compacta — 31 de octubre de 2026
+
+El indicador de Gemini es un disclosure nativo cerrado por defecto. La fila muestra proveedor y porcentaje disponible estimado; al abrir aparecen barra, tokens y estado. Se explicita que no incluye Groq. En estado normal usa tonos neutros; cuota baja y crítica usan los tokens de aviso y peligro del tema. No hay animación pulsante en escritorio.
+
+Sin datos válidos o al fallar una consulta se eliminan la lectura y el título previos, y se muestra Sin datos en escritorio y móvil. No se presenta un 100 % inventado. Se conserva la comprobación anterior a procesar.
+
+Verificación: 17 pruebas frontend, compilación local y revisión en navegador. El control cerrado mide 41,6 px de alto con raíz de 16 px; detalles accesibles mediante clic y Enter, sin desbordar la barra lateral. Vista previa con datos de muestra; no se consultaron cuotas reales de proveedores.
