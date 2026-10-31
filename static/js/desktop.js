@@ -86,15 +86,6 @@
   const repeat=document.createElement('button');repeat.id='desktopRerecord';repeat.type='button';repeat.dataset.buttonRole='review';repeat.innerHTML=icons.repeat+'<span>Regrabar</span>';repeat.addEventListener('click',openRerecord);
   $('sessionNumberInput').closest('.relative').parentElement.after(repeat);
  }
- function sessionStepState(){
-  const input=$('sessionNumberInput');
-  return {value:input?.value,locked:!input||input.disabled||input.readOnly||!($('campaignNameInput')?.value||'').trim(),recording:recording(),sessions:override?.checked?core.sessionNumbers(window.currentCampaignState):null};
- }
- for(const [id,delta] of [['desktopSessionDecrease',-1],['desktopSessionIncrease',1]])$(id)?.addEventListener('click',()=>{
-  const state=sessionStepState();if(state.locked||state.recording)return;
-  $('sessionNumberInput').value=String(core.stepSessionNumber({...state,delta}));
-  $('sessionNumberInput').dispatchEvent(new Event('input',{bubbles:true}));syncDesktopNavigation();
- });
  $('sessionNumberInput')?.addEventListener('input',()=>syncDesktopNavigation());
  const notice=document.createElement('div');notice.id='desktopRerecordNotice';notice.className='desktop-rerecord-notice hidden';notice.setAttribute('role','status');notice.innerHTML='<span id="desktopRerecordNoticeText"></span><button type="button" id="desktopCancelRerecord">Cancelar reemplazo</button>';
  $('priorLoreDetails')?.before(notice);
@@ -165,12 +156,10 @@
   for(const [id,on]of [['switchWorkspaceDnd',dnd],['switchWorkspaceWork',!dnd],['mobileSwitchDnd',dnd],['mobileSwitchWork',!dnd]])$(id)?.setAttribute('aria-pressed',String(on));
   for(const [id,key]of [['tabLiveBtn','live'],['tabYoutubeBtn','youtube'],['tabFileBtn','file']])$(id)?.setAttribute('aria-pressed',String(window.currentActiveMainTab===key));
   if(languageControl){const target=dnd?languageHome:$('workStudyLanguageOptions');if(target&&languageControl.parentElement!==target)target.append(languageControl);}
-  const sessionState=sessionStepState();
-  for(const [id,delta] of [['desktopSessionDecrease',-1],['desktopSessionIncrease',1]]){const button=$(id);if(button){const disabled=sessionState.locked||sessionState.recording||core.stepSessionNumber({...sessionState,delta})===Number(sessionState.value);if(button.disabled!==disabled)button.disabled=disabled;button.title=sessionState.recording?'Detén la grabación para cambiar de sesión.':sessionState.locked?'En vivo el número es automático. Para una sesión anterior, usa Regrabar.':(delta<0?'Reducir número de sesión':'Aumentar número de sesión');}}
   setHidden($('btnStartRecording'),recording());setHidden($('btnStopRecording'),!recording());
   const rows=$('rosterTableBody')?.querySelectorAll('tr').length||0;text($('desktopPartyCount'),rows?'· '+rows+' integrantes':'');
   const rerecord=$('desktopRerecord');if(rerecord){const disabled=!core.sessionNumbers(window.currentCampaignState).length||recording();if(rerecord.disabled!==disabled)rerecord.disabled=disabled;}
-  const replacing=Boolean(override?.checked);setHidden(notice,!replacing);if(replacing)text($('desktopRerecordNoticeText'),'Reemplazo preparado · Sesión '+$('sessionNumberInput').value+'. Se aplicará al procesar el nuevo audio.');
+  const replacing=Boolean(override?.checked);if($('sessionNumberInput')){if(replacing)$('sessionNumberInput').readOnly=true;$('sessionNumberInput').title=replacing?'Sesión elegida para reemplazo. Usa Regrabar para seleccionar otra.':window.currentActiveMainTab==='live'?'La siguiente sesión se asigna automáticamente. Usa Regrabar para elegir una sesión guardada.':'Número de sesión para este audio. Puedes editarlo o usar Regrabar para elegir una sesión guardada.';}setHidden(notice,!replacing);if(replacing)text($('desktopRerecordNoticeText'),'Reemplazo preparado · Sesión '+$('sessionNumberInput').value+'. Se aplicará al procesar el nuevo audio.');
   setHidden($('desktopProcessEmpty'),visible($('processingCard'))||visible($('npcSpellcheckCard')));setHidden($('desktopResultEmpty'),visible($('resultsCard')));
   for(const [selector,value] of [['#resultsCard [onclick*="toggleResultTab"]',window.currentActiveResultTab],['#viewWiki [onclick*="setWikiCategory"]',window.activeWikiCategory],['#viewWiki [onclick*="switchWikiSessionSubtab"]',window.currentWikiSessionSubtab]]){
    for(const b of document.querySelectorAll(selector)){const match=b.getAttribute('onclick')?.match(/\('([^']+)'/);b.setAttribute('aria-pressed',String(Boolean(match&&match[1]===value)));}

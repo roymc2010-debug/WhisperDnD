@@ -16,7 +16,7 @@
   <link rel="apple-touch-icon" sizes="180x180" href="/static/apple-touch-icon.png">
   <link rel="apple-touch-icon" sizes="512x512" href="/static/icon-512.png">
   <title>WhisperDnD & Study - Diario de Campañas y Asistente Académico</title>
-  <link rel="stylesheet" href="/static/vendor/tailwind.css?v=header-quota-20261031">
+  <link rel="stylesheet" href="/static/vendor/tailwind.css?v=session-select-20261031">
   <!-- Marked.js for rendering markdown chronicles -->
   <script src="/static/vendor/marked.umd.js"></script>
   <!-- KaTeX for math and formula rendering -->
@@ -30,7 +30,7 @@ window.addEventListener('error', function(e) {
   </script>
 
   <link rel="stylesheet" href="/static/styles.css?v=desktop1">
-  <link rel="stylesheet" href="/static/desktop.css?v=header-quota-20261031">
+  <link rel="stylesheet" href="/static/desktop.css?v=session-select-20261031">
   <script>
   try { var t = localStorage.getItem('whisper_desktop_theme'); if (['copper','graphite','midnight','wine','paper','sky'].includes(t)) document.documentElement.dataset.theme = t; } catch (_) {}
   </script>
@@ -247,12 +247,9 @@ class="btn-subtle min-h-[40px] inline-flex items-center gap-2 px-3.5 py-1.5 text
 <div class="flex items-center gap-2">
   <label for="sessionNumberInput" class="text-xs text-slate-400 font-medium whitespace-nowrap">Sesión #:</label>
   <div class="relative flex items-center gap-1.5">
-<div id="desktopSessionStepper" class="desktop-number-stepper"><button type="button" id="desktopSessionDecrease" aria-label="Reducir número de sesión" disabled><svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M5 12h14"/></svg></button>
 <input type="number" id="sessionNumberInput" min="1" value="" placeholder="-" disabled
-  title="Número de sesión. En Vivo se bloquea para avance continuo; en Archivo/URL es editable para reprocesar."
+  title="En vivo se asigna la siguiente sesión automáticamente. Usa Regrabar para elegir una sesión guardada."
   class="w-16 min-h-[40px] bg-slate-950 border border-slate-800 rounded-xl px-2.5 py-2 text-xs text-slate-400 text-center font-bold font-mono cursor-not-allowed outline-none select-none transition duration-150">
-<button type="button" id="desktopSessionIncrease" aria-label="Aumentar número de sesión" disabled><svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M5 12h14M12 5v14"/></svg></button></div>
-<span id="sessionLockBadge" class="hidden px-2 py-0.5 rounded-full text-[10px] font-mono font-semibold bg-slate-800 text-slate-400 border border-slate-700"><span data-ui-icon=lock aria-hidden=true></span> En Vivo</span>
   </div>
 </div>
 <div class="flex items-center gap-1.5">
@@ -271,7 +268,7 @@ Regrabar / Reemplazar
   <span><span data-ui-icon=warning aria-hidden=true></span> Sin conexión a Drive</span>
 </span>
 <section id="apiQuotaContainer" data-state="unknown" aria-label="Cuota de Gemini" title="Cuota estimada de Gemini disponible">
-  <div class="quota-heading"><span class="quota-label"><span id="quotaStatusDot"></span>Gemini <span class="quota-estimate">Estimado</span></span><span class="quota-percent"><span id="quotaPercentDisplay">Sin datos</span><span class="quota-available">disponible</span></span></div>
+  <div class="quota-heading"><span class="quota-label">Tokens disponibles<span class="quota-estimate">Gemini · cuota estimada</span></span><span class="quota-percent"><span id="quotaPercentDisplay">Sin datos</span><span class="quota-available">disponible</span></span></div>
   <div class="quota-track" aria-hidden="true"><div id="quotaProgressBar" style="width:0%"></div></div>
   <div class="quota-values"><span id="quotaTokensSummary">Tokens no disponibles</span><span id="quotaStatusSummary">Sin datos</span></div>
   <p class="quota-footnote">La cuota de Groq no está incluida.</p>
@@ -2516,17 +2513,17 @@ Cancelar
   <div id="floatingToastContainer" class="fixed top-5 right-5 z-[9999] flex flex-col gap-2.5 max-w-sm sm:max-w-md w-full pointer-events-none px-3 sm:px-0" aria-live="assertive"></div>
 
   <!-- Modularized Application Scripts -->
-  <script src="/static/js/ui-icons.js?v=header-quota-20261031"></script>
-  <script src="/static/js/utils.js?v=header-quota-20261031"></script>
-  <script src="/static/js/api.js?v=header-quota-20261031"></script>
-  <script src="/static/js/progress.js?v=header-quota-20261031"></script>
-  <script src="/static/js/audio.js?v=header-quota-20261031"></script>
-  <script src="/static/js/drive.js?v=header-quota-20261031"></script>
-  <script src="/static/js/roster.js?v=header-quota-20261031"></script>
-  <script src="/static/js/wiki.js?v=header-quota-20261031"></script>
-  <script src="/static/js/notes.js?v=header-quota-20261031"></script>
-  <script src="/static/js/desktop-core.js?v=header-quota-20261031"></script>
-  <script src="/static/js/app.js?v=header-quota-20261031"></script>
-  <script src="/static/js/desktop.js?v=header-quota-20261031"></script>
+  <script src="/static/js/ui-icons.js?v=session-select-20261031"></script>
+  <script src="/static/js/utils.js?v=session-select-20261031"></script>
+  <script src="/static/js/api.js?v=session-select-20261031"></script>
+  <script src="/static/js/progress.js?v=session-select-20261031"></script>
+  <script src="/static/js/audio.js?v=session-select-20261031"></script>
+  <script src="/static/js/drive.js?v=session-select-20261031"></script>
+  <script src="/static/js/roster.js?v=session-select-20261031"></script>
+  <script src="/static/js/wiki.js?v=session-select-20261031"></script>
+  <script src="/static/js/notes.js?v=session-select-20261031"></script>
+  <script src="/static/js/desktop-core.js?v=session-select-20261031"></script>
+  <script src="/static/js/app.js?v=session-select-20261031"></script>
+  <script src="/static/js/desktop.js?v=session-select-20261031"></script>
 </body>
 </html>

@@ -291,6 +291,7 @@ function updateSessionLockForTab(tab) {
     }
   } else {
     sessionInput.disabled = false;
+    if (!overrideCheck?.checked) sessionInput.removeAttribute("readonly");
     if (lockBadge) lockBadge.classList.add("hidden");
   }
 }

@@ -63,8 +63,9 @@ Puntos Clave y Glosario pertenece a Work & Study y permanece oculto en D&D. Resu
 
 Los logos de clase y sus colores no se sustituyen por este sistema de iconos. No se reintroducen contornos, relieves ni fondos. Los textos y archivos personales no se recorren ni se reescriben para retirar emojis. Los lectores conservan el contenido que proporcionan los datos.
 
-## Número de sesión con −/+
+## Seleccionar la sesión
 
-Los botones se habilitan donde se permite editar el número. En vivo se calcula automáticamente la siguiente sesión; durante la grabación quedan bloqueados. En Archivo y YouTube se puede ajustar desde 1. Al preparar Regrabar, −/+ recorren las sesiones guardadas y se detienen en sus extremos. Cambiar de número no reemplaza documentos hasta procesar el audio.
+En vivo se asigna automáticamente la siguiente sesión. Se retiraron los botones −/+ y el letrero En Vivo con candado. Regrabar abre la lista de sesiones guardadas y permite elegir directamente una. Una vez preparada, el número queda de solo lectura; para cambiar la selección se vuelve a abrir Regrabar. Cancelar reemplazo restaura la próxima sesión. Archivo y YouTube conservan la edición numérica manual cuando no hay reemplazo preparado.
+
 
 Los campos de nombre de personaje ajustan su ancho al texto, igual que los nombres de jugador. La etiqueta Tú permanece junto al campo; los nombres largos se limitan al espacio disponible sin desplazar las otras columnas.

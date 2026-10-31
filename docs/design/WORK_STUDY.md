@@ -19,7 +19,7 @@ En Resultado, los resúmenes muestran Resumen de reunión, Decisiones y acuerdos
 
 ## Sesión de D&D
 
-El número tiene botones −/+. El mínimo es 1 y no se cambia durante una captura. La numeración en vivo sigue siendo automática. Archivo y YouTube permiten ajuste manual; Regrabar prepara una sesión guardada y sus botones recorren únicamente sesiones existentes, incluso si hay huecos entre sus números. Cambiar el número no procesa audio ni modifica archivos por sí mismo.
+La numeración en vivo es automática. Regrabar permite seleccionar directamente una sesión guardada; se retiraron los botones −/+ de D&D y el letrero con candado. En Work & Study se conservan los controles −/+ de Más opciones.
 
 ## Pruebas
 

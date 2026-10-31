@@ -101,3 +101,11 @@ La cabecera reserva columnas para preparación y servicios; en ventanas estrecha
 Se elimina el letrero Configurar APIs. Ajustes y APIs muestra un icono de advertencia y una descripción accesible cuando faltan claves de Groq o Gemini; el mismo aviso aparece en el botón móvil. La falta de Drive no activa ese aviso, porque es opcional.
 
 Verificación: 18 pruebas frontend, compilación y sintaxis JavaScript; revisión visual a 1280, 1600 y 540 px, cambio entre D&D y Work & Study, barra sin desbordamiento y retorno del único indicador a la campaña. Vista previa con datos de muestra, sin consultas a cuotas reales ni modificaciones de campañas originales.
+
+## Selección directa de sesión y cuota — revisión posterior del 31 de octubre
+
+D&D conserva el número de sesión y el selector de sesiones existentes de Regrabar. Se retiran −/+ y la insignia En Vivo con candado, que solo comunicaba la numeración automática. Esa protección continúa; al preparar un reemplazo el número queda de solo lectura y se cambia desde el selector. Se eliminan el helper de paso y las dos pruebas correspondientes a los botones retirados. Work & Study conserva sus controles de paso.
+
+La cuota mantiene su ubicación junto a Drive. Tokens disponibles pasa a ser la etiqueta principal, Gemini y cuota estimada forman la descripción y el porcentaje tiene mayor jerarquía. La barra visible y los estados continúan usando los colores del tema.
+
+Verificación de esta revisión: 17 pruebas frontend y compilación correctas; se probó preparar la sesión 2 desde la lista, cancelar y volver automáticamente a la 4, más la edición directa de sesión al importar audio. Se corrigió un readonly persistente al cambiar de En vivo a Archivo/YouTube y se añadió su prueba de regresión. Revisión visual en 1600 y 540 px con datos de ejemplo, sin procesar audio ni reemplazar documentos.
