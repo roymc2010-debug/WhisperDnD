@@ -5,6 +5,7 @@ Provides percentage remaining and safety thresholds to prevent half-completed se
 """
 
 import json
+import math
 import os
 import threading
 from datetime import datetime, timezone, timedelta
@@ -122,6 +123,52 @@ def record_groq_audio_seconds(seconds: Any) -> None:
         _save_ledger(data)
 
 
+def record_audio_sample(duration_seconds: Any, tokens_used: Any) -> None:
+    """Keep numeric consumption samples, without duplicating quota charges or storing content."""
+    if not isinstance(duration_seconds, (int, float)) or not isinstance(tokens_used, (int, float)):
+        return
+    if isinstance(duration_seconds, bool) or isinstance(tokens_used, bool):
+        return
+    try:
+        duration, tokens = float(duration_seconds), float(tokens_used)
+    except (TypeError, ValueError):
+        return
+    if not math.isfinite(duration) or not math.isfinite(tokens) or duration < 60 or tokens <= 0:
+        return
+    with _LOCK:
+        data = _load_ledger()
+        samples = data.get("audio_samples", [])
+        if not isinstance(samples, list):
+            samples = []
+        data["audio_samples"] = (samples + [{"duration_seconds": duration, "tokens_used": tokens}])[-20:]
+        _save_ledger(data)
+
+
+def _audio_capacity(data: Dict[str, Any], tokens_remaining: int, percent_remaining: float, audio_remaining: float) -> Dict[str, Any]:
+    rates = []
+    samples = data.get("audio_samples", [])
+    for sample in samples if isinstance(samples, list) else []:
+        if not isinstance(sample, dict):
+            continue
+        try:
+            duration, tokens = float(sample["duration_seconds"]), float(sample["tokens_used"])
+            if math.isfinite(duration) and math.isfinite(tokens) and duration >= 60 and tokens > 0:
+                rate = tokens / duration
+                if math.isfinite(rate) and rate > 0:
+                    rates.append(rate)
+        except (KeyError, TypeError, ValueError):
+            continue
+    result = {"seconds": None, "safety_margin_percent": 5, "samples": len(rates)}
+    if percent_remaining > 20:
+        return result
+    if tokens_remaining <= 0 or audio_remaining <= 0:
+        result["seconds"] = 0
+    elif len(rates) >= 3:
+        # Use the most expensive recent sample, respect both stages, then discount 5%.
+        result["seconds"] = math.floor(min(tokens_remaining / max(rates), audio_remaining) * 0.95)
+    return result
+
+
 def get_quota_status() -> Dict[str, Any]:
     """Calculate and return full API token and quota status with percentages."""
     with _LOCK:
@@ -165,6 +212,7 @@ def get_quota_status() -> Dict[str, Any]:
             "percent_used": round(groq_pct_used, 1),
             "percent_remaining": round(groq_pct_rem, 1),
         },
+        "audio_capacity": _audio_capacity(data, gemini_rem, gemini_pct_rem, groq_rem),
         "requests_today": int(data.get("requests_today", 0)),
         "date": data.get("date", _get_current_quota_date()),
         "can_process_safe": can_process,

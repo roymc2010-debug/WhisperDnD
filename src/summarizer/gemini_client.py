@@ -131,6 +131,7 @@ class GeminiTTRPGSummarizer:
         self.api_key = api_key or os.getenv("GEMINI_API_KEY", "").strip()
         self.model_name = model_name or os.getenv("GEMINI_MODEL", DEFAULT_GEMINI_MODEL)
         self._client = None
+        self._quota_tokens_used = 0
 
     @property
     def client(self):
@@ -248,6 +249,7 @@ class GeminiTTRPGSummarizer:
                                 prompt_len = len(str(contents))
                                 resp_len = len(response.text)
                                 tokens_used = max(10, (prompt_len + resp_len) // 4)
+                            self._quota_tokens_used = getattr(self, "_quota_tokens_used", 0) + int(tokens_used)
                             record_gemini_tokens(tokens_used)
                         except Exception as quota_err:
                             print(f"[GeminiClient] Notice recording token quota: {quota_err}")

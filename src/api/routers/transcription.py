@@ -17,6 +17,7 @@ from starlette.concurrency import run_in_threadpool
 
 from src.api import server
 from src.summarizer.document_formats import DocumentFormat
+from src.storage.quota_tracker import record_audio_sample
 
 router = APIRouter(tags=["transcription"])
 
@@ -311,6 +312,7 @@ async def transcribe_youtube(payload: YouTubeTranscribeRequest, request: Request
                 target_language=payload.target_language,
                 document_format=payload.document_format,
             )
+            record_audio_sample(result.get("duration"), getattr(summarizer, "_quota_tokens_used", 0))
             server.update_task_progress(task_id, 95.0, "Compilando documentos Word (.docx) y Markdown (.md)...", "Generando archivos de apuntes...", stage="analyzing")
             clean_subj = re.sub(r'[\\/*?:"<>|]', "", subj.strip()) or "Materia"
             safe_subj = re.sub(r"\s+", "_", clean_subj)
@@ -342,6 +344,7 @@ async def transcribe_youtube(payload: YouTubeTranscribeRequest, request: Request
             try:
                 camp_res = await run_in_threadpool(
                     server.process_session_for_campaign,
+                    audio_duration_seconds=result.get("duration"),
                     campaign_name=campaign_name,
                     transcript_text=transcript_text,
                     roster_dicts=roster_dicts,
@@ -703,6 +706,7 @@ async def transcribe_file(
                 target_language=target_language,
                 document_format=document_format,
             )
+            record_audio_sample(result.get("duration"), getattr(summarizer, "_quota_tokens_used", 0))
             server.update_task_progress(task_id, 87.0, "Extrayendo tareas, entregables y puntos clave...", "Organizando resumen ejecutivo...", stage="analyzing")
         except Exception as exc:
             chronicle_md = f"# ⚠️ Error generando el documento con Gemini:\n\n> {exc}\n\n**Texto:**\n\n{transcript_text}"
@@ -770,6 +774,7 @@ async def transcribe_file(
         try:
             camp_res = await run_in_threadpool(
                 server.process_session_for_campaign,
+                audio_duration_seconds=result.get("duration"),
                 campaign_name=campaign_name,
                 transcript_text=transcript_text,
                 roster_dicts=roster_dicts,
@@ -1120,6 +1125,7 @@ async def upload_session_with_telemetry(
                 target_language=target_language,
                 document_format=document_format,
             )
+            record_audio_sample(result.get("duration"), getattr(summarizer, "_quota_tokens_used", 0))
             server.update_task_progress(task_id, 87.0, "Extrayendo tareas, entregables y puntos clave...", "Organizando resumen ejecutivo...", stage="analyzing")
         except Exception as exc:
             chronicle_md = f"# ⚠️ Error generando el documento con Gemini:\n\n> {exc}\n\n**Texto:**\n\n{transcript_text}"
@@ -1186,6 +1192,7 @@ async def upload_session_with_telemetry(
         try:
             camp_res = await run_in_threadpool(
                 server.process_session_for_campaign,
+                audio_duration_seconds=result.get("duration"),
                 campaign_name=campaign_name,
                 transcript_text=transcript_text,
                 roster_dicts=roster_dicts,

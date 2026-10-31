@@ -341,7 +341,6 @@ body .desktop-number-stepper>input{width:3rem;min-width:3rem;min-height:2.375rem
 #quotaProgressBar{height:100%;background:var(--quota-color)!important;transition:width 150ms}
 #apiQuotaContainer .quota-values{display:flex;flex-wrap:wrap;justify-content:space-between;gap:.25rem .5rem;font-size:.6875rem;color:var(--ui-muted);font-variant-numeric:tabular-nums}
 #quotaStatusSummary{color:var(--quota-color)!important;font-size:inherit}
-#apiQuotaContainer .quota-footnote{margin:.375rem 0 0;font-size:.625rem;color:var(--ui-muted)}
 .settings-api-warning{display:inline-flex;align-items:center;justify-content:center;color:var(--ui-review)!important;flex-shrink:0}
 .settings-api-warning svg{width:1rem;height:1rem}
 #btnSettingsSidebar[data-needs-setup="true"]{color:var(--ui-review)!important}
@@ -369,3 +368,6 @@ body .desktop-number-stepper>input{width:3rem;min-width:3rem;min-height:2.375rem
 #quotaPercentDisplay{font-size:1.5rem!important;letter-spacing:-.025em}
 #apiQuotaContainer .quota-track{height:.4375rem;margin:.75rem 0 .625rem}
 #apiQuotaContainer .quota-values{font-size:.6875rem}
+
+#apiQuotaContainer .quota-audio-estimate{margin:.75rem 0 0;padding-top:.625rem;border-top:1px solid var(--ui-line);font-size:.6875rem;line-height:1.55;color:var(--ui-review)}
+#apiQuotaContainer[data-state="critical"] .quota-audio-estimate{color:var(--ui-danger)}

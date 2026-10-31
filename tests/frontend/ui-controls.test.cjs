@@ -50,7 +50,7 @@ test('unavailable quota never claims full capacity and clears a previous reading
 test('compact quota distinguishes low capacity and exhausted capacity with text', () => {
   const {nodes,render}=quotaView();
   render({gemini:{tokens_limit:1000,tokens_remaining:100}});
-  assert.match(nodes.get('quotaStatusSummary').textContent,/Baja/);
+  assert.match(nodes.get('quotaStatusSummary').textContent,/baja/i);
   assert.equal(nodes.get('apiQuotaContainer').dataset.state,'low');
   render({gemini:{tokens_limit:1000,tokens_remaining:0}});
   assert.equal(nodes.get('quotaPercentDisplay').textContent,'0%');
@@ -74,4 +74,17 @@ test('API setup warning belongs to Settings and does not require optional Drive'
   vm.runInContext('serverHasGroq=true; serverHasGemini=true; isGoogleDriveConnected=false;',context);
   context.updateSystemStatusIndicator();
   assert.equal(nodes.get('settingsApiWarning').hidden,true);
+});
+
+test('quota stays quiet at normal capacity and shows the discounted audio estimate only at twenty percent or below', () => {
+ const {nodes,render}=quotaView();
+ render({gemini:{tokens_limit:1000,tokens_remaining:850}});
+ assert.equal(nodes.get('quotaStatusSummary').hidden,true);
+ assert.equal(nodes.get('quotaAudioEstimate').hidden,true);
+ render({gemini:{tokens_limit:1000,tokens_remaining:200},audio_capacity:{seconds:7980,safety_margin_percent:5,samples:3}});
+ assert.equal(nodes.get('quotaAudioEstimate').hidden,false);
+ assert.match(nodes.get('quotaAudioEstimate').textContent,/2 h 13 min/);
+ render({gemini:{tokens_limit:1000,tokens_remaining:100},audio_capacity:{seconds:null,samples:0}});
+ assert.doesNotMatch(nodes.get('quotaAudioEstimate').textContent,/2 h|NaN|Infinity/);
+ assert.match(nodes.get('quotaAudioEstimate').textContent,/historial/i);
 });

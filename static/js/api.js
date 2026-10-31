@@ -383,6 +383,7 @@ function renderApiQuota(data) {
   const progressBar = document.getElementById("quotaProgressBar");
   const statusDot = document.getElementById("quotaStatusDot");
   const statusSummary = document.getElementById("quotaStatusSummary");
+  const audioEstimate = document.getElementById("quotaAudioEstimate");
   const tokensSummary = document.getElementById("quotaTokensSummary");
   const mobilePercent = document.getElementById("mobileQuotaPercent");
   const mobileDot = document.getElementById("mobileQuotaDot");
@@ -421,7 +422,8 @@ function renderApiQuota(data) {
       statusDot.className = "w-2 h-2 rounded-full bg-slate-500";
     }
     if (statusSummary) {
-      statusSummary.textContent = "Sin datos";
+      statusSummary.hidden = true;
+      statusSummary.textContent = "";
       statusSummary.className = "font-semibold text-slate-400";
     }
     if (tokensSummary) {
@@ -436,8 +438,9 @@ function renderApiQuota(data) {
     }
     if (quotaContainer) {
       quotaContainer.dataset.state = "unknown";
-      quotaContainer.title = "No hay datos de cuota disponibles de Gemini";
+      quotaContainer.title = "No hay datos de cuota disponibles";
     }
+    if (audioEstimate) { audioEstimate.hidden = true; audioEstimate.textContent = ""; }
     return;
   }
 
@@ -445,25 +448,11 @@ function renderApiQuota(data) {
   const pctRemaining = Math.max(0.0, Math.min(100.0, (tokensRem / tokensLimit) * 100.0));
   const pctStr = `${Number(pctRemaining.toFixed(1))}%`;
 
-  // Escala de estado según disponibilidad (100% es óptima/llena, <5% es crítica):
-  let colorClass = "emerald";
-  let statusText = "Óptima";
-  let isCritical = false;
-
-  if (pctRemaining < 5.0) {
-    colorClass = "rose";
-    statusText = "Crítica (<5%)";
-    isCritical = true;
-  } else if (pctRemaining < 15.0) {
-    colorClass = "amber";
-    statusText = "Baja (<15%)";
-  } else if (pctRemaining < 50.0) {
-    colorClass = "yellow";
-    statusText = "Moderada";
-  } else {
-    colorClass = "emerald";
-    statusText = "Óptima";
-  }
+  // Only low capacity needs a label; normal capacity stays visually quiet.
+  const isCritical = pctRemaining < 5;
+  const isLow = pctRemaining <= 20;
+  const colorClass = isCritical ? "rose" : isLow ? "amber" : "emerald";
+  const statusText = isCritical ? "Cuota muy baja" : "Cuota baja";
 
   if (percentDisplay) {
     percentDisplay.textContent = pctStr;
@@ -477,7 +466,8 @@ function renderApiQuota(data) {
     statusDot.className = `w-2 h-2 rounded-full bg-${colorClass}-400 ${isCritical ? 'animate-pulse' : ''}`;
   }
   if (statusSummary) {
-    statusSummary.textContent = statusText;
+    statusSummary.hidden = !isLow;
+    statusSummary.textContent = isLow ? statusText : "";
     statusSummary.className = `font-semibold text-${colorClass}-400`;
   }
   if (tokensSummary) {
@@ -494,10 +484,30 @@ function renderApiQuota(data) {
   }
 
   if (quotaContainer) {
-    quotaContainer.dataset.state = isCritical ? "critical" : pctRemaining < 15 ? "low" : "normal";
+    quotaContainer.dataset.state = isCritical ? "critical" : isLow ? "low" : "normal";
     const resetInfo = data.resets_in ? ` (se recarga en ~${data.resets_in} a las 00:00 UTC)` : ' (se recarga a las 00:00 UTC diariamente)';
-    quotaContainer.title = `Cuota estimada de Gemini disponible: ${pctStr} (~${Math.round(tokensRem / 1000)}k tokens restantes)${resetInfo}`;
+    quotaContainer.title = `Cuota estimada disponible: ${pctStr} (~${Math.round(tokensRem / 1000)}k tokens restantes)${resetInfo}`;
   }
+  if (audioEstimate) {
+    audioEstimate.hidden = !isLow;
+    audioEstimate.textContent = "";
+    if (isLow) {
+      const seconds = pctRemaining === 0 ? 0 : data.audio_capacity?.seconds;
+      if (!Number.isFinite(seconds) || seconds < 0) {
+        audioEstimate.textContent = "Cuota baja. Falta historial para estimar el tiempo de audio.";
+      } else if (seconds === 0) {
+        audioEstimate.textContent = "No hay capacidad disponible para procesar audio.";
+      } else if (seconds < 60) {
+        audioEstimate.textContent = "La capacidad estimada es menor a 1 min de audio. Margen del 5 % incluido.";
+      } else {
+        const minutes = Math.floor(seconds / 60);
+        const hours = Math.floor(minutes / 60);
+        const duration = hours ? hours + " h" + (minutes % 60 ? " " + minutes % 60 + " min" : "") : minutes + " min";
+        audioEstimate.textContent = "Puedes procesar aproximadamente " + duration + " de audio. Margen del 5 % incluido.";
+      }
+    }
+  }
+
 }
 
 async function checkQuotaBeforeAction(actionName = "este proceso") {

@@ -109,3 +109,17 @@ D&D conserva el número de sesión y el selector de sesiones existentes de Regra
 La cuota mantiene su ubicación junto a Drive. Tokens disponibles pasa a ser la etiqueta principal, Gemini y cuota estimada forman la descripción y el porcentaje tiene mayor jerarquía. La barra visible y los estados continúan usando los colores del tema.
 
 Verificación de esta revisión: 17 pruebas frontend y compilación correctas; se probó preparar la sesión 2 desde la lista, cancelar y volver automáticamente a la 4, más la edición directa de sesión al importar audio. Se corrigió un readonly persistente al cambiar de En vivo a Archivo/YouTube y se añadió su prueba de regresión. Revisión visual en 1600 y 540 px con datos de ejemplo, sin procesar audio ni reemplazar documentos.
+
+## Cuota baja y tiempo estimado de audio
+
+Se retiran del indicador los nombres Gemini y Groq y los letreros de estado normal. Hasta el 20 % restante inclusive se muestra un aviso de cuota baja. Con historial suficiente se añade Puedes procesar aproximadamente X h Y min de audio, indicando que el margen del 5 % ya está aplicado.
+
+La estimación requiere tres muestras válidas de audios procesados de al menos 60 segundos. Guarda únicamente duración y tokens por trabajo, hasta 20 muestras, sin contenido del audio ni transcripciones. El cliente acumula uso de todas las llamadas de una misma generación; los puntos de entrada asocian ese consumo a la duración real. Las regeneraciones sin duración no generan muestras. No se vuelve a descontar la muestra de la cuota.
+
+Fórmula: tomar el mayor consumo de tokens por segundo entre las muestras recientes; dividir los tokens restantes entre esa tasa; limitar por los segundos restantes de transcripción; multiplicar el resultado por 0,95 y redondear hacia abajo. El historial se conserva al cambiar de día. Si faltan datos, se informa de que no hay historial suficiente. Un ejemplo de 8400 segundos se presenta como 7980 segundos: 2 h 13 min.
+
+Es una estimación basada en límites locales configurados y consumo observado, no una consulta de capacidad garantizada del proveedor. No añade un corte automático de la grabación ni elimina la comprobación de cuota crítica anterior a procesar.
+
+Archivos funcionales modificados: static/index.html, static/js/api.js y static/desktop.css (presentación); src/storage/quota_tracker.py (historial y cálculo); src/summarizer/gemini_client.py (consumo por instancia); src/api/server.py y routers/audio.py y routers/transcription.py (asociación con duración). Pruebas: tests/test_quota.py, tests/test_gemini_client.py y tests/frontend/ui-controls.test.cjs.
+
+Verificación: 18 pruebas frontend y 45 pruebas Python pertinentes (cuota, cliente y flujos de documentos), compilación local y vista aislada en 1600 y 540 px con datos ficticios. Se comprobaron cuota normal, baja con estimación y baja sin historial. No se hicieron llamadas pagadas ni se procesaron audios reales.

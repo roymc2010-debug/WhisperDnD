@@ -1,12 +1,21 @@
 """Unit tests for Gemini TTRPG Summarizer client."""
 
 import unittest
+import tempfile
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 from src.summarizer.gemini_client import GeminiTTRPGSummarizer
 
 
 class TestGeminiTTRPGSummarizer(unittest.TestCase):
+    def setUp(self):
+        temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(temporary.cleanup)
+        quota_path = patch("src.storage.quota_tracker._get_ledger_path", return_value=Path(temporary.name) / "quota.json")
+        quota_path.start()
+        self.addCleanup(quota_path.stop)
+
     def test_format_roster(self):
         roster = [
             {"player_name": "Beta", "role": "Dungeon Master (DM)", "character_name": "(DM)", "species": "(N/A - DM)", "subclass": "N/A"},

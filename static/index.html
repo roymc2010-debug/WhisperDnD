@@ -16,7 +16,7 @@
   <link rel="apple-touch-icon" sizes="180x180" href="/static/apple-touch-icon.png">
   <link rel="apple-touch-icon" sizes="512x512" href="/static/icon-512.png">
   <title>WhisperDnD & Study - Diario de Campañas y Asistente Académico</title>
-  <link rel="stylesheet" href="/static/vendor/tailwind.css?v=session-select-20261031">
+  <link rel="stylesheet" href="/static/vendor/tailwind.css?v=audio-capacity-20261031">
   <!-- Marked.js for rendering markdown chronicles -->
   <script src="/static/vendor/marked.umd.js"></script>
   <!-- KaTeX for math and formula rendering -->
@@ -30,7 +30,7 @@ window.addEventListener('error', function(e) {
   </script>
 
   <link rel="stylesheet" href="/static/styles.css?v=desktop1">
-  <link rel="stylesheet" href="/static/desktop.css?v=session-select-20261031">
+  <link rel="stylesheet" href="/static/desktop.css?v=audio-capacity-20261031">
   <script>
   try { var t = localStorage.getItem('whisper_desktop_theme'); if (['copper','graphite','midnight','wine','paper','sky'].includes(t)) document.documentElement.dataset.theme = t; } catch (_) {}
   </script>
@@ -267,11 +267,11 @@ Regrabar / Reemplazar
   <span class="w-1.5 h-1.5 rounded-full bg-slate-600"></span>
   <span><span data-ui-icon=warning aria-hidden=true></span> Sin conexión a Drive</span>
 </span>
-<section id="apiQuotaContainer" data-state="unknown" aria-label="Cuota de Gemini" title="Cuota estimada de Gemini disponible">
-  <div class="quota-heading"><span class="quota-label">Tokens disponibles<span class="quota-estimate">Gemini · cuota estimada</span></span><span class="quota-percent"><span id="quotaPercentDisplay">Sin datos</span><span class="quota-available">disponible</span></span></div>
+<section id="apiQuotaContainer" data-state="unknown" aria-label="Cuota de procesamiento" title="Cuota estimada disponible">
+  <div class="quota-heading"><span class="quota-label">Tokens disponibles</span><span class="quota-percent"><span id="quotaPercentDisplay">Sin datos</span><span class="quota-available">disponible</span></span></div>
   <div class="quota-track" aria-hidden="true"><div id="quotaProgressBar" style="width:0%"></div></div>
-  <div class="quota-values"><span id="quotaTokensSummary">Tokens no disponibles</span><span id="quotaStatusSummary">Sin datos</span></div>
-  <p class="quota-footnote">La cuota de Groq no está incluida.</p>
+  <div class="quota-values"><span id="quotaTokensSummary">Tokens no disponibles</span><span id="quotaStatusSummary" hidden></span></div>
+  <p id="quotaAudioEstimate" class="quota-audio-estimate" role="status" hidden></p>
 </section>
 </aside>
   </div>
@@ -2513,17 +2513,17 @@ Cancelar
   <div id="floatingToastContainer" class="fixed top-5 right-5 z-[9999] flex flex-col gap-2.5 max-w-sm sm:max-w-md w-full pointer-events-none px-3 sm:px-0" aria-live="assertive"></div>
 
   <!-- Modularized Application Scripts -->
-  <script src="/static/js/ui-icons.js?v=session-select-20261031"></script>
-  <script src="/static/js/utils.js?v=session-select-20261031"></script>
-  <script src="/static/js/api.js?v=session-select-20261031"></script>
-  <script src="/static/js/progress.js?v=session-select-20261031"></script>
-  <script src="/static/js/audio.js?v=session-select-20261031"></script>
-  <script src="/static/js/drive.js?v=session-select-20261031"></script>
-  <script src="/static/js/roster.js?v=session-select-20261031"></script>
-  <script src="/static/js/wiki.js?v=session-select-20261031"></script>
-  <script src="/static/js/notes.js?v=session-select-20261031"></script>
-  <script src="/static/js/desktop-core.js?v=session-select-20261031"></script>
-  <script src="/static/js/app.js?v=session-select-20261031"></script>
-  <script src="/static/js/desktop.js?v=session-select-20261031"></script>
+  <script src="/static/js/ui-icons.js?v=audio-capacity-20261031"></script>
+  <script src="/static/js/utils.js?v=audio-capacity-20261031"></script>
+  <script src="/static/js/api.js?v=audio-capacity-20261031"></script>
+  <script src="/static/js/progress.js?v=audio-capacity-20261031"></script>
+  <script src="/static/js/audio.js?v=audio-capacity-20261031"></script>
+  <script src="/static/js/drive.js?v=audio-capacity-20261031"></script>
+  <script src="/static/js/roster.js?v=audio-capacity-20261031"></script>
+  <script src="/static/js/wiki.js?v=audio-capacity-20261031"></script>
+  <script src="/static/js/notes.js?v=audio-capacity-20261031"></script>
+  <script src="/static/js/desktop-core.js?v=audio-capacity-20261031"></script>
+  <script src="/static/js/app.js?v=audio-capacity-20261031"></script>
+  <script src="/static/js/desktop.js?v=audio-capacity-20261031"></script>
 </body>
 </html>

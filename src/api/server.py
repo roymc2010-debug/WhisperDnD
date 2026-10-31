@@ -528,6 +528,7 @@ def process_session_for_campaign(
     on_progress: Optional[Callable[[float, str], None]] = None,
     custom_date: Optional[str] = None,
     client_timezone_offset: Optional[Union[int, str]] = None,
+    audio_duration_seconds: Optional[float] = None,
 ) -> Dict[str, Any]:
     """
     Process a session transcript for a living campaign:
@@ -592,6 +593,9 @@ def process_session_for_campaign(
         character_backstory=active_ctx.get("user_character_backstory", ""),
         last_session_recap=active_ctx.get("last_session_recap", ""),
     )
+
+    from src.storage.quota_tracker import record_audio_sample
+    record_audio_sample(audio_duration_seconds, getattr(summarizer, "_quota_tokens_used", 0))
 
     if on_progress:
         if is_youtube:
