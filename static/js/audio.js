@@ -782,6 +782,7 @@ async function stopSessionAndProcess() {
         }
         window.currentActiveAbortController = new AbortController();
 
+        formData.append("processing_source", "recording");
         const res = await fetch("/api/transcribe/file", {
           method: "POST",
           headers: typeof getUserApiHeaders === "function" ? getUserApiHeaders() : {},

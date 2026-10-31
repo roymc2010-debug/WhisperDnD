@@ -16,7 +16,7 @@ from starlette.concurrency import run_in_threadpool
 
 from src.api import server
 from src.summarizer.document_formats import DocumentFormat
-from src.storage.quota_tracker import record_audio_sample
+from src.storage.quota_tracker import track_audio_processing
 
 router = APIRouter(tags=["audio"])
 
@@ -315,16 +315,16 @@ async def stop_and_process(payload: StopAndProcessRequest, request: Request = No
 
         try:
             summarizer = server.GeminiTTRPGSummarizer(api_key=gemini_key)
-            chronicle_md = await run_in_threadpool(
-                summarizer.generate_academic_notes,
-                transcript_text=transcript_text,
-                subject=subj,
-                topic=top,
-                date_str=now_formatted,
-                target_language=payload.target_language,
-                document_format=payload.document_format,
-            )
-            record_audio_sample(transcription_result.get("duration"), getattr(summarizer, "_quota_tokens_used", 0))
+            with track_audio_processing(summarizer, transcription_result.get("duration"), source="recording", workspace="work_and_study", document_format=payload.document_format):
+                chronicle_md = await run_in_threadpool(
+                    summarizer.generate_academic_notes,
+                    transcript_text=transcript_text,
+                    subject=subj,
+                    topic=top,
+                    date_str=now_formatted,
+                    target_language=payload.target_language,
+                    document_format=payload.document_format,
+                )
             server.update_task_progress(task_id, 87.0, "Extrayendo tareas, entregables y puntos clave...", "Organizando resumen ejecutivo...", stage="analyzing")
         except Exception as exc:
             chronicle_md = (
@@ -417,6 +417,7 @@ async def stop_and_process(payload: StopAndProcessRequest, request: Request = No
             camp_res = await run_in_threadpool(
                 server.process_session_for_campaign,
                 audio_duration_seconds=transcription_result.get("duration"),
+                audio_source="recording",
                 campaign_name=payload.campaign_name,
                 transcript_text=transcript_text,
                 roster_dicts=roster_dicts,

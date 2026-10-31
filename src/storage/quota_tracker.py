@@ -6,6 +6,8 @@ Provides percentage remaining and safety thresholds to prevent half-completed se
 
 import json
 import math
+import time
+from contextlib import contextmanager
 import os
 import threading
 from datetime import datetime, timezone, timedelta
@@ -123,32 +125,97 @@ def record_groq_audio_seconds(seconds: Any) -> None:
         _save_ledger(data)
 
 
-def record_audio_sample(duration_seconds: Any, tokens_used: Any) -> None:
-    """Keep numeric consumption samples, without duplicating quota charges or storing content."""
+def record_audio_sample(
+    duration_seconds: Any, tokens_used: Any, *, source: str = "unknown",
+    workspace: str = "unknown", document_format: Optional[str] = None,
+    status: str = "completed", usage_estimated: bool = False, generation_seconds: float = 0,
+) -> None:
+    """Store bounded local usage metadata; never audio, text, URLs, keys or error messages."""
     if not isinstance(duration_seconds, (int, float)) or not isinstance(tokens_used, (int, float)):
         return
     if isinstance(duration_seconds, bool) or isinstance(tokens_used, bool):
         return
-    try:
-        duration, tokens = float(duration_seconds), float(tokens_used)
-    except (TypeError, ValueError):
+    duration, tokens = float(duration_seconds), float(tokens_used)
+    if not math.isfinite(duration) or not math.isfinite(tokens) or duration <= 0 or tokens < 0:
         return
-    if not math.isfinite(duration) or not math.isfinite(tokens) or duration < 60 or tokens <= 0:
-        return
+    source = source if source in {"recording", "youtube", "file"} else "unknown"
+    workspace = workspace if workspace in {"dnd", "work_and_study"} else "unknown"
+    document_format = document_format if workspace == "work_and_study" and document_format in {"academic", "executive"} else None
+    elapsed = generation_seconds if isinstance(generation_seconds, (int, float)) and math.isfinite(generation_seconds) and generation_seconds >= 0 else 0
+    sample = {
+        "duration_seconds": duration, "tokens_used": tokens, "source": source,
+        "workspace": workspace, "document_format": document_format,
+        "status": "failed" if status == "failed" else "completed",
+        "usage_estimated": bool(usage_estimated), "generation_seconds": round(elapsed, 3),
+        "timestamp": datetime.now(timezone.utc).isoformat(), "stage": "generation",
+    }
     with _LOCK:
         data = _load_ledger()
         samples = data.get("audio_samples", [])
         if not isinstance(samples, list):
             samples = []
-        data["audio_samples"] = (samples + [{"duration_seconds": duration, "tokens_used": tokens}])[-20:]
+        data["audio_samples"] = (samples + [sample])[-500:]
         _save_ledger(data)
 
 
-def _audio_capacity(data: Dict[str, Any], tokens_remaining: int, percent_remaining: float, audio_remaining: float) -> Dict[str, Any]:
+@contextmanager
+def track_audio_processing(summarizer: Any, duration_seconds: Any, **profile):
+    """Observe generation without changing its return value or swallowing failures."""
+    def count():
+        value = getattr(summarizer, "_quota_tokens_used", 0)
+        return value if isinstance(value, (int, float)) and math.isfinite(value) and value >= 0 else 0
+    before, started, status = count(), time.perf_counter(), "failed"
+    try:
+        yield
+        status = "completed"
+    finally:
+        try:
+            used = max(0, count() - before)
+            record_audio_sample(
+                duration_seconds, used, **profile, status=status,
+                usage_estimated=status != "completed" or used <= 0 or getattr(summarizer, "_quota_usage_estimated", True) is not False,
+                generation_seconds=time.perf_counter() - started,
+            )
+        except Exception:
+            # Collection must never turn a successful document into an error.
+            print("[QuotaTracker] Could not record local processing metadata.")
+
+
+def get_processing_usage() -> Dict[str, Any]:
+    """Read local history and aggregates; only explicit metadata fields are returned."""
+    with _LOCK:
+        data = _load_ledger()
+    allowed = {"duration_seconds", "tokens_used", "source", "workspace", "document_format", "status", "usage_estimated", "generation_seconds", "timestamp", "stage"}
+    stored = data.get("audio_samples", [])
+    if not isinstance(stored, list):
+        stored = []
+    rows = [{key: value for key, value in row.items() if key in allowed}
+            for row in stored if isinstance(row, dict)]
+    groups = {}
+    for row in rows:
+        key = (row.get("source", "unknown"), row.get("workspace", "unknown"), row.get("document_format"))
+        group = groups.setdefault(key, {"source": key[0], "workspace": key[1], "document_format": key[2], "completed": 0, "failed": 0, "tokens_used": 0, "audio_seconds_observed": 0})
+        group["failed" if row.get("status") == "failed" else "completed"] += 1
+        for field, target in (("tokens_used", "tokens_used"), ("duration_seconds", "audio_seconds_observed")):
+            value = row.get(field, 0)
+            if isinstance(value, (int, float)) and math.isfinite(value) and value >= 0:
+                group[target] += value
+    return {"storage": "local", "records": len(rows), "retention_limit": 500, "groups": list(groups.values()), "recent": rows[-50:]}
+
+
+def _audio_capacity(data: Dict[str, Any], tokens_remaining: int, percent_remaining: float, audio_remaining: float, source: Optional[str] = None, workspace: Optional[str] = None, document_format: Optional[str] = None) -> Dict[str, Any]:
     rates = []
     samples = data.get("audio_samples", [])
     for sample in samples if isinstance(samples, list) else []:
         if not isinstance(sample, dict):
+            continue
+        if sample.get("status", "completed") != "completed" or sample.get("usage_estimated") is True:
+            continue
+        if source and sample.get("source") != source:
+            continue
+        if workspace and sample.get("workspace") != workspace:
+            continue
+        if document_format and sample.get("document_format") != document_format:
             continue
         try:
             duration, tokens = float(sample["duration_seconds"]), float(sample["tokens_used"])
@@ -158,6 +225,7 @@ def _audio_capacity(data: Dict[str, Any], tokens_remaining: int, percent_remaini
                     rates.append(rate)
         except (KeyError, TypeError, ValueError):
             continue
+    rates = rates[-20:]
     result = {"seconds": None, "safety_margin_percent": 5, "samples": len(rates)}
     if percent_remaining > 20:
         return result
@@ -169,7 +237,7 @@ def _audio_capacity(data: Dict[str, Any], tokens_remaining: int, percent_remaini
     return result
 
 
-def get_quota_status() -> Dict[str, Any]:
+def get_quota_status(source: Optional[str] = None, workspace: Optional[str] = None, document_format: Optional[str] = None) -> Dict[str, Any]:
     """Calculate and return full API token and quota status with percentages."""
     with _LOCK:
         data = _load_ledger()
@@ -212,7 +280,7 @@ def get_quota_status() -> Dict[str, Any]:
             "percent_used": round(groq_pct_used, 1),
             "percent_remaining": round(groq_pct_rem, 1),
         },
-        "audio_capacity": _audio_capacity(data, gemini_rem, gemini_pct_rem, groq_rem),
+        "audio_capacity": _audio_capacity(data, gemini_rem, gemini_pct_rem, groq_rem, source, workspace, document_format),
         "requests_today": int(data.get("requests_today", 0)),
         "date": data.get("date", _get_current_quota_date()),
         "can_process_safe": can_process,

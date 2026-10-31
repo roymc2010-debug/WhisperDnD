@@ -529,6 +529,7 @@ def process_session_for_campaign(
     custom_date: Optional[str] = None,
     client_timezone_offset: Optional[Union[int, str]] = None,
     audio_duration_seconds: Optional[float] = None,
+    audio_source: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
     Process a session transcript for a living campaign:
@@ -580,22 +581,22 @@ def process_session_for_campaign(
             on_progress(65.0, "Redactando Crónica Épica Novelesca con Gemini...")
 
     summarizer = GeminiTTRPGSummarizer(api_key=gemini_api_key)
-    session_data = summarizer.generate_campaign_session(
-        transcript_text=transcript_text,
-        roster=final_roster,
-        existing_quests=active_ctx.get("all_quests", []),
-        known_npcs=active_ctx.get("known_npcs", []),
-        session_number=actual_session_num,
-        target_language=target_language,
-        user_character=user_character,
-        is_youtube=is_youtube,
-        prior_lore=active_ctx.get("prior_lore", ""),
-        character_backstory=active_ctx.get("user_character_backstory", ""),
-        last_session_recap=active_ctx.get("last_session_recap", ""),
-    )
+    from src.storage.quota_tracker import track_audio_processing
+    with track_audio_processing(summarizer, audio_duration_seconds, source=audio_source, workspace="dnd"):
+        session_data = summarizer.generate_campaign_session(
+            transcript_text=transcript_text,
+            roster=final_roster,
+            existing_quests=active_ctx.get("all_quests", []),
+            known_npcs=active_ctx.get("known_npcs", []),
+            session_number=actual_session_num,
+            target_language=target_language,
+            user_character=user_character,
+            is_youtube=is_youtube,
+            prior_lore=active_ctx.get("prior_lore", ""),
+            character_backstory=active_ctx.get("user_character_backstory", ""),
+            last_session_recap=active_ctx.get("last_session_recap", ""),
+        )
 
-    from src.storage.quota_tracker import record_audio_sample
-    record_audio_sample(audio_duration_seconds, getattr(summarizer, "_quota_tokens_used", 0))
 
     if on_progress:
         if is_youtube:

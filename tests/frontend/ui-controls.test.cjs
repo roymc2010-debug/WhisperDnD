@@ -88,3 +88,30 @@ test('quota stays quiet at normal capacity and shows the discounted audio estima
  assert.doesNotMatch(nodes.get('quotaAudioEstimate').textContent,/2 h|NaN|Infinity/);
  assert.match(nodes.get('quotaAudioEstimate').textContent,/historial/i);
 });
+
+test('quota requests select the origin, workspace and document format currently in use', async () => {
+ const urls=[]; const nodes=new Map();
+ const context=vm.createContext({window:{currentWorkspace:'work_and_study',currentActiveMainTab:'file'},localStorage:{getItem(){return null;}},document:{getElementById(id){if(id==='userGroqKeyInput'||id==='userGeminiKeyInput')return null;if(!nodes.has(id))nodes.set(id,{value:id==='workStudyDocumentFormat'?'executive':'',style:{},dataset:{}});return nodes.get(id);}},fetch:async url=>{urls.push(url);return {ok:true,json:async()=>({gemini:{tokens_limit:1000,tokens_remaining:850}})};}});
+ vm.runInContext(fs.readFileSync(require.resolve('../../static/js/api.js'),'utf8'),context);
+ await context.window.fetchApiQuota();
+ assert.match(urls[0],/source=file/);
+ assert.match(urls[0],/workspace=work_and_study/);
+ assert.match(urls[0],/document_format=executive/);
+ context.window.currentWorkspace='dnd';context.window.currentActiveMainTab='youtube';
+ await context.window.fetchApiQuota();
+ assert.match(urls[1],/source=youtube/);
+ assert.match(urls[1],/workspace=dnd/);
+ assert.doesNotMatch(urls[1],/document_format/);
+});
+
+test('a delayed quota response cannot overwrite the estimate for a newer selection', async () => {
+ const pending=[],nodes=new Map();
+ const context=vm.createContext({window:{currentWorkspace:'dnd',currentActiveMainTab:'youtube'},localStorage:{getItem(){return null;}},document:{getElementById(id){if(id==='userGroqKeyInput'||id==='userGeminiKeyInput')return null;if(!nodes.has(id))nodes.set(id,{style:{},dataset:{}});return nodes.get(id);}},fetch:()=>new Promise(resolve=>pending.push(resolve))});
+ vm.runInContext(fs.readFileSync(require.resolve('../../static/js/api.js'),'utf8'),context);
+ const first=context.window.fetchApiQuota();
+ context.window.currentActiveMainTab='file';
+ const second=context.window.fetchApiQuota();
+ pending[1]({ok:true,json:async()=>({gemini:{tokens_limit:1000,tokens_remaining:200}})});await second;
+ pending[0]({ok:true,json:async()=>({gemini:{tokens_limit:1000,tokens_remaining:800}})});await first;
+ assert.equal(parseFloat(nodes.get('quotaPercentDisplay').textContent),20);
+});

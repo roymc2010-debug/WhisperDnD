@@ -4,7 +4,7 @@ import asyncio
 import json
 import os
 from pathlib import Path
-from typing import Optional
+from typing import Literal, Optional
 
 from fastapi import APIRouter, File, HTTPException, Query, Request, UploadFile
 from fastapi.responses import HTMLResponse
@@ -86,10 +86,21 @@ async def cancel_task_endpoint(payload: Optional[CancelTaskRequest] = None, task
 
 @router.get("/api/system/quota")
 @router.get("/api/quota")
-async def get_system_quota_endpoint():
-    """Retrieve current daily API token and audio quota usage and remaining percentage."""
+async def get_system_quota_endpoint(
+    source: Optional[Literal["recording", "youtube", "file"]] = None,
+    workspace: Optional[Literal["dnd", "work_and_study"]] = None,
+    document_format: Optional[Literal["academic", "executive"]] = None,
+):
+    """Return quota and the audio estimate for the requested processing profile."""
     from src.storage.quota_tracker import get_quota_status
-    return get_quota_status()
+    return get_quota_status(source=source, workspace=workspace, document_format=document_format)
+
+
+@router.get("/api/system/usage")
+async def get_processing_usage_endpoint():
+    """Read bounded local processing metadata; no content or credentials are collected."""
+    from src.storage.quota_tracker import get_processing_usage
+    return get_processing_usage()
 
 
 _keys_cache = {"timestamp": 0.0, "cache_key": "", "data": None}

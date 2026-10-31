@@ -23,13 +23,19 @@ def isolated(monkeypatch,tmp_path):
     monkeypatch.setattr(server,'validate_api_keys_or_raise',lambda *a,**kw:None)
     monkeypatch.setattr(server,'extract_client_api_keys',lambda request:('test','test'))
     monkeypatch.setattr(server,'trigger_drive_sync_background',lambda *a,**kw:None)
-    generated=Mock(return_value=MEETING_MD)
-    summarizer=Mock(generate_academic_notes=generated)
+    from src.storage import quota_tracker
+    monkeypatch.setattr(quota_tracker, "_get_ledger_path", lambda: tmp_path / "quota.json")
+    summarizer=Mock(_quota_tokens_used=0, _quota_usage_estimated=False)
+    def generate(*args, **kwargs):
+        summarizer._quota_tokens_used += 1200
+        return MEETING_MD
+    generated=Mock(side_effect=generate)
+    summarizer.generate_academic_notes=generated
     monkeypatch.setattr(server,'GeminiTTRPGSummarizer',lambda **kw:summarizer)
     pipeline_signature=inspect.signature(server.transcribe_audio_pipeline)
     def transcribe(*args,**kwargs):
         pipeline_signature.bind(*args,**kwargs)
-        return {'text':TRANSCRIPT,'formatted_transcript':TRANSCRIPT,'segments':[],'language':'es','duration':2.0}
+        return {'text':TRANSCRIPT,'formatted_transcript':TRANSCRIPT,'segments':[],'language':'es','duration':120.0}
     monkeypatch.setattr(server,'transcribe_audio_pipeline',transcribe)
     wav=server.get_data_input_dir()/'sample.wav'
     wav.write_bytes(b'RIFF'+b'\x00'*60)
@@ -105,3 +111,31 @@ def test_meeting_word_export_uses_meeting_labels(tmp_path):
     assert 'Resumen de reunión' in text
     assert 'Guía de Estudio Universitaria' not in text
     assert 'Apuntes de Clase' not in text
+
+@pytest.mark.parametrize('endpoint,source,is_upload',[
+ ('/api/transcribe/youtube','youtube',False),
+ ('/api/record/stop-and-process','recording',False),
+ ('/api/transcribe/file','file',True),
+ ('/api/sessions/upload-with-telemetry','recording',True),
+])
+def test_audio_entry_records_the_actual_processing_profile(endpoint,source,is_upload,isolated):
+    from src.storage.quota_tracker import get_processing_usage
+    payload={'recording_mode':'class','workspace':'work_and_study','document_format':'executive','subject':'Diseño','topic':'Entrega','url':'https://www.youtube.com/watch?v=test'}
+    with TestClient(server.app) as client:
+        response=client.post(endpoint, data=payload, files={'file':('test.wav',b'RIFF'+b'\x00'*60,'audio/wav')}) if is_upload else client.post(endpoint,json=payload)
+    assert response.status_code==200,response.text
+    rows=get_processing_usage()['recent']
+    assert len(rows)==1
+    assert rows[0]['source']==source
+    assert rows[0]['workspace']=='work_and_study'
+    assert rows[0]['document_format']=='executive'
+    assert rows[0]['tokens_used']==1200
+    assert rows[0]['status']=='completed'
+    assert rows[0]['usage_estimated'] is False
+
+def test_browser_recording_is_not_classified_as_a_local_file(isolated):
+    from src.storage.quota_tracker import get_processing_usage
+    with TestClient(server.app) as client:
+        response=client.post('/api/transcribe/file', data={'recording_mode':'class','document_format':'academic','processing_source':'recording'}, files={'file':('browser.webm',b'RIFF'+b'\x00'*60,'audio/webm')})
+    assert response.status_code==200,response.text
+    assert get_processing_usage()['recent'][0]['source']=='recording'

@@ -9,7 +9,7 @@ import shutil
 import time
 import traceback
 from pathlib import Path
-from typing import Annotated, Any, Dict, List, Optional, Tuple, Union
+from typing import Annotated, Any, Dict, List, Literal, Optional, Tuple, Union
 
 from fastapi import APIRouter, File, Form, HTTPException, Query, UploadFile, Request
 from pydantic import BaseModel, Field, ConfigDict
@@ -17,7 +17,7 @@ from starlette.concurrency import run_in_threadpool
 
 from src.api import server
 from src.summarizer.document_formats import DocumentFormat
-from src.storage.quota_tracker import record_audio_sample
+from src.storage.quota_tracker import track_audio_processing
 
 router = APIRouter(tags=["transcription"])
 
@@ -303,16 +303,16 @@ async def transcribe_youtube(payload: YouTubeTranscribeRequest, request: Request
 
         try:
             summarizer = server.GeminiTTRPGSummarizer(api_key=gemini_key)
-            chronicle_md = await run_in_threadpool(
-                summarizer.generate_academic_notes,
-                transcript_text=transcript_text,
-                subject=subj,
-                topic=top,
-                date_str=now_formatted,
-                target_language=payload.target_language,
-                document_format=payload.document_format,
-            )
-            record_audio_sample(result.get("duration"), getattr(summarizer, "_quota_tokens_used", 0))
+            with track_audio_processing(summarizer, result.get("duration"), source="youtube", workspace="work_and_study", document_format=payload.document_format):
+                chronicle_md = await run_in_threadpool(
+                    summarizer.generate_academic_notes,
+                    transcript_text=transcript_text,
+                    subject=subj,
+                    topic=top,
+                    date_str=now_formatted,
+                    target_language=payload.target_language,
+                    document_format=payload.document_format,
+                )
             server.update_task_progress(task_id, 95.0, "Compilando documentos Word (.docx) y Markdown (.md)...", "Generando archivos de apuntes...", stage="analyzing")
             clean_subj = re.sub(r'[\\/*?:"<>|]', "", subj.strip()) or "Materia"
             safe_subj = re.sub(r"\s+", "_", clean_subj)
@@ -345,6 +345,7 @@ async def transcribe_youtube(payload: YouTubeTranscribeRequest, request: Request
                 camp_res = await run_in_threadpool(
                     server.process_session_for_campaign,
                     audio_duration_seconds=result.get("duration"),
+                    audio_source="youtube",
                     campaign_name=campaign_name,
                     transcript_text=transcript_text,
                     roster_dicts=roster_dicts,
@@ -490,6 +491,7 @@ async def transcribe_file(
     subject: Optional[str] = Form(default=None),
     topic: Optional[str] = Form(default=None),
     document_format: Annotated[DocumentFormat, Form()] = "academic",
+    processing_source: Annotated[Literal["file", "recording"], Form()] = "file",
     target_language: str = Form(default="es"),
     audio_language: Optional[str] = Form(default=None),
     custom_date: Optional[str] = Form(default=None),
@@ -697,16 +699,16 @@ async def transcribe_file(
 
         try:
             summarizer = server.GeminiTTRPGSummarizer(api_key=gemini_key)
-            chronicle_md = await run_in_threadpool(
-                summarizer.generate_academic_notes,
-                transcript_text=transcript_text,
-                subject=subj,
-                topic=top,
-                date_str=now_formatted,
-                target_language=target_language,
-                document_format=document_format,
-            )
-            record_audio_sample(result.get("duration"), getattr(summarizer, "_quota_tokens_used", 0))
+            with track_audio_processing(summarizer, result.get("duration"), source=processing_source, workspace="work_and_study", document_format=document_format):
+                chronicle_md = await run_in_threadpool(
+                    summarizer.generate_academic_notes,
+                    transcript_text=transcript_text,
+                    subject=subj,
+                    topic=top,
+                    date_str=now_formatted,
+                    target_language=target_language,
+                    document_format=document_format,
+                )
             server.update_task_progress(task_id, 87.0, "Extrayendo tareas, entregables y puntos clave...", "Organizando resumen ejecutivo...", stage="analyzing")
         except Exception as exc:
             chronicle_md = f"# ⚠️ Error generando el documento con Gemini:\n\n> {exc}\n\n**Texto:**\n\n{transcript_text}"
@@ -775,6 +777,7 @@ async def transcribe_file(
             camp_res = await run_in_threadpool(
                 server.process_session_for_campaign,
                 audio_duration_seconds=result.get("duration"),
+                audio_source=processing_source,
                 campaign_name=campaign_name,
                 transcript_text=transcript_text,
                 roster_dicts=roster_dicts,
@@ -1116,16 +1119,16 @@ async def upload_session_with_telemetry(
 
         try:
             summarizer = server.GeminiTTRPGSummarizer(api_key=gemini_key)
-            chronicle_md = await run_in_threadpool(
-                summarizer.generate_academic_notes,
-                transcript_text=transcript_text,
-                subject=subj,
-                topic=top,
-                date_str=now_formatted,
-                target_language=target_language,
-                document_format=document_format,
-            )
-            record_audio_sample(result.get("duration"), getattr(summarizer, "_quota_tokens_used", 0))
+            with track_audio_processing(summarizer, result.get("duration"), source="recording", workspace="work_and_study", document_format=document_format):
+                chronicle_md = await run_in_threadpool(
+                    summarizer.generate_academic_notes,
+                    transcript_text=transcript_text,
+                    subject=subj,
+                    topic=top,
+                    date_str=now_formatted,
+                    target_language=target_language,
+                    document_format=document_format,
+                )
             server.update_task_progress(task_id, 87.0, "Extrayendo tareas, entregables y puntos clave...", "Organizando resumen ejecutivo...", stage="analyzing")
         except Exception as exc:
             chronicle_md = f"# ⚠️ Error generando el documento con Gemini:\n\n> {exc}\n\n**Texto:**\n\n{transcript_text}"
@@ -1193,6 +1196,7 @@ async def upload_session_with_telemetry(
             camp_res = await run_in_threadpool(
                 server.process_session_for_campaign,
                 audio_duration_seconds=result.get("duration"),
+                audio_source="recording",
                 campaign_name=campaign_name,
                 transcript_text=transcript_text,
                 roster_dicts=roster_dicts,

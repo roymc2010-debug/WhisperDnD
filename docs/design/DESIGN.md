@@ -110,16 +110,38 @@ La cuota mantiene su ubicación junto a Drive. Tokens disponibles pasa a ser la 
 
 Verificación de esta revisión: 17 pruebas frontend y compilación correctas; se probó preparar la sesión 2 desde la lista, cancelar y volver automáticamente a la 4, más la edición directa de sesión al importar audio. Se corrigió un readonly persistente al cambiar de En vivo a Archivo/YouTube y se añadió su prueba de regresión. Revisión visual en 1600 y 540 px con datos de ejemplo, sin procesar audio ni reemplazar documentos.
 
-## Cuota baja y tiempo estimado de audio
+## Cuota baja, registro local y estimación por perfil
 
-Se retiran del indicador los nombres Gemini y Groq y los letreros de estado normal. Hasta el 20 % restante inclusive se muestra un aviso de cuota baja. Con historial suficiente se añade Puedes procesar aproximadamente X h Y min de audio, indicando que el margen del 5 % ya está aplicado.
+El indicador no muestra los nombres de proveedores ni estados normales. Con 20 % restante o menos presenta una duración aproximada cuando dispone de tres muestras medidas de al menos 60 segundos del mismo perfil. La duración calculada se multiplica por 0,95 y se redondea hacia abajo. No corta automáticamente una grabación.
 
-La estimación requiere tres muestras válidas de audios procesados de al menos 60 segundos. Guarda únicamente duración y tokens por trabajo, hasta 20 muestras, sin contenido del audio ni transcripciones. El cliente acumula uso de todas las llamadas de una misma generación; los puntos de entrada asocian ese consumo a la duración real. Las regeneraciones sin duración no generan muestras. No se vuelve a descontar la muestra de la cuota.
+### Información recopilada
 
-Fórmula: tomar el mayor consumo de tokens por segundo entre las muestras recientes; dividir los tokens restantes entre esa tasa; limitar por los segundos restantes de transcripción; multiplicar el resultado por 0,95 y redondear hacia abajo. El historial se conserva al cambiar de día. Si faltan datos, se informa de que no hay historial suficiente. Un ejemplo de 8400 segundos se presenta como 7980 segundos: 2 h 13 min.
+Cada generación de documentos a partir de audio registra automáticamente duración del audio, tokens usados durante esa generación, origen (recording, youtube o file), modo (dnd o work_and_study), formato académico/reunión cuando corresponde, fecha UTC, tiempo empleado en generar, estado completed/failed y si el consumo es medido o estimado/incompleto. La etapa registrada es generation: no se presenta como un diagnóstico de todo el pipeline, ni incluye fallos de captura o transcripción previos a generar. No se guardan audio, transcripciones, URL, archivos, campañas, jugadores, claves ni mensajes de error en este registro.
 
-Es una estimación basada en límites locales configurados y consumo observado, no una consulta de capacidad garantizada del proveedor. No añade un corte automático de la grabación ni elimina la comprobación de cuota crítica anterior a procesar.
+Los datos se conservan en el contador local data/system_quota.json, con un máximo de 500 registros. GET /api/system/usage devuelve agregados por perfil y los últimos 50 registros. El historial sobrevive al cambio de día; los contadores diarios mantienen su comportamiento anterior. No se incorpora un servicio externo de analítica.
 
-Archivos funcionales modificados: static/index.html, static/js/api.js y static/desktop.css (presentación); src/storage/quota_tracker.py (historial y cálculo); src/summarizer/gemini_client.py (consumo por instancia); src/api/server.py y routers/audio.py y routers/transcription.py (asociación con duración). Pruebas: tests/test_quota.py, tests/test_gemini_client.py y tests/frontend/ui-controls.test.cjs.
+### Cómo se utiliza
 
-Verificación: 18 pruebas frontend y 45 pruebas Python pertinentes (cuota, cliente y flujos de documentos), compilación local y vista aislada en 1600 y 540 px con datos ficticios. Se comprobaron cuota normal, baja con estimación y baja sin historial. No se hicieron llamadas pagadas ni se procesaron audios reales.
+La estimación selecciona las últimas 20 muestras válidas del mismo origen, modo y formato, y utiliza la tasa más alta observada de tokens por segundo. Se limita por los tokens restantes y el tiempo restante de transcripción antes de aplicar el margen del 5 %. Los fallos, datos incompletos, consumos calculados por longitud de texto y audios menores a un minuto se guardan pero no calibran. Sin tres muestras medidas compatibles, el indicador informa de que falta historial. Las muestras antiguas sin etiquetas se conservan, pero no se les inventa un origen.
+
+El consumo se obtiene de la diferencia del contador de una instancia, sin volver a cargar tokens ni mezclar trabajos simultáneos. La recopilación no cambia el retorno de la generación y conserva sus excepciones. El tiempo registrado corresponde solo a la generación, no a captura, transcripción ni exportación. Si un proveedor no devuelve consumo, la cifra se marca como estimada. Los errores se marcan incompletos y sus mensajes no se copian al registro.
+
+La grabación desde el navegador comparte /api/transcribe/file con archivos locales. Por ello envía processing_source=recording, validado por la API; los clientes de archivo anteriores conservan file por defecto. La telemetría del puente local y la grabación del equipo se clasifican como recording.
+
+La interfaz pide /api/system/quota con source, workspace y document_format, y renueva la consulta al cambiar la selección. Se descartan respuestas antiguas de consultas superadas. Es una aproximación basada en límites configurados y consumo observado, no una garantía de capacidad remota.
+
+### Mapa funcional y archivos de esta revisión
+
+- src/storage/quota_tracker.py: registro, perfiles, agregados y estimación.
+- src/summarizer/gemini_client.py: distinguir tokens reportados del cálculo aproximado.
+- src/api/server.py: asociar las generaciones de D&D a su origen y duración.
+- src/api/routers/audio.py y transcription.py: registrar las entradas de audio y distinguir el micrófono web.
+- src/api/routers/drive.py: conserva las APIs existentes de cuota y añade la consulta local de uso; no cambia OAuth ni sincronización de Drive.
+- static/js/api.js: consulta del perfil activo y protección frente a respuestas atrasadas.
+- static/js/audio.js: marca de origen para el audio grabado en el navegador.
+- static/index.html: versión de recursos para cargar los cambios.
+- tests/test_quota.py, tests/test_document_formats.py y tests/frontend/ui-controls.test.cjs: cobertura del registro, privacidad, perfiles, entradas y selección activa.
+
+### Verificación
+
+55 pruebas Python pertinentes (cuota, cliente y flujos de documentos), 20 pruebas frontend y compilación correctas. Se verificaron campos permitidos, separación de perfiles, conservación del error original, exclusión de muestras incompletas, acumulación por trabajo y origen de la grabación web. Proveedores, archivos y contadores están aislados en las pruebas. No se hicieron llamadas pagadas ni capturas reales; la calibración con el uso real comenzará al procesar audios en esta versión.

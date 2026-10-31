@@ -132,6 +132,7 @@ class GeminiTTRPGSummarizer:
         self.model_name = model_name or os.getenv("GEMINI_MODEL", DEFAULT_GEMINI_MODEL)
         self._client = None
         self._quota_tokens_used = 0
+        self._quota_usage_estimated = False
 
     @property
     def client(self):
@@ -246,6 +247,7 @@ class GeminiTTRPGSummarizer:
                                     getattr(response.usage_metadata, "candidates_token_count", 0)
                                 )
                             if not tokens_used:
+                                self._quota_usage_estimated = True
                                 prompt_len = len(str(contents))
                                 resp_len = len(response.text)
                                 tokens_used = max(10, (prompt_len + resp_len) // 4)

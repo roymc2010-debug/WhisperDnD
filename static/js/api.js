@@ -356,27 +356,46 @@ async function checkApiKeysStatus(showToast = false) {
 // =========================================================================
 var currentApiQuotaData = null;
 
+var quotaRequestSerial = 0;
+
+function currentQuotaProfileQuery() {
+  const workspace = window.currentWorkspace === "work_and_study" ? "work_and_study" : "dnd";
+  const source = window.currentActiveMainTab === "youtube" ? "youtube" : window.currentActiveMainTab === "file" ? "file" : "recording";
+  let query = "source=" + source + "&workspace=" + workspace;
+  if (workspace === "work_and_study") {
+    const format = document.getElementById("workStudyDocumentFormat")?.value === "executive" ? "executive" : "academic";
+    query += "&document_format=" + format;
+  }
+  return query;
+}
+
 async function fetchApiQuota() {
+  const serial = ++quotaRequestSerial;
   try {
-    const res = await fetch("/api/system/quota", {
-      headers: getUserApiHeaders()
-    });
-    if (!res.ok) {
-      currentApiQuotaData = null;
-      renderApiQuota(null);
-      return null;
-    }
+    const res = await fetch("/api/system/quota?" + currentQuotaProfileQuery(), {headers: getUserApiHeaders()});
+    if (serial !== quotaRequestSerial) return null;
+    if (!res.ok) { currentApiQuotaData = null; renderApiQuota(null); return null; }
     const data = await res.json();
+    if (serial !== quotaRequestSerial) return null;
     currentApiQuotaData = data;
     renderApiQuota(data);
     return data;
   } catch (err) {
+    if (serial !== quotaRequestSerial) return null;
     console.warn("Could not fetch API quota:", err);
     currentApiQuotaData = null;
     renderApiQuota(null);
     return null;
   }
 }
+
+// Selection changes keep the capacity estimate attached to the profile being prepared.
+document.addEventListener?.("click", event => {
+  if (event.target?.closest?.("#switchWorkspaceDnd,#switchWorkspaceWork,#mobileSwitchDnd,#mobileSwitchWork,#tabLiveBtn,#tabYoutubeBtn,#tabFileBtn")) fetchApiQuota();
+});
+document.addEventListener?.("change", event => {
+  if (event.target?.id === "workStudyDocumentFormat") fetchApiQuota();
+});
 
 function renderApiQuota(data) {
   const percentDisplay = document.getElementById("quotaPercentDisplay");
