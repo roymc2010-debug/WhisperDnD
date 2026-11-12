@@ -248,8 +248,7 @@ data/.discord_token.json
 *.token.json
 
 # Local Campaign State Files & History
-data/campaigns/*.json
-data/campaigns/*/
+data/campaigns/*
 !data/campaigns/.gitkeep
 data/*.json
 
@@ -262,3 +261,12 @@ clean_html.py
 .design-preview/
 .design-qa/
 node_modules/
+
+# Internal investigations may include session excerpts, local paths and before-copies.
+docs/reviews/*
+!docs/reviews/runtime-path-integration-20261112.md
+!docs/reviews/startup-logs-paths-20261112.md
+!docs/reviews/drive-desktop-profiles-20261112.md
+!docs/reviews/support-report-20261112.md
+!docs/reviews/quota-model-profile-paths-20261112.md
+!docs/reviews/pre-exe-manual-preparation-20261112.md

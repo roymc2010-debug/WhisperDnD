@@ -45,6 +45,17 @@ def test_preview_environment_does_not_reuse_external_paths_or_cloud_tokens(tmp_p
     assert 'GROQ_API_KEY' not in os.environ
 
 
+def test_preview_environment_with_drive_retains_credentials_and_dotenv(tmp_path, monkeypatch):
+    monkeypatch.setenv('GOOGLE_TOKEN_JSON', 'private_token')
+    monkeypatch.setenv('GROQ_API_KEY', 'private_groq')
+    preview.configure_environment(tmp_path, with_drive=True)
+    import os
+    assert os.environ['WHISPER_CAMPAIGNS_DIR'] == str((tmp_path / 'campaigns').resolve())
+    assert 'PYTHON_DOTENV_DISABLED' not in os.environ
+    assert os.environ.get('GOOGLE_TOKEN_JSON') == 'private_token'
+    assert os.environ.get('GROQ_API_KEY') == 'private_groq'
+
+
 def test_preview_uses_a_free_port_when_requested_port_belongs_to_another_copy():
     import socket
     with socket.socket() as occupied:

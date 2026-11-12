@@ -5,13 +5,16 @@ import re
 import shutil
 import sys
 import time
+import uuid
 import subprocess
 from pathlib import Path
+from src.runtime_paths import resolve_runtime_paths, is_desktop_runtime
 from typing import Any, Callable, Dict, List, Optional
 
 try:
     from dotenv import load_dotenv
-    load_dotenv()
+    if not is_desktop_runtime():
+        load_dotenv()
 except ImportError:
     pass
 
@@ -51,22 +54,17 @@ def slice_audio_for_groq(
         )
 
     env_input = os.environ.get("WHISPER_INPUT_DIR")
-    if env_input:
+    if is_desktop_runtime():
+        input_dir = resolve_runtime_paths().input_dir
+    elif env_input:
         input_dir = Path(env_input).resolve()
     elif os.path.exists("/tmp") and os.path.isdir("/tmp") and sys.platform != "win32":
         input_dir = Path("/tmp/whisper_input").resolve()
     else:
         project_root = Path(__file__).resolve().parent.parent.parent
         input_dir = (project_root / "data" / "input").resolve()
-    chunks_dir = input_dir / "chunks"
+    chunks_dir = input_dir / "chunks" / f"run_{uuid.uuid4().hex}"
     chunks_dir.mkdir(parents=True, exist_ok=True)
-
-    # Clean any leftover chunks from previous runs
-    for f in chunks_dir.glob("chunk_*"):
-        try:
-            f.unlink()
-        except Exception:
-            pass
 
     ext = input_path.suffix.lower() or ".mp3"
     segment_seconds = chunk_minutes * 60
@@ -152,23 +150,34 @@ def slice_audio_for_groq(
     return chunk_files
 
 
-def clean_groq_chunks() -> None:
-    """Delete temporary chunk files in data/input/chunks to keep disk clean."""
+def clean_groq_chunks(chunk_paths=None) -> None:
+    """Clean only explicit fragments in an owned run; never sweep shared data."""
+    if not chunk_paths:
+        return
     env_input = os.environ.get("WHISPER_INPUT_DIR")
-    if env_input:
+    if is_desktop_runtime():
+        input_dir = resolve_runtime_paths().input_dir
+    elif env_input:
         input_dir = Path(env_input).resolve()
     elif os.path.exists("/tmp") and os.path.isdir("/tmp") and sys.platform != "win32":
         input_dir = Path("/tmp/whisper_input").resolve()
     else:
         project_root = Path(__file__).resolve().parent.parent.parent
         input_dir = (project_root / "data" / "input").resolve()
-    chunks_dir = input_dir / "chunks"
-    if chunks_dir.exists():
-        for f in chunks_dir.glob("chunk_*"):
-            try:
-                f.unlink()
-            except Exception:
-                pass
+    chunks_root = (input_dir / "chunks").resolve()
+    run_dirs = set()
+    for item in chunk_paths:
+        path = Path(item[0] if isinstance(item, (tuple, list)) else item).resolve()
+        if path.parent.parent == chunks_root and re.fullmatch(r"run_[0-9a-f]{32}", path.parent.name):
+            run_dirs.add(path.parent)
+    for run_dir in run_dirs:
+        for fragment in run_dir.glob("chunk_*"):
+            if fragment.is_file() and not fragment.is_symlink():
+                fragment.unlink()
+        try:
+            run_dir.rmdir()
+        except OSError:
+            pass
 
 
 def _format_hhmmss(seconds: float) -> str:
@@ -193,14 +202,22 @@ def clean_whisper_ghost_subtitles(text: str) -> str:
     if not text:
         return ""
 
+    # Recognize complete credit artifacts, not arbitrary mentions of subtitles.
+    # Keep this anchored so quoted dialogue about a credit is not discarded.
+    standalone_english_credit = re.compile(
+        r"(?i)(?:subtitles?|captions?)\s+by\s+"
+        r"(?:the(?:\s+amara\.org\s+community)?|(?:the\s+)?community\s+of\s+amara\.org|"
+        r"amara\.org(?:\s+community)?)\s*[.!]?"
+    )
+
     ghost_phrases_pattern = re.compile(
-        r"(?i)\b(?:subt[íi]tul(?:ado|os)\s+por|jnkoil|amara(?:\.org)?|escuela\s+de\s+ling[üu][íi]stica|\bpuce\b|inauguraci[óo]n\s+de|la[bv]oratorio\s+de\s+bundru)\b"
+        r"(?i)\b(?:subt[íi]tul(?:ado|os)\s+por|amara\.org)\b"
     )
     url_domain_pattern = re.compile(
         r"(?i)(?:https?://\S+|www\.\S*|\b[a-zA-Z0-9_.-]+\.(?:com|es|ar)\b)"
     )
     trailing_ghost_pattern = re.compile(
-        r"(?i)\s+(?:[-–—]\s*)?(?:subt[íi]tul(?:ado|os)\s+por|jnkoil|amara(?:\.org)?|escuela\s+de\s+ling[üu][íi]stica|\bpuce\b|inauguraci[óo]n\s+de|la[bv]oratorio\s+de\s+bundru|https?://|www\.|\S+\.(?:com|es|ar)\b).*$"
+        r"(?i)\s+(?:[-–—]\s*)?(?:subt[íi]tul(?:ado|os)\s+por|amara\.org|https?://|www\.|\S+\.(?:com|es|ar)\b).*$"
     )
     promo_words_pattern = re.compile(
         r"(?i)\b(?:visita|visite|m[áa]s|en|informaci[óo]n|p[áa]gina|web|gracias|por|ver|suscr[íi]bete|canal|comunidad)\b"
@@ -210,6 +227,14 @@ def clean_whisper_ghost_subtitles(text: str) -> str:
     for line in text.splitlines():
         trimmed_line = line.strip()
         if not trimmed_line:
+            continue
+
+        credit_content = re.sub(
+            r"^\[\d{1,2}:\d{2}:\d{2}(?:\s*->\s*\d{1,2}:\d{2}:\d{2})?\]\s*", "", trimmed_line
+        )
+        credit_content = re.sub(r"^\[[^\]\r\n]+\]:\s*", "", credit_content)
+        credit_content = re.sub(r"^[\w ./'-]{1,80}:\s*", "", credit_content).strip()
+        if standalone_english_credit.fullmatch(credit_content):
             continue
 
         has_ghost = bool(ghost_phrases_pattern.search(trimmed_line) or url_domain_pattern.search(trimmed_line))
@@ -223,7 +248,7 @@ def clean_whisper_ghost_subtitles(text: str) -> str:
 
         # If the line starts with or is primarily a ghost subtitle / promo credit, discard whole line
         lead_ghost_match = re.match(
-            r"(?i)^(?:[.,;:!?¿¡-]?\s*)*(?:(?:visita|visite|m[áa]s\s+en|p[áa]gina|web)\s+)?(?:subt[íi]tul(?:ado|os)\s+por|jnkoil|amara(?:\.org)?|escuela\s+de\s+ling[üu][íi]stica|\bpuce\b|inauguraci[óo]n\s+de|la[bv]oratorio\s+de\s+bundru|https?://|www\.|\S+\.(?:com|es|ar)\b)",
+            r"(?i)^(?:[.,;:!?¿¡-]?\s*)*(?:(?:visita|visite|m[áa]s\s+en|p[áa]gina|web)\s+)?(?:subt[íi]tul(?:ado|os)\s+por|amara\.org|https?://|www\.|\S+\.(?:com|es|ar)\b)",
             content_only
         )
         if lead_ghost_match:
@@ -261,7 +286,7 @@ def clean_whisper_ghost_subtitles(text: str) -> str:
 def clean_whisper_hallucinations(text: str, roster: Optional[List[Dict[str, Any]]] = None) -> str:
     """
     Remove repetitive artifact hallucination patterns from Whisper output,
-    such as ghost subtitles ('Subtitulado por', 'Jnkoil', 'Amara', 'PUCE', etc.),
+    such as explicit subtitle credits ('Subtitulado por', 'Subtitles by'),
     edition tags (5e, 6e, 7e, 5e., 6e-, etc.), leading edition prefixes,
     subtitle prefixes (E. , B. , T. ), hallucinated acronym chains,
     and repetitive stutter loops (e.g. 'o o o o', 'la la la la').
@@ -285,8 +310,9 @@ def clean_whisper_hallucinations(text: str, roster: Optional[List[Dict[str, Any]
     cleaned = re.sub(r'(?i)\b(?:el\s+)?(?:[A-Z]\.){3,}[A-Z]?(?:\s+de\s+la)?(?=\s|[.,;:!?]|$)', '', cleaned)
     cleaned = re.sub(r'\b(?:[A-Z]\.){3,}[A-Z]?(?=\s|[.,;:!?]|$)', '', cleaned)
     # Clean repetitive single letters or short syllables (e.g., 'o o o o', 'ah ah ah ah')
-    cleaned = re.sub(r'(?i)\b([a-zñáéíóú])(?:\s+\1\b){3,}', '', cleaned)
-    cleaned = re.sub(r'(?i)\b([a-zñáéíóú]{1,3})(?:\s+\1\b){4,}', '', cleaned)
+    # Keep one token: deleting repeated "no" inverted the meaning of actions.
+    cleaned = re.sub(r'(?i)\b([a-zñáéíóú])(?:\s+\1\b){3,}', r'\1', cleaned)
+    cleaned = re.sub(r'(?i)\b([a-zñáéíóú]{1,3})(?:\s+\1\b){4,}', r'\1', cleaned)
     # Strip repeating multi-word hallucination loops (e.g. 'Eclésion de el Zodíaco, Eclésion...')
     cleaned = re.sub(r'(\b[\w\s]{4,30}\b)(?:\s*,?\s*\1){2,}', r'\1', cleaned, flags=re.IGNORECASE)
     # Clean empty punctuation pairs left behind by hallucinations like "¿?" or "¡!"
@@ -322,7 +348,7 @@ def split_dual_channel_audio(audio_path: str, output_dir: Optional[Path] = None)
     p = Path(audio_path).resolve()
     dest_dir = output_dir or (p.parent / "dual_channels")
     dest_dir.mkdir(parents=True, exist_ok=True)
-    base_name = p.stem
+    base_name = f"{p.stem}_{uuid.uuid4().hex}"
     mic_path = str(dest_dir / f"{base_name}_ch0_mic.mp3")
     discord_path = str(dest_dir / f"{base_name}_ch1_discord.mp3")
 
@@ -777,6 +803,11 @@ class GroqWhisperTranscriber:
 
                 # Merge all segments chronologically
                 all_segs = sorted(mic_segs + discord_segs, key=lambda s: float(s.get("start", 0.0)))
+                uncertain_segs = [
+                    {**s, "source_channel": channel}
+                    for channel, res in (("microphone", mic_res), ("discord", discord_res))
+                    for s in res.get("uncertain_segments", [])
+                ]
                 formatted_lines = []
                 clean_texts = []
                 for s in all_segs:
@@ -794,6 +825,7 @@ class GroqWhisperTranscriber:
                 full_text = " ".join(clean_texts)
                 return {
                     "segments": all_segs,
+                    "uncertain_segments": uncertain_segs,
                     "text": full_text,
                     "raw_text": full_text,
                     "formatted_transcript": "\n".join(formatted_lines),
@@ -979,6 +1011,7 @@ class GroqWhisperTranscriber:
                 print(f"[GroqWhisper] Notice recording audio quota: {q_err}")
 
         segments = []
+        uncertain_segments = []
         last_clean_text = ""
         for s in raw_segments:
             s_start = s.get("start", 0.0) if isinstance(s, dict) else getattr(s, "start", 0.0)
@@ -987,6 +1020,21 @@ class GroqWhisperTranscriber:
             s_no_speech = s.get("no_speech_prob", 0.0) if isinstance(s, dict) else getattr(s, "no_speech_prob", 0.0)
             s_avg_logprob = s.get("avg_logprob", 0.0) if isinstance(s, dict) else getattr(s, "avg_logprob", 0.0)
             s_compression = s.get("compression_ratio", 1.0) if isinstance(s, dict) else getattr(s, "compression_ratio", 1.0)
+
+            # A low no_speech score does not establish reliable recognition.
+            # Quarantine extreme uncertainty independently, retaining evidence
+            # instead of promoting gibberish or guessed names into campaign canon.
+            if s_avg_logprob and float(s_avg_logprob) < -2.0:
+                uncertain_segments.append({
+                    "start": round(float(s_start) + time_offset, 2),
+                    "end": round(float(s_end) + time_offset, 2),
+                    "text": s_text.strip(),
+                    "avg_logprob": float(s_avg_logprob),
+                    "no_speech_prob": s_no_speech,
+                    "compression_ratio": s_compression,
+                    "reason": "extremely_low_recognition_confidence",
+                })
+                continue
 
             # 1. Skip high probability non-speech / silence (stricter VAD threshold)
             if s_no_speech and float(s_no_speech) > 0.55:
@@ -1019,17 +1067,20 @@ class GroqWhisperTranscriber:
                 "text": s_text_clean,
             })
 
-        if not segments and raw_text:
+        # Text-only responses may lack segment metadata. Never use the summary
+        # text to resurrect segments that confidence/silence filters rejected.
+        if not raw_segments and raw_text:
             segments.append({
                 "start": round(time_offset, 2),
                 "end": round(time_offset + float(duration), 2),
                 "text": raw_text.strip(),
             })
 
-        parsed_text = " ".join([seg["text"] for seg in segments]).strip() if segments else raw_text.strip()
+        parsed_text = " ".join(seg["text"] for seg in segments).strip()
 
         return {
             "segments": segments,
+            "uncertain_segments": uncertain_segments,
             "text": parsed_text,
             "language": {
                 "code": detected_lang,
@@ -1063,10 +1114,15 @@ class GroqWhisperTranscriber:
         Slice audio file into 15-minute chunks with FFmpeg and transcribe each sequentially.
         If language is not specified, auto-detects on chunk 1 and pins that language for all remaining chunks.
         """
+        def slicing_progress(pct, message):
+            if on_progress:
+                # Segmentation does not complete any transcription work.
+                on_progress(min_pct, message)
+
         chunks_list = self._slice_audio(
             audio_path,
             chunk_minutes=self.DEFAULT_CHUNK_MINUTES,
-            on_progress=on_progress,
+            on_progress=slicing_progress,
         )
         num_chunks = len(chunks_list)
 
@@ -1078,17 +1134,21 @@ class GroqWhisperTranscriber:
             single_path = chunks_list[0] if isinstance(chunks_list[0], str) else chunks_list[0][0]
             if on_progress:
                 on_progress(min_pct, f"Transcribiendo audio con Groq Whisper ({min_pct:.1f}%)...")
-            res = self._transcribe_single_file(
-                single_path,
-                language=language,
-                timeout=60.0,
-                prompt=prompt,
-            )
+            try:
+                res = self._transcribe_single_file(
+                    single_path,
+                    language=language,
+                    timeout=60.0,
+                    prompt=prompt,
+                )
+            finally:
+                clean_groq_chunks(chunks_list)
             if on_progress:
                 on_progress(max_pct, f"Transcripción de audio completada ({max_pct:.1f}%)")
             return res
 
         all_segments: List[Dict[str, Any]] = []
+        all_uncertain_segments: List[Dict[str, Any]] = []
         text_parts: List[str] = []
         total_duration = 0.0
         current_time_offset = 0.0
@@ -1130,6 +1190,7 @@ class GroqWhisperTranscriber:
                     )
 
                     all_segments.extend(chunk_res.get("segments", []))
+                    all_uncertain_segments.extend(chunk_res.get("uncertain_segments", []))
                     if chunk_res.get("text"):
                         text_parts.append(chunk_res["text"])
                     if not detected_lang and chunk_res.get("language_code"):
@@ -1160,11 +1221,11 @@ class GroqWhisperTranscriber:
                         f"Transcribiendo audio (Fragmento {idx + 1} de {num_chunks} completado - {done_chunk_pct:.1f}%)",
                     )
         finally:
-            # Chunk Cleanup: Immediately after all chunks are transcribed, delete the chunks directory contents
-            clean_groq_chunks()
+            clean_groq_chunks(chunks_list)
 
         return {
             "segments": all_segments,
+            "uncertain_segments": all_uncertain_segments,
             "text": clean_whisper_hallucinations(" ".join(text_parts)).strip(),
             "language": {
                 "code": detected_lang,

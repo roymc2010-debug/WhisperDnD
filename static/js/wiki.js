@@ -789,34 +789,10 @@ function findAndSelectWikiEntity(type, entityName) {
   }
 }
 
-function formatCharacterDisplayName(fullName, aliases) {
-  if (!fullName) return fullName || "";
-  let name = String(fullName).trim();
-  if (name.includes('"') || name.includes("'")) {
-    return name;
-  }
-  if (!aliases || !Array.isArray(aliases) || aliases.length === 0) {
-    return name;
-  }
-
-  const words = name.split(/\s+/);
-  const firstName = words[0];
-
-  for (const rawAlias of aliases) {
-    const alias = String(rawAlias).trim();
-    if (!alias) continue;
-    const lowerAlias = alias.toLowerCase();
-    const lowerFirst = firstName.toLowerCase();
-    if (
-      lowerAlias.length >= 3 &&
-      (lowerFirst.startsWith(lowerAlias) || lowerAlias.startsWith(lowerFirst.replace(/[^a-z0-9]/g, ""))) &&
-      lowerAlias !== lowerFirst
-    ) {
-      const rest = words.slice(1).join(" ");
-      return rest ? `${firstName} "${alias}" ${rest}` : `${firstName} "${alias}"`;
-    }
-  }
-  return name;
+function formatCharacterDisplayName(fullName, nicknames) {
+  const name=String(fullName || "").trim();
+  const confirmed=Array.isArray(nicknames) ? nicknames.map(n=>String(n).trim()).filter(Boolean) : [];
+  return confirmed.length ? name + ' «' + confirmed[0] + '»' : name;
 }
 
 function getCleanNarrativeAliases(fullName, aliases) {
@@ -885,7 +861,8 @@ function getAssociatedLocationsForCharacter(charName) {
     // If PC: ONLY associate if this place is explicitly their home base or residence!
     // Transient visits to dungeons, caves or battlefields NEVER link to PC dossiers!
     if (isPc) {
-      return isResidence && (inAssoc || (target.length >= 3 && locDesc.includes(target)));
+      const manual = (loc.manual_associated_characters || []).some(char => char.toLowerCase().trim() === target);
+      return manual || (isResidence && (inAssoc || (target.length >= 3 && locDesc.includes(target))));
     }
 
     // For NPCs: ONLY link if listed as inhabitant/custodian/ruler in associated_characters
@@ -977,7 +954,10 @@ function buildAllPcsGridHtml() {
   `;
 }
 
+var wikiDeletionPreview = null;
+
 function renderWikiDossier() {
+  wikiDeletionPreview = null;
   const emptyEl = document.getElementById("wikiDossierEmpty");
   const contentEl = document.getElementById("wikiDossierContent");
   if (!emptyEl || !contentEl) return;
@@ -1011,6 +991,166 @@ function renderWikiDossier() {
   } else if (type === "session") {
     contentEl.innerHTML = buildSessionDossierHtml(data);
   }
+  if (["pc", "npc", "location", "session"].includes(type)) {
+    const action = type === "session" ? 'onclick="openDeleteWikiSession()" data-button-role="danger">Eliminar sesión'
+      : `onclick="openWikiEntityEditor()" data-button-role="neutral">${type === "location" ? "Editar lugar" : type === "npc" ? "Editar PNJ" : "Editar ficha"}`;
+    const controls = `<div class="flex flex-wrap items-center justify-end gap-2 ${type === "session" ? "mt-6" : "mb-4"}"><button type="button" class="min-h-[44px] px-3 py-2 rounded-xl border border-slate-700 text-sm" ${action}</button></div><p id="wikiMutationStatus" role="status" aria-live="polite" class="text-sm mb-3"></p>`;
+    contentEl.innerHTML = type === "session" ? contentEl.innerHTML + controls : controls + contentEl.innerHTML;
+  }
+}
+
+function wikiManualCampaignName() {
+  return (document.getElementById("wikiCampaignSelect")?.value || currentWikiCampaignState?.campaign_name || "").trim();
+}
+
+function wikiManualEntityName(entity) {
+  return entity.name || entity.nombre || entity.personaje || entity.character_name || "";
+}
+
+function openWikiEntityEditor() {
+  if (!selectedWikiEntity || !["pc", "npc", "location"].includes(selectedWikiEntity.type)) return;
+  const { type, data } = selectedWikiEntity;
+  const name = wikiManualEntityName(data);
+  const fields = [["name", "Nombre", name], ["description", "Descripción", data.description || data.descripcion || data.context || ""]];
+  if (type === "pc") fields.push(["player_name", "Jugador", data.player_name || data.jugador || ""],
+    ["species", "Especie", data.species || data.especie || ""], ["character_class", "Clase", data.character_class || data.clase || ""],
+    ["subclass", "Subclase", data.subclass || data.subclase || ""]);
+  if (type === "npc") fields.push(["nicknames", "Apodos y sobrenombres confirmados (uno por línea)", (data.nicknames || []).join("\n")],
+    ["aliases", "Variantes de pronunciación (una por línea)", (data.aliases || []).join("\n")],
+    ["role", "Rol", data.role || ""], ["status", "Estado", data.status || "activo"]);
+  if (type === "location") fields.push(["location_type", "Tipo de lugar", data.type || ""], ["status", "Estado", data.status || ""],
+    ["associated_characters", "Personajes vinculados (uno por línea)", (data.associated_characters || []).join("\n")]);
+  const inputClass = "w-full min-h-[44px] rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100";
+  const linked = (currentWikiCampaignState.locations || []).map((location, index) => {
+    const checked = (location.associated_characters || []).some(char => char.toLowerCase() === name.toLowerCase());
+    return `<label class="flex items-center gap-2 text-sm py-2"><input type="checkbox" data-wiki-location value="${escapeHtml(location.name)}" ${checked ? 'checked' : ''}>${escapeHtml(location.name)}</label>`;
+  }).join("");
+  document.getElementById("wikiDossierContent").innerHTML = `<form onsubmit="submitWikiEntityEdit(event)" class="space-y-4">
+    <h3 class="text-lg font-semibold">${type === "location" ? "Editar lugar" : type === "npc" ? "Editar PNJ" : "Editar ficha"}</h3>
+    ${type === "npc" ? '<p class="text-sm text-slate-300">Al cambiar el nombre se corregirán sus menciones en sesiones anteriores y exportaciones locales reconocidas. Se conservará un respaldo.</p>' : type === "pc" ? '<p class="text-sm text-slate-300">Los nombres del protagonista y del jugador están protegidos. El renombrado retroactivo se aplica solo a PNJs.</p>' : ''}
+    ${fields.map(([key, label, value]) => `<div><label for="wikiEdit_${key}" class="block text-sm mb-1">${label}</label>${["description", "associated_characters", "aliases", "nicknames"].includes(key)
+      ? `<textarea id="wikiEdit_${key}" data-wiki-edit="${key}" rows="3" ${key === "aliases" ? 'aria-describedby="wikiEdit_aliases_help"' : ''} class="${inputClass}">${escapeHtml(value)}</textarea>`
+      : `<input id="wikiEdit_${key}" data-wiki-edit="${key}" value="${escapeHtml(value)}" ${type === "pc" && ["name", "player_name"].includes(key) ? 'readonly aria-readonly="true"' : ''} ${key === "name" ? 'required maxlength="200"' : ''} class="${inputClass}">`}${key === "aliases" ? '<p id="wikiEdit_aliases_help" class="text-sm text-slate-300 mt-2">Edita o borra una línea para corregir o quitar una variante. Las variantes que elimines no se volverán a añadir automáticamente. Esto no reescribe las crónicas anteriores.</p>' : ''}</div>`).join("")}
+    ${type !== "location" ? `<fieldset><legend class="text-sm font-medium">Lugares vinculados</legend>${linked || '<p class="text-sm text-slate-400 py-2">Todavía no hay lugares en esta campaña.</p>'}</fieldset>` : ''}
+    <p id="wikiEditError" role="alert" class="text-sm text-rose-300"></p>
+    <div class="flex flex-wrap gap-2"><button id="wikiEditSave" type="submit" data-button-role="save" class="min-h-[44px] px-4 py-2 rounded-xl border border-slate-700">Guardar cambios</button>
+    <button type="button" onclick="renderWikiDossier()" class="min-h-[44px] px-4 py-2 rounded-xl border border-slate-700">Cancelar</button></div>
+    </form>`;
+  document.getElementById("wikiEdit_name")?.focus();
+}
+
+function applyWikiManualState(state, campaignName) {
+  currentWikiCampaignState = state;
+  const mainName = (document.getElementById("campaignNameInput")?.value || "").trim();
+  if (mainName === campaignName || (typeof currentCampaignState !== "undefined" && currentCampaignState?.campaign_name === campaignName)) {
+    currentCampaignState = state;
+    if (typeof updateCampaignViewTabs === "function") updateCampaignViewTabs(state);
+    if (typeof loadCampaignRoster === "function") loadCampaignRoster(campaignName);
+    const numberInput = document.getElementById("sessionNumberInput");
+    if (numberInput) numberInput.value = (state.last_session || 0) + 1;
+  }
+  renderWikiCategoryPills();
+  renderWikiEntityList();
+  renderWikiDossier();
+  updateWikiSessionExportSelect(state);
+}
+
+async function submitWikiEntityEdit(event) {
+  event.preventDefault();
+  if (!selectedWikiEntity) return;
+  const { type, data: original } = selectedWikiEntity;
+  const campaignName = wikiManualCampaignName();
+  const payload = { original_name: wikiManualEntityName(original) };
+  document.querySelectorAll("[data-wiki-edit]").forEach(input => {
+    payload[input.dataset.wikiEdit] = ["associated_characters", "aliases", "nicknames"].includes(input.dataset.wikiEdit)
+      ? input.value.split("\n").map(value => value.trim()).filter(Boolean) : input.value.trim();
+  });
+  const locations = document.querySelectorAll("[data-wiki-location]");
+  if (type !== "location" && locations.length) payload.location_names = Array.from(locations).filter(input => input.checked).map(input => input.value);
+  const button = document.getElementById("wikiEditSave");
+  const error = document.getElementById("wikiEditError");
+  if (button) { button.disabled = true; button.textContent = "Guardando…"; }
+  if (error) error.textContent = "";
+  try {
+    const response = await fetch(`/api/campaigns/${encodeURIComponent(campaignName)}/entities/${type}`, {
+      method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload)
+    });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.detail || "No se pudieron guardar los cambios.");
+    if (wikiManualCampaignName() !== campaignName) return;
+    selectedWikiEntity = { type, key: wikiManualEntityName(result.entity), data: result.entity };
+    applyWikiManualState(result.campaign_state, campaignName);
+    const status = document.getElementById("wikiMutationStatus");
+    if (status) status.textContent = result.exports?.errors?.length
+      ? "Cambios guardados. Hay documentos pendientes: ciérralos y vuelve a descargarlos para actualizarlos."
+      : type === "npc" && payload.name !== payload.original_name ? "PNJ corregido en la campaña y sus sesiones anteriores." : "Cambios guardados.";
+  } catch (err) {
+    if (error) error.textContent = err.message;
+  } finally {
+    if (button) { button.disabled = false; button.textContent = "Guardar cambios"; }
+  }
+}
+
+async function openDeleteWikiSession() {
+  if (selectedWikiEntity?.type !== "session") return;
+  wikiDeletionPreview = null;
+  const selection = selectedWikiEntity;
+  const number = selectedWikiEntity.data.session_number;
+  const campaignName = wikiManualCampaignName();
+  const content = document.getElementById("wikiDossierContent");
+  content.innerHTML = '<p role="status" class="text-sm">Revisando los aportes de esta sesión…</p>';
+  try {
+    const response = await fetch(`/api/campaigns/${encodeURIComponent(campaignName)}/session/${encodeURIComponent(number)}/deletion-preview`);
+    const report = await response.json();
+    if (!response.ok) throw new Error(report.detail || "No se pudieron revisar los aportes. Recarga la campaña.");
+    if (selection !== selectedWikiEntity || campaignName !== wikiManualCampaignName()) return;
+    wikiDeletionPreview = { campaignName, number };
+    const labels = { npcs: "PNJs", locations: "Lugares", items: "Objetos", quests: "Misiones" };
+    const removed = Object.entries(report.removed || {}).map(([key, names]) => names.length
+      ? `<li><strong>${labels[key] || escapeHtml(key)}:</strong> ${names.map(name => escapeHtml(String(name))).join(", ")}</li>` : '').join('');
+    const uncertain = Object.values(report.unattributed || {}).reduce((count, entries) => count + entries.length, 0);
+    content.innerHTML = `<div class="space-y-4">
+    <h3 class="text-lg font-semibold">Eliminar sesión #${escapeHtml(String(number))}</h3>
+    <p class="text-sm leading-relaxed">Se quitarán su crónica, transcripción y aportes identificados: fichas exclusivas, notas, hitos y cambios atribuibles a esta sesión. Los datos usados por otras sesiones se conservarán.</p>
+    ${removed ? `<div><h4 class="text-sm font-semibold mb-2">Fichas que se retirarán</h4><ul class="space-y-1 text-sm">${removed}</ul></div>` : '<p class="text-sm">No se detectaron fichas exclusivas de esta sesión.</p>'}
+    ${report.legacy_provenance || uncertain ? `<p class="text-sm text-amber-300">Esta sesión contiene datos antiguos sin historial completo de aportes. Se conservarán los cambios cuyo origen no pueda verificarse${uncertain ? ` (${uncertain} fichas por revisar)` : ''}.</p>` : ''}
+    <p class="text-sm leading-relaxed">Se guardará un respaldo. Las exportaciones de esta sesión se archivarán y el grimorio local se actualizará. El audio original se conservará.</p>
+    <p id="wikiDeleteError" role="alert" class="text-sm text-rose-300"></p>
+    <div class="flex flex-wrap gap-2"><button id="wikiDeleteConfirm" type="button" onclick="confirmDeleteWikiSession()" data-button-role="danger" class="min-h-[44px] px-4 py-2 rounded-xl border border-rose-700">Confirmar eliminación</button>
+    <button type="button" onclick="renderWikiDossier()" class="min-h-[44px] px-4 py-2 rounded-xl border border-slate-700">Cancelar</button></div></div>`;
+    document.getElementById("wikiDeleteConfirm")?.focus();
+  } catch (err) {
+    if (selection !== selectedWikiEntity) return;
+    content.innerHTML = `<p role="alert" class="text-sm text-rose-300">${escapeHtml(err.message)}</p><button type="button" onclick="renderWikiDossier()" class="min-h-[44px] px-4 py-2 rounded-xl border border-slate-700">Volver a la sesión</button>`;
+  }
+}
+
+async function confirmDeleteWikiSession() {
+  if (selectedWikiEntity?.type !== "session") return;
+  const number = selectedWikiEntity.data.session_number;
+  const campaignName = wikiManualCampaignName();
+  if (!wikiDeletionPreview || wikiDeletionPreview.number !== number || wikiDeletionPreview.campaignName !== campaignName) return;
+  const button = document.getElementById("wikiDeleteConfirm");
+  if (button) { button.disabled = true; button.textContent = "Eliminando…"; }
+  try {
+    const response = await fetch(`/api/campaigns/${encodeURIComponent(campaignName)}/session/${encodeURIComponent(number)}`, { method: "DELETE" });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.detail || "No se pudo eliminar la sesión.");
+    if (wikiManualCampaignName() !== campaignName) return;
+    selectedWikiEntity = null;
+    currentWikiSessionData = null;
+    applyWikiManualState(result.campaign_state, campaignName);
+    updateWikiSessionExportSelect(result.campaign_state);
+    if (typeof loadCampaignList === "function") await loadCampaignList();
+    if (typeof refreshWikiCampaigns === "function") await refreshWikiCampaigns();
+    if (typeof showSuccessAlert === "function") showSuccessAlert(`Sesión #${number} y sus aportes identificados eliminados. Se conservó un respaldo.`);
+    if (result.exports?.errors?.length && typeof showAlert === "function") showAlert("Los datos se guardaron, pero hay documentos pendientes de actualizar. Cierra los documentos abiertos y vuelve a descargarlos.");
+  } catch (err) {
+    const error = document.getElementById("wikiDeleteError");
+    if (error) error.textContent = err.message;
+  } finally {
+    if (button) { button.disabled = false; button.textContent = "Confirmar eliminación"; }
+  }
 }
 
 function buildLocationDossierHtml(loc) {
@@ -1030,7 +1170,8 @@ function buildLocationDossierHtml(loc) {
       const rName = (r.character_name || "").toLowerCase().trim();
       return rName && rName !== "(dm)" && rName === charName.toLowerCase().trim();
     });
-    if (isPc && !isResidence) return false;
+    const manual = (loc.manual_associated_characters || []).some(char => char.toLowerCase().trim() === charName.toLowerCase().trim());
+    if (isPc && !isResidence && !manual) return false;
     return true;
   });
 
@@ -1628,8 +1769,8 @@ function buildNpcDossierHtml(n) {
   }
 
   const rawNpcName = n.name || n.nombre || n.personaje || n.character_name || 'Sin nombre';
-  const npcName = formatCharacterDisplayName(rawNpcName, n.aliases);
-  const cleanNpcAliases = getCleanNarrativeAliases(rawNpcName, n.aliases);
+  const npcName = formatCharacterDisplayName(rawNpcName, n.nicknames);
+  const cleanNpcAliases = (n.nicknames || []);
   const npcRole = n.role || n.rol_en_sesion || n.session_role || 'Personaje No Jugador';
   const npcDesc = n.description || n.descripcion || n.detalles || n.rol_en_sesion || n.role || n.session_role || (Array.isArray(n.notes) && n.notes[0]) || 'Sin descripción disponible';
   const rawNotes = (Array.isArray(n.notes) && n.notes.length > 0) ? n.notes : (n.description ? [n.description] : (n.descripcion ? [n.descripcion] : []));
@@ -1693,6 +1834,7 @@ function buildNpcDossierHtml(n) {
         </div>
         <h3 class="text-xl font-bold text-neutral-100 font-fantasy mt-1">${escapeHtml(npcName)}</h3>
         <p class="text-sm text-amber-300 font-semibold mt-0.5">${escapeHtml(npcRole)}</p>
+        ${n.description && Array.isArray(n.notes) && n.notes.length ? `<p class="text-sm text-neutral-300 leading-relaxed">${escapeHtml(n.description)}</p>` : ''}
         ${cleanNpcAliases.length > 0 ? `
           <div class="flex flex-wrap items-center gap-1.5 pt-1 text-xs">
             <span class="text-[10px] uppercase font-mono text-neutral-400">Apodo / Sobrenombre:</span>
@@ -1721,7 +1863,7 @@ function buildNpcDossierHtml(n) {
 
 function buildPcDossierHtml(p) {
   const rawCharName = p.name || p.nombre || p.personaje || p.character_name || 'Sin nombre';
-  const charName = formatCharacterDisplayName(rawCharName, p.aliases);
+  const charName = formatCharacterDisplayName(rawCharName, p.nicknames);
   const cleanPcAliases = getCleanNarrativeAliases(rawCharName, p.aliases);
   const player = p.player_name || p.jugador || p.player || '';
   const species = p.species || p.especie || p.raza || 'Desconocida';
@@ -1796,6 +1938,7 @@ function buildPcDossierHtml(p) {
         </div>
         <h3 class="text-xl font-bold text-neutral-100 font-fantasy mt-1">${escapeHtml(charName)}</h3>
         ${player ? `<p class="text-sm text-neutral-300 mt-0.5">Jugador: <strong class="text-amber-300">${escapeHtml(player)}</strong></p>` : ''}
+        ${p.description && rawHitos.length ? `<p class="text-sm text-neutral-300 leading-relaxed">${escapeHtml(p.description)}</p>` : ''}
         ${cleanPcAliases.length > 0 ? `
           <div class="flex flex-wrap items-center gap-1.5 pt-1 text-xs">
             <span class="text-[10px] uppercase font-mono text-neutral-400">Apodo / Sobrenombre:</span>
@@ -1956,7 +2099,7 @@ function renderNpcs(npcs) {
         <div class="flex items-start justify-between gap-2 min-h-[52px]">
           <div class="min-w-0 flex-1">
             <div class="flex flex-wrap items-center gap-1.5">
-              <h4 class="text-sm font-bold text-neutral-100 truncate">${escapeHtml(formatCharacterDisplayName(n.name, n.aliases))}</h4>
+              <h4 class="text-sm font-bold text-neutral-100 truncate">${escapeHtml(formatCharacterDisplayName(n.name, n.nicknames))}</h4>
               ${tipoBadge}
               ${statusBadge}
             </div>
@@ -2190,7 +2333,7 @@ function renderUniversalPcs(pcs) {
   container.innerHTML = "";
   list.forEach(pc => {
     const charName = pc.personaje || pc.character_name || "Aventurero";
-    const charDisplayName = typeof formatCharacterDisplayName === "function" ? formatCharacterDisplayName(charName, pc.aliases || []) : charName;
+    const charDisplayName = typeof formatCharacterDisplayName === "function" ? formatCharacterDisplayName(charName, pc.nicknames || []) : charName;
     const player = pc.jugador || pc.player_name || "-";
     const species = pc.especie || pc.species || "-";
     const cls = pc.clase || pc.role || "-";
@@ -2574,7 +2717,7 @@ function renderJournal(state) {
       }
       const coaching = s.user_coaching || s.markus_coaching;
       if (coaching && coaching.trim()) {
-        const charName = (s.user_character && s.user_character.character_name) || 'Markus Veyl';
+        const charName = (s.user_character && s.user_character.character_name) || 'Personaje sin identificar';
         mdLines.push(`**${secNum}. Reflexión de Rol y Compañerismo: ${charName}:**\n${coaching}\n`);
         secNum++;
       }

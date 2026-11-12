@@ -18,6 +18,7 @@ from fastapi.responses import FileResponse, Response
 from pydantic import BaseModel, Field, ConfigDict
 from starlette.concurrency import run_in_threadpool
 
+from src.storage.campaign_ingest import CampaignImportConflict, persist_campaign_import
 from src.api import server
 
 router = APIRouter(tags=["campaigns"])
@@ -122,12 +123,6 @@ async def get_campaign_session_endpoint(campaign_name: str, session_num: int):
 
     sessions = state.get("sessions", [])
     target_session = next((s for s in sessions if int(s.get("session_number", 0)) == int(session_num)), None)
-    if not target_session and sessions:
-        sorted_sessions = sorted(sessions, key=lambda s: int(s.get("session_number", 0)))
-        latest_sess = sorted_sessions[-1]
-        latest_num = int(latest_sess.get("session_number", 0))
-        if len(sessions) == 1 or int(session_num) == latest_num + 1:
-            target_session = latest_sess
     if not target_session:
         raise HTTPException(status_code=404, detail=f"Sesión #{session_num} no encontrada en la campaña '{campaign_name}'.")
 
@@ -213,8 +208,8 @@ async def delete_campaign_endpoint(campaign_name: str):
         raise HTTPException(status_code=404, detail=f"Campaña '{campaign_name}' no encontrada.")
     safe_name = manager.sanitize_name(campaign_name)
     try:
-        ds = server.GoogleDriveStorage()
-        if ds.is_connected():
+        ds = await run_in_threadpool(server.GoogleDriveStorage)
+        if await run_in_threadpool(ds.is_connected):
             asyncio.create_task(run_in_threadpool(ds.delete_file, f"{safe_name}.json", "WhisperDnD"))
     except Exception as exc:
         print(f"[delete_campaign] Warning deleting from Drive: {exc}")
@@ -573,23 +568,12 @@ async def update_campaign_npc_endpoint(campaign_name: str, npc_name: str, payloa
     decoded_npc_name = urllib.parse.unquote(npc_name)
     try:
         new_name_val = payload.new_name or payload.name
-        updated_npc = manager.update_npc(
-            campaign_name=campaign_name,
-            npc_name=decoded_npc_name,
-            new_name=new_name_val,
-            role=payload.role,
-            category=payload.category,
-            status=payload.status,
-            tipo=payload.tipo,
-            aliases=payload.aliases,
-            notes=payload.notes,
-        )
-        updated_state = manager.load_campaign(campaign_name)
-        try:
-            server.export_living_journal_docx(updated_state)
-            server.export_living_journal_md(updated_state)
-        except Exception:
-            pass
+        updates = payload.model_dump(exclude_none=True, exclude={"new_name", "name"})
+        if new_name_val is not None:
+            updates["name"] = new_name_val
+        result = manager.update_wiki_entity(campaign_name, "npc", decoded_npc_name, updates)
+        updated_npc = result["entity"]
+        updated_state = result["campaign_state"]
 
         saved_path = manager.get_campaign_path(campaign_name)
         server.trigger_drive_sync_background([saved_path])
@@ -599,11 +583,75 @@ async def update_campaign_npc_endpoint(campaign_name: str, npc_name: str, payloa
             "message": f"PNJ '{decoded_npc_name}' actualizado correctamente.",
             "npc": updated_npc,
             "campaign_state": updated_state,
+            "backup_id": result["backup_id"],
+            "exports": result.get("exports"),
         }
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except FileExistsError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
     except ValueError as ve:
-        raise HTTPException(status_code=404, detail=str(ve)) from ve
+        raise HTTPException(status_code=422, detail=str(ve)) from ve
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error al actualizar PNJ: {e}") from e
+
+
+class EditWikiEntityRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    original_name: str = Field(min_length=1, max_length=200)
+    name: Optional[str] = Field(default=None, min_length=1, max_length=200)
+    description: Optional[str] = Field(default=None, max_length=20000)
+    player_name: Optional[str] = Field(default=None, max_length=200)
+    species: Optional[str] = Field(default=None, max_length=200)
+    character_class: Optional[str] = Field(default=None, max_length=200)
+    subclass: Optional[str] = Field(default=None, max_length=200)
+    role: Optional[str] = Field(default=None, max_length=500)
+    category: Optional[str] = Field(default=None, max_length=100)
+    status: Optional[str] = Field(default=None, max_length=100)
+    location_type: Optional[str] = Field(default=None, max_length=200)
+    location_names: Optional[List[str]] = None
+    associated_characters: Optional[List[str]] = None
+    aliases: Optional[List[str]] = None
+    nicknames: Optional[List[str]] = None
+
+
+@router.delete("/api/campaigns/{campaign_name}/session/{session_num}")
+async def delete_campaign_session(campaign_name: str, session_num: int):
+    if session_num < 1:
+        raise HTTPException(status_code=422, detail="El número de sesión debe ser positivo.")
+    if server.active_recorder.is_recording:
+        raise HTTPException(status_code=409, detail="Detén la grabación antes de modificar sesiones.")
+    try:
+        return server.CampaignManager().delete_session(campaign_name, session_num)
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+@router.get("/api/campaigns/{campaign_name}/session/{session_num}/deletion-preview")
+async def preview_session_deletion(campaign_name: str, session_num: int):
+    try:
+        return server.CampaignManager().preview_session_deletion(campaign_name, session_num)
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+@router.put("/api/campaigns/{campaign_name}/entities/{entity_type}")
+async def edit_wiki_entity(campaign_name: str, entity_type: str, payload: EditWikiEntityRequest):
+    if (payload.aliases is not None or payload.nicknames is not None) and entity_type != "npc":
+        raise HTTPException(status_code=422, detail="La edición de sobrenombres está disponible solo para PNJs.")
+    try:
+        updates = payload.model_dump(exclude_none=True, exclude={"original_name"})
+        return server.CampaignManager().update_wiki_entity(campaign_name, entity_type, payload.original_name, updates)
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except FileExistsError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
 
 
 @router.post("/api/campaigns/{campaign_name}/deduplicate")
@@ -655,12 +703,6 @@ async def download_session_docx(campaign_name: str, session_num: int, include_co
     state = manager.load_campaign(campaign_name)
     sessions = state.get("sessions", [])
     target_session = next((s for s in sessions if int(s.get("session_number", 0)) == int(session_num)), None)
-    if not target_session and sessions:
-        sorted_sessions = sorted(sessions, key=lambda s: int(s.get("session_number", 0)))
-        latest_sess = sorted_sessions[-1]
-        latest_num = int(latest_sess.get("session_number", 0))
-        if len(sessions) == 1 or int(session_num) == latest_num + 1:
-            target_session = latest_sess
     if not target_session:
         raise HTTPException(status_code=404, detail=f"Sesión #{session_num} no encontrada en la campaña '{campaign_name}'.")
 
@@ -688,12 +730,6 @@ async def download_session_md(campaign_name: str, session_num: int, include_coac
     state = manager.load_campaign(campaign_name)
     sessions = state.get("sessions", [])
     target_session = next((s for s in sessions if int(s.get("session_number", 0)) == int(session_num)), None)
-    if not target_session and sessions:
-        sorted_sessions = sorted(sessions, key=lambda s: int(s.get("session_number", 0)))
-        latest_sess = sorted_sessions[-1]
-        latest_num = int(latest_sess.get("session_number", 0))
-        if len(sessions) == 1 or int(session_num) == latest_num + 1:
-            target_session = latest_sess
     if not target_session:
         raise HTTPException(status_code=404, detail=f"Sesión #{session_num} no encontrada en la campaña '{campaign_name}'.")
 
@@ -951,7 +987,7 @@ async def import_campaign_bundle(
 
                 # Save main campaign state
                 target_json_path = camp_dir / f"{safe_name}.json"
-                target_json_path.write_bytes(json.dumps(campaign_state, indent=2, ensure_ascii=False).encode("utf-8"))
+                campaign_state = persist_campaign_import(manager, campaign_state)
                 files_restored += 1
 
                 # Extract outputs, sessions, and wiki files
@@ -971,6 +1007,10 @@ async def import_campaign_bundle(
                         (out_dir / item_name).write_bytes(item_data)
                         files_restored += 1
 
+        except CampaignImportConflict as exc:
+            raise HTTPException(status_code=409, detail=str(exc))
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc))
         except zipfile.BadZipFile:
             raise HTTPException(status_code=400, detail="El archivo ZIP está dañado o no es válido.")
         except HTTPException:
@@ -1000,10 +1040,14 @@ async def import_campaign_bundle(
 
             safe_name = manager.sanitize_name(c_name)
             target_json_path = camp_dir / f"{safe_name}.json"
-            target_json_path.write_bytes(json.dumps(campaign_state, indent=2, ensure_ascii=False).encode("utf-8"))
+            campaign_state = persist_campaign_import(manager, campaign_state)
             files_restored += 1
         except json.JSONDecodeError:
             raise HTTPException(status_code=400, detail="El archivo JSON está mal formado o no es válido.")
+        except CampaignImportConflict as exc:
+            raise HTTPException(status_code=409, detail=str(exc))
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc))
 
     # Re-export fresh unified living grimorio documents (.md and .docx) if possible
     c_name = campaign_state.get("campaign_name", "Campaña")
@@ -1033,8 +1077,8 @@ async def import_campaign_bundle(
     # If Google Drive is connected, upload backup copy to Google Drive automatically
     drive_uploaded = False
     try:
-        drive_storage = server.GoogleDriveStorage()
-        if drive_storage.is_connected():
+        drive_storage = await run_in_threadpool(server.GoogleDriveStorage)
+        if await run_in_threadpool(drive_storage.is_connected):
             target_json_path = camp_dir / f"{safe_name}.json"
             asyncio.create_task(
                 run_in_threadpool(
@@ -1073,7 +1117,8 @@ async def download_transcript_txt(filename: str):
     if not safe_filename or safe_filename.startswith("."):
         raise HTTPException(status_code=400, detail="Nombre de archivo no válido.")
 
-    file_path = server.get_data_output_dir() / safe_filename
+    from src.storage.session_review import artifact_path
+    file_path = artifact_path(server.get_data_output_dir(), safe_filename)
     if not file_path.is_file() and not safe_filename.endswith(".txt"):
         alt_path = server.get_data_output_dir() / f"{safe_filename}.txt"
         if alt_path.is_file():
@@ -1140,8 +1185,8 @@ async def export_campaign_to_drive(campaign_name: str):
         raise HTTPException(status_code=404, detail=f"Grimorio docx no encontrado para campaña {campaign_name}.")
 
     try:
-        drive_storage = server.GoogleDriveStorage()
-        upload_res = drive_storage.upload_file(str(target_file.resolve()))
+        drive_storage = await run_in_threadpool(server.GoogleDriveStorage)
+        upload_res = await run_in_threadpool(drive_storage.upload_file, str(target_file.resolve()))
         return server.DriveExportResponse(
             status="success",
             web_view_link=upload_res.get("web_view_link", ""),
@@ -1157,3 +1202,150 @@ async def export_campaign_to_drive(campaign_name: str):
         ) from exc
 
 
+
+
+class ApplySessionReviewRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    revision: str
+    selected: List[str]
+    chapter: Dict[str, str] = Field(default_factory=dict)
+
+
+@router.get("/api/session-reviews")
+async def pending_session_reviews(campaign_name: Optional[str] = None):
+    from src.storage.session_review import list_reviews
+    return await run_in_threadpool(list_reviews, server.get_data_output_dir(), campaign_name)
+
+
+@router.get("/api/session-reviews/{review_id}")
+async def session_review_detail(review_id: str):
+    from src.storage.session_review import load_review
+    try:
+        data = await run_in_threadpool(load_review, server.get_data_output_dir(), review_id)
+        return {key: value for key, value in data.items() if key not in ("arguments", "base_fingerprint", "decision")}
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail="Revisión no encontrada.") from exc
+
+
+@router.post("/api/session-reviews/{review_id}/apply")
+async def apply_session_review(review_id: str, payload: ApplySessionReviewRequest):
+    from src.storage.session_review import apply_review, ReviewConflict
+    try:
+        result = await run_in_threadpool(apply_review, server.CampaignManager(), server.get_data_output_dir(),
+                                         review_id, payload.revision, payload.selected, payload.chapter)
+        warnings = []
+        for exporter in (server.export_living_journal_docx, server.export_living_journal_md):
+            try:
+                await run_in_threadpool(exporter, result["campaign_state"])
+            except Exception:
+                warnings.append("La revisión se guardó; vuelve a descargar el documento para regenerarlo.")
+        result["processing_warnings"] = warnings
+        return result
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail="Revisión o campaña no encontrada.") from exc
+    except ReviewConflict as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+@router.get("/api/session-reviews/{review_id}/download")
+async def download_session_review(review_id: str):
+    from src.storage.session_review import load_review, review_path
+    from fastapi.responses import FileResponse
+    try:
+        await run_in_threadpool(load_review, server.get_data_output_dir(), review_id)
+        path = review_path(server.get_data_output_dir(), review_id).with_suffix(".md")
+        if not path.is_file():
+            raise FileNotFoundError()
+        return FileResponse(path, media_type="text/markdown", filename="borrador-sesion-" + review_id + ".md")
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail="Borrador no encontrado.") from exc
+
+
+class RefreshSessionReviewRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    revision: str
+    chapter: Dict[str, str] = Field(default_factory=dict)
+
+
+@router.post("/api/session-reviews/{review_id}/refresh")
+async def refresh_session_review(review_id: str, payload: RefreshSessionReviewRequest):
+    from src.storage.session_review import refresh_review, ReviewConflict
+    try:
+        return await run_in_threadpool(refresh_review, server.CampaignManager(), server.get_data_output_dir(),
+                                       review_id, payload.revision, payload.chapter)
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail="Revisión no encontrada.") from exc
+    except ReviewConflict as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+class RetrySavedGenerationRequest(BaseModel):
+    confirm_generation: bool = False
+
+
+@router.get("/api/generation-inputs")
+async def saved_generation_inputs():
+    from src.storage.generation_recovery import list_inputs
+    return await run_in_threadpool(list_inputs, server.get_data_output_dir())
+
+
+@router.post("/api/generation-inputs/{job_id}/retry")
+async def retry_saved_generation(job_id: str, payload: RetrySavedGenerationRequest, request: Request):
+    from src.storage.generation_recovery import retry_input, GenerationRecoveryConflict
+    if not payload.confirm_generation:
+        raise HTTPException(status_code=422, detail="Confirma que quieres recuperar o generar solo la crónica.")
+    _, gemini_key = server.extract_client_api_keys(request)
+    def process(saved, raw_response, attempts):
+        cached = None
+        if raw_response is not None:
+            cached = server.GeminiTTRPGSummarizer.parse_json_response(raw_response, saved.get("session_number") or 1)
+            cached["session_chapter"]["generation_metadata"] = {"reused_response": True, "attempts": attempts,
+                "model": attempts[-1].get("model") if attempts else "Modelo del intento guardado"}
+        elif not gemini_key:
+            raise ValueError("Configura tu clave de Gemini antes de reintentar la crónica. No se necesita la clave de Groq.")
+        sources = saved.get("source_recordings") or []
+        capture = saved.get("custom_date") or next((s.get("recorded_at") for s in sources if s.get("recorded_at")), None)
+        return server.process_session_for_campaign(campaign_name=saved["campaign_name"],
+            transcript_text=saved["raw_transcript"], roster_dicts=saved.get("roster"),
+            session_number=saved.get("session_number"), target_language=saved.get("target_language", "es"),
+            is_youtube=saved.get("is_youtube", False), gemini_api_key=gemini_key,
+            custom_date=capture, client_timezone_offset=saved.get("client_timezone_offset"),
+            audio_source=saved.get("audio_source") or "file", source_recordings=sources,
+            cached_session_data=cached, recovery_source_id=job_id)
+    try:
+        return await run_in_threadpool(retry_input, server.get_data_output_dir(), job_id, process)
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail="Entrada de generación no encontrada.") from exc
+    except GenerationRecoveryConflict as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except Exception as exc:
+        server.raise_session_processing_error(exc)
+
+
+@router.get("/api/generation-inputs/{job_id}/transcript")
+async def download_generation_transcript(job_id: str):
+    from src.storage.generation_recovery import read_input
+    from fastapi.responses import Response
+    try:
+        saved = await run_in_threadpool(read_input, server.get_data_output_dir(), job_id)
+        return Response(saved["raw_transcript"], media_type="text/plain; charset=utf-8",
+                        headers={"Content-Disposition": 'attachment; filename="transcripcion-' + job_id + '.txt"'})
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail="Transcripción no encontrada.") from exc
+
+
+@router.get("/api/generation-inputs/{job_id}/status")
+async def saved_generation_status(job_id: str):
+    from src.storage.generation_recovery import input_status
+    try:
+        data = await run_in_threadpool(input_status, server.get_data_output_dir(), job_id)
+        data.pop("retry_of", None)
+        return data
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail="Entrada de generación no encontrada.") from exc

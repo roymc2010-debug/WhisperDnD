@@ -71,10 +71,30 @@
   $('campaignHeaderCard').after(details);details.append(roster);
   text(roster.querySelector('h3 span'),'Personajes y vinculación con Discord');
  }
- // Campaign administration lives in Wiki, next to its campaign selector.
- const campaignTools=document.createElement('div');campaignTools.className='desktop-library-actions';
- for(const id of ['btnMyCampaigns','btnImportCampaign','campaignImportFileInput'])if($(id))campaignTools.append($(id));
- $('viewWiki').prepend(campaignTools);
+ // Wiki layout and campaign tools are present in HTML before desktop setup runs.
+ // A native popover supplies outside-click/Escape dismissal and keyboard focus return.
+ const downloadButton=$('wikiDownloadButton'),downloadMenu=$('wikiDownloadMenu');
+ function positionWikiDownloads(){
+  const anchor=downloadButton.getBoundingClientRect(),menu=downloadMenu.getBoundingClientRect();
+  const viewport=document.documentElement.clientWidth;
+  const left=Math.max(16,Math.min(anchor.right-menu.width,viewport-menu.width-16));
+  const top=anchor.bottom+8+menu.height<=innerHeight-16?anchor.bottom+8:Math.max(16,anchor.top-menu.height-8);
+  downloadMenu.style.setProperty('--wiki-download-left',left+'px');
+  downloadMenu.style.setProperty('--wiki-download-top',top+'px');
+ }
+ downloadMenu.addEventListener('beforetoggle',event=>{
+  const opening=event.newState==='open';downloadButton.setAttribute('aria-expanded',String(opening));
+  if(!opening)return;
+  const campaign=($('wikiCampaignSelect').value||'').trim(),select=$('wikiSessionExportSelect');
+  const session=Number(select.value),hasSession=Number.isInteger(session)&&session>0;
+  for(const id of ['btnWikiDownloadSelectedSessionDocx','btnWikiDownloadSelectedSessionCleanDocx'])$(id).disabled=!campaign||!hasSession;
+  $('btnWikiDownloadCampaignDocx').disabled=!campaign;
+  text($('wikiDownloadContext'),!campaign?'Selecciona una campaña para descargar sus documentos.':!hasSession?'Elige una sesión para descargarla, o descarga la campaña completa.':'Sesión elegida: '+select.selectedOptions[0].textContent);
+ });
+ downloadMenu.addEventListener('toggle',()=>{if(downloadMenu.matches(':popover-open'))positionWikiDownloads();});
+ downloadMenu.addEventListener('click',event=>{if(event.target.closest('button:not(:disabled)'))downloadMenu.hidePopover();});
+ window.addEventListener('resize',()=>{if(downloadMenu.matches(':popover-open'))positionWikiDownloads();});
+ document.addEventListener('scroll',event=>{if(downloadMenu.matches(':popover-open')&&!downloadMenu.contains(event.target))downloadMenu.hidePopover();},true);
  // Keep source behavior intact; the recorder offers an explicit route to calibration.
  const audioLink=document.createElement('button');audioLink.type='button';audioLink.className='desktop-audio-link';audioLink.innerHTML=icons.audio+'<span>Revisar audio y dispositivos</span>';audioLink.addEventListener('click',()=>setActiveView('audio'));
  $('recordingStationCard')?.append(audioLink);

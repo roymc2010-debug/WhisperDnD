@@ -13,9 +13,12 @@ warnings.filterwarnings("ignore", message=".*discontinuity.*")
 project_root = Path(__file__).resolve().parent
 sys.path.insert(0, str(project_root))
 
+from src.runtime_paths import resolve_runtime_paths
+
 # Auto re-exec inside .venv interpreter if running under global python
 venv_python = project_root / ".venv" / "Scripts" / "python.exe"
-if sys.platform == "win32" and venv_python.is_file() and not os.environ.get("WHISPER_REEXEC"):
+if (not getattr(sys, "frozen", False) and sys.platform == "win32"
+        and venv_python.is_file() and not os.environ.get("WHISPER_REEXEC")):
     current_exe = Path(sys.executable).resolve()
     target_exe = venv_python.resolve()
     is_silent = current_exe.stem.lower() == "pythonw"
@@ -44,11 +47,11 @@ if sys.platform == "win32" and not os.environ.get("SHOW_CONSOLE"):
     except Exception:
         pass
 
-# Setup unified persistent rotating file logging to outputs/server.log
+# Setup persistent logging in the runtime's writable log directory.
 import logging
 from logging.handlers import RotatingFileHandler
 
-log_dir = project_root / "outputs"
+log_dir = resolve_runtime_paths(resource_dir=project_root).logs_dir
 log_dir.mkdir(parents=True, exist_ok=True)
 log_file = log_dir / "server.log"
 
@@ -95,8 +98,12 @@ load_dotenv(override=True)
 import json
 
 # Support Google Credentials via Environment Variable (Render Docker / Cloud Run / Local)
-credentials_path = "/app/credentials.json" if (os.name != "nt" and Path("/app").is_dir()) else str(project_root / "credentials.json")
-env_creds = os.environ.get("GOOGLE_CREDENTIALS_JSON")
+if getattr(sys, "frozen", False):
+    from src.storage.drive_client import prepare_google_credentials_for_startup
+    credentials_path = str(prepare_google_credentials_for_startup(project_root))
+else:
+    credentials_path = "/app/credentials.json" if (os.name != "nt" and Path("/app").is_dir()) else str(project_root / "credentials.json")
+env_creds = None if getattr(sys, "frozen", False) else os.environ.get("GOOGLE_CREDENTIALS_JSON")
 
 if env_creds and not os.path.exists(credentials_path):
     try:
@@ -132,13 +139,14 @@ def main():
     # Automatically open the browser to http://localhost:port after launching
     if not os.environ.get("NO_BROWSER"):
         import threading
-        import time
         import webbrowser
+        from scripts.launch_desktop import wait_for_server
 
         def _open_browser():
-            time.sleep(1.2)
             try:
-                webbrowser.open(f"http://localhost:{port}")
+                url = f"http://localhost:{port}"
+                if wait_for_server(url):
+                    webbrowser.open(url)
             except Exception:
                 pass
 

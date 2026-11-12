@@ -33,6 +33,7 @@ class TestDualChannelAudioRecorder(unittest.TestCase):
     @patch("threading.Thread")
     def test_start_and_stop_lifecycle(self, mock_thread_class):
         mock_thread_instance = MagicMock()
+        mock_thread_instance.is_alive.side_effect = [True, False]
         mock_thread_class.return_value = mock_thread_instance
 
         recorder = DualChannelAudioRecorder()
@@ -62,6 +63,7 @@ class TestDualChannelAudioRecorder(unittest.TestCase):
     @patch("threading.Thread")
     def test_start_with_class_mode(self, mock_thread_class):
         mock_thread_instance = MagicMock()
+        mock_thread_instance.is_alive.side_effect = [True, False]
         mock_thread_class.return_value = mock_thread_instance
 
         recorder = DualChannelAudioRecorder()
@@ -82,6 +84,7 @@ class TestDualChannelAudioRecorder(unittest.TestCase):
     @patch("threading.Thread")
     def test_start_with_custom_device_ids(self, mock_thread_class):
         mock_thread_instance = MagicMock()
+        mock_thread_instance.is_alive.side_effect = [True, False]
         mock_thread_class.return_value = mock_thread_instance
 
         recorder = DualChannelAudioRecorder()
@@ -132,6 +135,7 @@ class TestDualChannelAudioRecorder(unittest.TestCase):
     @patch("threading.Thread")
     def test_recorder_gains_lifecycle(self, mock_thread_class):
         mock_thread_instance = MagicMock()
+        mock_thread_instance.is_alive.side_effect = [True, False]
         mock_thread_class.return_value = mock_thread_instance
 
         recorder = DualChannelAudioRecorder()

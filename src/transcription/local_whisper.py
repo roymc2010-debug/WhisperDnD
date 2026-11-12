@@ -1,12 +1,16 @@
 """Local Whisper transcription module using faster-whisper."""
 
 import os
+import sys
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+from src.runtime_paths import resolve_runtime_paths, is_desktop_runtime
+
 try:
     from dotenv import load_dotenv
-    load_dotenv()
+    if not is_desktop_runtime():
+        load_dotenv()
 except ImportError:
     pass
 
@@ -27,12 +31,24 @@ class LocalWhisperTranscriber:
         :param model_size: Size of Whisper model (tiny, base, small, medium, large-v3).
         :param device: Device to run inference on ('auto', 'cpu', 'cuda').
         :param compute_type: Computation type/quantization ('int8', 'float16', 'float32', 'default').
-        :param download_root: Directory to cache model weights (default: 'models' or WHISPER_DOWNLOAD_ROOT).
+        :param download_root: Explicit model cache; installed default is the user's profile.
         """
-        self.model_size = os.getenv("WHISPER_MODEL_SIZE", model_size) if model_size == "base" else model_size
-        self.device = os.getenv("WHISPER_DEVICE", device) if device == "auto" else device
-        self.compute_type = os.getenv("WHISPER_COMPUTE_TYPE", compute_type) if compute_type == "int8" else compute_type
-        self.download_root = download_root or os.getenv("WHISPER_DOWNLOAD_ROOT", "models")
+        self.model_size = model_size if model_size != "base" else os.getenv("WHISPER_MODEL_SIZE", "base")
+        self.device = device if device != "auto" else os.getenv("WHISPER_DEVICE", "auto")
+        self.compute_type = compute_type if compute_type != "int8" else os.getenv("WHISPER_COMPUTE_TYPE", "int8")
+
+        # CPU with CTranslate2 requires int8 or float32 (float16 not supported on x86 CPU)
+        if self.device == "cpu" and self.compute_type in ("float16", "bfloat16"):
+            self.compute_type = "int8"
+
+        if download_root:
+            self.download_root = download_root
+        elif is_desktop_runtime():
+            resources = Path(__file__).resolve().parent.parent.parent
+            self.download_root = str(resolve_runtime_paths(resource_dir=resources).models_dir)
+        else:
+            # Preserve the existing development cache and environment semantics.
+            self.download_root = os.getenv("WHISPER_DOWNLOAD_ROOT", "models")
 
         self._model = None
 
@@ -76,6 +92,7 @@ class LocalWhisperTranscriber:
         speaking_log: Optional[List[Dict[str, Any]]] = None,
         roster: Optional[List[Dict[str, Any]]] = None,
         initial_prompt: Optional[str] = None,
+        on_progress: Optional[Any] = None,
     ) -> Dict[str, Any]:
         """
         Transcribe an audio file using faster-whisper with Voice Activity Detection (VAD).
@@ -88,6 +105,7 @@ class LocalWhisperTranscriber:
         :param speaking_log: Optional Discord speaking timeline events for cross-referencing.
         :param roster: Optional campaign roster for Discord User ID speaker mapping.
         :param initial_prompt: Optional vocabulary / glossary prompt to bias Whisper phonetic decoding.
+        :param on_progress: Optional callback invoked with (percent, message) for pipeline progress.
         :return: Dictionary containing:
             - segments: list of objects containing start, end, and text.
             - text: full concatenated text string.
@@ -98,6 +116,9 @@ class LocalWhisperTranscriber:
         path = Path(audio_path)
         if not path.is_file():
             raise FileNotFoundError(f"Audio file does not exist: {path.resolve()}")
+
+        if self._model is None and on_progress:
+            on_progress(30.0, f"Cargando modelo local faster-whisper '{self.model_size}' (CPU int8)...")
 
         # Run transcription with Voice Activity Detection enabled and disable conditioning on previous text to stop hallucination loops
         transcribe_kwargs = {
@@ -117,6 +138,7 @@ class LocalWhisperTranscriber:
         if on_info is not None:
             on_info(info)
 
+        audio_duration = float(info.duration) if (info and hasattr(info, "duration") and info.duration) else 0.0
         segments: List[Dict[str, Any]] = []
         text_chunks: List[str] = []
 
@@ -133,6 +155,9 @@ class LocalWhisperTranscriber:
                 text_chunks.append(segment_text)
             if on_segment is not None:
                 on_segment(seg_data)
+            if on_progress is not None and audio_duration > 0:
+                pct = min(74.0, round(35.0 + (segment.end / max(1.0, audio_duration)) * 39.0, 1))
+                on_progress(pct, f"Transcribiendo con faster-whisper ({self.model_size}): {int(segment.end)}s / {int(audio_duration)}s")
 
         full_text = clean_whisper_hallucinations(" ".join(text_chunks), roster=roster).strip()
         raw_text = full_text

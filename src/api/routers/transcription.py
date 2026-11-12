@@ -18,6 +18,7 @@ from starlette.concurrency import run_in_threadpool
 from src.api import server
 from src.summarizer.document_formats import DocumentFormat
 from src.storage.quota_tracker import track_audio_processing
+from src.transcription.recording_files import get_recorded_at, combine_transcriptions
 
 router = APIRouter(tags=["transcription"])
 
@@ -45,6 +46,7 @@ class YouTubeTranscribeRequest(BaseModel):
     audio_language: Optional[str] = Field(default=None, description="Explicit audio language or None for Whisper auto-detection")
     custom_date: Optional[str] = Field(default=None, description="Client local date string (e.g. DD/MM/YYYY HH:MM)")
     client_timezone_offset: Optional[Union[int, str]] = Field(default=None, description="Client timezone offset in minutes")
+    reference_text: Optional[str] = Field(default=None, description="Optional reference transcript for WER/CER benchmarking")
 
 
 
@@ -82,6 +84,9 @@ class TranscribeResponse(BaseModel):
     txt_filename: Optional[str] = None
     action_items: Optional[List[str]] = None
     key_points: Optional[str] = None
+    test_report_path: Optional[str] = None
+    test_report_filename: Optional[str] = None
+    processing_warnings: List[str] = Field(default_factory=list)
 
 
 
@@ -98,6 +103,7 @@ class SwitchLanguageRequest(BaseModel):
     document_format: DocumentFormat = "academic"
     custom_date: Optional[str] = Field(default=None, description="Client local date string (e.g. DD/MM/YYYY HH:MM)")
     client_timezone_offset: Optional[Union[int, str]] = Field(default=None, description="Client timezone offset in minutes")
+    reference_text: Optional[str] = Field(default=None, description="Optional reference transcript for WER/CER benchmarking")
 
 
 
@@ -105,6 +111,7 @@ class SwitchLanguageRequest(BaseModel):
 class ReprocessCampaignRequest(BaseModel):
     model_config = ConfigDict(extra="allow")
 
+    task_id: Optional[str] = None
     transcript_text: str = Field(..., description="Speech-to-text transcript")
     campaign_name: Optional[str] = Field(default=None, description="Campaign name")
     session_number: Optional[int] = Field(default=None, description="Session number")
@@ -118,6 +125,7 @@ class ReprocessCampaignRequest(BaseModel):
     is_youtube: Optional[bool] = Field(default=False, description="Whether this session was ingested from YouTube")
     custom_date: Optional[str] = Field(default=None, description="Client local date string (e.g. DD/MM/YYYY HH:MM)")
     client_timezone_offset: Optional[Union[int, str]] = Field(default=None, description="Client timezone offset in minutes")
+    reference_text: Optional[str] = Field(default=None, description="Optional reference transcript for WER/CER benchmarking")
 
 
 # ---------------------------------------------------------------------------
@@ -137,7 +145,7 @@ async def list_local_recordings():
     files = []
     seen_stems = set()
     for s_dir in search_dirs:
-        for ext in ("*.wav", "*.mp3", "*.m4a", "*.webm", "*.ogg", "*.flac"):
+        for ext in ("*.wav", "*.mp3", "*.m4a", "*.webm", "*.ogg", "*.flac", "*.mp4", "*.aac"):
             for f in s_dir.glob(ext):
                 try:
                     if f.name.endswith(".norm_tmp.wav"):
@@ -153,18 +161,21 @@ async def list_local_recordings():
                             f.with_suffix(".timeline.json").is_file()
                             or (input_dir / f"{stem}.timeline.json").is_file()
                         )
+                        recorded_at = get_recorded_at(f)
+                        capture = datetime.datetime.fromisoformat(recorded_at) if recorded_at else None
                         files.append({
                             "filename": f.name,
                             "path": str(f.resolve()),
                             "size_mb": round(stat.st_size / (1024 * 1024), 2),
-                            "created_at": datetime.datetime.fromtimestamp(stat.st_mtime).strftime("%d/%m/%Y %H:%M"),
-                            "timestamp": stat.st_mtime,
+                            "created_at": capture.strftime("%d/%m/%Y %H:%M") if capture else "Fecha de grabación desconocida",
+                            "recorded_at": recorded_at,
+                            "timestamp": capture.timestamp() if capture else None,
                             "has_timeline": has_timeline,
                             "folder": f.parent.name,
                         })
                 except Exception:
                     pass
-    files.sort(key=lambda x: x["timestamp"], reverse=True)
+    files.sort(key=lambda x: x["timestamp"] or 0, reverse=True)
     return {"files": files}
 
 
@@ -172,8 +183,9 @@ async def list_local_recordings():
 @router.post("/api/process-youtube", response_model=TranscribeResponse)
 async def transcribe_youtube(payload: YouTubeTranscribeRequest, request: Request = None):
     """Download audio from YouTube and transcribe it using Groq Whisper or faster-whisper."""
+    engine = (payload.engine or "groq").lower().strip()
     groq_key, gemini_key = server.extract_client_api_keys(request)
-    server.validate_api_keys_or_raise(request, groq_key, gemini_key, require_gemini=True)
+    server.validate_api_keys_or_raise(request, groq_key, gemini_key, require_gemini=True, require_groq=(engine == "groq"))
 
     task_id = payload.task_id
     url = payload.url.strip()
@@ -262,6 +274,8 @@ async def transcribe_youtube(payload: YouTubeTranscribeRequest, request: Request
                 subject=payload.subject,
                 topic=payload.topic,
                 task_id=task_id,
+
+                reference_text=getattr(payload, "reference_text", None),
             )
         except Exception as exc:
             human_err = server.format_human_error(exc)
@@ -273,10 +287,15 @@ async def transcribe_youtube(payload: YouTubeTranscribeRequest, request: Request
         result["language"]["code"] if isinstance(result.get("language"), dict) else str(result.get("language", ""))
     )
     transcript_text = result.get("formatted_transcript") or result["text"]
+
+
+    test_report_path = result.get("test_report_path") if ('result' in locals() and isinstance(result, dict)) else None
+    test_report_filename = result.get("test_report_filename") if ('result' in locals() and isinstance(result, dict)) else None
     file_path_str = ""
     docx_filename = None
     md_filename = None
     txt_filename = None
+    processed_session_number = payload.session_number
     campaign_state = None
     session_chapter = None
     updated_quests = None
@@ -354,9 +373,11 @@ async def transcribe_youtube(payload: YouTubeTranscribeRequest, request: Request
                     is_youtube=True,
                     gemini_api_key=gemini_key,
                     on_progress=lambda p, m: server.update_task_progress(task_id, p, m, stage="analyzing"),
+                task_id=task_id,
                     custom_date=getattr(payload, "custom_date", None),
                     client_timezone_offset=getattr(payload, "client_timezone_offset", None),
                 )
+                processed_session_number = camp_res.get("session_number") or payload.session_number
                 campaign_state = camp_res.get("campaign_state")
                 session_chapter = camp_res.get("session_chapter")
                 updated_quests = camp_res.get("updated_quests")
@@ -370,9 +391,9 @@ async def transcribe_youtube(payload: YouTubeTranscribeRequest, request: Request
                 file_path_str = camp_res.get("file_path", "")
                 chronicle_md = camp_res.get("chronicle")
             except Exception as exc:
-                print(f"[transcribe_youtube] Warning: campaign session processing failed: {exc}")
+                server.raise_session_processing_error(exc, task_id)
 
-        if not file_path_str:
+        if campaign_state is None:
             server.update_task_progress(task_id, 95.0, "Compilando documentos Word (.docx) y Markdown (.md)...", "Creando archivos del Grimorio...", stage="analyzing")
             timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
             safe_title = Path(audio_file_path).stem[:40]
@@ -456,7 +477,10 @@ async def transcribe_youtube(payload: YouTubeTranscribeRequest, request: Request
         docx_filename=docx_filename,
         md_filename=md_filename,
         txt_filename=txt_filename,
+        campaign_name=(payload.campaign_name or payload.campaign_id) if not is_work_study else None,
+        session_number=processed_session_number if not is_work_study else None,
         campaign_state=campaign_state,
+        processing_warnings=camp_res.get("processing_warnings", []) if campaign_state is not None else [],
         session_chapter=session_chapter,
         updated_quests=updated_quests or [],
         updated_npcs=updated_npcs or [],
@@ -471,7 +495,102 @@ async def transcribe_youtube(payload: YouTubeTranscribeRequest, request: Request
         target_language=payload.target_language,
         action_items=action_items,
         key_points=key_points,
+        test_report_path=test_report_path,
+        test_report_filename=test_report_filename,
     )
+
+
+def _find_recording(filename):
+    import filecmp
+    name = Path(filename).name
+    candidates = [server.get_data_input_dir() / name]
+    for folder in server.get_data_campaigns_dir().iterdir():
+        if folder.is_dir():
+            candidates.append(folder / "recordings" / name)
+    found = [p for p in candidates if p.is_file()]
+    if not found:
+        raise HTTPException(404, f"Archivo no encontrado: {name}")
+    if any(not filecmp.cmp(found[0], other, shallow=False) for other in found[1:]):
+        raise HTTPException(409, f"Hay audios distintos llamados {name}; selecciona el archivo desde tu equipo.")
+    return found[0]
+
+
+async def _store_audio_upload(upload, recorded_at=None, campaign_name=None, session_number=None):
+    """Exclusive creation prevents an upload from overwriting an older capture."""
+    import uuid
+    name = Path(upload.filename).name
+    if Path(name).suffix.lower() not in (".wav", ".mp3", ".m4a", ".mp4", ".aac", ".ogg", ".flac", ".webm"):
+        raise HTTPException(400, f"Formato de audio no compatible: {name}")
+    target = server.get_data_input_dir() / name
+    if recorded_at and campaign_name and session_number:
+        from src.transcription.recording_files import create_recording_path
+        from src.storage.campaign_manager import CampaignManager
+        try:
+            captured = datetime.datetime.fromisoformat(recorded_at)
+        except ValueError:
+            raise HTTPException(400, "La fecha de inicio de grabación no es válida.")
+        target = create_recording_path(server.get_data_campaigns_dir() / CampaignManager.sanitize_name(campaign_name) / "recordings",
+                                       campaign_name, session_number, captured,
+                                       mirror_folder=server.get_data_input_dir(), audio_suffix=Path(name).suffix.lower())
+        stream = target.open("wb")  # This empty path was exclusively reserved above.
+    else:
+        stream = None
+    while stream is None:
+        try:
+            stream = target.open("xb")
+            break
+        except FileExistsError:
+            target = target.with_name(f"{Path(name).stem}_copia_{uuid.uuid4().hex[:8]}{Path(name).suffix}")
+    try:
+        with stream:
+            await run_in_threadpool(shutil.copyfileobj, upload.file, stream)
+    finally:
+        await upload.close()
+    # Preserve verifiable capture date even if a filename collision added a suffix.
+    captured = recorded_at or get_recorded_at(Path(name))
+    if captured and not target.with_suffix(".recording.json").exists():
+        target.with_suffix(".recording.json").write_text(json.dumps({"recorded_at": captured, "original_filename": name}), encoding="utf-8")
+    return target
+
+
+def _mirror_recording_parts(campaign_name, audio_paths):
+    import filecmp
+    from src.storage.campaign_manager import CampaignManager
+    folder = server.get_data_campaigns_dir() / CampaignManager.sanitize_name(campaign_name) / "recordings"
+    folder.mkdir(parents=True, exist_ok=True)
+    for audio in audio_paths:
+        for source in (audio, audio.with_suffix(".timeline.json"), audio.with_suffix(".recording.json")):
+            destination = folder / source.name
+            if not source.is_file() or source.resolve() == destination.resolve():
+                continue
+            if destination.exists():
+                if not filecmp.cmp(source, destination, shallow=False):
+                    raise HTTPException(409, f"La campaña ya contiene otra versión de {source.name}; no se sobrescribió.")
+            else:
+                with destination.open("xb") as out, source.open("rb") as inp:
+                    shutil.copyfileobj(inp, out)
+                shutil.copystat(source, destination)
+
+
+async def _store_timeline_upload(upload, destination):
+    """Historical speaker evidence may be reused identically, never overwritten."""
+    content = await upload.read()
+    await upload.close()
+    try:
+        data = json.loads(content)
+        if not isinstance(data, (dict, list)):
+            raise ValueError()
+    except (ValueError, TypeError):
+        raise HTTPException(400, "El archivo de timeline no contiene JSON válido.")
+    if destination.exists():
+        try:
+            if json.loads(destination.read_text(encoding="utf-8")) == data:
+                return
+        except (ValueError, OSError):
+            pass
+        raise HTTPException(409, f"Ya existe otra timeline para {destination.stem}; no se sobrescribió.")
+    with destination.open("xb") as stream:
+        stream.write(content)
 
 
 @router.post("/api/upload", response_model=TranscribeResponse)
@@ -496,26 +615,55 @@ async def transcribe_file(
     audio_language: Optional[str] = Form(default=None),
     custom_date: Optional[str] = Form(default=None),
     client_timezone_offset: Optional[Union[int, str]] = Form(default=None),
+    reference_text: Optional[str] = Form(default=None),
     request: Request = None,
+    files: Optional[List[UploadFile]] = File(default=None),
+    existing_filenames_json: Optional[str] = Form(default=None),
+    timeline_files: Optional[List[UploadFile]] = File(default=None),
+    recorded_at: Optional[str] = Form(default=None),
 ):
     """Accept an uploaded audio file or existing local recording and transcribe it using Groq Whisper or faster-whisper."""
+    engine = (engine or "groq").lower().strip()
     groq_key, gemini_key = server.extract_client_api_keys(request)
-    server.validate_api_keys_or_raise(request, groq_key, gemini_key, require_gemini=True)
+    server.validate_api_keys_or_raise(request, groq_key, gemini_key, require_gemini=True, require_groq=(engine == "groq"))
 
     start_time = time.time()
     clean_filename = ""
     save_dest = None
+    audio_paths = []
+    upload_names = {}
+    multipart = isinstance(files, list) and bool(files)
+    local_names = []
+    if isinstance(existing_filenames_json, str) and existing_filenames_json:
+        try:
+            local_names = json.loads(existing_filenames_json)
+            if not isinstance(local_names, list) or not local_names or not all(isinstance(n, str) and n.strip() for n in local_names):
+                raise ValueError()
+        except (ValueError, TypeError):
+            raise HTTPException(400, "La lista de partes no es válida.")
+        multipart = True
+    if multipart:
+        if (files and local_names) or (file and getattr(file, "filename", None)) or (isinstance(existing_filename, str) and existing_filename):
+            raise HTTPException(400, "Selecciona partes locales o archivos subidos, sin mezclar ambas fuentes.")
+        if local_names:
+            audio_paths = [_find_recording(n) for n in local_names]
+            if len(set(audio_paths)) != len(audio_paths):
+                raise HTTPException(400, "La misma parte está seleccionada más de una vez.")
+        else:
+            for upload in files:
+                original = Path(upload.filename).stem
+                if original in upload_names:
+                    raise HTTPException(400, "Las partes deben tener nombres diferentes para asociar sus timelines.")
+                path = await _store_audio_upload(upload)
+                upload_names[original] = path
+                audio_paths.append(path)
+        save_dest = audio_paths[0]
+        clean_filename = save_dest.name
 
-    if existing_filename and existing_filename.strip():
+    elif existing_filename and existing_filename.strip():
         clean_filename = Path(existing_filename.strip()).name
         # Look in data/input and campaign recordings folders
-        cand_dest = server.get_data_input_dir() / clean_filename
-        if not cand_dest.is_file():
-            camp_dir = server.get_data_campaigns_dir()
-            for c in camp_dir.iterdir():
-                if c.is_dir() and (c / "recordings" / clean_filename).is_file():
-                    cand_dest = c / "recordings" / clean_filename
-                    break
+        cand_dest = _find_recording(clean_filename)
         save_dest = cand_dest
         if not save_dest.is_file():
             raise HTTPException(status_code=404, detail=f"Archivo no encontrado: {clean_filename}")
@@ -531,13 +679,7 @@ async def transcribe_file(
             
             # Save the JSON as timeline file in data/input
             timeline_dest = server.get_data_input_dir() / f"{base_stem}.timeline.json"
-            try:
-                with open(timeline_dest, "wb") as buffer:
-                    shutil.copyfileobj(file.file, buffer)
-            except Exception as j_err:
-                print(f"[transcribe_file] Notice saving json timeline: {j_err}")
-            finally:
-                await file.close()
+            await _store_timeline_upload(file, timeline_dest)
 
             # Search if audio with matching stem exists in data/input or campaign recordings
             matched_audio = None
@@ -550,7 +692,7 @@ async def transcribe_file(
                 try:
                     from src.storage.campaign_manager import CampaignManager
                     safe_c = CampaignManager.sanitize_name(campaign_name)
-                    camp_rec = server.project_root / "data" / "campaigns" / safe_c / "recordings"
+                    camp_rec = server.get_data_campaigns_dir() / safe_c / "recordings"
                     for ext in (".wav", ".mp3", ".m4a", ".aac", ".ogg", ".flac"):
                         cand = camp_rec / f"{base_stem}{ext}"
                         if cand.is_file():
@@ -570,10 +712,13 @@ async def transcribe_file(
                 )
         else:
             server.update_task_progress(task_id, 1.0, "Recibiendo archivo en el servidor...", "Guardando en almacenamiento local...", stage="segmenting")
-            save_dest = server.get_data_input_dir() / clean_filename
+            original_stem = Path(clean_filename).stem
             try:
-                with open(save_dest, "wb") as buffer:
-                    shutil.copyfileobj(file.file, buffer)
+                save_dest = await _store_audio_upload(file,
+                    recorded_at=recorded_at if processing_source == "recording" else None,
+                    campaign_name=campaign_name, session_number=session_number)
+                upload_names[original_stem] = save_dest
+                clean_filename = save_dest.name
             except Exception as exc:
                 err_type, human_err, stage = server.diagnose_exception(exc)
                 import traceback
@@ -584,38 +729,43 @@ async def transcribe_file(
     else:
         raise HTTPException(status_code=400, detail="Por favor selecciona un archivo o grabación local para procesar.")
 
+    audio_paths = audio_paths or [save_dest]
+    if isinstance(timeline_files, list):
+        for upload in timeline_files:
+            name = Path(upload.filename).name
+            suffix = ".recording.json" if name.endswith(".recording.json") else ".timeline.json"
+            stem = name.removesuffix(suffix)
+            match = upload_names.get(stem) or next((p for p in audio_paths if p.stem == stem), None)
+            if match is None:
+                raise HTTPException(400, f"No hay audio asociado a {name}.")
+            data = json.loads(await upload.read())
+            await upload.close()
+            if not isinstance(data, dict):
+                raise HTTPException(400, f"Formato inválido: {name}")
+            target = match.with_suffix(suffix)
+            if target.exists():
+                raise HTTPException(409, f"Ya existe {target.name}; no se sobrescribirá.")
+            data["audio_file"] = match.name
+            with target.open("x", encoding="utf-8") as stream:
+                json.dump(data, stream, ensure_ascii=False, indent=2)
+
     # Save optional timeline file (.timeline.json) if uploaded
     if timeline_file and getattr(timeline_file, "filename", None):
         target_t_name = f"{save_dest.stem}.timeline.json" if save_dest else Path(timeline_file.filename).name
         timeline_dest = server.get_data_input_dir() / target_t_name
-        try:
-            with open(timeline_dest, "wb") as t_buf:
-                shutil.copyfileobj(timeline_file.file, t_buf)
-            print(f"[transcribe_file] Timeline file uploaded and saved to: {timeline_dest}")
-        except Exception as t_exc:
-            print(f"[transcribe_file] Warning saving timeline_file: {t_exc}")
-        finally:
-            await timeline_file.close()
+        await _store_timeline_upload(timeline_file, timeline_dest)
 
     # Mirror audio and timeline to campaign recordings if campaign_name is present
     if campaign_name and save_dest and save_dest.is_file():
         try:
-            from src.storage.campaign_manager import CampaignManager
-            safe_c = CampaignManager.sanitize_name(campaign_name)
-            camp_rec = server.project_root / "data" / "campaigns" / safe_c / "recordings"
-            camp_rec.mkdir(parents=True, exist_ok=True)
-            camp_audio = camp_rec / save_dest.name
-            if not camp_audio.exists():
-                shutil.copyfile(save_dest, camp_audio)
-            t_cand = server.get_data_input_dir() / f"{save_dest.stem}.timeline.json"
-            if t_cand.is_file():
-                shutil.copyfile(t_cand, camp_rec / t_cand.name)
+            await run_in_threadpool(_mirror_recording_parts, campaign_name, audio_paths)
+        except HTTPException:
+            raise
         except Exception as mirror_err:
-            print(f"[transcribe_file] Notice mirroring audio to campaign: {mirror_err}")
+            raise HTTPException(500, "No se pudieron conservar las grabaciones en la carpeta de campaña; los originales siguen disponibles.") from mirror_err
 
     server.update_task_progress(task_id, 2.0, "Analizando y segmentando audio con FFmpeg...", "Preparando bloques de 24 MB...", stage="segmenting")
 
-    import json
     roster_dicts = []
     user_char_name = None
     if roster_json:
@@ -646,23 +796,30 @@ async def transcribe_file(
         server.update_task_progress(task_id, pct, msg, stage=cur_stage)
 
     try:
-        result = await run_in_threadpool(
-            server.transcribe_audio_pipeline,
-            audio_path=str(save_dest),
-            engine=engine,
-            model_size=model_size,
-            language=audio_language,
-            on_progress=progress_cb,
-            source="local",
-            user_char_name=user_char_name,
-            roster=roster_dicts,
-            groq_api_key=groq_key,
-            campaign_name=campaign_name,
-            recording_mode=recording_mode,
-            subject=subject,
-            topic=topic,
-            task_id=task_id,
-        )
+        results = []
+        for part_index, part_path in enumerate(audio_paths):
+            def part_progress(pct, msg, index=part_index):
+                progress_cb(2 + (index + min(1, max(0, pct) / 55)) / len(audio_paths) * 53, f"Parte {index + 1}/{len(audio_paths)}: {msg}")
+            result = await run_in_threadpool(
+                server.transcribe_audio_pipeline,
+                audio_path=str(part_path),
+                engine=engine,
+                model_size=model_size,
+                language=audio_language,
+                on_progress=part_progress if len(audio_paths) > 1 else progress_cb,
+                source="local",
+                user_char_name=user_char_name,
+                roster=roster_dicts,
+                groq_api_key=groq_key,
+                campaign_name=campaign_name,
+                recording_mode=recording_mode,
+                subject=subject,
+                topic=topic,
+                task_id=task_id,
+                reference_text=reference_text,
+            )
+            results.append(result)
+        result = combine_transcriptions(results) if len(results) > 1 else results[0]
     except Exception as exc:
         err_type, human_err, stage = server.diagnose_exception(exc)
         import traceback
@@ -674,7 +831,13 @@ async def transcribe_file(
         result["language"]["code"] if isinstance(result.get("language"), dict) else str(result.get("language", ""))
     )
     transcript_text = result.get("formatted_transcript") or result["text"]
+    # Capture date belongs to the first ordered part, never to the processing run.
+    custom_date = get_recorded_at(audio_paths[0]) or custom_date
 
+
+
+    test_report_path = result.get("test_report_path") if ('result' in locals() and isinstance(result, dict)) else None
+    test_report_filename = result.get("test_report_filename") if ('result' in locals() and isinstance(result, dict)) else None
     file_path_str = ""
     docx_filename = None
     md_filename = None
@@ -767,6 +930,8 @@ async def transcribe_file(
             target_language=target_language,
             action_items=action_items,
             key_points=key_points,
+        test_report_path=test_report_path,
+        test_report_filename=test_report_filename,
         )
 
     server.update_task_progress(task_id, 55.0, "Iniciando síntesis con Gemini...", "Extrayendo misiones (Quests) y PNJs...", stage="analyzing")
@@ -778,6 +943,8 @@ async def transcribe_file(
                 server.process_session_for_campaign,
                 audio_duration_seconds=result.get("duration"),
                 audio_source=processing_source,
+                source_recordings=[{"filename": p.name, "recorded_at": get_recorded_at(p), "part_index": i + 1}
+                                   for i, p in enumerate(audio_paths)],
                 campaign_name=campaign_name,
                 transcript_text=transcript_text,
                 roster_dicts=roster_dicts,
@@ -785,9 +952,11 @@ async def transcribe_file(
                 target_language=target_language,
                 gemini_api_key=gemini_key,
                 on_progress=lambda p, m: server.update_task_progress(task_id, p, m, stage="analyzing"),
+                task_id=task_id,
                 custom_date=custom_date,
                 client_timezone_offset=client_timezone_offset,
             )
+            session_number = camp_res.get("session_number") or session_number
             campaign_state = camp_res.get("campaign_state")
             session_chapter = camp_res.get("session_chapter")
             updated_quests = camp_res.get("updated_quests")
@@ -801,8 +970,7 @@ async def transcribe_file(
             file_path_str = camp_res.get("file_path", "")
             chronicle_md = camp_res.get("chronicle")
         except Exception as exc:
-            print(f"[transcribe_file] Warning: campaign session processing failed: {exc}")
-            chronicle_md = f"# ⚠️ Error generando crónica con Gemini:\n\n> {exc}\n\n**Texto de Transcripción:**\n\n{transcript_text}"
+            server.raise_session_processing_error(exc, task_id)
     else:
         try:
             server.update_task_progress(task_id, 65.0, "Redactando Crónica Épica Novelesca con Gemini...", stage="analyzing")
@@ -816,10 +984,9 @@ async def transcribe_file(
             )
             server.update_task_progress(task_id, 87.0, "Generando resumen de cierre y recap...", stage="analyzing")
         except Exception as exc:
-            print(f"[transcribe_file] Warning: standalone chronicle generation failed: {exc}")
-            chronicle_md = f"# ⚠️ Error generando crónica con Gemini:\n\n> {exc}\n\n**Texto de Transcripción:**\n\n{transcript_text}"
+            server.raise_session_processing_error(exc, task_id)
 
-    if not file_path_str:
+    if campaign_state is None:
         server.update_task_progress(task_id, 95.0, "Compilando documentos Word (.docx) y Markdown (.md)...", stage="analyzing")
         timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
         safe_title = Path(clean_filename).stem[:40]
@@ -852,7 +1019,7 @@ async def transcribe_file(
         try:
             safe_c = re.sub(r'[\\/*?:"<>|]', "", campaign_name.strip())
             safe_c = re.sub(r"\s+", "_", safe_c).lower() or "campana_principal"
-            camp_exports = server.project_root / "data" / "campaigns" / safe_c / "exports"
+            camp_exports = server.get_data_campaigns_dir() / safe_c / "exports"
             camp_exports.mkdir(parents=True, exist_ok=True)
             if md_filename and (server.get_data_output_dir() / md_filename).is_file():
                 shutil.copyfile(server.get_data_output_dir() / md_filename, camp_exports / md_filename)
@@ -896,7 +1063,10 @@ async def transcribe_file(
         docx_filename=docx_filename,
         md_filename=md_filename,
         txt_filename=txt_filename,
+        campaign_name=campaign_name,
+        session_number=session_number,
         campaign_state=campaign_state,
+        processing_warnings=camp_res.get("processing_warnings", []) if campaign_state is not None else [],
         session_chapter=session_chapter,
         updated_quests=updated_quests,
         updated_npcs=updated_npcs,
@@ -931,6 +1101,7 @@ async def upload_session_with_telemetry(
     audio_language: Optional[str] = Form(default=None),
     custom_date: Optional[str] = Form(default=None),
     client_timezone_offset: Optional[Union[int, str]] = Form(default=None),
+    reference_text: Optional[str] = Form(default=None),
     request: Request = None,
 ):
     """
@@ -943,7 +1114,7 @@ async def upload_session_with_telemetry(
     groq_hdr, gemini_hdr = server.extract_client_api_keys(request)
     groq_key = (groq_api_key or "").strip() or groq_hdr
     gemini_key = (gemini_api_key or "").strip() or gemini_hdr
-    server.validate_api_keys_or_raise(request, groq_key, gemini_key, require_gemini=True)
+    server.validate_api_keys_or_raise(request, groq_key, gemini_key, require_gemini=True, require_groq=(engine == "groq"))
 
     actual_audio = audio_file or file
     if not actual_audio or not actual_audio.filename:
@@ -1080,6 +1251,7 @@ async def upload_session_with_telemetry(
             subject=subject,
             topic=topic,
             task_id=task_id,
+
         )
     except Exception as exc:
         err_type, human_err, stage = server.diagnose_exception(exc)
@@ -1093,6 +1265,10 @@ async def upload_session_with_telemetry(
     )
     transcript_text = result.get("formatted_transcript") or result["text"]
 
+
+
+    test_report_path = result.get("test_report_path") if ('result' in locals() and isinstance(result, dict)) else None
+    test_report_filename = result.get("test_report_filename") if ('result' in locals() and isinstance(result, dict)) else None
     file_path_str = ""
     docx_filename = None
     md_filename = None
@@ -1185,6 +1361,8 @@ async def upload_session_with_telemetry(
             target_language=target_language,
             action_items=action_items,
             key_points=key_points,
+        test_report_path=test_report_path,
+        test_report_filename=test_report_filename,
             telemetry_events_count=len(speaking_log),
         )
 
@@ -1204,7 +1382,9 @@ async def upload_session_with_telemetry(
                 target_language=target_language,
                 gemini_api_key=gemini_key,
                 on_progress=lambda p, m: server.update_task_progress(task_id, p, m, stage="analyzing"),
+                task_id=task_id,
             )
+            session_number = camp_res.get("session_number") or session_number
             campaign_state = camp_res.get("campaign_state")
             session_chapter = camp_res.get("session_chapter")
             updated_quests = camp_res.get("updated_quests")
@@ -1220,9 +1400,9 @@ async def upload_session_with_telemetry(
             if session_chapter and isinstance(session_chapter, dict):
                 session_title = session_chapter.get("session_title") or session_chapter.get("title")
         except Exception as exc:
-            print(f"[upload-with-telemetry] Warning: campaign session processing failed: {exc}")
+            server.raise_session_processing_error(exc, task_id)
 
-    if not file_path_str:
+    if campaign_state is None:
         server.update_task_progress(task_id, 95.0, "Compilando documentos Word (.docx) y Markdown (.md)...", stage="analyzing")
         timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
         safe_title = Path(clean_audio_name).stem[:40]
@@ -1291,6 +1471,7 @@ async def upload_session_with_telemetry(
         session_title=session_title or (f"Sesión {actual_sess_num}" if actual_sess_num else "Sesión D&D"),
         telemetry_events_count=len(speaking_log),
         campaign_state=campaign_state,
+        processing_warnings=camp_res.get("processing_warnings", []) if campaign_state is not None else [],
         session_chapter=session_chapter,
         updated_quests=updated_quests,
         updated_npcs=updated_npcs,
@@ -1324,6 +1505,8 @@ async def switch_summary_language(payload: SwitchLanguageRequest, request: Reque
         client_timezone_offset=getattr(payload, "client_timezone_offset", None),
     )
 
+    test_report_path = result.get("test_report_path") if ('result' in locals() and isinstance(result, dict)) else None
+    test_report_filename = result.get("test_report_filename") if ('result' in locals() and isinstance(result, dict)) else None
     file_path_str = ""
     docx_filename = None
     md_filename = None
@@ -1398,7 +1581,7 @@ async def switch_summary_language(payload: SwitchLanguageRequest, request: Reque
                 file_path_str = camp_res.get("file_path", "")
                 chronicle_md = camp_res.get("chronicle", "")
             except Exception as exc:
-                print(f"[switch_language] Warning: campaign processing failed: {exc}")
+                server.raise_session_processing_error(exc)
 
         if not chronicle_md:
             chronicle_md = await run_in_threadpool(
@@ -1470,6 +1653,7 @@ async def switch_summary_language(payload: SwitchLanguageRequest, request: Reque
         campaign_name=payload.campaign_name,
         session_number=session_num if payload.campaign_name else payload.session_number,
         campaign_state=campaign_state,
+        processing_warnings=camp_res.get("processing_warnings", []) if campaign_state is not None else [],
         session_chapter=session_chapter,
         updated_quests=updated_quests,
         updated_npcs=updated_npcs,
@@ -1484,6 +1668,8 @@ async def switch_summary_language(payload: SwitchLanguageRequest, request: Reque
         target_language=target_lang,
         action_items=action_items,
         key_points=key_points,
+        test_report_path=test_report_path,
+        test_report_filename=test_report_filename,
     )
 
 
@@ -1491,7 +1677,7 @@ async def switch_summary_language(payload: SwitchLanguageRequest, request: Reque
 @router.post("/api/regenerate", response_model=TranscribeResponse)
 async def reprocess_campaign(payload: ReprocessCampaignRequest, request: Request = None):
     """
-    Re-run ONLY the Gemini summarizer step using the cached transcript in ~10-15s
+    Re-run ONLY the Gemini summarizer using the cached transcript; duration depends on the provider.
     (does NOT invoke Whisper or YouTube).
     Returns updated TranscribeResponse with populated chronicle, campaign_state,
     updated_quests, updated_npcs, detected_npc_names.
@@ -1511,6 +1697,8 @@ async def reprocess_campaign(payload: ReprocessCampaignRequest, request: Request
         client_timezone_offset=getattr(payload, "client_timezone_offset", None),
     )
 
+    test_report_path = result.get("test_report_path") if ('result' in locals() and isinstance(result, dict)) else None
+    test_report_filename = result.get("test_report_filename") if ('result' in locals() and isinstance(result, dict)) else None
     file_path_str = ""
     docx_filename = None
     md_filename = None
@@ -1564,6 +1752,7 @@ async def reprocess_campaign(payload: ReprocessCampaignRequest, request: Request
         try:
             camp_res = await run_in_threadpool(
                 server.process_session_for_campaign,
+                task_id=payload.task_id,
                 campaign_name=campaign_name,
                 transcript_text=transcript_text,
                 roster_dicts=roster_dicts,
@@ -1587,8 +1776,7 @@ async def reprocess_campaign(payload: ReprocessCampaignRequest, request: Request
             file_path_str = camp_res.get("file_path", "")
             chronicle_md = camp_res.get("chronicle", "")
         except Exception as exc:
-            print(f"[reprocess_campaign] Warning: campaign processing failed: {exc}")
-            raise HTTPException(status_code=500, detail=f"Error al procesar la campaña con Gemini: {exc}")
+            server.raise_session_processing_error(exc, payload.task_id)
 
     elapsed_time = round(time.time() - start_time, 2)
     action_items = None
@@ -1637,6 +1825,7 @@ async def reprocess_campaign(payload: ReprocessCampaignRequest, request: Request
         campaign_name=campaign_name if not is_class_mode else None,
         session_number=session_num if not is_class_mode else None,
         campaign_state=campaign_state,
+        processing_warnings=camp_res.get("processing_warnings", []) if campaign_state is not None else [],
         session_chapter=session_chapter,
         updated_quests=updated_quests,
         updated_npcs=updated_npcs,
@@ -1651,6 +1840,8 @@ async def reprocess_campaign(payload: ReprocessCampaignRequest, request: Request
         target_language=target_lang,
         action_items=action_items,
         key_points=key_points,
+        test_report_path=test_report_path,
+        test_report_filename=test_report_filename,
     )
 
 

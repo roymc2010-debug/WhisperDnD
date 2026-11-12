@@ -14,6 +14,8 @@ from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from typing import Any, Dict, Optional
 
+from src.runtime_paths import resolve_runtime_paths
+
 
 _LOCK = threading.Lock()
 _LEDGER_FILENAME = "system_quota.json"
@@ -39,7 +41,7 @@ def _get_seconds_until_utc_midnight() -> tuple[int, str]:
 
 def _get_ledger_path() -> Path:
     project_root = Path(__file__).resolve().parent.parent.parent
-    data_dir = project_root / "data"
+    data_dir = resolve_runtime_paths(resource_dir=project_root).quota_dir
     data_dir.mkdir(parents=True, exist_ok=True)
     return data_dir / _LEDGER_FILENAME
 

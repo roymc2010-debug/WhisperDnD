@@ -5,6 +5,12 @@
 
 var serverHasGroq = false;
 var serverHasGemini = false;
+var apiVerification = null;
+var apiVerificationPending = false;
+var apiVerificationError = false;
+var apiVerificationSequence = 0;
+var apiVerificationFailureMessage = "";
+var apiVerificationPendingMessage = "Verificando conexión…";
 
 function getUserApiHeaders() {
   const groqInput = document.getElementById("userGroqKeyInput");
@@ -154,18 +160,24 @@ function checkAuthErrorAndRedirect(status, data) {
 function updateOnboardingBannerState() {
   const banner = document.getElementById("apiOnboardingBanner");
   if (!banner) return;
+  if (apiVerificationPending || apiVerificationError) { banner.classList.add("hidden"); return; }
+  const currentEngine = (document.getElementById("transcriptionEngine")?.value || localStorage.getItem("whisper_engine") || "groq");
+  const isLocalEngine = (currentEngine === "local");
   const hasLocalGroq = Boolean((localStorage.getItem("user_groq_key") || "").trim());
   const hasLocalGemini = Boolean((localStorage.getItem("user_gemini_key") || "").trim());
   const hasAnyEffectiveGroq = hasLocalGroq || Boolean(serverHasGroq);
   const hasAnyEffectiveGemini = hasLocalGemini || Boolean(serverHasGemini);
 
-  if (hasLocalGroq && hasLocalGemini) {
+  const isSatisfied = isLocalEngine ? hasLocalGemini : (hasLocalGroq && hasLocalGemini);
+  const hasMinimum = isLocalEngine ? hasAnyEffectiveGemini : (hasAnyEffectiveGroq && hasAnyEffectiveGemini);
+
+  if (isSatisfied) {
     banner.classList.add("hidden");
-  } else if (!hasAnyEffectiveGroq || !hasAnyEffectiveGemini) {
+  } else if (!hasMinimum) {
     banner.classList.remove("hidden");
     const badge = document.getElementById("apiOnboardingBadge");
     if (badge) {
-      badge.textContent = "Paso requerido";
+      badge.textContent = isLocalEngine ? "Falta Gemini" : "Paso requerido";
       badge.className = "px-2 py-0.5 rounded-full text-[10px] font-mono font-semibold bg-rose-500/20 text-rose-200 border border-rose-500/30";
     }
   } else {
@@ -180,11 +192,33 @@ function updateOnboardingBannerState() {
 }
 
 function updateSystemStatusIndicator() {
+  const currentEngine = (document.getElementById("transcriptionEngine")?.value || localStorage.getItem("whisper_engine") || "groq");
+  const isLocalEngine = (currentEngine === "local");
   const hasGroq = Boolean((localStorage.getItem('user_groq_key') || '').trim() || serverHasGroq);
   const hasGemini = Boolean((localStorage.getItem('user_gemini_key') || '').trim() || serverHasGemini);
-  const missing = [!hasGroq && 'Groq', !hasGemini && 'Gemini'].filter(Boolean);
+  const issueFor = (key, label, configured) => {
+    if (apiVerificationPending) return null;
+    if (apiVerificationError) return apiVerificationFailureMessage;
+    if (apiVerification && !apiVerification[key]) {
+      const raw = String(apiVerification[key + '_message'] || '').trim();
+      const detail = raw && !/:$/.test(raw) ? raw : 'No se pudo completar la comprobación de acceso.';
+      return `${label}: ${detail} Comprueba tu conexión y la clave configurada; después pulsa «Probar Conexión».`;
+    }
+    return configured ? null : `${label}: falta configurar una clave en Credenciales de API.`;
+  };
+  const missing = apiVerificationError ? [apiVerificationFailureMessage] : [!isLocalEngine && issueFor('groq', 'Groq', hasGroq), issueFor('gemini', 'Gemini', hasGemini)].filter(Boolean);
   const needsSetup = missing.length > 0;
-  const label = needsSetup ? 'Ajustes y APIs: falta configurar ' + missing.join(' y ') : 'Ajustes y APIs';
+  const label = needsSetup ? 'Ajustes y APIs: ' + missing.join(' ') : 'Ajustes y APIs';
+  const summary = document.getElementById('settingsApiIssueSummary');
+  if (summary) { summary.hidden = !needsSetup; summary.textContent = missing.join(' '); }
+  for (const [key, id] of [['groq', 'settingsGroqStatus'], ['gemini', 'settingsGeminiStatus']]) {
+    const row = document.getElementById(id), status = document.getElementById(id + 'Text');
+    let state = apiVerificationPending ? 'pending' : apiVerificationError ? 'unverified' : apiVerification ? (apiVerification[key] ? 'ready' : 'error') : 'unverified';
+    let message = apiVerificationError && !apiVerificationPending ? 'Acceso sin comprobar' : state === 'pending' ? apiVerificationPendingMessage : state === 'ready' ? 'Acceso a la API verificado' : state === 'error' ? (issueFor(key, key === 'groq' ? 'Groq' : 'Gemini', false)) : 'Conexión sin comprobar';
+    if (key === 'groq' && isLocalEngine) { state = 'unverified'; message = 'Modelo local seleccionado; disponibilidad sin comprobar'; }
+    if (row) { row.dataset.state = state; row.title = message; }
+    if (status) status.textContent = message;
+  }
   updateOnboardingBannerState();
   const container = document.getElementById('systemStatusContainer');
   if (container) { container.innerHTML = ''; container.hidden = true; }
@@ -201,6 +235,12 @@ function updateSystemStatusIndicator() {
 function updateKeyBadge(elementId, isReady, label, message) {
   const badge = document.getElementById(elementId);
   if (!badge) return;
+  if (isReady === "unverified") {
+    badge.className = "inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-500/15 text-amber-300 border border-amber-500/30";
+    badge.textContent = "Sin comprobar";
+    badge.title = message || "Todavía no se ha podido comprobar el acceso.";
+    return;
+  }
   if (isReady === "pending") {
     badge.className = "inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-500/15 text-amber-300 border border-amber-500/30";
     badge.innerHTML = `<span class="w-1.5 h-1.5 rounded-full bg-amber-400 animate-ping"></span> <span>Verificando...</span>`;
@@ -218,7 +258,53 @@ function updateKeyBadge(elementId, isReady, label, message) {
   }
 }
 
+function apiVerificationFailure(kind, status = null) {
+  const messages = {
+    network: 'No se pudo contactar con el servidor de WhisperDnD. Abre la app con su acceso directo y pulsa «Probar Conexión» para reintentar.',
+    timeout: 'El servidor de WhisperDnD no respondió a tiempo. Espera unos instantes y pulsa «Probar Conexión».',
+    invalid_response: 'El servidor respondió con un diagnóstico inválido. Recarga la app y vuelve a probar.',
+    http: 'El servidor de WhisperDnD respondió HTTP ' + status + '. Pulsa «Probar Conexión» para reintentar.',
+  };
+  const error = new Error(messages[kind]);
+  error.verificationKind = kind;
+  error.retryable = kind === 'network' || kind === 'timeout' || (kind === 'http' && [502,503,504].includes(status));
+  return error;
+}
+
+async function requestApiVerification(headers, sequence, force = false) {
+  for (let attempt = 0; attempt < 3; attempt++) {
+    if (sequence !== apiVerificationSequence) return null;
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 10000);
+    let failure;
+    try {
+      let response;
+      try {
+        response = await fetch('/api/status/keys?include_drive=false' + (force ? '&force=true' : ''), {headers, signal: controller.signal});
+      } catch {
+        throw apiVerificationFailure(controller.signal.aborted ? 'timeout' : 'network');
+      }
+      if (!response.ok) throw apiVerificationFailure('http', response.status);
+      let data;
+      try { data = await response.json(); }
+      catch { throw apiVerificationFailure(controller.signal.aborted ? 'timeout' : 'invalid_response'); }
+      if (!data || typeof data.groq !== 'boolean' || typeof data.gemini !== 'boolean') throw apiVerificationFailure('invalid_response');
+      return data;
+    } catch (error) {
+      failure = error;
+    } finally {
+      clearTimeout(timer);
+    }
+    if (sequence !== apiVerificationSequence) return null;
+    if (!failure.retryable || attempt === 2) throw failure;
+    apiVerificationPendingMessage = 'Esperando al servidor de WhisperDnD. Reintentando (' + (attempt + 2) + '/3)…';
+    updateSystemStatusIndicator();
+    await new Promise(resolve => setTimeout(resolve, (attempt + 1) * 1000));
+  }
+}
+
 async function checkApiKeysStatus(showToast = false) {
+  const checkSequence = ++apiVerificationSequence;
   // If user clicked "Probar Conexión" after typing keys in inputs without clicking Guardar yet, persist them first
   if (showToast) {
     const groqInput = document.getElementById("userGroqKeyInput");
@@ -233,16 +319,24 @@ async function checkApiKeysStatus(showToast = false) {
 
   updateKeyBadge("badgeGroqStatus", "pending", "Groq");
   updateKeyBadge("badgeGeminiStatus", "pending", "Gemini");
+  apiVerificationPending = true;
+  apiVerificationPendingMessage = "Verificando conexión…";
+  const checkButton = document.getElementById('btnCheckApiConnection');
+  if (checkButton) checkButton.disabled = true;
+  updateSystemStatusIndicator();
 
   try {
-    const res = await fetch("/api/status/keys", {
-      headers: getUserApiHeaders()
-    });
-    if (res.ok) {
-      const data = await res.json();
+    const data = await requestApiVerification(getUserApiHeaders(), checkSequence, showToast);
+    if (checkSequence !== apiVerificationSequence || !data) return;
+    {
+      apiVerification = data;
+      apiVerificationError = false;
+      apiVerificationFailureMessage = "";
+      const modelLabel = document.getElementById('settingsGeminiModelText');
+      if (modelLabel) modelLabel.textContent = data.gemini_model || 'Gemini (modelo sin consultar)';
       serverHasGroq = Boolean(data.groq);
       serverHasGemini = Boolean(data.gemini);
-      if (data.drive !== undefined && typeof window.isGoogleDriveConnected !== "undefined") {
+      if (typeof data.drive === "boolean" && typeof window.isGoogleDriveConnected !== "undefined") {
         window.isGoogleDriveConnected = Boolean(data.drive);
       }
       if (data.oauth_redirect_uri) {
@@ -261,7 +355,7 @@ async function checkApiKeysStatus(showToast = false) {
 
       const geminiMsgEl = document.getElementById("geminiStatusMsg");
       if (geminiMsgEl) {
-        geminiMsgEl.textContent = data.gemini_message || (data.gemini ? "Gemini 2.5 Flash listo." : "Sin configurar.");
+        geminiMsgEl.textContent = data.gemini_message || (data.gemini ? "Acceso a Gemini verificado." : "Sin configurar.");
         geminiMsgEl.className = data.gemini ? "text-[10px] text-emerald-400/90 font-mono truncate" : "text-[10px] text-slate-500 font-mono truncate";
       }
 
@@ -303,7 +397,7 @@ async function checkApiKeysStatus(showToast = false) {
         }
       }
 
-      if (typeof updateDriveUIState === "function") {
+      if (typeof data.drive === "boolean" && typeof updateDriveUIState === "function") {
         updateDriveUIState(Boolean(data.drive), data.drive_email || null);
       }
 
@@ -318,7 +412,7 @@ async function checkApiKeysStatus(showToast = false) {
           feedback.className = "text-xs text-emerald-400 font-semibold";
           if (typeof showSuccessAlert === "function") showSuccessAlert(msg);
         } else if (!data.groq && !data.gemini) {
-          const msg = "Ninguna de las llaves pudo autenticarse. Verifica que hayas copiado la llave completa (gsk_... y AIzaSy...).";
+          const msg = "No se pudo verificar el acceso. Groq: " + (data.groq_message || "sin acceso confirmado") + ". Gemini: " + (data.gemini_message || "sin acceso confirmado") + ".";
           feedback.textContent = msg;
           feedback.className = "text-xs text-rose-400 font-semibold";
           if (typeof showAlert === "function") showAlert(msg);
@@ -334,20 +428,30 @@ async function checkApiKeysStatus(showToast = false) {
       }
     }
   } catch (err) {
-    console.warn("Could not check API keys status:", err);
-    updateKeyBadge("badgeGroqStatus", false, "Groq", "Servidor no responde");
-    updateKeyBadge("badgeGeminiStatus", false, "Gemini", "Servidor no responde");
+    if (checkSequence !== apiVerificationSequence) return;
+    apiVerification = null;
+    apiVerificationError = true;
+    serverHasGroq = false;
+    serverHasGemini = false;
+    apiVerificationFailureMessage = err.verificationKind ? err.message : 'No se pudo actualizar el diagnóstico en la app. Recarga la pantalla y vuelve a probar.';
+    console.warn("No se pudo completar el diagnóstico de APIs:", err.verificationKind || 'display');
+    updateKeyBadge("badgeGroqStatus", "unverified", "Groq", apiVerificationFailureMessage);
+    updateKeyBadge("badgeGeminiStatus", "unverified", "Gemini", apiVerificationFailureMessage);
     const feedback = document.getElementById("apiKeySaveFeedback");
     if (feedback && showToast) {
       feedback.classList.remove("hidden");
-      feedback.textContent = "Servidor no disponible (Failed to fetch). Inicia el servidor ejecutando 'start.bat' o 'python main.py' en http://localhost:8080.";
+      feedback.textContent = apiVerificationFailureMessage;
       feedback.className = "text-xs text-rose-400 font-semibold";
       if (typeof showAlert === "function") {
-        showAlert("Error de conexión: El servidor WhisperDnD no está respondiendo en http://localhost:8080. Inícialo con 'start.bat' o 'python main.py'.");
+        showAlert(apiVerificationFailureMessage);
       }
     }
   } finally {
-    updateSystemStatusIndicator();
+    if (checkSequence === apiVerificationSequence) {
+      apiVerificationPending = false;
+      if (checkButton) checkButton.disabled = false;
+      updateSystemStatusIndicator();
+    }
   }
 }
 

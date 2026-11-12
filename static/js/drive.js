@@ -11,27 +11,28 @@ var isGoogleDriveConnected = false;
 var hasAutoSyncedDriveThisSession = false;
 
 function updateDriveSyncIndicator(status) {
-  // status: 'saved' | 'syncing' | 'disconnected'
+  // status: 'saved' | 'syncing' | 'attention' | 'disconnected'
   const campaignIndicator = document.getElementById("campaignDriveSyncIndicator");
   const widgetStatus = document.getElementById("driveSyncStatusWidget");
   const mobileIndicator = document.getElementById("mobileDriveSyncIndicator");
 
-  if (status === "syncing") {
+  if (status === "syncing" || status === "attention") {
+    const attention = status === "attention";
     if (campaignIndicator) {
       campaignIndicator.className = "inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium bg-amber-500/10 border border-amber-500/25 text-amber-300 transition-colors select-none";
-      campaignIndicator.innerHTML = `<span class="w-2 h-2 rounded-full bg-amber-400 animate-ping"></span><span><span data-ui-icon=cloud aria-hidden=true></span> Sincronizando con Drive...</span>`;
-      campaignIndicator.title = "Sincronizando y guardando cambios en segundo plano con Google Drive ('WhisperDnD')";
+      campaignIndicator.innerHTML = `<span class="w-2 h-2 rounded-full bg-amber-400 ${attention ? "" : "animate-ping"}"></span><span><span data-ui-icon=cloud aria-hidden=true></span> ${attention ? "Revisar sincronización" : "Sincronizando con Drive..."}</span>`;
+      campaignIndicator.title = attention ? "Hay archivos pendientes de sincronizar. Tus datos locales se conservan." : "Sincronizando y guardando cambios en segundo plano con Google Drive ('WhisperDnD')";
     }
     if (widgetStatus) {
       widgetStatus.className = "inline-flex items-center gap-1 text-[11px] font-medium text-amber-300";
-      widgetStatus.innerHTML = `<span class="w-1.5 h-1.5 rounded-full bg-amber-400 animate-ping"></span><span><span data-ui-icon=cloud aria-hidden=true></span> Sincronizando...</span>`;
+      widgetStatus.innerHTML = `<span class="w-1.5 h-1.5 rounded-full bg-amber-400 ${attention ? "" : "animate-ping"}"></span><span><span data-ui-icon=cloud aria-hidden=true></span> ${attention ? "Revisar sincronización" : "Sincronizando..."}</span>`;
       widgetStatus.classList.remove("hidden");
     }
     if (mobileIndicator) {
       mobileIndicator.className = "min-h-[36px] inline-flex items-center justify-center px-2 py-1 rounded-lg text-xs font-medium bg-amber-500/10 text-amber-300 border border-amber-500/20";
-      mobileIndicator.innerHTML = `<span class="animate-spin inline-block"><span data-ui-icon=refresh aria-hidden=true></span></span>`;
+      mobileIndicator.innerHTML = attention ? `<span data-ui-icon=warning aria-hidden=true></span>` : `<span class="animate-spin inline-block"><span data-ui-icon=refresh aria-hidden=true></span></span>`;
       mobileIndicator.classList.remove("hidden");
-      mobileIndicator.title = "Sincronizando con Google Drive...";
+      mobileIndicator.title = attention ? "Revisar sincronización con Drive" : "Sincronizando con Google Drive...";
     }
   } else if (status === "saved") {
     _driveConnected = true;
@@ -91,6 +92,7 @@ function updateDriveUIState(isConnected, userEmail = null, userName = null) {
   const settingsBadgeText = document.getElementById("settingsDriveBadgeText");
   const settingsAccountInfo = document.getElementById("settingsDriveAccountInfo");
   const settingsEmailEl = document.getElementById("settingsDriveEmail");
+  if (settingsBadge) settingsBadge.dataset.state = isConnected ? "ready" : "unverified";
 
   _driveConnected = Boolean(isConnected);
   isGoogleDriveConnected = Boolean(isConnected);
@@ -350,7 +352,7 @@ async function syncWithGoogleDrive(isSilent = false, isJustConnected = false) {
       btnSettings.disabled = loading;
       btnSettings.innerHTML = loading
         ? `<span class="inline-block animate-spin"><span data-ui-icon=clock aria-hidden=true></span></span> Buscando en Drive...`
-        : `<svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg><span><span data-ui-icon=refresh aria-hidden=true></span> Sincronizar Campañas con Drive</span>`;
+        : `<svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg><span>Sincronizar Campañas con Drive</span>`;
     }
     if (btnModal) {
       btnModal.disabled = loading;
@@ -379,6 +381,11 @@ async function syncWithGoogleDrive(isSilent = false, isJustConnected = false) {
     });
 
     const data = await res.json();
+    if (data.status === "not_connected") {
+      updateDriveUIState(false);
+      if (!isSilent && typeof showAlert === "function") showAlert(data.message || "Conecta Google Drive para sincronizar.");
+      return;
+    }
     if (!res.ok || data.status === "error") {
       throw new Error(data.message || data.detail || "Error al sincronizar con Google Drive");
     }
@@ -408,7 +415,14 @@ async function syncWithGoogleDrive(isSilent = false, isJustConnected = false) {
       await loadAcademicNotesHistory(false);
     }
 
-    updateDriveSyncIndicator("saved");
+    const partial = data.status === "partial";
+    updateDriveSyncIndicator(partial ? "attention" : "saved");
+    if (partial) {
+      const issues = [...(data.conflicts || []), ...(data.campaign_errors || [])];
+      const detail = issues.slice(0, 5).map(item => `${item.file}: ${item.message}`).join("\n");
+      if (typeof showAlert === "function") showAlert(`Sincronización parcial. Hay archivos pendientes; se conservan las copias para revisión.\n${detail}`);
+      return;
+    }
 
     if (isJustConnected) {
       if (typeof showSuccessAlert === "function") {
@@ -427,6 +441,7 @@ async function syncWithGoogleDrive(isSilent = false, isJustConnected = false) {
     }
   } catch (err) {
     console.error("Sync Drive error:", err);
+    updateDriveSyncIndicator("attention");
     if (!isSilent && typeof showAlert === "function") {
       showAlert("Error en la sincronización con Drive: " + err.message);
     }

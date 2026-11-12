@@ -58,16 +58,9 @@ def export_living_journal_md(
     detected_party = campaign_state.get("detected_party", [])
     chosen_detected = detected_pcs or detected_party
 
-    roster_has_user_char = any(p.get("is_user_character") or p.get("is_user") for p in roster)
-    roster_has_markus = any("markus" in str(p.get("character_name", "")).lower() or "markus" in str(p.get("player_name", "")).lower() for p in roster)
-    detected_has_markus = any("markus" in str(p.get("character_name", "") or p.get("personaje", "")).lower() or "markus" in str(p.get("player_name", "") or p.get("jugador", "")).lower() for p in (chosen_detected or []))
 
     if not is_private and chosen_detected:
-        if roster_has_markus and not detected_has_markus and not roster_has_user_char:
-            roster = chosen_detected
-            display_party = chosen_detected
-            is_detected_video = True
-        elif not roster:
+        if not roster:
             display_party = chosen_detected
             is_detected_video = True
         elif is_yt:
@@ -272,8 +265,8 @@ def export_living_journal_md(
             coaching = (s.get("user_coaching") or s.get("markus_coaching") or "").strip()
             user_char = s.get("user_character", {})
             char_name = (user_char.get("character_name") or user_char.get("name") or "").strip() if isinstance(user_char, dict) else ""
-            if not char_name and s.get("markus_coaching") and not synopsis_text:
-                char_name = "Markus Veyl"
+            if not char_name and coaching and not synopsis_text:
+                char_name = "Personaje sin identificar"
 
             if coaching and char_name and not synopsis_text and char_name not in ("-", "(DM)", "Dungeon Master"):
                 char_title = f"Reflexión de Rol y Compañerismo: {char_name}"
@@ -417,8 +410,8 @@ def export_session_md(
     coaching = (session_data.get("user_coaching") or session_data.get("markus_coaching") or "").strip()
     user_char = session_data.get("user_character", {})
     char_name = (user_char.get("character_name") or user_char.get("name") or "").strip() if isinstance(user_char, dict) else ""
-    if not char_name and session_data.get("markus_coaching") and not synopsis_text:
-        char_name = "Markus Veyl"
+    if not char_name and coaching and not synopsis_text:
+        char_name = "Personaje sin identificar"
 
     if include_coaching and coaching and char_name and not synopsis_text and char_name not in ("-", "(DM)", "Dungeon Master"):
         lines.append(f"## {sec_num}. Reflexión de Rol y Compañerismo: {char_name}")

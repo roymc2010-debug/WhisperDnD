@@ -275,11 +275,14 @@ class TestGoogleDriveStorage(unittest.TestCase):
         self.assertEqual(res["downloaded_campaigns"], 1)
         self.assertIn("La Maldición de Strahd", res["campaign_names"])
 
-        saved_file = c_dir / "La_Maldicion_de_Strahd.json"
+        from src.storage.campaign_manager import CampaignManager
+        manager = CampaignManager(campaigns_dir=str(c_dir))
+        saved_file = manager.get_campaign_path(campaign_data["campaign_name"])
         self.assertTrue(saved_file.is_file())
         saved_json = json.loads(saved_file.read_text(encoding="utf-8"))
         self.assertEqual(saved_json["campaign_name"], "La Maldición de Strahd")
         self.assertEqual(saved_json["dm"], "Roy")
+        self.assertEqual(manager.load_modular(campaign_data["campaign_name"])["sessions"], campaign_data["sessions"])
 
     def test_sync_from_google_drive_academic_notes(self):
         storage = GoogleDriveStorage(

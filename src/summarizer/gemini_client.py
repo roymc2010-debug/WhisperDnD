@@ -5,8 +5,11 @@ import time
 from typing import Any, Dict, List, Optional
 from dotenv import load_dotenv
 from src.summarizer.document_formats import DocumentFormat
+from src.summarizer.session_evidence import prepare_session_transcript
+from src.runtime_paths import is_desktop_runtime
 
-load_dotenv()
+if not is_desktop_runtime():
+    load_dotenv()
 
 
 from src.summarizer.prompts import (
@@ -120,6 +123,25 @@ def is_legacy_gemini_model(model_name: Optional[str]) -> bool:
     return any(leg in m for leg in ["gemini-1.5", "gemini-2.0", "gemini-2.5"])
 
 
+from src.summarizer.generation_diagnostics import classify_failure
+
+
+class GeminiGenerationFailure(RuntimeError):
+    def __init__(self, model, exc):
+        self.model = model
+        self.failure = classify_failure(exc)
+        super().__init__(self.failure['message'] + ' La transcripción está conservada; puedes generar solo la crónica desde Revisiones pendientes.')
+
+
+class GeminiGenerationTimeout(GeminiGenerationFailure):
+    """The connection wait expired; a provider-side outcome is still unknown."""
+    def __init__(self, model, seconds, exc=None):
+        self.model = model
+        self.seconds = seconds
+        self.failure = classify_failure(exc or TimeoutError())
+        RuntimeError.__init__(self, f"{self.failure['message']} Modelo: {model}; {seconds:.0f} s. La transcripción está conservada; puedes generar solo la crónica desde Revisiones pendientes.")
+
+
 class GeminiTTRPGSummarizer:
     """Client for generating D&D session chronicles using Gemini API."""
 
@@ -131,6 +153,7 @@ class GeminiTTRPGSummarizer:
         self.api_key = api_key or os.getenv("GEMINI_API_KEY", "").strip()
         self.model_name = model_name or os.getenv("GEMINI_MODEL", DEFAULT_GEMINI_MODEL)
         self._client = None
+        self.diagnostics = None
         self._quota_tokens_used = 0
         self._quota_usage_estimated = False
 
@@ -149,7 +172,10 @@ class GeminiTTRPGSummarizer:
                     "google-genai no está instalado. Ejecuta 'pip install google-genai'."
                 ) from exc
 
-            self._client = genai.Client(api_key=self.api_key)
+            options = {"retry_options": {"attempts": 1}}
+            if self.diagnostics is not None:
+                options["client_args"] = {"event_hooks": {"request": [self.diagnostics.request], "response": [self.diagnostics.response]}}
+            self._client = genai.Client(api_key=self.api_key, http_options=options)
         return self._client
 
     @staticmethod
@@ -166,9 +192,11 @@ class GeminiTTRPGSummarizer:
             subclass = p.get("subclass", "").strip()
             species_str = f" | Especie: {species}" if species and species not in ("(N/A - DM)", "N/A", "N/A - DM") else ""
             subclass_str = f" ({subclass})" if subclass and subclass not in ("N/A", "(N/A)", "-") else ""
+            aliases = p.get("aliases") or []
+            alias_str = f" | Variantes de nombre: {', '.join(str(a) for a in aliases)}" if isinstance(aliases, list) and aliases else ""
             is_absent = bool(p.get("is_absent"))
             absent_str = " | [ESTADO EN ESTA SESIÓN: AUSENTE / NO ASISTIÓ HOY - El jugador faltó a esta sesión. El personaje permanece con la compañía en segundo plano; NO lo elimines de la tabla de aventureros ni inventes que murió o abandonó la campaña, simplemente no participó activamente en los combates ni diálogos de este episodio]" if is_absent else ""
-            lines.append(f"- Jugador: {player} | Personaje: {character}{species_str} | Clase/Rol: {role}{subclass_str}{absent_str}")
+            lines.append(f"- Jugador: {player} | Personaje: {character}{species_str} | Clase/Rol: {role}{subclass_str}{alias_str}{absent_str}")
         return "\n".join(lines)
 
     @staticmethod
@@ -183,90 +211,94 @@ class GeminiTTRPGSummarizer:
 
     @staticmethod
     def check_has_markus(roster: Optional[List[Dict[str, Any]]]) -> bool:
-        """Check if roster has Markus Veyl or any character marked as user character."""
-        if not roster:
-            return False
-        if GeminiTTRPGSummarizer.check_has_user_character(roster):
-            return True
-        return any(
-            "markus" in str(p.get("character_name", "")).lower()
-            or "markus" in str(p.get("player_name", "")).lower()
-            for p in roster
-        )
+        """Compatibility name: selection always comes from the user flag."""
+        return GeminiTTRPGSummarizer.check_has_user_character(roster)
 
     def _generate_with_retry(self, contents: Any, config: Any = None) -> str:
-        """
-        Executes generate_content with automatic retries on 503 UNAVAILABLE / 429 RESOURCE_EXHAUSTED
-        and seamless fallback to next available active models:
-        [self.model_name, DEFAULT_GEMINI_MODEL, FAST_GEMINI_MODEL, "gemini-3.1-pro-preview", "gemini-4-argon"]
-        """
-        candidate_models = [
-            self.model_name,
-            DEFAULT_GEMINI_MODEL,
-            FAST_GEMINI_MODEL,
-            "gemini-3.1-pro-preview",
-            "gemini-4-argon",
-        ]
-        models_to_try = []
-        for m in candidate_models:
-            if m and m not in models_to_try:
-                models_to_try.append(m)
-
+        """Retry temporary failures on the selected model within one total budget."""
+        budget = float(os.getenv("GEMINI_GENERATION_TIMEOUT_SECONDS", "600"))
+        if not 1 <= budget <= 3600:
+            raise ValueError("GEMINI_GENERATION_TIMEOUT_SECONDS debe estar entre 1 y 3600.")
+        started = time.monotonic()
+        self._generation_attempts = []
         last_error = None
-        for model in models_to_try:
-            # Prepare configuration respecting API 3.6+/3.8+ parameter deprecations
-            call_config = None
-            if config is not None:
-                if isinstance(config, dict):
-                    if is_legacy_gemini_model(model):
-                        call_config = dict(config)
-                    else:
-                        # Strip deprecated parameters for modern Gemini 3.6+/3.8+ models
-                        call_config = {
-                            k: v for k, v in config.items()
-                            if k not in ("temperature", "top_p", "top_k")
-                        }
-                        if not call_config:
-                            call_config = None
-                else:
-                    call_config = config
-
-            for attempt in range(3):
+        for attempt in range(3):
+            remaining = budget - (time.monotonic() - started)
+            if remaining <= 0:
+                break
+            call_config = dict(config) if isinstance(config, dict) else (config.model_dump(exclude_none=True) if config else {})
+            if not is_legacy_gemini_model(self.model_name):
+                for key in ("temperature", "top_p", "top_k"):
+                    call_config.pop(key, None)
+            call_config["http_options"] = {"timeout": max(1, int(remaining * 1000)), "retry_options": {"attempts": 1}}
+            entry = {"attempt": attempt + 1, "model": self.model_name, "prompt_characters": len(str(contents))}
+            step_started = time.monotonic()
+            if self.diagnostics:
+                self.diagnostics.record("preparing_request", attempt=attempt + 1)
+            callback = getattr(self, "on_attempt", None)
+            if callback:
+                callback(attempt + 1, self.model_name)
+            try:
+                response = self.client.models.generate_content(model=self.model_name, contents=contents, config=call_config)
+                if self.diagnostics:
+                    self.diagnostics.record("response_received")
+                if not response or not response.text:
+                    raise ValueError("Gemini devolvió una respuesta vacía; no se incorporó a la campaña.")
+                artifact = getattr(self, "response_artifact", None)
+                if artifact is not None:
+                    artifact.write_text(response.text, encoding="utf-8")
+                entry.update(status="completed", seconds=round(time.monotonic() - step_started, 3))
+                usage = getattr(response, "usage_metadata", None)
+                def counter(key):
+                    value = getattr(usage, key, 0) if usage else 0
+                    return int(value) if isinstance(value, (int, float)) else 0
+                entry["tokens"] = {"input": counter("prompt_token_count"), "output": counter("candidates_token_count"), "thoughts": counter("thoughts_token_count"), "total": counter("total_token_count")}
+                tokens = entry["tokens"]["total"]
+                if not tokens:
+                    tokens = max(10, (len(str(contents)) + len(response.text)) // 4)
+                    self._quota_usage_estimated = True
+                self._quota_tokens_used = getattr(self, "_quota_tokens_used", 0) + tokens
+                self._generation_attempts.append(entry)
                 try:
-                    kwargs = {"model": model, "contents": contents}
-                    if call_config is not None:
-                        kwargs["config"] = call_config
-                    response = self.client.models.generate_content(**kwargs)
-                    if response and response.text:
-                        try:
-                            from src.storage.quota_tracker import record_gemini_tokens
-                            tokens_used = 0
-                            if hasattr(response, "usage_metadata") and response.usage_metadata:
-                                tokens_used = getattr(response.usage_metadata, "total_token_count", 0) or (
-                                    getattr(response.usage_metadata, "prompt_token_count", 0) +
-                                    getattr(response.usage_metadata, "candidates_token_count", 0)
-                                )
-                            if not tokens_used:
-                                self._quota_usage_estimated = True
-                                prompt_len = len(str(contents))
-                                resp_len = len(response.text)
-                                tokens_used = max(10, (prompt_len + resp_len) // 4)
-                            self._quota_tokens_used = getattr(self, "_quota_tokens_used", 0) + int(tokens_used)
-                            record_gemini_tokens(tokens_used)
-                        except Exception as quota_err:
-                            print(f"[GeminiClient] Notice recording token quota: {quota_err}")
-                        return response.text
-                except Exception as exc:
-                    last_error = exc
-                    err_msg = str(exc)
-                    if "API_KEY_INVALID" in err_msg or "PERMISSION_DENIED" in err_msg:
-                        raise ValueError(f"Error de autenticación con Gemini API: {err_msg}") from exc
-                    if "503" in err_msg or "UNAVAILABLE" in err_msg or "429" in err_msg or "RESOURCE_EXHAUSTED" in err_msg:
-                        time.sleep(1.5 * (attempt + 1))
-                        continue
+                    from src.storage.quota_tracker import record_gemini_tokens
+                    record_gemini_tokens(tokens)
+                except Exception:
+                    pass
+                self._generation_seconds = round(time.monotonic() - started, 3)
+                return response.text
+            except Exception as exc:
+                last_error = exc
+                error = str(exc).upper()
+                entry.update(status="failed", seconds=round(time.monotonic()-step_started, 3), error_type=type(exc).__name__, error_code=getattr(exc, "code", None) if isinstance(getattr(exc, "code", None), int) else None)
+                self._generation_attempts.append(entry)
+                from httpx import TimeoutException
+                if isinstance(exc, (TimeoutError, TimeoutException)):
+                    raise GeminiGenerationTimeout(self.model_name, time.monotonic() - started, exc) from exc
+                transient = any(value in error for value in ("503", "429", "502", "504", "UNAVAILABLE", "RESOURCE_EXHAUSTED"))
+                if not transient or attempt == 2:
                     break
-
-        raise RuntimeError(f"Error al generar con Gemini tras reintentos y modelos alternativos: {last_error}") from last_error
+                remaining = budget - (time.monotonic()-started)
+                retry_after = getattr(getattr(exc, "response", None), "headers", {}).get("Retry-After")
+                suggested = 0.0
+                if retry_after:
+                    try:
+                        suggested = float(retry_after)
+                    except (ValueError, TypeError):
+                        try:
+                            from email.utils import parsedate_to_datetime
+                            suggested = max(0.0, parsedate_to_datetime(retry_after).timestamp() - time.time())
+                        except (ValueError, TypeError, OverflowError):
+                            suggested = 0.0
+                import math
+                if not math.isfinite(suggested):
+                    suggested = 0.0
+                delay = min(max(1.5 * (attempt + 1), suggested), max(0, remaining))
+                if delay <= 0:
+                    break
+                if self.diagnostics:
+                    self.diagnostics.record("retry_wait", provider_code=getattr(exc, "code", None))
+                time.sleep(delay)
+        raise GeminiGenerationFailure(self.model_name, last_error) from last_error
 
 
     def generate_academic_notes(
@@ -348,30 +380,7 @@ class GeminiTTRPGSummarizer:
         Generate structured session chapter and cumulative updates for Living Campaign Journal.
         Returns parsed dictionary with keys: session_chapter, detected_pcs, detected_party, updated_quests, updated_npcs, detected_npc_names.
         """
-        if not transcript_text or not transcript_text.strip():
-            return {
-                "session_chapter": {
-                    "title": f"Sesión #{session_number}",
-                    "recap_text": "",
-                    "next_session_script": "",
-                    "episode_synopsis": "",
-                    "chronicle_text": "No hay transcripción disponible.",
-                    "closing_expectations": "",
-                    "user_coaching": "",
-                    "markus_coaching": "",
-                },
-                "detected_pcs": [],
-                "detected_party": [],
-                "updated_quests": [],
-                "updated_npcs": [],
-                "detected_npc_names": [],
-            }
-
-        try:
-            from src.transcription.groq_whisper import clean_whisper_hallucinations
-            transcript_text = clean_whisper_hallucinations(transcript_text, roster=roster)
-        except Exception:
-            pass
+        transcript_text = prepare_session_transcript(transcript_text, roster=roster)
 
         roster_formatted = self.format_roster(roster)
         has_markus = self.check_has_user_character(roster)
@@ -399,7 +408,20 @@ class GeminiTTRPGSummarizer:
             generation_config["top_p"] = 0.95
 
         raw_text = self._generate_with_retry(prompt, config=generation_config)
-        return self.parse_json_response(raw_text, session_number)
+        if self.diagnostics:
+            self.diagnostics.record("parsing_response")
+        parsed = self.parse_json_response(raw_text, session_number)
+        if self.diagnostics:
+            self.diagnostics.record("response_parsed")
+        parsed["session_chapter"]["generation_metadata"] = {"model": self.model_name, "attempts": getattr(self, "_generation_attempts", []), "seconds": getattr(self, "_generation_seconds", None)}
+        return parsed
+
+    def generate_chronicle(self, transcript_text, roster, target_language="es", session_number=1):
+        """Use the same evidence checks for the standalone recording endpoints."""
+        session = self.generate_campaign_session(
+            transcript_text=transcript_text, roster=roster, target_language=target_language,
+            session_number=session_number)
+        return session["session_chapter"]["chronicle_text"]
 
     @staticmethod
     def sanitize_raw_json(raw_text: str) -> str:
@@ -472,7 +494,7 @@ class GeminiTTRPGSummarizer:
                 if "chronicle_text" in data or "recap_text" in data or "next_session_script" in data or "episode_synopsis" in data or "title" in data:
                     chapter = {
                         "title": data.get("title", f"Sesión #{session_number}"),
-                        "recap_text": data.get("next_session_script") or data.get("recap_text", ""),
+                        "recap_text": data.get("recap_text", ""),
                         "next_session_script": data.get("next_session_script") or data.get("recap_text", ""),
                         "episode_synopsis": data.get("episode_synopsis", ""),
                         "chronicle_text": data.get("chronicle_text", ""),
@@ -483,7 +505,8 @@ class GeminiTTRPGSummarizer:
                 else:
                     chapter = {}
 
-            recap = (chapter.get("next_session_script") or chapter.get("recap_text") or "").strip()
+            recap = (chapter.get("recap_text") or "").strip()
+            opening_script = (chapter.get("next_session_script") or recap).strip()
             synopsis = (chapter.get("episode_synopsis") or data.get("episode_synopsis") or "").strip()
             coaching = (chapter.get("user_coaching") or chapter.get("markus_coaching") or "").strip()
 
@@ -715,7 +738,7 @@ class GeminiTTRPGSummarizer:
                 "session_chapter": {
                     "title": chapter.get("title", f"Sesión #{session_number}"),
                     "recap_text": recap,
-                    "next_session_script": recap,
+                    "next_session_script": opening_script,
                     "episode_synopsis": synopsis,
                     "chronicle_text": chapter.get("chronicle_text", ""),
                     "closing_expectations": chapter.get("closing_expectations", ""),
@@ -729,6 +752,7 @@ class GeminiTTRPGSummarizer:
                 "detected_npc_names": data.get("detected_npc_names", []) if isinstance(data.get("detected_npc_names"), list) else [],
                 "locations": normalized_locations,
                 "items": normalized_items,
+                "evidence": data.get("evidence", []) if isinstance(data.get("evidence"), list) else [],
             }
 
         # Fallback if text is not valid JSON

@@ -9,6 +9,7 @@ import re
 import urllib.parse
 import zipfile
 from pathlib import Path
+from src.runtime_paths import is_desktop_runtime
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, File, HTTPException, UploadFile
@@ -161,7 +162,7 @@ def update_consolidated_academic_notes_file() -> Path:
     output_dir = server.get_data_output_dir()
     project_root = server.project_root
 
-    is_test_mode = os.environ.get("WHISPER_ENV") in ("test", "testing") or os.environ.get("TESTING") == "1" or bool(os.environ.get("WHISPER_OUTPUT_DIR"))
+    is_test_mode = is_desktop_runtime() or os.environ.get("WHISPER_ENV") in ("test", "testing") or os.environ.get("TESTING") == "1" or bool(os.environ.get("WHISPER_OUTPUT_DIR"))
 
     if is_test_mode:
         historial_file = output_dir / "apuntes_historial.json"
@@ -294,7 +295,7 @@ async def list_academic_notes():
     output_dir = server.get_data_output_dir()
     project_root = server.project_root
 
-    is_test_mode = os.environ.get("WHISPER_ENV") in ("test", "testing") or os.environ.get("TESTING") == "1" or bool(os.environ.get("WHISPER_OUTPUT_DIR"))
+    is_test_mode = is_desktop_runtime() or os.environ.get("WHISPER_ENV") in ("test", "testing") or os.environ.get("TESTING") == "1" or bool(os.environ.get("WHISPER_OUTPUT_DIR"))
 
     historial_file = None
     candidate_historial = [output_dir / "apuntes_historial.json"] if is_test_mode else [project_root / "data" / "apuntes_historial.json", Path("/app/data/apuntes_historial.json")]
@@ -430,7 +431,7 @@ async def get_academic_note(filename: str):
     project_root = server.project_root
 
     candidate_dirs: List[Path] = []
-    for cd in [Path("/app/outputs"), output_dir, project_root / "outputs", project_root / "data" / "output"]:
+    for cd in server.output_search_dirs([Path("/app/outputs"), output_dir, project_root / "outputs", project_root / "data" / "output"]):
         try:
             if cd.exists():
                 cd_res = cd.resolve()
@@ -463,7 +464,7 @@ async def get_academic_note(filename: str):
             break
 
     if not file_path or not file_path.is_file():
-        for h_path in [project_root / "data" / "apuntes_historial.json", Path("/app/data/apuntes_historial.json")]:
+        for h_path in server.academic_history_paths():
             if h_path.is_file():
                 try:
                     h_data = json.loads(h_path.read_text(encoding="utf-8"))
@@ -546,7 +547,7 @@ async def delete_academic_note(filename: str):
     output_dir = server.get_data_output_dir()
     project_root = server.project_root
     candidate_dirs: List[Path] = []
-    for cd in [Path("/app/outputs"), output_dir, project_root / "outputs", project_root / "data" / "output"]:
+    for cd in server.output_search_dirs([Path("/app/outputs"), output_dir, project_root / "outputs", project_root / "data" / "output"]):
         try:
             if cd.exists():
                 cd_res = cd.resolve()
@@ -704,7 +705,9 @@ async def import_academic_note_endpoint(file: UploadFile = File(...)):
                     if item_name.endswith((".md", ".txt", ".docx", ".json")):
                         item_bytes = zf.read(item)
                         if item_name == "apuntes_historial.json":
-                            (project_root / "data" / "apuntes_historial.json").write_bytes(item_bytes)
+                            history_path = server.academic_history_paths()[0]
+                            history_path.parent.mkdir(parents=True, exist_ok=True)
+                            history_path.write_bytes(item_bytes)
                         else:
                             target_p = output_dir / item_name
                             target_p.write_bytes(item_bytes)
@@ -784,7 +787,7 @@ async def download_academic_note_docx(filename: str):
     project_root = server.project_root
 
     candidate_dirs: List[Path] = []
-    for cd in [Path("/app/outputs"), output_dir, project_root / "outputs", project_root / "data" / "output"]:
+    for cd in server.output_search_dirs([Path("/app/outputs"), output_dir, project_root / "outputs", project_root / "data" / "output"]):
         try:
             if cd.exists():
                 cd_res = cd.resolve()

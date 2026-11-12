@@ -15,7 +15,11 @@ La primera ejecución toma los documentos de %USERPROFILE%\WhisperDnD-Lab y los 
 
 La copia ya preparada no se sobrescribe al volver a iniciar. Las modificaciones, migraciones de formato y nuevas sesiones se guardan en esa copia. Esa carpeta está excluida de Git. Para probar una grabación anterior, selecciona manualmente el audio desde Archivo Local.
 
-Las claves guardadas por el navegador en 8080 no se comparten con 8081. Configura tus claves en Ajustes si quieres probar una transcripción real. Si decides conectar Drive en esta copia, esa conexión sí utilizará tu cuenta y sus archivos remotos: el lanzador no copia ni activa esa conexión por su cuenta.
+Por defecto, `probar_redisenio.bat` se ejecuta con `--with-drive` en el puerto **8080**, utilizando tus credenciales locales (`token.json`, `credentials.json` y `.env`) para que Google Drive y las APIs funcionen inmediatamente sin necesidad de registrar nuevos links ni permisos en Google Cloud Console.
+
+Si prefieres ejecutar una prueba completamente aislada en el puerto 8081 sin credenciales ni tokens cloud:
+
+    probar_redisenio.bat --port 8081
 
 Para usar otra carpeta de origen:
 
@@ -32,6 +36,20 @@ Para preparar los documentos sin abrir servidor:
 El aislamiento de .env requiere python-dotenv 1.2 o posterior. El lanzador verifica esa capacidad y se detiene antes de iniciar si falta.
 
 ## Qué revisar
+
+- **Selector de Motor (Groq Cloud vs. faster-whisper Local)**:
+  - Selector compacto en la cabecera de captura (`[ ⚡ Groq | 💻 Local ]`).
+  - Al seleccionar Local, se despliega el subselector `[ base | small ]` optimizado para CPU (`int8`, Intel i7-6560U).
+  - La opción elegida se persiste automáticamente en `localStorage` y se propaga de forma idéntica a Grabación en Vivo, YouTube y Archivo Local.
+  - La transcripción local procesa el audio 100% en tu equipo sin enviar datos a Groq ni requerir `GROQ_API_KEY`.
+  - *Nota*: La generación y síntesis posterior de crónicas, fichas y apuntes con Google Gemini continúa realizándose en la nube y requiere `GEMINI_API_KEY`.
+- **Informes Locales de Pruebas (`outputs/transcription-tests/`)**:
+  - Cada transcripción genera automáticamente un informe `.txt` con metadatos de rendimiento: motor, modelo, origen del audio, duración, tiempo de transcripción, tiempo total, factor de tiempo real (RTF) y configuración (CPU, int8, VAD).
+  - *Privacidad estricta*: Los informes nunca contienen audio, transcripciones completas, claves de API, tokens, nombres de campañas, personajes ni jugadores.
+  - Los informes son estrictamente locales y nunca se sincronizan a Google Drive ni a servicios cloud externos.
+- **Comparación Cuantitativa de Precisión**:
+  - En la pestaña de Archivo Local puedes desplegar la sección opcional para pegar una transcripción de referencia corregida.
+  - El sistema normaliza el texto (minúsculas, eliminación de signos de puntuación y colapso de espacios) y calcula matemáticamente las tasas de error de palabras (WER) y caracteres (CER) en memoria para el informe. No se asume mayor precisión entre modelos sin dicha referencia objetiva.
 
 - Campaña correcta, party y datos de sus personajes.
 - Marcar tu personaje, guardar grupo, recargar y comprobar que se conserva.

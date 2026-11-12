@@ -176,12 +176,12 @@ class TestCampaignManager(unittest.TestCase):
         updated_state = self.manager.update_npc_name("Test Spellcheck", "Gorgok el Ogro", "Gor'gok el Devorador")
         self.assertEqual(updated_state["npcs"][0]["name"], "Gor'gok el Devorador")
 
-    def test_external_campaign_detected_party_and_purges_markus(self):
-        # When an external campaign session is recorded with detected_party
+    def test_external_campaign_preserves_explicit_roster_with_detected_party(self):
+        # Detection is not authorization to discard a user-provided player.
         detected = [
             {"player_name": "StreamerA", "character_name": "Thorin", "species": "Enano", "role": "Guerrero", "subclass": "Campeón"}
         ]
-        # Even if legacy roster mistakenly had Markus
+        # A name alone cannot prove that a roster entry is template contamination.
         bad_roster = [
             {"player_name": "Roymc89", "character_name": "Markus Veyl", "species": "Humano", "role": "Guerrero", "subclass": "Battle Master"}
         ]
@@ -192,8 +192,7 @@ class TestCampaignManager(unittest.TestCase):
             detected_party=detected,
         )
         self.assertEqual(state["detected_party"], detected)
-        self.assertEqual(state["roster"], detected)
-        self.assertFalse(any("markus" in str(p.get("character_name", "")).lower() for p in state["roster"]))
+        self.assertTrue(any(p.get("character_name") == "Markus Veyl" for p in state["roster"]))
 
     def test_record_session_user_character_and_next_script(self):
         roster = [
@@ -205,6 +204,7 @@ class TestCampaignManager(unittest.TestCase):
             "chronicle_text": "Los héroes lucharon con bravura.",
             "closing_expectations": "Descansar en la posada.",
             "user_coaching": "Excelente uso de Tactical Maneuvers.",
+            "recap_text": "Los héroes lucharon en el bosque.",
             "next_session_script": "A ver gente, para acordarnos: fuimos al bosque...",
         }
         user_char = {"character_name": "Markus Veyl", "player_name": "Roymc89", "role": "Guerrero", "is_user_character": True}
@@ -222,7 +222,7 @@ class TestCampaignManager(unittest.TestCase):
         # Verify session chapter stored next_session_script and user_coaching
         session_rec = state["sessions"][0]
         self.assertEqual(session_rec["next_session_script"], "A ver gente, para acordarnos: fuimos al bosque...")
-        self.assertEqual(session_rec["recap_text"], "A ver gente, para acordarnos: fuimos al bosque...")
+        self.assertEqual(session_rec["recap_text"], "Los héroes lucharon en el bosque.")
         self.assertEqual(session_rec["user_coaching"], "Excelente uso de Tactical Maneuvers.")
         self.assertEqual(session_rec["user_character"]["character_name"], "Markus Veyl")
 
@@ -955,8 +955,9 @@ class TestCampaignManager(unittest.TestCase):
         self.assertEqual(len(cleaned_state["roster"]), 1)
         self.assertEqual(cleaned_state["roster"][0]["character_name"], "Octus Taconis")
 
-        # Check orphaned file was deleted
-        self.assertFalse(orphan_file.is_file())
+        # A root JSON is not proven to belong to this entity; keep it intact.
+        self.assertTrue(orphan_file.is_file())
+        self.assertEqual(orphan_file.read_text(encoding="utf-8"), "{}")
 
     def test_manual_merge_entities(self):
         camp_name = "Manual Merge Test"
@@ -1255,6 +1256,7 @@ class TestCampaignManager(unittest.TestCase):
             },
             {
                 "name": "Rosario Sagrado de Zun",
+                "aliases": ["Collar del Pozo"],
                 "type": "artefacto",
                 "description": "Rosario de plata con una figurilla votiva consagrado a Zun.",
                 "holder": "Minipeko",
@@ -1269,6 +1271,7 @@ class TestCampaignManager(unittest.TestCase):
             },
             {
                 "name": "Estatuilla Blasfema de Orcus",
+                "aliases": ["Statuette of Orcus"],
                 "type": "artefacto",
                 "description": "Ídolo profano de tres cabezas.",
                 "holder": "Grupo",
@@ -1294,11 +1297,11 @@ class TestCampaignManager(unittest.TestCase):
         self.assertEqual(sum("leather" in n.lower() or "cuero tachonado" in n.lower() for n in item_names), 1)
 
         # Crossbow merged
-        self.assertIn("Ballesta Pesada (Heavy Crossbow)", item_names)
+        self.assertIn("Heavy Crossbow", item_names)
         self.assertEqual(sum("crossbow" in n.lower() or "ballesta" in n.lower() for n in item_names), 1)
 
-        # Zun Key Item unified (E10)
-        self.assertIn("Collar / Rosario Sagrado de Zun (Medallón del Pozo)", item_names)
+        # Only the fixture's explicit alias establishes that these are the same item.
+        self.assertIn("Rosario Sagrado de Zun", item_names)
         self.assertEqual(sum("zun" in n.lower() or "pozo" in n.lower() for n in item_names), 1)
 
         # Orcus statuette merged
@@ -1346,13 +1349,13 @@ class TestCampaignManager(unittest.TestCase):
         loc_names = [l["name"] for l in cleaned["locations"]]
         self.assertEqual(len(cleaned["locations"]), 2)
         # Brantifax residence merged
-        self.assertIn("Chalet Brantifax (Brantifax Manor)", loc_names)
+        self.assertIn("Chalet Brantifax (Brantifax Chalet)", loc_names)
         chalet = next(l for l in cleaned["locations"] if "Chalet Brantifax" in l["name"])
         self.assertIn("Markus Veyl", chalet["associated_characters"])
         self.assertIn("Atou Shadowgrace", chalet["associated_characters"])
 
         # Cemetery merged
-        self.assertIn("Cementerio Brantifax (Brantifax Cemetery)", loc_names)
+        self.assertIn("Brantifax Cemetery", loc_names)
         cemetery = next(l for l in cleaned["locations"] if "Cemetery" in l["name"] or "Cementerio" in l["name"])
         self.assertIn("Minipeko", cemetery["associated_characters"])
         self.assertIn("Markus Veyl", cemetery["associated_characters"])

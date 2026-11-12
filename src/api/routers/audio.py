@@ -31,6 +31,7 @@ class StartRecordingRequest(BaseModel):
     gain_mic: float = Field(default=1.0, description="Software volume multiplier for microphone")
     gain_spk: float = Field(default=1.0, description="Software volume multiplier for speaker loopback")
     campaign_name: Optional[str] = Field(default=None, description="Campaign name for roleplay recording")
+    session_number: Optional[int] = Field(default=None, ge=1, description="Session recorded; consecutive parts share this number")
 
 
 
@@ -50,6 +51,7 @@ class StopAndProcessRequest(BaseModel):
     audio_language: Optional[str] = Field(default=None, description="Explicit audio language or None for auto-detection")
     custom_date: Optional[str] = Field(default=None, description="Client local date string (e.g. DD/MM/YYYY HH:MM)")
     client_timezone_offset: Optional[Union[int, str]] = Field(default=None, description="Client timezone offset in minutes")
+    reference_text: Optional[str] = Field(default=None, description="Optional reference transcript for WER/CER benchmarking")
 
 
 
@@ -64,7 +66,7 @@ class DeleteAudioRequest(BaseModel):
 @router.get("/api/audio/devices")
 async def get_audio_devices_endpoint():
     """List all available physical microphones and speakers/loopback devices."""
-    return server.get_audio_devices()
+    return await run_in_threadpool(server.get_audio_devices)
 
 
 @router.get("/api/discord/participants")
@@ -93,8 +95,8 @@ async def get_discord_participants_endpoint():
 async def reset_discord_auth_endpoint():
     """Clear cached Discord RPC token to force a fresh authorization prompt in the Discord desktop app."""
     try:
-        from src.transcription.discord_rpc import TOKEN_FILE, discord_tracker
-        TOKEN_FILE.unlink(missing_ok=True)
+        from src.transcription.discord_rpc import get_token_file, discord_tracker
+        get_token_file().unlink(missing_ok=True)
         discord_tracker.ensure_running()
         return {"status": "ok", "message": "Token de Discord reiniciado. Revisa la ventana de Discord para autorizar."}
     except Exception as exc:
@@ -126,7 +128,7 @@ async def test_audio_level(
     if v_spk is not None and v_spk != 1.0:
         kwargs["gain_spk"] = float(v_spk)
 
-    return server.get_audio_levels(**kwargs)
+    return await run_in_threadpool(server.get_audio_levels, **kwargs)
 
 
 # ---------------------------------------------------------------------------
@@ -157,6 +159,8 @@ async def start_recording(payload: Optional[StartRecordingRequest] = None):
             rec_kwargs["gain_mic"] = gain_mic
         if gain_spk is not None and gain_spk != 1.0:
             rec_kwargs["gain_spk"] = gain_spk
+        if payload and payload.session_number is not None:
+            rec_kwargs["session_number"] = payload.session_number
 
         wav_path = server.active_recorder.start(**rec_kwargs)
         msg = (
@@ -192,10 +196,11 @@ async def stop_recording_only():
     if not server.active_recorder.is_recording:
         return {"status": "idle", "message": "No hay grabación activa."}
     try:
-        wav_path = server.active_recorder.stop()
+        wav_path = await run_in_threadpool(server.active_recorder.stop)
         return {
             "status": "stopped",
             "file_path": str(Path(wav_path).name) if wav_path else None,
+            "full_path": str(Path(wav_path).resolve()) if wav_path else None,
             "message": "Grabación detenida con éxito.",
         }
     except Exception as exc:
@@ -209,7 +214,14 @@ async def stop_and_process(payload: StopAndProcessRequest, request: Request = No
     and produce downloadable .docx and .md Grimorio files.
     """
     groq_key, gemini_key = server.extract_client_api_keys(request)
-    server.validate_api_keys_or_raise(request, groq_key, gemini_key, require_gemini=True)
+    engine_choice = (payload.engine or "groq").lower().strip()
+    server.validate_api_keys_or_raise(
+        request,
+        groq_key,
+        gemini_key,
+        require_gemini=True,
+        require_groq=(engine_choice == "groq"),
+    )
 
     has_active = server.active_recorder.is_recording
     has_recent_file = (
@@ -232,7 +244,7 @@ async def stop_and_process(payload: StopAndProcessRequest, request: Request = No
     # 1. Stop audio recording if active, or use recently finalized file
     if has_active:
         try:
-            wav_path = server.active_recorder.stop()
+            wav_path = await run_in_threadpool(server.active_recorder.stop)
         except Exception as exc:
             err_type, human_err, stage = server.diagnose_exception(exc)
             import traceback
@@ -289,6 +301,7 @@ async def stop_and_process(payload: StopAndProcessRequest, request: Request = No
             subject=payload.subject,
             topic=payload.topic,
             task_id=task_id,
+            reference_text=getattr(payload, "reference_text", None),
         )
     except Exception as exc:
         err_type, human_err, stage = server.diagnose_exception(exc)
@@ -300,6 +313,8 @@ async def stop_and_process(payload: StopAndProcessRequest, request: Request = No
         ) from exc
 
     transcript_text = (transcription_result.get("formatted_transcript") or transcription_result.get("text") or "").strip()
+    from src.transcription.recording_files import get_recorded_at
+    capture_date = get_recorded_at(wav_path) or payload.custom_date
 
     # 3. Check Mode: In-Person University Lecture vs D&D Roleplay
     is_class_mode = (payload.recording_mode == "class") or (getattr(server.active_recorder, "mode", "roleplay") == "class")
@@ -309,7 +324,7 @@ async def stop_and_process(payload: StopAndProcessRequest, request: Request = No
         subj = (payload.subject or "").strip() or "Materia Universitaria"
         top = (payload.topic or "").strip() or "Tema de Clase"
         now_str, now_formatted, _ = server.parse_client_datetime(
-            custom_date=getattr(payload, "custom_date", None),
+            custom_date=capture_date,
             client_timezone_offset=getattr(payload, "client_timezone_offset", None),
         )
 
@@ -392,6 +407,8 @@ async def stop_and_process(payload: StopAndProcessRequest, request: Request = No
             "txt_filename": txt_filename,
             "wav_filename": Path(wav_path).name,
             "target_language": payload.target_language,
+        "test_report_path": transcription_result.get("test_report_path"),
+        "test_report_filename": transcription_result.get("test_report_filename"),
             "action_items": action_items,
             "key_points": key_points,
         }
@@ -411,6 +428,7 @@ async def stop_and_process(payload: StopAndProcessRequest, request: Request = No
     detected_npc_names = None
     detected_party = None
     detected_pcs = None
+    processing_warnings = []
 
     if payload.campaign_name:
         try:
@@ -418,6 +436,7 @@ async def stop_and_process(payload: StopAndProcessRequest, request: Request = No
                 server.process_session_for_campaign,
                 audio_duration_seconds=transcription_result.get("duration"),
                 audio_source="recording",
+                source_recordings=[{"filename": Path(wav_path).name, "recorded_at": get_recorded_at(wav_path), "part_index": 1}],
                 campaign_name=payload.campaign_name,
                 transcript_text=transcript_text,
                 roster_dicts=roster_dicts,
@@ -425,7 +444,8 @@ async def stop_and_process(payload: StopAndProcessRequest, request: Request = No
                 target_language=payload.target_language,
                 gemini_api_key=gemini_key,
                 on_progress=lambda p, m: server.update_task_progress(task_id, p, m, stage="analyzing"),
-                custom_date=payload.custom_date,
+                task_id=task_id,
+                custom_date=capture_date,
                 client_timezone_offset=payload.client_timezone_offset,
             )
             campaign_state = camp_res.get("campaign_state")
@@ -437,12 +457,13 @@ async def stop_and_process(payload: StopAndProcessRequest, request: Request = No
             detected_pcs = camp_res.get("detected_pcs")
             docx_filename = camp_res.get("docx_filename", "")
             md_filename = camp_res.get("md_filename")
-            docx_out_path = Path(camp_res.get("file_path", ""))
+            docx_out_path = Path(camp_res["file_path"]) if camp_res.get("file_path") else None
             chronicle_md = camp_res.get("chronicle", "")
+            processing_warnings = camp_res.get("processing_warnings", [])
         except Exception as exc:
-            print(f"[!] Warning: Living Campaign processing failed: {exc}. Falling back to single session chronicle.")
+            server.raise_session_processing_error(exc, task_id)
 
-    if not docx_filename:
+    if campaign_state is None:
         try:
             server.update_task_progress(task_id, 65.0, "Redactando Crónica Épica Novelesca con Gemini...", stage="analyzing")
             summarizer = server.GeminiTTRPGSummarizer(api_key=gemini_key)
@@ -454,11 +475,7 @@ async def stop_and_process(payload: StopAndProcessRequest, request: Request = No
             )
             server.update_task_progress(task_id, 87.0, "Generando resumen de cierre y recap...", stage="analyzing")
         except Exception as exc:
-            chronicle_md = (
-                f"### ⚠️ No se pudo generar la crónica automática con Gemini:\n\n"
-                f"> {exc}\n\n"
-                f"**Transcripción obtenida:**\n\n{transcript_text}"
-            )
+            server.raise_session_processing_error(exc, task_id)
 
         try:
             server.update_task_progress(task_id, 95.0, "Compilando documentos Word (.docx) y Markdown (.md)...", stage="analyzing")
@@ -506,7 +523,9 @@ async def stop_and_process(payload: StopAndProcessRequest, request: Request = No
             import shutil
             safe_c = re.sub(r'[\\/*?:"<>|]', "", payload.campaign_name.strip())
             safe_c = re.sub(r"\s+", "_", safe_c).lower() or "campana_principal"
-            camp_exports = server.project_root / "data" / "campaigns" / safe_c / "exports"
+            from src.runtime_paths import is_desktop_runtime
+            campaign_root = server.get_data_campaigns_dir() if is_desktop_runtime() else server.project_root / "data" / "campaigns"
+            camp_exports = campaign_root / safe_c / "exports"
             camp_exports.mkdir(parents=True, exist_ok=True)
             if md_filename and (server.get_data_output_dir() / md_filename).is_file():
                 shutil.copyfile(server.get_data_output_dir() / md_filename, camp_exports / md_filename)
@@ -542,12 +561,15 @@ async def stop_and_process(payload: StopAndProcessRequest, request: Request = No
         "file_path": str(docx_out_path.resolve()) if docx_out_path and docx_out_path.is_file() else "",
         "wav_filename": Path(wav_path).name,
         "campaign_state": campaign_state,
+        "processing_warnings": processing_warnings,
         "session_chapter": session_chapter,
         "detected_party": detected_party,
         "detected_pcs": detected_pcs,
         "updated_quests": updated_quests,
         "updated_npcs": updated_npcs,
         "target_language": payload.target_language,
+        "test_report_path": transcription_result.get("test_report_path"),
+        "test_report_filename": transcription_result.get("test_report_filename"),
     }
 
 
@@ -559,10 +581,10 @@ async def download_docx(filename: str = Query(..., description="Name of the docx
 
     # If direct path does not exist, check alternative output directories
     if not file_path.is_file():
-        alt_dirs = [
+        alt_dirs = server.output_search_dirs([
             server.project_root / "outputs",
             server.project_root / "data" / "output",
-        ]
+        ])
         for ad in alt_dirs:
             cand = ad / safe_filename
             if cand.is_file():
@@ -576,6 +598,9 @@ async def download_docx(filename: str = Query(..., description="Name of the docx
             (server.project_root / "outputs" / safe_filename).with_suffix(".md"),
             (server.project_root / "data" / "output" / safe_filename).with_suffix(".md"),
         ]
+        from src.runtime_paths import is_desktop_runtime
+        if is_desktop_runtime():
+            md_candidates = [file_path.with_suffix(".md")]
         found_md = next((p for p in md_candidates if p.is_file()), None)
         if found_md:
             try:
@@ -613,13 +638,14 @@ async def download_docx(filename: str = Query(..., description="Name of the docx
 async def download_md(filename: str = Query(..., description="Name of the md file")):
     """Download a generated session chronicle or academic study notes markdown document."""
     safe_filename = Path(filename).name
-    file_path = server.get_data_output_dir() / safe_filename
+    from src.storage.session_review import artifact_path
+    file_path = artifact_path(server.get_data_output_dir(), safe_filename)
 
     if not file_path.is_file():
-        alt_dirs = [
+        alt_dirs = server.output_search_dirs([
             server.project_root / "outputs",
             server.project_root / "data" / "output",
-        ]
+        ])
         for ad in alt_dirs:
             cand = ad / safe_filename
             if cand.is_file():

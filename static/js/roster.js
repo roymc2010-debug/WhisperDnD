@@ -526,14 +526,25 @@ const DEFAULT_ROSTER = [
 ];
 
 // Adaptar datos de la API / Base de datos a nuestro formato de Roster interactivo
-function parseRawRosterToParty(rawList) {
-  if (!Array.isArray(rawList) || rawList.length === 0) {
-    return JSON.parse(JSON.stringify(DEFAULT_ROSTER));
-  }
+function parseRawRosterToParty(rawList, campaignState = {}) {
+  rawList = Array.isArray(rawList) ? rawList : [];
+  const isDMRow = m => m.character_name === "(DM)" || m.role === "Dungeon Master (DM)";
+  const dmIndex = rawList.findIndex(isDMRow);
+  const savedDM = dmIndex >= 0 ? rawList[dmIndex] : {};
+  const dmRow = {
+    ...savedDM,
+    character_name: "(DM)",
+    role: "Dungeon Master (DM)",
+    player_name: savedDM.player_name || campaignState.dm_name || campaignState.dm || campaignState.dungeon_master || "",
+    discord_user_id: savedDM.discord_user_id || savedDM.discord_id || savedDM.discord ||
+      campaignState.dm_discord_id || campaignState.dm_discord_user_id || campaignState.dm_discord || "",
+  };
+  // A player's position never makes them the DM. Keep UI metadata aligned after reordering.
+  rawList = [dmRow, ...rawList.filter((m, index) => index !== dmIndex)];
 
   const party = [];
   rawList.forEach((m, idx) => {
-    const isDM = (idx === 0) || (m.character_name === "(DM)") || (m.role === "Dungeon Master (DM)");
+    const isDM = isDMRow(m);
     const rowId = idx;
     const isUserChar = Boolean(m.is_user || m.is_user_character);
     const isAbsent = Boolean(m.is_absent);
@@ -675,9 +686,9 @@ function partyToStorageList(party) {
 }
 
 // Render de la tabla completa de Roster
-function renderRosterTable(rosterData = null) {
+function renderRosterTable(rosterData = null, campaignState = {}) {
   if (rosterData) {
-    activeParty = parseRawRosterToParty(rosterData);
+    activeParty = parseRawRosterToParty(rosterData, campaignState);
   } else if (!activeParty || activeParty.length === 0) {
     activeParty = JSON.parse(JSON.stringify(DEFAULT_ROSTER));
   }
@@ -1449,6 +1460,8 @@ function getRosterFromTable(includeDM = true) {
 async function saveRoster() {
   const campName = getSelectedCampaignName();
   if (!campName) return false;
+  if (typeof ensureCampaignRosterReady === "function" && !ensureCampaignRosterReady()) return false;
+  const loadState = typeof campaignRosterLoadState !== "undefined" ? campaignRosterLoadState : null;
   const storageData = gatherRosterData();
   const dm = storageData.find(m => m.role === "Dungeon Master (DM)") || {};
   const payload = {
@@ -1465,6 +1478,10 @@ async function saveRoster() {
       body: JSON.stringify(payload)
     });
     if (!res.ok) throw new Error("HTTP " + res.status);
+    if (loadState) {
+      if (loadState !== campaignRosterLoadState || getSelectedCampaignName() !== campName) return true;
+      loadState.existing = true;
+    }
     if (badge) {
       badge.textContent = "Guardado";
       badge.dataset.saveState = "saved";
@@ -1501,48 +1518,9 @@ async function manualSaveRoster() {
 }
 
 async function loadCampaignRoster(campName) {
-  if (!campName) return;
-  try {
-    const res = await fetch(`/api/campaigns/${encodeURIComponent(campName)}`);
-    if (res.ok) {
-      const respData = await res.json();
-      const state = respData.campaign_state || respData;
-      let rawList = Array.isArray(state.roster) ? state.roster : (Array.isArray(state.players) ? state.players : []);
-
-      const dmName = state.dm_name || state.dm || state.dungeon_master || "";
-      const dmDiscord = state.dm_discord_id || state.dm_discord_user_id || state.dm_discord || "";
-
-      if (rawList.length === 0) {
-        renderRosterTable();
-        return;
-      }
-
-      const hasDM = rawList.some((m, idx) => (idx === 0 && (m.character_name === "(DM)" || m.role === "Dungeon Master (DM)")) || m.character_name === "(DM)" || m.role === "Dungeon Master (DM)");
-      if (!hasDM) {
-        const dmItem = {
-          player_name: dmName || "Dungeon Master",
-          character_name: "(DM)",
-          species: "(N/A - DM)",
-          role: "Dungeon Master (DM)",
-          subclass: "N/A",
-          discord_user_id: dmDiscord,
-          is_user_character: false
-        };
-        rawList = [dmItem, ...rawList];
-      } else {
-        const dmIdx = rawList.findIndex((m, idx) => (idx === 0) || m.character_name === "(DM)" || m.role === "Dungeon Master (DM)");
-        if (dmIdx !== -1) {
-          if (dmName && !rawList[dmIdx].player_name) rawList[dmIdx].player_name = dmName;
-          if (dmDiscord && !(rawList[dmIdx].discord_user_id || rawList[dmIdx].discord_id)) {
-            rawList[dmIdx].discord_user_id = dmDiscord;
-          }
-        }
-      }
-      renderRosterTable(rawList);
-    }
-  } catch (err) {
-    console.warn("Error loading campaign roster:", err);
-  }
+  if (!campName || campName.trim() !== getSelectedCampaignName()) return false;
+  // Campaign state and its roster share one guarded request and one owner.
+  return loadCurrentCampaign();
 }
 
 const loadRoster = loadCampaignRoster;

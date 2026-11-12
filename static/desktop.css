@@ -6,9 +6,19 @@ html[data-theme="paper"]{--ui-canvas:#f4f2ed;--ui-surface:#ffffff;--ui-raised:#e
 html[data-theme="sky"]{--ui-canvas:#f0f3f8;--ui-surface:#ffffff;--ui-raised:#e4eaf2;--ui-line:#ccd5e1;--ui-control:#77869a;--ui-text:#232d3b;--ui-muted:#536174;--ui-accent:#35567f;--ui-on-accent:#ffffff;--ui-hover:#456b98;--ui-pressed:#274363;--ui-focus:#244f84;--ui-transfer:#355d83;--ui-review:#805b2d;--ui-danger:#8d302b;--ui-success:#32634c;color-scheme:light;}
 
 @font-face{font-family:Inter;src:url('/static/vendor/fonts/Inter-variable.ttf') format('truetype');font-weight:100 900;font-display:swap}
-html{font-size:16px!important;scrollbar-color:var(--ui-control) var(--ui-canvas)}
+html{font-size:16px!important;--ui-scroll-thumb:color-mix(in srgb,var(--ui-muted) 45%,transparent);scrollbar-color:var(--ui-scroll-thumb) transparent}
 body.theme-dnd,body.theme-work-study{--bg-app:var(--ui-canvas);--bg-surface:var(--ui-surface);--bg-surface-elevated:var(--ui-raised);--bg-surface-subtle:var(--ui-canvas);--border-app:var(--ui-line);--border-focus:var(--ui-focus);--ring-focus:color-mix(in srgb,var(--ui-focus) 20%,transparent);--accent-primary:var(--ui-accent);--accent-hover:var(--ui-hover);--accent-text:var(--ui-accent);--accent-badge-bg:var(--ui-raised);--accent-badge-text:var(--ui-accent);--accent-badge-border:var(--ui-line);--font-heading:Inter,system-ui,sans-serif;--font-body:Inter,system-ui,sans-serif;background:var(--ui-canvas)!important;color:var(--ui-text)!important;font-size:0.875rem;line-height:1.5;transition:none}
-body *{scrollbar-width:thin;scrollbar-color:var(--ui-control) transparent}
+body *{scrollbar-width:thin;scrollbar-color:var(--ui-scroll-thumb) transparent}
+/* Native scroll controls keep mouse/keyboard support; the thumb recedes into the theme. */
+@supports selector(::-webkit-scrollbar){
+  @media(forced-colors:none){
+    body *{scrollbar-width:auto;scrollbar-color:auto}
+    ::-webkit-scrollbar{width:.625rem;height:.625rem}
+    ::-webkit-scrollbar-track,::-webkit-scrollbar-corner{background:transparent}
+    ::-webkit-scrollbar-thumb{min-height:2rem;min-width:2rem;background:var(--ui-scroll-thumb);border:.125rem solid transparent;border-radius:999px;background-clip:padding-box}
+    ::-webkit-scrollbar-thumb:hover{background-color:color-mix(in srgb,var(--ui-muted) 80%,transparent)}
+  }
+}
 ::selection{background:var(--ui-accent)!important;color:var(--ui-on-accent)!important}
 input,textarea{caret-color:var(--ui-accent)}
 button,input,select,textarea,a,summary{-webkit-tap-highlight-color:transparent}
@@ -57,7 +67,7 @@ body .btn-subtle:hover{background:color-mix(in srgb,var(--ui-text) 9%,var(--ui-s
 #appSidebar>div:last-child{padding:0.75rem;border-color:var(--ui-line)!important}
 #apiQuotaContainer{border:0;background:var(--ui-canvas)!important;border-radius:0.4375rem;font-size:0.625rem;margin-top:0.625rem}
 #systemStatusContainer:empty{display:none}
-main{padding:1.875rem 2rem 3rem!important;background:var(--ui-canvas)!important;scroll-padding-top:1.5rem}
+main{padding:1.875rem 2rem 3rem!important;background:var(--ui-canvas)!important;scroll-padding-top:1.5rem;min-height:0;scrollbar-gutter:stable}
 main>section{max-width:1480px!important;margin-inline:auto!important}
 .desktop-page-heading{margin:0.125rem 0 1.5625rem;display:flex;flex-direction:column;gap:0.375rem}
 .desktop-page-heading h2{font-size:1.6875rem;font-weight:600;letter-spacing:-.035em;line-height:1.25;color:var(--ui-text);margin:0;text-wrap:balance}
@@ -161,7 +171,10 @@ body button[data-button-role="primary"]:active:not(:disabled){background:var(--u
 body .fixed.inset-0[class*="bg-black"]{background:rgba(0,0,0,.54)!important;backdrop-filter:none!important}
 body .fixed.inset-0>div{border-color:var(--ui-control)!important;box-shadow:0 1.125rem 3.75rem #0003!important}
 #classModal,#speciesModal{z-index:70}
-.prose-dnd{font-family:Inter,system-ui,sans-serif!important;color:var(--ui-text)!important;line-height:1.9;max-width:75ch;margin-inline:auto}
+.prose-dnd{font-family:Inter,system-ui,sans-serif!important;color:var(--ui-text)!important;line-height:1.9;width:100%;max-width:none;margin-inline:0}
+#chronicleView,#keyPointsView,#journalView{width:100%!important;max-width:none!important;margin-inline:0!important}
+#chronicleView table,#keyPointsView table,#journalView table{display:block;max-width:100%;width:100%;overflow-x:auto;border-collapse:collapse;margin:1.25rem 0}
+#chronicleView th,#chronicleView td,#keyPointsView th,#keyPointsView td,#journalView th,#journalView td{min-width:6rem;padding:0.65rem 0.9rem;text-align:left}
 .prose-dnd h1,.prose-dnd h2,.prose-dnd h3{color:var(--ui-text)!important;font-family:inherit!important;letter-spacing:-.015em}
 .desktop-mobile-shortcuts{display:none}
 @media(min-width:1600px){main{padding-inline:3rem!important}}
@@ -188,6 +201,18 @@ main,main>section{min-width:0}
 #desktopRecorderPanel{padding:0;background:transparent!important;border:0!important;border-radius:0!important}
 #desktopSourceToolbar{flex-wrap:wrap;gap:0.75rem;padding-bottom:0.75rem}
 #desktopSourceToolbar nav{min-width:0;flex-wrap:wrap}
+#engineGroqBtn,#engineLocalBtn{background:transparent!important;color:var(--ui-muted)!important;border:1px solid transparent!important;min-height:2.125rem;font-weight:550}
+#engineGroqBtn[aria-pressed="true"],#engineLocalBtn[aria-pressed="true"]{background:var(--ui-raised)!important;color:var(--ui-accent)!important;border-color:var(--ui-line)!important;font-weight:600}
+#engineGroqBtn>svg,#engineLocalBtn>svg{color:inherit!important}
+.settings-api-issue-summary{padding:.875rem 1rem;border:1px solid var(--ui-review);border-radius:.5rem;background:var(--ui-raised);color:var(--ui-text);font-size:.8125rem;line-height:1.6;overflow-wrap:anywhere}
+.service-connection{color:var(--ui-muted)}
+.service-connection[data-state="ready"]{color:var(--ui-success)}
+.service-connection[data-state="error"]{color:var(--ui-danger)}
+.service-connection[data-state="pending"]{color:var(--ui-review)}
+.service-status-dot{display:inline-block;width:.5rem;height:.5rem;border-radius:50%;background:currentColor;flex-shrink:0}
+#settingsDriveBadge{background:var(--ui-raised)!important;color:var(--ui-muted)!important;border-color:var(--ui-control)!important}
+#settingsDriveBadge[data-state="ready"]{background:color-mix(in srgb,var(--ui-success) 12%,var(--ui-surface))!important;color:var(--ui-success)!important;border-color:var(--ui-success)!important}
+#settingsDriveBadge>span:first-child{background:currentColor!important}
 @media(max-width:767px){#desktopSourceToolbar>div{margin-left:0;width:100%;justify-content:flex-end}#desktopSourceToolbar nav{width:100%;gap:0.25rem}#desktopSourceToolbar nav button{padding:0.4375rem 0.5rem;font-size:0.6875rem}#desktopSourceToolbar nav button svg{width:0.8125rem;height:0.8125rem}#recordingStationCard{padding:1.5625rem 1rem 1rem}}
 
 #saveStatusBadge[data-save-state="error"]{color:var(--ui-danger)!important;animation:none!important}
@@ -210,31 +235,56 @@ main,main>section{min-width:0}
   height: 2.75rem !important;
 }
 
-/* Wiki: title, context and exports each receive their own available row. */
-#wikiHeaderCard { display:flex; flex-direction:column; align-items:stretch; gap:1.125rem; }
+/* Wiki: context and campaign tools above, session and exports below. */
+#wikiHeaderCard { display:flex; flex-direction:column; align-items:stretch; gap:.875rem; padding:1rem; }
+#wikiHeaderTop { display:flex; flex-wrap:wrap; align-items:center; gap:.875rem; min-width:0; }
+#wikiHeaderTop>#wikiHeaderIntro { flex:1 1 15rem; gap:.625rem; }
 #wikiHeaderIntro,#notesHeaderIntro { min-width:0; align-items:flex-start; }
 #wikiHeaderIntro>div:last-child,#notesHeaderIntro>div:last-child { min-width:0; }
 #wikiHeaderIntro h2,#notesHeaderIntro h2 { font-size:1.125rem; line-height:1.4; overflow-wrap:anywhere; }
 #wikiHeaderIntro p,#notesHeaderIntro p { max-width:75ch; line-height:1.6; }
-#wikiHeaderControls { display:grid; grid-template-columns:minmax(0,1fr); gap:.875rem; align-items:end; width:100%; min-width:0; }
-#wikiCampaignPicker { display:flex; align-items:center; gap:.5rem; width:100%; max-width:40rem; min-width:0; }
+#wikiHeaderControls { display:block; width:100%; min-width:0; }
+#wikiCampaignPicker { display:flex; flex:1.2 1 18rem; align-items:center; gap:.5rem; width:auto; max-width:100%; min-width:0; }
 #wikiCampaignPicker label { flex-shrink:0; }
-#wikiCampaignSelect { flex:1 1 auto; width:100%; max-width:32rem; min-width:0; text-overflow:ellipsis; }
+#wikiCampaignSelect { flex:1 1 auto; width:100%; min-width:0; max-width:100%; text-overflow:ellipsis; }
+#wikiCampaignTools { flex:0 1 auto; gap:.5rem; margin:0; }
 #wikiRefreshCampaigns { flex-shrink:0; min-width:2.5rem; min-height:2.5rem; }
-#wikiHeaderExportActions { grid-column:1/-1; display:flex; flex-wrap:wrap; gap:.625rem; min-width:0; width:100%; border-left:0; padding-left:0; padding-top:.875rem; border-top:1px solid var(--ui-line); }
-#wikiSessionExportContainer { display:grid; grid-template-columns:auto minmax(0,1fr) auto auto; align-items:center; gap:.5rem; min-width:0; width:100%; padding:.5rem; }
+#wikiHeaderExportActions { display:flex; flex-wrap:wrap; align-items:center; gap:.5rem; min-width:0; width:100%; border:0; padding:0; }
+#wikiHeaderExportActions>button { flex:0 0 auto; }
+#wikiSessionExportContainer { display:grid; flex:1 1 28rem; grid-template-columns:auto minmax(0,1fr); align-items:center; gap:.5rem; min-width:0; max-width:100%; width:auto; padding:0; border:0; background:transparent!important; }
 #wikiSessionExportSelect { width:100%; min-width:0; max-width:100%; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; }
 #wikiSessionExportContainer button { min-width:0; }
 #wikiSessionExportContainer button>span { min-width:0; }
-#wikiExplorerLayout:not(.hidden) { display:grid; grid-template-columns:minmax(18rem,23rem) minmax(0,1fr); align-items:stretch; }
+#wikiDownloadControl { flex:0 0 auto; }
+#wikiDownloadMenu { position:fixed; inset:auto; top:var(--wiki-download-top,5rem); left:var(--wiki-download-left,1rem); margin:0; width:min(24rem,calc(100vw - 2rem)); max-height:calc(100dvh - 2rem); overflow-y:auto; padding:.75rem; border:1px solid var(--ui-control); border-radius:.75rem; background:var(--ui-surface); color:var(--ui-text); box-shadow:0 .5rem 2rem #0004; }
+#wikiDownloadTitle { font-size:.875rem; font-weight:600; margin:0; padding:.25rem .5rem; }
+#wikiDownloadContext { font-size:.75rem; line-height:1.5; color:var(--ui-muted); padding:.25rem .5rem .625rem; overflow-wrap:anywhere; }
+#wikiDownloadMenu .wiki-download-options { display:grid; gap:.25rem; }
+#wikiDownloadMenu button[data-button-role] { display:grid; grid-template-columns:1.125rem minmax(0,1fr); gap:.625rem; align-items:start; justify-content:stretch; width:100%; padding:.75rem; text-align:left; white-space:normal; font-weight:400; background:transparent!important; border:1px solid transparent!important; }
+#wikiDownloadMenu button[data-button-role]:not(:disabled):hover { background:var(--ui-raised)!important; }
+#wikiDownloadMenu button:disabled { opacity:1!important; }
+#wikiDownloadMenu button:disabled strong { color:var(--ui-muted); }
+#wikiDownloadMenu button>svg,#wikiDownloadMenu button>span:first-child { margin-top:.125rem; }
+#wikiDownloadMenu strong { font-size:.875rem; font-weight:600; color:var(--ui-text); }
+#wikiDownloadMenu .wiki-download-description { display:block; margin-top:.25rem; font-size:.75rem; line-height:1.5; color:var(--ui-muted); }
+#wikiExplorerLayout:not(.hidden) { display:grid; grid-template-columns:minmax(15rem,19rem) minmax(0,1fr); align-items:stretch; }
 #wikiExplorerSidebar { width:auto; min-width:0; max-height:44rem; }
 #wikiCategoryFilters { grid-template-columns:repeat(2,minmax(0,1fr)); gap:.375rem; padding:0; border:0; background:transparent!important; }
-#wikiCategoryFilters>button { display:grid; grid-template-columns:1.125rem minmax(0,1fr) auto; gap:.375rem; justify-content:stretch; align-items:center; width:100%; min-width:0; min-height:2.375rem; padding:.5rem .5625rem; text-align:left; }
+#wikiCategoryFilters>button { display:grid; grid-template-columns:1rem minmax(0,1fr) auto; gap:.25rem; justify-content:stretch; align-items:center; width:100%; min-width:0; min-height:2.375rem; padding:.5rem .375rem; text-align:left; }
 #wikiCategoryFilters>button>svg { width:1rem; height:1rem; min-width:0; }
 #wikiCategoryFilters>button>span:not([id]) { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-#wikiCategoryFilters>button>span[id] { min-width:1.375rem; padding-inline:.3rem; white-space:nowrap; text-align:center; }
+#wikiCategoryFilters>button>span[id] { min-width:1.25rem; padding-inline:.25rem; white-space:nowrap; text-align:center; }
 #wikiDossierColumn,#wikiDossierContent { min-width:0; max-width:100%; overflow-wrap:anywhere; }
-#wikiDossierColumn { max-height:44rem; }
+#wikiDossierColumn { min-height:0; max-height:none; overflow:visible; }
+@media(min-width:1101px) {
+  #wikiDossierColumn { max-height:max(20rem,calc(100dvh - 16rem)); overflow-y:auto; scrollbar-gutter:stable; }
+}
+/* The dossier owns desktop reading; wide tables keep their local horizontal scroll. */
+#wikiSessionChronicleTab { max-width:none; overflow:visible; }
+#wikiSessionChronicleTab>:is(p,ul,ol,blockquote) { max-width:75ch; }
+#wikiSessionChronicleTab table { display:block; max-width:100%; overflow-x:auto; }
+#wikiSessionChronicleTab :is(th,td) { min-width:8rem; overflow-wrap:normal; word-break:normal; vertical-align:top; }
+#wikiSessionTranscriptContainer { max-height:none; overflow:visible; }
 /* Notes use the same separation of heading and tools, with bounded split columns. */
 #notesHeaderCard { display:grid; grid-template-columns:minmax(0,1fr) minmax(22rem,32rem); gap:1.25rem; align-items:start; }
 #notesHeaderControls { display:flex; flex-wrap:wrap; align-items:center; gap:.625rem; min-width:0; width:100%; }
@@ -246,11 +296,9 @@ main,main>section{min-width:0}
 #notesExplorerLayout>div { grid-column:auto; min-width:0; }
 @media(max-width:1280px) { #notesHeaderCard { grid-template-columns:minmax(0,1fr); } }
 @media(max-width:1100px) {
-  #wikiSessionExportContainer { grid-template-columns:repeat(2,minmax(0,1fr)); }
-  #wikiSessionExportContainer>label,#wikiSessionExportSelect { grid-column:1/-1; }
-  #wikiSessionExportContainer button { align-self:stretch; white-space:normal; }
   #wikiExplorerLayout:not(.hidden),#notesExplorerLayout { grid-template-columns:minmax(0,1fr); }
-  #wikiExplorerSidebar { max-height:30rem; border-right:0; border-bottom:1px solid var(--ui-line); }
+  #wikiExplorerSidebar { max-height:none; border-right:0; border-bottom:1px solid var(--ui-line); }
+  #wikiEntityList { min-height:0; max-height:min(18rem,40svh); }
   #notesMetrics { grid-template-columns:repeat(2,minmax(0,1fr)); }
 }
 @media(max-width:520px) {
@@ -371,3 +419,11 @@ body .desktop-number-stepper>input{width:3rem;min-width:3rem;min-height:2.375rem
 
 #apiQuotaContainer .quota-audio-estimate{margin:.75rem 0 0;padding-top:.625rem;border-top:1px solid var(--ui-line);font-size:.6875rem;line-height:1.55;color:var(--ui-review)}
 #apiQuotaContainer[data-state="critical"] .quota-audio-estimate{color:var(--ui-danger)}
+/* Consecutive audio parts use the same compact controls as the ingestion form. */
+.audio-parts-list { list-style:none; padding:0; margin:12px 0 0; }
+.audio-part-row { display:flex; align-items:center; gap:8px; padding:8px 0; border-top:1px solid var(--border-color, #454545); }
+.audio-part-row > span { flex:1; min-width:0; overflow-wrap:anywhere; font-size:12px; }
+.audio-part-row > button { flex-shrink:0; padding:6px 8px; font-size:12px; border-radius:6px; }
+.audio-part-row > button:disabled { opacity:.4; cursor:default; }
+.audio-part-row > button:focus-visible { outline:2px solid #e8ac67; outline-offset:2px; }
+@media(max-width:600px) { .audio-part-row { flex-wrap:wrap; } .audio-part-row > span { flex-basis:100%; } }

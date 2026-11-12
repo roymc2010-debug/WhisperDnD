@@ -11,6 +11,10 @@ var targetProgressPercent = 0.0;
 var progressAnimationRaf = null;
 var progressCurrentStage = null;
 var isYoutubeStepper = false;
+var progressTrackingRun = 0;
+var progressIndeterminate = false;
+var progressGenerationLabel = "";
+var progressProviderWaitMessage = "Gemini está procesando la solicitud. La duración depende del servicio de Google; la app necesita mantener la conexión a internet para recibir la respuesta.";
 
 function generateTaskId() {
   return 'task_' + Date.now() + '_' + Math.random().toString(36).substring(2, 9);
@@ -149,6 +153,22 @@ function retryLastAction() {
   }
 }
 
+function renderGenerationProgress(generation) {
+  const element = document.getElementById("procGenerationElapsed");
+  if (!element) return;
+  progressIndeterminate = Boolean(generation && !generation.finished_at && generation.phase !== "completed" && generation.phase !== "failed");
+  progressGenerationLabel = generation?.label || (generation?.phase === "waiting_response" ? "Esperando respuesta de Gemini" : "Procesando con Gemini");
+  element.hidden = !generation;
+  const description = document.getElementById("procStepDesc");
+  if (description && (generation || description.textContent === progressProviderWaitMessage)) {
+    description.textContent = generation?.phase === "waiting_response" && progressIndeterminate ? progressProviderWaitMessage : "";
+  }
+  element.textContent = generation ? "Tiempo en esta etapa: " + formatSeconds(generation.phase_elapsed_seconds) : "";
+  if (progressIndeterminate) stopProgressAnimationLoop();
+  renderProgressDOM(currentProgressPercent);
+  if (!progressIndeterminate) startProgressAnimationLoop();
+}
+
 function renderProgressDOM(val) {
   const clamped = Math.max(0.0, Math.min(100.0, val));
   // Muestra siempre el porcentaje con precisión de un decimal (ej: 42.5%)
@@ -156,36 +176,42 @@ function renderProgressDOM(val) {
   const percentEl = document.getElementById("progressBarPercent");
   const fillEl = document.getElementById("progressBarFill");
 
-  if (percentEl) percentEl.textContent = formatted;
+  if (percentEl) percentEl.textContent = progressIndeterminate ? "En curso" : formatted;
   if (fillEl) fillEl.style.width = formatted;
+  const track = document.getElementById("progressBarTrack");
+  if (track) {
+    if (progressIndeterminate) {
+      track.classList.add("progress-indeterminate");
+      track.removeAttribute("aria-valuenow");
+      track.setAttribute("aria-valuetext", progressGenerationLabel);
+    } else {
+      track.classList.remove("progress-indeterminate");
+      track.setAttribute("aria-valuenow", clamped.toFixed(1));
+      track.setAttribute("aria-valuetext", formatted);
+    }
+  }
   updateStageHighlights(clamped, progressCurrentStage);
 }
 
 function startProgressAnimationLoop() {
-  if (progressAnimationRaf) return;
-
-  const tick = () => {
-    let diff = targetProgressPercent - currentProgressPercent;
-
-    if (diff > 0.05) {
-      // Easing suave hacia el porcentaje real reportado por el backend (nunca retrocede)
-      const step = Math.max(0.02, diff * 0.15);
-      currentProgressPercent = Math.min(targetProgressPercent, currentProgressPercent + step);
-    } else if (diff > 0) {
-      currentProgressPercent = targetProgressPercent;
-    }
-
+  stopProgressAnimationLoop();
+  if (progressIndeterminate) return;
+  const from = currentProgressPercent;
+  const to = Math.max(from, targetProgressPercent);
+  const reduceMotion = typeof window.matchMedia === "function" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  if (reduceMotion || to - from < 0.05) {
+    currentProgressPercent = to;
+    renderProgressDOM(to);
+    return;
+  }
+  const started = performance.now();
+  const tick = now => {
+    const fraction = Math.max(0, Math.min(1, (now - started) / 900));
+    const eased = 1 - Math.pow(1 - fraction, 3);
+    currentProgressPercent = from + (to - from) * eased;
     renderProgressDOM(currentProgressPercent);
-
-    if (currentTaskId && (targetProgressPercent - currentProgressPercent) > 0.05) {
-      progressAnimationRaf = requestAnimationFrame(tick);
-    } else if ((targetProgressPercent - currentProgressPercent) > 0.05) {
-      progressAnimationRaf = requestAnimationFrame(tick);
-    } else {
-      progressAnimationRaf = null;
-    }
+    progressAnimationRaf = fraction < 1 ? requestAnimationFrame(tick) : null;
   };
-
   progressAnimationRaf = requestAnimationFrame(tick);
 }
 
@@ -197,6 +223,9 @@ function stopProgressAnimationLoop() {
 }
 
 function startProgressTracking(taskId, initialTitle, initialDesc) {
+  const trackingRun = ++progressTrackingRun;
+  let polling = false;
+  renderGenerationProgress(null);
   currentTaskId = taskId;
   currentProgressPercent = 0.0;
   targetProgressPercent = 0.0;
@@ -215,17 +244,20 @@ function startProgressTracking(taskId, initialTitle, initialDesc) {
   startProgressAnimationLoop();
 
   progressPollInterval = setInterval(async () => {
-    if (!currentTaskId) return;
+    if (!currentTaskId || polling) return;
+    const polledTaskId = currentTaskId;
+    polling = true;
     try {
       const res = await fetch(`/api/task/status?task_id=${encodeURIComponent(currentTaskId)}`);
       if (res.ok) {
         const data = await res.json();
+        if (trackingRun !== progressTrackingRun || polledTaskId !== currentTaskId) return;
         if (data && data.status === 'error') {
           if (progressPollInterval) {
             clearInterval(progressPollInterval);
             progressPollInterval = null;
           }
-          showErrorCard(data.error_message || data.message || "Error durante el procesamiento.");
+          showErrorCard(data);
           return;
         }
         if (data && data.status === 'cancelled') {
@@ -240,10 +272,13 @@ function startProgressTracking(taskId, initialTitle, initialDesc) {
         }
         if (data && typeof data.percent === 'number') {
           updateProgressBar(data.percent, data.step, data.message, data.stage);
+          renderGenerationProgress(data.generation);
         }
       }
     } catch (err) {
-      console.warn("Error polling task status:", err);
+      console.warn("No se pudo actualizar el estado del proceso.");
+    } finally {
+      polling = false;
     }
   }, 1000);
 }
@@ -432,6 +467,8 @@ function updateStageHighlights(p, stage = null) {
 }
 
 function finishProgressTracking(success = true) {
+  progressTrackingRun++;
+  progressIndeterminate = false;
   if (progressPollInterval) {
     clearInterval(progressPollInterval);
     progressPollInterval = null;

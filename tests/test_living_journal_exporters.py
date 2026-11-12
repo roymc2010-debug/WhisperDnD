@@ -75,6 +75,7 @@ class TestLivingJournalExporters(unittest.TestCase):
                     "chronicle_text": "Unos trasgos atacaron por sorpresa. Markus utilizó su escudo para proteger a Selen.",
                     "closing_expectations": "Descansar en la posada del Jabalí.",
                     "markus_coaching": "Excelente intercepción táctica. Considerar Action Surge.",
+                    "user_character": {"character_name": "Markus Veyl"},
                 },
                 {
                     "session_number": 2,
@@ -84,6 +85,7 @@ class TestLivingJournalExporters(unittest.TestCase):
                     "chronicle_text": "Un combate feroz se desató en la caverna central.",
                     "closing_expectations": "Hablar con el sacerdote local.",
                     "markus_coaching": "Gran uso de Menacing Attack para aterrorizar al jefe.",
+                    "user_character": {"character_name": "Markus Veyl"},
                 },
             ],
         }
@@ -138,7 +140,7 @@ class TestLivingJournalExporters(unittest.TestCase):
             ],
             "quests": [],
             "npcs": [],
-            "sessions": [],
+            "sessions": [{"session_number": 1, "source": "youtube"}],
         }
 
         # MD Test

@@ -29,8 +29,8 @@ window.addEventListener('error', function(e) {
 });
   </script>
 
-  <link rel="stylesheet" href="/static/styles.css?v=desktop1">
-  <link rel="stylesheet" href="/static/desktop.css?v=usage-profiles-20261031">
+  <link rel="stylesheet" href="/static/styles.css?v=measured-progress-20261109-2">
+  <link rel="stylesheet" href="/static/desktop.css?v=recording-parts-20261103-1">
   <script>
   try { var t = localStorage.getItem('whisper_desktop_theme'); if (['copper','graphite','midnight','wine','paper','sky'].includes(t)) document.documentElement.dataset.theme = t; } catch (_) {}
   </script>
@@ -215,7 +215,7 @@ class="min-h-[36px] w-[36px] rounded-lg bg-slate-800 hover:bg-slate-700 text-sla
 <div>
   <div class="flex items-center gap-2">
 <h2 class="text-sm font-bold text-amber-300 font-fantasy tracking-wide">Diario Vivo de Campaña (Grimorio)</h2>
-<span id="campaignLastSessionBadge" class="px-2.5 py-0.5 rounded-full text-[10px] font-mono font-semibold bg-slate-800 text-slate-300 border border-slate-700">
+<span id="campaignLastSessionBadge" role="status" aria-live="polite" class="px-2.5 py-0.5 rounded-full text-[10px] font-mono font-semibold bg-slate-800 text-slate-300 border border-slate-700">
   Sin Campaña Seleccionada
 </span>
   </div>
@@ -224,25 +224,19 @@ class="min-h-[36px] w-[36px] rounded-lg bg-slate-800 hover:bg-slate-700 text-sla
   </div>
 
   <div class="flex flex-wrap items-center gap-3 w-full md:w-auto">
-<div class="flex items-center gap-2 flex-1 md:flex-initial">
-  <label for="campaignNameInput" class="text-xs text-slate-400 font-medium whitespace-nowrap">Campaña:</label>
-  <input type="text" id="campaignNameInput" value="" placeholder="Escribe o selecciona tu campaña..." 
-oninput="onCampaignChange()" onchange="onCampaignChange()" list="campaignListOptions"
-class="min-h-[44px] bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2 text-xs text-slate-200 focus:ring-2 focus:ring-amber-500 outline-none w-48 font-medium">
+<div class="flex items-center gap-2 flex-1 md:flex-initial" id="campaignSelectorGroup">
+  <label for="campaignSelect" class="text-xs text-slate-400 font-medium whitespace-nowrap">Campaña:</label>
+  <div class="relative flex items-center gap-1.5">
+    <select id="campaignSelect" onchange="onCampaignSelectDropdownChange(this.value)"
+      class="min-h-[44px] bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-200 focus:ring-2 focus:ring-amber-500 outline-none w-52 font-medium cursor-pointer">
+      <option value="">-- Seleccionar Campaña --</option>
+    </select>
+    <input type="text" id="campaignNameInput" value="" placeholder="Nombre de la nueva campaña..."
+      onchange="onCampaignChange()"
+      class="hidden min-h-[44px] bg-slate-950 border border-amber-500 rounded-xl px-3.5 py-2 text-xs text-slate-200 focus:ring-2 focus:ring-amber-500 outline-none w-52 font-medium">
+    <button type="button" id="btnCancelNewCampaign" onclick="toggleNewCampaignMode(false)" title="Volver a la lista de campañas existentes" class="hidden min-h-[36px] px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white text-xs cursor-pointer">✕</button>
+  </div>
   <datalist id="campaignListOptions"></datalist>
-  <button type="button" id="btnMyCampaigns" onclick="toggleCampaignManagerModal(true)" 
-title="Ver y administrar mis campañas guardadas"
-class="btn-subtle min-h-[40px] inline-flex items-center gap-2 px-3.5 py-1.5 text-xs font-semibold cursor-pointer shrink-0">
-<svg class="w-4 h-4 text-amber-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
-<span class="text-slate-200">Mis Campañas</span>
-  </button>
-  <button type="button" id="btnImportCampaign" onclick="triggerImportCampaign()"
-title="Importar campaña desde archivo ZIP o JSON"
-class="btn-subtle min-h-[40px] inline-flex items-center gap-2 px-3.5 py-1.5 text-xs font-semibold cursor-pointer shrink-0">
-<svg class="w-4 h-4 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-<span class="text-slate-200">Importar</span>
-  </button>
-  <input type="file" id="campaignImportFileInput" accept=".zip,.json" class="hidden" onchange="handleCampaignImportFile(event)">
 </div>
 <div class="flex items-center gap-2">
   <label for="sessionNumberInput" class="text-xs text-slate-400 font-medium whitespace-nowrap">Sesión #:</label>
@@ -563,25 +557,79 @@ Regrabar / Reemplazar
   </button>
 </nav>
 
-<!-- Selector de Idioma (Español / Inglés) -->
-<div class="flex items-center gap-1.5 ml-auto">
-  <span class="text-xs text-slate-400 font-medium whitespace-nowrap hidden sm:inline">Idioma:</span>
-  <div class="inline-flex p-0.5 rounded-xl bg-slate-950 border border-slate-800 shadow-inner">
-<button id="langEsBtn" type="button" onclick="setTargetLanguage('es')" 
-  title="Generar crónicas y resúmenes en Español"
-  class="px-2.5 py-1.5 rounded-lg text-xs font-semibold transition flex items-center gap-1 bg-amber-500/15 text-amber-300 border border-amber-500/30 shadow-sm cursor-pointer">
-   <span class="font-medium">Español</span>
-</button>
-<button id="langEnBtn" type="button" onclick="setTargetLanguage('en')" 
-  title="Generate chronicles and summaries in English"
-  class="px-2.5 py-1.5 rounded-lg text-xs font-medium transition flex items-center gap-1 text-slate-400 hover:text-slate-200 border border-transparent cursor-pointer">
-   <span class="font-medium">English</span>
-</button>
+<!-- Selectores de Motor, Modelo e Idioma -->
+<div class="flex items-center gap-2 sm:gap-3 ml-auto flex-wrap sm:flex-nowrap">
+  <!-- Selector de Motor (Groq Cloud / Local CPU) -->
+  <div class="flex items-center gap-1">
+    <span class="text-xs text-slate-400 font-medium whitespace-nowrap hidden md:inline">Transcripción:</span>
+    <div role="group" aria-label="Transcripción" class="inline-flex p-0.5 rounded-xl bg-slate-950 border border-slate-800 shadow-inner">
+      <button id="engineGroqBtn" type="button" onclick="setEngine('groq')"
+        aria-pressed="true"
+        title="Transcripción en la nube ultrarrápida con Groq (whisper-large-v3). Requiere GROQ_API_KEY."
+        class="px-2.5 py-1.5 rounded-lg text-xs font-semibold transition flex items-center gap-1 bg-indigo-600 text-white shadow-sm cursor-pointer">
+        <svg class="w-3.5 h-3.5 text-amber-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+        <span>Groq</span>
+      </button>
+      <button id="engineLocalBtn" type="button" onclick="setEngine('local')"
+        aria-pressed="false"
+        title="Transcripción local en CPU con faster-whisper (int8). No envía audio a Groq ni requiere GROQ_API_KEY."
+        class="px-2.5 py-1.5 rounded-lg text-xs font-medium transition flex items-center gap-1 text-slate-400 hover:text-slate-200 border border-transparent cursor-pointer">
+        <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="14" x="2" y="3" rx="2"/><line x1="8" x2="16" y1="21" y2="21"/><line x1="12" x2="12" y1="17" y2="21"/></svg>
+        <span>Local</span>
+      </button>
+    </div>
   </div>
+
+  <!-- Subselector de Modelo faster-whisper (base / small) -->
+  <div id="localModelSizeContainer" class="hidden items-center gap-1">
+    <span class="text-xs text-slate-400 font-medium whitespace-nowrap hidden lg:inline">Modelo:</span>
+    <div class="inline-flex p-0.5 rounded-xl bg-slate-950 border border-slate-800 shadow-inner">
+      <button id="modelBaseBtn" type="button" onclick="setModelSize('base')"
+        title="Modelo base (~140M parámetros, ligero, balance óptimo para CPU Intel i7-6560U)"
+        class="px-2 py-1.5 rounded-lg text-xs font-semibold transition bg-slate-800 text-emerald-300 border border-emerald-500/30 shadow-sm cursor-pointer">
+        <span>base</span>
+      </button>
+      <button id="modelSmallBtn" type="button" onclick="setModelSize('small')"
+        title="Modelo small (~460M parámetros, mayor precisión fonética, mayor carga de CPU)"
+        class="px-2 py-1.5 rounded-lg text-xs font-medium transition text-slate-400 hover:text-slate-200 border border-transparent cursor-pointer">
+        <span>small</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- Selector de Idioma (Español / Inglés) -->
+  <div class="flex items-center gap-1">
+    <span class="text-xs text-slate-400 font-medium whitespace-nowrap hidden sm:inline">Idioma:</span>
+    <div class="inline-flex p-0.5 rounded-xl bg-slate-950 border border-slate-800 shadow-inner">
+      <button id="langEsBtn" type="button" onclick="setTargetLanguage('es')"
+        title="Generar crónicas y resúmenes en Español"
+        class="px-2.5 py-1.5 rounded-lg text-xs font-semibold transition flex items-center gap-1 bg-amber-500/15 text-amber-300 border border-amber-500/30 shadow-sm cursor-pointer">
+         <span class="font-medium">Español</span>
+      </button>
+      <button id="langEnBtn" type="button" onclick="setTargetLanguage('en')"
+        title="Generate chronicles and summaries in English"
+        class="px-2.5 py-1.5 rounded-lg text-xs font-medium transition flex items-center gap-1 text-slate-400 hover:text-slate-200 border border-transparent cursor-pointer">
+         <span class="font-medium">English</span>
+      </button>
+    </div>
+  </div>
+
   <input type="hidden" id="targetLanguage" value="es">
   <input type="hidden" id="transcriptionEngine" value="groq">
   <input type="hidden" id="globalModelSize" value="base">
 </div>
+  </div>
+
+  <!-- Banner informativo cuando el motor Local está activo -->
+  <div id="localEngineNotice" class="hidden text-[11px] text-slate-400 bg-slate-950/70 border border-indigo-500/30 px-3.5 py-2 rounded-xl flex flex-wrap items-center justify-between gap-2 shadow-sm">
+    <div class="flex items-center gap-2">
+      <span class="w-2 h-2 rounded-full bg-emerald-400 shrink-0"></span>
+      <span><strong class="text-slate-200">faster-whisper local activo:</strong> Inferencia en CPU (int8, Intel i7-6560U). Audio procesado 100% en tu máquina sin enviar datos a Groq ni requerir GROQ_API_KEY.</span>
+    </div>
+    <div class="flex items-center gap-1.5 text-amber-400/90 font-medium">
+      <svg class="w-3.5 h-3.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+      <span>La generación de crónicas/apuntes con Gemini se mantiene en la nube (requiere GEMINI_API_KEY).</span>
+    </div>
   </div>
 
   <div id="tabLiveContent" class="space-y-6">
@@ -624,11 +672,12 @@ Regrabar / Reemplazar
   <div class="flex items-center gap-2">
 <span class="w-2 h-2 rounded-full bg-emerald-400"></span>
 <span class="text-xs font-medium text-slate-300">Captura Estéreo PC:</span>
-<span class="px-2 py-0.5 rounded text-[10px] font-mono bg-slate-800 text-emerald-300 border border-emerald-500/20">Canal 1 (Mic) + Canal 2 (Discord / Audio)</span>
+<span class="px-2 py-0.5 rounded text-[10px] font-mono bg-slate-800 text-emerald-300 border border-emerald-500/20">Canal 1 (Mic) + Canal 2: Audio de Discord (aislado)</span>
   </div>
 </div>
 
 <!-- Dropdowns de Dispositivos (PC Host) -->
+<p id="audioDevicesStatus" role="status" class="text-xs text-slate-400" hidden></p>
 <div id="pcHostDevicesContainer" class="grid grid-cols-1 sm:grid-cols-2 gap-3">
   <div>
 <label for="selectAudioMic" class="block text-xs font-medium text-slate-300 mb-1">
@@ -638,21 +687,21 @@ Regrabar / Reemplazar
   class="w-full bg-slate-900 border border-white/10 rounded-lg px-3 py-2 text-xs text-slate-200 outline-none transition cursor-pointer min-h-[40px]">
   <option value="">Cargando micrófonos...</option>
 </select>
-<p class="text-[10px] text-slate-500 mt-1">Canal izquierdo (mono).</p>
+<p class="text-[10px] text-slate-500 mt-1">Canal izquierdo (mono). Se recomienda el micrófono interno Conexant para conservar los audífonos Redmi Buds en estéreo sin degradación.</p>
   </div>
 
   <div id="deviceSpeakerContainer">
 <label for="selectAudioSpeaker" class="block text-xs font-medium text-slate-300 mb-1">
-  Canal 2: Audio de Discord / Audífonos
+  Canal 2: Audio de Discord (aislado)
 </label>
 <select id="selectAudioSpeaker" onchange="onAudioDeviceChange()"
   class="w-full bg-slate-900 border border-white/10 rounded-lg px-3 py-2 text-xs text-slate-200 outline-none transition cursor-pointer min-h-[40px]">
   <option value="">Cargando audífonos / altavoces...</option>
 </select>
-<p id="speakerWarningHint" class="hidden text-[10px] text-amber-400 mt-1 flex items-center gap-1 font-medium bg-amber-500/10 px-2 py-1 rounded-md border border-amber-500/20">
-  <span><span data-ui-icon=warning aria-hidden=true></span> Has seleccionado altavoces. Si juegas con audífonos, selecciona tus audífonos aquí para capturar a Discord.</span>
+<p id="speakerWarningHint" class="text-[10px] text-indigo-300 mt-1 flex items-center gap-1 font-medium bg-indigo-500/10 px-2 py-1 rounded-md border border-indigo-500/20">
+  <span><span data-ui-icon=check aria-hidden=true></span> Captura WASAPI directa de la aplicación Discord. Excluye Spotify, YouTube y otras apps del sistema.</span>
 </p>
-<p class="text-[10px] text-slate-500 mt-1">Canal derecho (loopback del sistema).</p>
+<p class="text-[10px] text-slate-500 mt-1">Canal derecho (Discord aislado).</p>
   </div>
 </div>
 
@@ -729,7 +778,7 @@ title="Atenúa o amplifica tu voz antes de grabar">
   <!-- Canal 2: Barra Discord / Audífonos & Ganancia -->
   <div id="meterSpeakerRow" class="space-y-1.5 bg-slate-950/40 p-2.5 rounded-lg border border-white/5">
 <div class="flex justify-between items-center text-[11px] font-mono">
-  <span class="text-slate-300 font-medium">Discord / Sistema (Llamada)</span>
+  <span class="text-slate-300 font-medium">Canal 2: Audio de Discord (aislado)</span>
   <span id="meterSpkValue" class="text-slate-500">—</span>
 </div>
 <div class="w-full bg-slate-950 rounded h-2 overflow-hidden border border-white/5 flex">
@@ -782,6 +831,14 @@ La captura de audio en el servidor se detuvo. El audio grabado está seguro en e
   <svg class="w-3.5 h-3.5 fill-current shrink-0" viewBox="0 0 24 24"><rect width="14" height="14" x="5" y="5" rx="2"/></svg>
   <span id="btnStopRecordingText">Detener y Procesar</span>
 </button>
+
+<!-- Solo Guardar WAV (Prueba sin IA) -->
+<button id="btnStopOnly" onclick="stopRecordingOnly()" disabled type="button"
+  title="Detiene la grabación y guarda el archivo WAV estéreo en disco sin procesarlo con Groq, Gemini ni Drive"
+  class="min-h-[46px] px-4 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 disabled:opacity-40 disabled:cursor-not-allowed border border-white/10 text-slate-300 hover:text-white text-xs font-medium transition cursor-pointer flex items-center gap-2">
+  <svg class="w-3.5 h-3.5 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+  <span>Solo Guardar WAV</span>
+</button>
   </div>
 </div>
 
@@ -833,13 +890,13 @@ La captura de audio en el servidor se detuvo. El audio grabado está seguro en e
   <div class="flex flex-col items-center justify-center space-y-3">
 <span class="text-3xl"><span data-ui-icon=mic aria-hidden=true></span></span>
 <div>
-  <p class="text-sm text-slate-200 font-semibold">Arrastra aquí tu audio (.wav, .mp3) y su archivo <code class="text-indigo-300 text-xs bg-slate-900 px-1.5 py-0.5 rounded border border-slate-700">.timeline.json</code> juntos</p>
-  <p class="text-xs text-slate-400 mt-1">Puedes arrastrar ambos archivos a la vez o presionar el botón para elegirlos en tu explorador</p>
+  <p class="text-sm text-slate-200 font-semibold">Arrastra los audios de una misma sesión y sus timelines, si los tienes.</p>
+  <p class="text-xs text-slate-400 mt-1">Puedes agregar varias partes consecutivas y ajustar su orden antes de procesar.</p>
 </div>
 
 <div class="pt-1 flex flex-wrap items-center justify-center gap-2">
   <button type="button" onclick="document.getElementById('multiFileInput').click()" class="px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-medium text-xs shadow-md shadow-indigo-950/60 hover:shadow-indigo-500/20 transition flex items-center gap-2 cursor-pointer active:scale-95">
-<span><span data-ui-icon=folder aria-hidden=true></span></span> <span>Seleccionar ambos archivos a la vez (.wav + .timeline.json)</span>
+<span><span data-ui-icon=folder aria-hidden=true></span></span> <span>Agregar audios y timelines</span>
   </button>
 </div>
 <p class="text-[11px] text-slate-500"><span data-ui-icon=lightbulb aria-hidden=true></span> Tip: en Windows, mantén presionada la tecla <kbd class="px-1.5 py-0.5 bg-slate-800 border border-slate-700 rounded text-[10px] text-slate-300 font-mono">Ctrl</kbd> para seleccionar ambos archivos en la ventana de exploración.</p>
@@ -857,6 +914,7 @@ onchange="handleIncomingFiles(this)"
   <input 
 type="file" 
 id="audioFileInput" 
+multiple
 accept="audio/*, .mp3, .wav, .m4a, .aac, .ogg, .flac, .webm"
 class="hidden" 
 onchange="handleAudioOnlySelect(this)"
@@ -864,6 +922,7 @@ onchange="handleAudioOnlySelect(this)"
   <input 
 type="file" 
 id="timelineFileInput" 
+multiple
 accept=".json,application/json"
 class="hidden" 
 onchange="handleTimelineOnlySelect(this)"
@@ -897,6 +956,8 @@ onchange="handleTimelineOnlySelect(this)"
 <span id="slotAudioName" class="font-mono text-xs text-emerald-400 font-semibold truncate"></span>
   </div>
   <p id="slotAudioMeta" class="text-[11px] text-slate-400 tabular-nums pl-4"></p>
+  <ol id="audioPartsList" class="audio-parts-list" aria-label="Partes de la sesión en orden" hidden></ol>
+  <p id="audioPartsHint" class="text-xs text-slate-400" hidden>Se unirán en este orden para generar una sola sesión y una sola crónica.</p>
 </div>
   </div>
 
@@ -929,6 +990,21 @@ onchange="handleTimelineOnlySelect(this)"
   </div>
 </div>
 
+<details class="text-xs text-slate-400 bg-slate-950/60 border border-slate-800/80 rounded-xl p-3">
+  <summary class="cursor-pointer font-medium hover:text-slate-200 select-none flex items-center justify-between">
+    <span class="flex items-center gap-1.5">
+      <span>📊</span> <span>Comparación de precisión con texto de referencia (opcional)</span>
+    </span>
+    <span class="text-[10px] text-slate-500 font-mono">WER / CER</span>
+  </summary>
+  <div class="pt-2.5 space-y-1.5">
+    <p class="text-[11px] text-slate-400 leading-relaxed">
+      Pega aquí una transcripción de referencia corregida para calcular métricas objetivas (Word Error Rate / Character Error Rate). Se evalúa en memoria para el informe local de pruebas en <code class="font-mono text-amber-300">outputs/transcription-tests/</code> y no se almacena en disco ni se sincroniza externamente.
+    </p>
+    <textarea id="optionalReferenceTextInput" rows="3" placeholder="Pega aquí la transcripción corregida de referencia..." class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-xs text-slate-200 placeholder-slate-500 outline-none focus:ring-1 focus:ring-indigo-500 font-mono"></textarea>
+  </div>
+</details>
+
 <div class="flex justify-end">
   <button id="btnFile" onclick="transcribeFile()" disabled class="bg-indigo-600 hover:bg-indigo-500 text-white font-medium text-sm px-6 py-2.5 rounded-xl shadow-lg transition disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer flex items-center gap-2">
 <span><span data-ui-icon=process aria-hidden=true></span></span> <span>Procesar Grabación</span>
@@ -949,6 +1025,7 @@ onchange="handleTimelineOnlySelect(this)"
 <span>Procesando sesión...</span>
   </h3>
   <p id="procStepDesc" class="text-xs text-slate-400">Iniciando tareas del pipeline...</p>
+  <p id="procGenerationElapsed" class="text-xs text-slate-300 tabular-nums" hidden></p>
 </div>
 <div class="flex items-center gap-4">
   <button id="btnCancelProcess" onclick="cancelCurrentTask()" type="button" class="min-h-[36px] px-3.5 py-1.5 rounded-xl bg-rose-950/70 hover:bg-rose-900 active:scale-[0.98] border border-rose-800/80 text-rose-300 hover:text-white text-xs font-semibold transition duration-150 flex items-center gap-1.5 cursor-pointer shadow-sm shadow-rose-950/50" title="Detener el proceso actual">
@@ -965,8 +1042,8 @@ onchange="handleTimelineOnlySelect(this)"
 
   <!-- Barra de Progreso Granular -->
   <div class="space-y-2">
-<div class="w-full bg-slate-950 border border-slate-800 rounded-full h-3.5 p-0.5 overflow-hidden shadow-inner">
-  <div id="progressBarFill" class="bg-amber-500 h-full rounded-full transition-all duration-75 ease-out" style="width: 0.0%;"></div>
+<div id="progressBarTrack" role="progressbar" aria-label="Avance por etapas" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" class="w-full bg-slate-950 border border-slate-800 rounded-full h-3.5 p-0.5 overflow-hidden shadow-inner">
+  <div id="progressBarFill" class="bg-amber-500 h-full rounded-full" style="width: 0.0%;"></div>
 </div>
   </div>
 
@@ -1092,6 +1169,7 @@ onchange="handleTimelineOnlySelect(this)"
   <!-- Barra superior de metadatos y botones de descarga -->
   <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-3 pb-4 border-b border-slate-800">
 <!-- Metadatos de la sesión -->
+<div id="canonReviewNotice" class="hidden text-sm p-4 border border-amber-500/40 rounded-xl mb-4"><p>Crónica pendiente de revisión. Sus propuestas todavía no se han incorporado a la campaña.</p><a id="btnReviewChronicle" class="underline text-amber-300" href="/static/canon-review.html">Revisar crónica y canon</a></div>
 <div class="flex flex-wrap items-center gap-2">
   <span class="px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-500/10 text-amber-300 border border-amber-500/20">
 <span id="resCampaignLabel">Campaña</span>: <strong id="resCampaignName" class="text-white">--</strong>
@@ -1106,6 +1184,15 @@ Duración: <strong id="resDuration" class="text-white tabular-nums">--</strong>
   <span class="px-2.5 py-1 rounded-full text-xs font-medium bg-emerald-500/10 text-emerald-300 border border-emerald-500/20">
 Procesado en: <strong id="resTime" class="text-white tabular-nums">--</strong>
   </span>
+</div>
+
+<!-- Notificación de Informe Local de Prueba -->
+<div id="resTestReportCard" class="hidden w-full text-xs px-3.5 py-2.5 rounded-xl bg-slate-950/80 border border-indigo-500/30 flex flex-wrap items-center justify-between gap-2 shadow-inner">
+  <div class="flex items-center gap-2 text-slate-300">
+    <span class="w-2 h-2 rounded-full bg-emerald-400 shrink-0"></span>
+    <span>📄 <strong class="text-slate-200">Informe local de prueba guardado:</strong> <code id="resTestReportFilename" class="font-mono text-amber-300 font-semibold select-all">--</code></span>
+  </div>
+  <span class="text-[11px] text-slate-400 font-mono">outputs/transcription-tests/</span>
 </div>
 
 <!-- Botones de Acción y Descarga Organizados -->
@@ -1227,12 +1314,12 @@ Conservar Todo
   </div>
 
   <!-- Vista 1: Crónica de la Sesión Actual (Previously On, Crónica, Cierre, Markus Coaching) -->
-  <div id="chronicleView" class="bg-slate-950 rounded-xl p-6 border border-slate-800 max-h-[600px] overflow-y-auto prose-dnd text-sm">
+  <div id="chronicleView" class="w-full bg-slate-950 rounded-xl p-6 border border-slate-800 max-h-[600px] overflow-y-auto prose-dnd text-sm">
 <!-- Renderizado de Markdown -->
   </div>
 
   <!-- Vista: Puntos Clave y Glosario (Work & Study) -->
-  <div id="keyPointsView" class="hidden bg-slate-950 rounded-xl p-6 border border-slate-800 max-h-[600px] overflow-y-auto prose-dnd text-sm">
+  <div id="keyPointsView" class="hidden w-full bg-slate-950 rounded-xl p-6 border border-slate-800 max-h-[600px] overflow-y-auto prose-dnd text-sm">
 <!-- Renderizado de Markdown de Puntos Clave y Glosario -->
   </div>
 
@@ -1306,7 +1393,7 @@ Conservar Todo
   </div>
 
   <!-- Vista 4: Grimorio Completo (.md) -->
-  <div id="journalView" class="hidden bg-slate-950 rounded-xl p-6 border border-slate-800 max-h-[600px] overflow-y-auto prose-dnd text-sm">
+  <div id="journalView" class="hidden w-full bg-slate-950 rounded-xl p-6 border border-slate-800 max-h-[600px] overflow-y-auto prose-dnd text-sm">
 <div id="grimorio-content">
   <!-- Renderizado del Grimorio Consolidado Completo -->
 </div>
@@ -1461,17 +1548,17 @@ Guardar
 <section id="viewWiki" class="hidden w-full max-w-7xl mx-auto space-y-5">
   <!-- Barra Superior: Selector de Campaña & Exportación -->
   <div id="wikiHeaderCard" class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl">
+<div id="wikiHeaderTop">
 <div id="wikiHeaderIntro" class="flex items-center gap-3">
   <div class="w-10 h-10 rounded-xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-amber-400 shrink-0">
 <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1-2.5-2.5Z"/><path d="M6 6h10"/><path d="M6 10h10"/></svg>
   </div>
   <div>
-<h2 class="text-base font-bold text-amber-300 font-fantasy tracking-wide">Wiki & Dossier Vivo de Campaña</h2>
-<p class="text-xs text-slate-400">Dossier interactivo de misiones, personajes no jugadores, protagonistas, lugares y crónicas históricas.</p>
+<h2 class="text-base font-bold text-amber-300 font-fantasy tracking-wide">Wiki y campañas</h2>
+<p class="text-xs text-slate-400">Sesiones, personajes, misiones, lugares y objetos.</p>
   </div>
 </div>
 
-<div id="wikiHeaderControls" class="flex flex-wrap items-center gap-2.5 w-full sm:w-auto">
   <div id="wikiCampaignPicker" class="flex items-center gap-2 flex-1 sm:flex-initial">
 <label for="wikiCampaignSelect" class="text-xs font-semibold text-slate-400 whitespace-nowrap">Campaña:</label>
 <select id="wikiCampaignSelect" onchange="onWikiCampaignSelected(this.value)"
@@ -1483,32 +1570,60 @@ class="min-h-[44px] min-w-[44px] p-2.5 rounded-xl bg-slate-800 hover:bg-slate-70
 <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 21h5v-5"/></svg>
   </button>
   </div>
+  <div id="wikiCampaignTools" class="desktop-library-actions">
+    <a href="/static/canon-review.html" class="inline-flex items-center min-h-[44px] px-3 py-2 rounded-xl border border-slate-700 text-sm">Revisiones pendientes</a>
+    <button type="button" id="btnMyCampaigns" onclick="toggleCampaignManagerModal(true)"
+      title="Ver y administrar mis campañas guardadas"
+      class="btn-subtle min-h-[40px] inline-flex items-center gap-2 px-3.5 py-1.5 text-xs font-semibold cursor-pointer shrink-0">
+      <svg class="w-4 h-4 text-amber-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+      <span class="text-slate-200">Mis Campañas</span>
+    </button>
+    <button type="button" id="btnImportCampaign" onclick="triggerImportCampaign()"
+      title="Importar campaña desde archivo ZIP o JSON"
+      class="btn-subtle min-h-[40px] inline-flex items-center gap-2 px-3.5 py-1.5 text-xs font-semibold cursor-pointer shrink-0">
+      <svg class="w-4 h-4 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+      <span class="text-slate-200">Importar</span>
+    </button>
+    <input type="file" id="campaignImportFileInput" accept=".zip,.json" class="hidden" onchange="handleCampaignImportFile(event)">
+  </div>
+</div>
+<div id="wikiHeaderControls" class="flex flex-wrap items-center gap-2.5 w-full sm:w-auto">
   <div id="wikiHeaderExportActions" class="flex flex-wrap items-center gap-2 pl-1 border-l border-slate-800">
-<!-- Selector y Descarga de Sesión Individual (Permanente y Visible) -->
+<!-- La sesión permanece visible; los documentos se eligen en Descargar. -->
 <div id="wikiSessionExportContainer" class="flex items-center gap-1.5 bg-slate-950 border border-slate-800 rounded-xl p-1 shadow-inner">
   <label for="wikiSessionExportSelect" class="text-xs font-semibold text-slate-400 pl-2 whitespace-nowrap">Sesión:</label>
   <select id="wikiSessionExportSelect" onchange="onWikiSessionExportSelectChanged(this.value)"
 class="bg-transparent text-xs text-amber-300 font-bold focus:outline-none cursor-pointer pr-1">
 <option value="">Sin sesiones</option>
   </select>
+</div>
+<div id="wikiDownloadControl">
+  <button type="button" id="wikiDownloadButton" popovertarget="wikiDownloadMenu" aria-controls="wikiDownloadMenu" aria-expanded="false" data-button-role="transfer">
+    <span data-ui-icon="download" aria-hidden="true"></span><span>Descargar</span>
+  </button>
+  <div id="wikiDownloadMenu" popover="auto" role="group" aria-labelledby="wikiDownloadTitle">
+    <h3 id="wikiDownloadTitle">Documentos Word (.docx)</h3>
+    <p id="wikiDownloadContext"></p>
+    <div class="wiki-download-options">
   <button type="button" id="btnWikiDownloadSelectedSessionDocx" onclick="downloadSelectedWikiSessionDocx(false)" title="Descargar documento Word (.docx) únicamente de la sesión seleccionada"
-class="min-h-[36px] px-3 py-1.5 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 text-xs font-bold transition flex items-center gap-1.5 cursor-pointer active:scale-[0.98] shadow-sm">
+autofocus class="cursor-pointer">
 <svg class="w-3.5 h-3.5 text-amber-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/></svg>
-<span>Descargar Sesión (.docx)</span>
+<span><strong>Sesión completa</strong><span class="wiki-download-description">La sesión seleccionada, con su crónica y consejos personales.</span></span>
   </button>
   <button type="button" id="btnWikiDownloadSelectedSessionCleanDocx" onclick="downloadSelectedWikiSessionDocx(true)" title="Descargar versión limpia para jugadores sin consejos personales"
-class="min-h-[36px] px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-semibold transition flex items-center gap-1 cursor-pointer active:scale-[0.98] shadow-sm">
+class="cursor-pointer">
 <span><span data-ui-icon=users aria-hidden=true></span></span>
-<span>Para Jugadores</span>
+<span><strong>Sesión para jugadores</strong><span class="wiki-download-description">La misma sesión, sin consejos personales, para compartir con la mesa.</span></span>
   </button>
-</div>
-
 <!-- Botón para descargar toda la campaña consolidada -->
 <button type="button" id="btnWikiDownloadCampaignDocx" onclick="downloadCampaignDocx()" title="Descargar Grimorio completo con todas las sesiones en Word (.docx)"
-  class="min-h-[44px] px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-semibold transition flex items-center gap-1.5 cursor-pointer active:scale-[0.98]">
+  class="cursor-pointer">
   <svg class="w-3.5 h-3.5 text-sky-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1-2.5-2.5Z"/><path d="M6 6h10"/><path d="M6 10h10"/></svg>
-  <span>Toda la Campaña (.docx)</span>
+  <span><strong>Campaña completa</strong><span class="wiki-download-description">Reúne todas las sesiones guardadas de la campaña en un solo documento.</span></span>
 </button>
+    </div>
+  </div>
+</div>
 <button type="button" onclick="exportLivingCampaignToDrive()" title="Sincronizar Grimorio a Google Drive"
   class="min-h-[44px] px-3 py-2 rounded-xl bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 border border-emerald-500/30 text-xs font-semibold transition flex items-center gap-1.5 cursor-pointer active:scale-[0.98]">
   <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z"/></svg>
@@ -1804,6 +1919,15 @@ title="Ver lista de tareas y compromisos detectados">
 <!-- VISTA E: AJUSTES & AUDIO (#viewSettings) -->
 <!-- ================================================================= -->
 <section id="viewSettings" class="hidden w-full max-w-5xl mx-auto space-y-5">
+  <p id="settingsApiIssueSummary" class="settings-api-issue-summary" role="status" hidden></p>
+  <div class="themed-surface border border-slate-800 rounded-2xl p-6 space-y-3" aria-labelledby="supportReportTitle">
+    <h2 id="supportReportTitle" class="text-base font-bold text-white">Ayuda y reporte de errores</h2>
+    <p class="text-sm text-slate-300 max-w-prose">Si algo falla, descarga el reporte y envíalo junto con una descripción de lo que estabas haciendo.</p>
+    <p class="text-xs text-slate-300 max-w-prose">Incluye versión, entorno y últimos fallos registrados. No incluye claves, autorizaciones, audios ni contenido de sesiones. No se envía automáticamente.</p>
+    <button id="btnDownloadSupportReport" type="button" onclick="downloadSupportReport()"
+      class="min-h-[44px] px-4 py-2 rounded-lg text-sm font-semibold bg-slate-800 hover:bg-slate-700 text-slate-100 border border-slate-600 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-400 disabled:opacity-50 disabled:cursor-wait">Descargar reporte de errores</button>
+    <p id="supportReportStatus" class="text-xs text-slate-300 max-w-prose" role="status" aria-live="polite">Se registran hasta 200 fallos desde esta versión. Los errores anteriores no se recuperan.</p>
+  </div>
   <div class="themed-surface border border-slate-800 rounded-2xl p-6 shadow-xl space-y-6">
 <!-- Header -->
 <div class="flex items-center gap-3 border-b border-slate-800 pb-4">
@@ -1842,13 +1966,14 @@ class="w-full min-h-[44px] bg-slate-950 border border-slate-700 focus:border-amb
   </select>
 </div>
   </div>
+  <p id="audioDevicesSettingsStatus" role="status" class="text-xs text-slate-400" hidden></p>
 </div>
 
 <!-- VU Meter Card -->
 <div class="bg-slate-950/80 border border-slate-800 rounded-xl p-4 space-y-3">
   <div class="flex items-center justify-between text-xs text-slate-400 font-mono">
 <span>Calibración de Entrada en Tiempo Real</span>
-<span class="text-emerald-400">● Monitoreo Activo</span>
+<span id="meterStatusHintSettings" class="text-slate-400" role="status">Esperando lectura</span>
   </div>
   <div class="space-y-2">
 <div>
@@ -1904,7 +2029,10 @@ class="w-full min-h-[44px] bg-slate-950 border border-slate-700 focus:border-amb
   <span data-ui-icon=eye aria-hidden=true></span>
 </button>
   </div>
-  <p class="text-[11px] text-slate-500">Requerida para la transcripción con Whisper Large-v3.</p>
+  <p class="text-[11px] text-slate-500">Requerida para transcripción en la nube con Groq. No se necesita si seleccionas Transcripción local (CPU).</p>
+  <a id="getGroqApiKey" href="https://console.groq.com/keys" target="_blank" rel="noopener noreferrer"
+    aria-label="Obtener clave de Groq: abrir sitio oficial en otra pestaña"
+    class="inline-flex items-center min-h-[44px] text-sm text-sky-300 underline underline-offset-4 rounded focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-400">Obtener clave de Groq ↗</a>
 </div>
 
 <!-- Gemini Key -->
@@ -1923,12 +2051,19 @@ class="w-full min-h-[44px] bg-slate-950 border border-slate-700 focus:border-amb
   <span data-ui-icon=eye aria-hidden=true></span>
 </button>
   </div>
-  <p class="text-[11px] text-slate-500">Requerida para crónicas de rol, apuntes universitarios y glosarios.</p>
+  <p class="text-[11px] text-slate-500">Requerida para crónicas de rol, apuntes universitarios y glosarios con Gemini (incluso con motor local).</p>
+  <a id="getGeminiApiKey" href="https://aistudio.google.com/apikey" target="_blank" rel="noopener noreferrer"
+    aria-label="Obtener clave de Gemini: abrir sitio oficial en otra pestaña"
+    class="inline-flex items-center min-h-[44px] text-sm text-sky-300 underline underline-offset-4 rounded focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-400">Obtener clave de Gemini ↗</a>
 </div>
   </div>
 
   <div class="flex flex-wrap items-center justify-between gap-3 pt-1">
 <span id="apiKeySaveFeedback" class="hidden text-xs text-emerald-400 font-medium"></span>
+<button id="btnCheckApiConnection" onclick="checkApiKeysStatus()" type="button" data-button-role="transfer" title="Comprueba las claves guardadas o las del servidor. Guarda primero si acabas de editarlas.">
+  <span data-ui-icon="refresh" aria-hidden="true"></span>
+  <span>Probar Conexión</span>
+</button>
 <button onclick="saveUserApiKeys()" type="button" class="min-h-[44px] px-5 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 active:scale-[0.98] text-slate-950 font-bold text-xs shadow-lg shadow-amber-500/20 transition flex items-center gap-2 cursor-pointer ml-auto">
   <span><span data-ui-icon=save aria-hidden=true></span></span>
   <span>Guardar Llaves</span>
@@ -1938,26 +2073,29 @@ class="w-full min-h-[44px] bg-slate-950 border border-slate-700 focus:border-amb
 
 <!-- Servicios & APIs -->
 <div class="space-y-3 pt-3 border-t border-slate-800">
-  <h3 class="text-xs font-semibold text-slate-200 uppercase tracking-wider font-mono">Estado de Motores & Nube</h3>
+  <h3 class="text-xs font-semibold text-slate-200 uppercase tracking-wider font-mono">Estado de servicios</h3>
   <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
 <div class="p-3 rounded-xl bg-slate-950 border border-slate-800 space-y-1">
   <span class="text-[11px] text-slate-400 block">Transcripción</span>
-  <span class="text-xs font-semibold text-emerald-400 flex items-center gap-1.5">
-<span class="w-2 h-2 rounded-full bg-emerald-400"></span>
-<span>Groq Whisper Large-v3</span>
+  <span id="settingsGroqStatus" data-state="unverified" class="service-connection text-xs font-semibold flex items-center gap-1.5">
+<span class="service-status-dot" aria-hidden="true"></span>
+<span id="settingsActiveEngineText">Groq Whisper Large-v3</span>
   </span>
+  <p id="settingsGroqStatusText" class="text-xs text-slate-400">Conexión sin comprobar</p>
 </div>
 <div class="p-3 rounded-xl bg-slate-950 border border-slate-800 space-y-1">
   <span class="text-[11px] text-slate-400 block">Síntesis / Crónicas</span>
-  <span class="text-xs font-semibold text-emerald-400 flex items-center gap-1.5">
-<span class="w-2 h-2 rounded-full bg-emerald-400"></span>
-<span>Gemini 2.5 Flash</span>
+  <span id="settingsGeminiStatus" data-state="unverified" class="service-connection text-xs font-semibold flex items-center gap-1.5">
+<span class="service-status-dot" aria-hidden="true"></span>
+<span id="settingsGeminiModelText">Gemini (modelo sin consultar)</span>
   </span>
+  <p id="settingsGeminiStatusText" class="text-xs text-slate-400">Conexión sin comprobar</p>
+  <p class="text-xs text-slate-400" title="La comprobación verifica acceso a la API. El modelo efectivo puede variar durante la generación.">Modelo configurado</p>
 </div>
 <div class="p-3 rounded-xl bg-slate-950 border border-slate-800 space-y-2">
   <div class="flex items-center justify-between">
 <span class="text-[11px] text-slate-400 block">Google Drive</span>
-<span id="settingsDriveBadge" class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-slate-800 text-slate-400 border border-slate-700">
+<span id="settingsDriveBadge" data-state="unverified" class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-slate-800 text-slate-400 border border-slate-700">
   <span class="w-1.5 h-1.5 rounded-full bg-slate-500"></span>
   <span id="settingsDriveBadgeText">No conectado</span>
 </span>
@@ -1969,17 +2107,17 @@ class="w-full min-h-[44px] bg-slate-950 border border-slate-700 focus:border-amb
 </div>
   </div>
   <div class="flex items-center gap-2 flex-wrap pt-0.5">
-<button id="btnConnectDriveSettings" type="button" onclick="connectGoogleDriveUpfront()"
+<button id="btnConnectDriveSettings" type="button" data-button-role="transfer" onclick="connectGoogleDriveUpfront()"
   class="min-h-[36px] px-3 py-1 rounded-lg text-xs font-semibold bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 border border-emerald-500/30 transition flex items-center gap-1.5 cursor-pointer active:scale-95">
   <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
   <span id="btnConnectDriveSettingsText">Conectar Google Drive</span>
 </button>
-<button id="btnSyncDriveSettings" type="button" onclick="syncWithGoogleDrive()"
+<button id="btnSyncDriveSettings" type="button" data-button-role="transfer" onclick="syncWithGoogleDrive()"
   class="hidden min-h-[36px] px-3 py-1 rounded-lg text-xs font-semibold bg-indigo-500/15 hover:bg-indigo-500/25 text-indigo-300 border border-indigo-500/30 transition flex items-center gap-1.5 cursor-pointer active:scale-95">
   <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
-  <span><span data-ui-icon=refresh aria-hidden=true></span> Sincronizar Campañas</span>
+  <span>Sincronizar Campañas</span>
 </button>
-<button id="btnDisconnectDriveSettings" type="button" onclick="disconnectGoogleDrive()"
+<button id="btnDisconnectDriveSettings" type="button" data-button-role="danger" onclick="disconnectGoogleDrive()"
   class="hidden min-h-[36px] px-3 py-1 rounded-lg text-xs font-semibold bg-rose-500/15 hover:bg-rose-500/25 text-rose-300 border border-rose-500/30 transition flex items-center gap-1.5 cursor-pointer active:scale-95"
   title="Cerrar sesión de Google Drive en este dispositivo">
   <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
@@ -2515,15 +2653,16 @@ Cancelar
   <!-- Modularized Application Scripts -->
   <script src="/static/js/ui-icons.js?v=usage-profiles-20261031"></script>
   <script src="/static/js/utils.js?v=usage-profiles-20261031"></script>
-  <script src="/static/js/api.js?v=usage-profiles-20261031"></script>
-  <script src="/static/js/progress.js?v=usage-profiles-20261031"></script>
-  <script src="/static/js/audio.js?v=usage-profiles-20261031"></script>
-  <script src="/static/js/drive.js?v=usage-profiles-20261031"></script>
-  <script src="/static/js/roster.js?v=usage-profiles-20261031"></script>
-  <script src="/static/js/wiki.js?v=usage-profiles-20261031"></script>
+  <script src="/static/js/api.js?v=startup-verification-20261109-1"></script>
+  <script src="/static/js/support-report.js?v=support-report-20261112-1"></script>
+  <script src="/static/js/progress.js?v=provider-wait-20261109-1"></script>
+  <script src="/static/js/audio.js?v=roster-loading-20261110-1"></script>
+  <script src="/static/js/drive.js?v=drive-incremental-20261108-1"></script>
+  <script src="/static/js/roster.js?v=roster-loading-20261110-1"></script>
+  <script src="/static/js/wiki.js?v=npc-alias-editor-20261108-1"></script>
   <script src="/static/js/notes.js?v=usage-profiles-20261031"></script>
   <script src="/static/js/desktop-core.js?v=usage-profiles-20261031"></script>
-  <script src="/static/js/app.js?v=usage-profiles-20261031"></script>
-  <script src="/static/js/desktop.js?v=usage-profiles-20261031"></script>
+  <script src="/static/js/app.js?v=roster-loading-20261110-1"></script>
+  <script src="/static/js/desktop.js?v=wiki-shell-20261103-2"></script>
 </body>
 </html>

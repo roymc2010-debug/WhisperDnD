@@ -12,11 +12,14 @@ import time
 import tempfile
 import urllib.parse
 import zipfile
+from functools import lru_cache
 from pathlib import Path
+from src.runtime_paths import is_desktop_runtime
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 from dotenv import load_dotenv
-load_dotenv(override=True)
+if not is_desktop_runtime():
+    load_dotenv(override=True)
 
 from fastapi import FastAPI, File, Form, HTTPException, Query, UploadFile, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -37,11 +40,17 @@ from src.exporters.md_exporter import (
     export_session_md,
 )
 from src.storage.campaign_manager import CampaignManager
-from src.storage.drive_client import GoogleDriveStorage
+from src.api.support_report import SupportHistory, SupportReportMiddleware
+from src.runtime_paths import resolve_runtime_paths
+from src.storage.campaign_ingest import CampaignImportConflict
+from src.storage.drive_client import GoogleDriveStorage, prepare_google_credentials_for_startup
 from src.summarizer.gemini_client import (
     GeminiTTRPGSummarizer,
+    GeminiGenerationTimeout,
+    GeminiGenerationFailure,
     normalize_academic_sections,
 )
+from src.summarizer.session_evidence import InsufficientSessionContent, prepare_session_transcript
 from src.transcription.audio_recorder import (
     active_recorder,
     get_audio_devices,
@@ -49,43 +58,46 @@ from src.transcription.audio_recorder import (
 )
 from src.transcription.groq_whisper import GroqWhisperTranscriber
 from src.transcription.local_whisper import LocalWhisperTranscriber
+from src.transcription.roster_normalizer import (
+    campaign_name_entries, enrich_roster_aliases, name_alias_map, normalize_transcript_roster,
+)
+from src.transcription.test_reporter import create_transcription_test_report
 from src.transcription.youtube_downloader import download_youtube_audio
 
 project_root = Path(__file__).resolve().parent.parent.parent
 
 
 def get_data_input_dir() -> Path:
-    env_dir = os.environ.get("WHISPER_INPUT_DIR")
-    if env_dir:
-        p = Path(env_dir).resolve()
-    elif os.path.exists("/tmp") and os.path.isdir("/tmp") and sys.platform != "win32":
+    p = resolve_runtime_paths(resource_dir=project_root).input_dir
+    # Keep the existing temporary-input policy for non-packaged Linux deployments.
+    if (not is_desktop_runtime() and not os.environ.get("WHISPER_INPUT_DIR")
+            and sys.platform != "win32" and os.path.exists("/tmp") and os.path.isdir("/tmp")):
         p = Path("/tmp/whisper_input").resolve()
-    else:
-        p = (project_root / "data" / "input").resolve()
     p.mkdir(parents=True, exist_ok=True)
     return p
 
 
 def get_data_output_dir() -> Path:
-    env_dir = os.environ.get("WHISPER_OUTPUT_DIR")
-    if env_dir:
-        p = Path(env_dir).resolve()
-    elif (project_root / "outputs").is_dir():
-        p = (project_root / "outputs").resolve()
-    else:
-        p = (project_root / "data" / "output").resolve()
+    p = resolve_runtime_paths(resource_dir=project_root).output_dir
     p.mkdir(parents=True, exist_ok=True)
     return p
 
 
 def get_data_campaigns_dir() -> Path:
-    env_dir = os.environ.get("WHISPER_CAMPAIGNS_DIR")
-    if env_dir:
-        p = Path(env_dir).resolve()
-    else:
-        p = (project_root / "data" / "campaigns").resolve()
+    p = resolve_runtime_paths(resource_dir=project_root).campaigns_dir
     p.mkdir(parents=True, exist_ok=True)
     return p
+
+
+def output_search_dirs(legacy_dirs: List[Path]) -> List[Path]:
+    """Desktop profiles must not discover or mutate development/container exports."""
+    return [get_data_output_dir()] if is_desktop_runtime() else legacy_dirs
+
+
+def academic_history_paths() -> List[Path]:
+    if is_desktop_runtime():
+        return [get_data_output_dir() / "apuntes_historial.json"]
+    return [project_root / "data" / "apuntes_historial.json", Path("/app/data/apuntes_historial.json")]
 
 
 data_input_dir = get_data_input_dir()
@@ -105,8 +117,11 @@ get_data_output_dir()
 get_data_campaigns_dir()
 
 # Support Google Credentials via Environment Variable (Render Docker / Cloud Run / Local)
-_credentials_path = "/app/credentials.json" if (os.name != "nt" and Path("/app").is_dir()) else str(project_root / "credentials.json")
-_env_creds = os.environ.get("GOOGLE_CREDENTIALS_JSON")
+if is_desktop_runtime():
+    _credentials_path = str(prepare_google_credentials_for_startup(project_root))
+else:
+    _credentials_path = "/app/credentials.json" if (os.name != "nt" and Path("/app").is_dir()) else str(project_root / "credentials.json")
+_env_creds = None if is_desktop_runtime() else os.environ.get("GOOGLE_CREDENTIALS_JSON")
 if _env_creds and not os.path.exists(_credentials_path):
     try:
         os.makedirs(os.path.dirname(_credentials_path), exist_ok=True)
@@ -123,13 +138,56 @@ app = FastAPI(
 )
 
 
+# Separate, content-free support history; never export the raw server log.
+
+
+def get_support_history_path() -> Path:
+    if is_desktop_runtime():
+        return resolve_runtime_paths(resource_dir=project_root).logs_dir / "support-errors.json"
+    return get_data_output_dir() / "support-errors.json"
+
+
+@lru_cache(maxsize=8)
+def _support_history_for_path(path: Path):
+    return SupportHistory(path)
+
+
+def get_support_history():
+    return _support_history_for_path(get_support_history_path())
+
+
+app.add_middleware(SupportReportMiddleware, history_provider=get_support_history)
+
+
+@app.get("/api/support/report")
+async def download_support_report():
+    text = await run_in_threadpool(get_support_history().render, app.version)
+    return Response(content=text, media_type="text/plain; charset=utf-8", headers={
+        "Content-Disposition": 'attachment; filename="WhisperDnD-reporte-errores.txt"',
+        "Cache-Control": "no-store",
+        "X-Content-Type-Options": "nosniff",
+    })
+
+
+@app.exception_handler(InsufficientSessionContent)
+async def insufficient_session_content_handler(request: Request, exc: InsufficientSessionContent):
+    return JSONResponse(status_code=422, content={"detail": str(exc)})
+
+
+@app.exception_handler(CampaignImportConflict)
+async def campaign_storage_conflict_handler(request: Request, exc: CampaignImportConflict):
+    return JSONResponse(status_code=409, content={"detail": str(exc)})
+
+
 @app.on_event("startup")
 async def on_server_startup():
-    """Start background sync from Google Drive and retroactive deduplication without blocking HTTP readiness."""
+    """Start Drive synchronization without applying automatic local repair heuristics."""
+    if os.environ.get("WHISPER_SKIP_STARTUP_DRIVE_SYNC") == "1":
+        return
     async def _async_startup_tasks():
         try:
-            drive_storage = GoogleDriveStorage()
-            if drive_storage.is_connected():
+            drive_storage = await run_in_threadpool(GoogleDriveStorage)
+            if await run_in_threadpool(drive_storage.is_connected):
                 print("[Server Startup] Google Drive connected. Restoring campaigns and notes from Drive in background...")
                 sync_res = await run_in_threadpool(
                     drive_storage.sync_from_google_drive,
@@ -140,15 +198,17 @@ async def on_server_startup():
         except Exception as exc:
             print(f"[Server Startup] Drive restore on startup skipped or failed: {exc}")
 
-        try:
-            manager = CampaignManager()
-            results = manager.deduplicate_all_campaigns()
-            if results:
-                print(f"[Server Startup] Retroactive entity deduplication applied: {len(results)} campaign(s) cleaned: {results}")
-        except Exception as e:
-            print(f"[Server Startup] Error during retroactive entity deduplication: {e}")
+    schedule_background_job(_async_startup_tasks())
 
-    asyncio.create_task(_async_startup_tasks())
+
+def schedule_background_job(coroutine):
+    task = asyncio.create_task(coroutine)
+    if is_desktop_runtime():
+        if not hasattr(app.state, "desktop_background_tasks"):
+            app.state.desktop_background_tasks = set()
+        app.state.desktop_background_tasks.add(task)
+        task.add_done_callback(app.state.desktop_background_tasks.discard)
+    return task
 
 
 app.add_middleware(
@@ -169,7 +229,11 @@ if static_dir.is_dir():
 @app.get("/api/health")
 async def keep_alive_ping():
     """Lightweight keep-alive heartbeat ping to prevent Render container spindown during active recording."""
-    return {"status": "alive", "timestamp": time.time()}
+    result = {"status": "alive", "timestamp": time.time()}
+    identity = getattr(app.state, "desktop_instance_id", None)
+    if identity:
+        result.update(application="WhisperDnD", instance_id=identity, version=app.version)
+    return result
 
 
 @app.post("/api/shutdown")
@@ -212,12 +276,11 @@ def trigger_drive_sync_background(
         return
 
     try:
-        ds = GoogleDriveStorage()
-        if not ds.is_connected():
-            return
-
         async def _worker():
             try:
+                ds = await run_in_threadpool(GoogleDriveStorage)
+                if not await run_in_threadpool(ds.is_connected):
+                    return
                 if file_paths:
                     for fp in file_paths:
                         p = Path(fp).resolve()
@@ -237,7 +300,7 @@ def trigger_drive_sync_background(
             except Exception as e:
                 print(f"[DriveBackgroundSync] Warning during background upload: {e}")
 
-        asyncio.create_task(_worker())
+        schedule_background_job(_worker())
     except Exception as exc:
         print(f"[DriveBackgroundSync] Could not schedule background sync: {exc}")
 
@@ -425,8 +488,6 @@ class DriveExportRequest(BaseModel):
     file_path: str = Field(..., description="Local path or filename of the file to upload to Google Drive")
 
 
-
-
 class SaveAcademicNoteRequest(BaseModel):
     model_config = ConfigDict(extra="allow")
 
@@ -517,6 +578,26 @@ async def get_icon_512():
 # ---------------------------------------------------------------------------
 # Helper: Living Campaign Session Processor
 # ---------------------------------------------------------------------------
+def raise_session_processing_error(exc: Exception, task_id: Optional[str] = None) -> None:
+    """Do not turn rejected/failed campaign work into a successful fallback."""
+    if isinstance(exc, HTTPException):
+        raise exc
+    if isinstance(exc, InsufficientSessionContent):
+        error_type, message, stage = "InsufficientSessionContent", str(exc), "Validación de transcripción"
+        status_code = 422
+    elif isinstance(exc, GeminiGenerationFailure):
+        error_type, message, stage = exc.failure['kind'], str(exc), exc.failure['stage']
+        status_code = exc.failure['http_status']
+    elif isinstance(exc, CampaignImportConflict):
+        error_type, message, stage = "CampaignStorageConflict", str(exc), "Consistencia de campaña"
+        status_code = 409
+    else:
+        error_type, message, stage = diagnose_exception(exc)
+        status_code = 500
+    set_task_error(task_id, message, error_type=error_type, stage=stage)
+    raise HTTPException(status_code=status_code, detail=message) from exc
+
+
 def process_session_for_campaign(
     campaign_name: str,
     transcript_text: str,
@@ -530,22 +611,23 @@ def process_session_for_campaign(
     client_timezone_offset: Optional[Union[int, str]] = None,
     audio_duration_seconds: Optional[float] = None,
     audio_source: Optional[str] = None,
+    source_recordings: Optional[List[Dict[str, Any]]] = None,
+    cached_session_data: Optional[Dict[str, Any]] = None,
+    recovery_source_id: Optional[str] = None,
+    task_id: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
     Process a session transcript for a living campaign:
     1. Get active context (quests, NPCs, last recap, next session #).
     2. Query Gemini for structured session chapter and cumulative updates.
-    3. Record and persist the session in CampaignManager.
-    4. Export the unified Living Campaign Journal into .docx and .md.
+    3. Save a reviewable draft without changing the campaign.
+    4. Keep source text and generation artifacts for recovery.
     """
+    prepared_transcript = prepare_session_transcript(transcript_text, roster=roster_dicts)
     manager = CampaignManager()
-    state = manager.load_campaign(campaign_name)
-    if session_number is not None and any(str(s.get("session_number")) == str(session_number) for s in state.get("sessions", [])):
-        print(f"[process_session_for_campaign] Regrabación de Sesión #{session_number} detectada. Purgando datos previos...")
-        state = manager.purge_session_data(state, int(session_number))
-        manager.save_campaign(state)
-
-    active_ctx = manager.get_active_context(campaign_name)
+    # record_session replaces the old contribution only after generation succeeds.
+    # Persisting a purge here used to delete the session when Gemini failed.
+    active_ctx = manager.get_active_context(campaign_name, before_session_number=session_number)
     actual_session_num = session_number or active_ctx["session_number"]
 
     is_private = (campaign_name or "").strip().lower() in ("campaña principal", "campana principal")
@@ -564,6 +646,9 @@ def process_session_for_campaign(
             saved_roster = []
 
     final_roster = clean_roster_dicts if len(clean_roster_dicts) > 0 else saved_roster
+    final_roster = enrich_roster_aliases(final_roster, active_ctx)
+    prepared_transcript = normalize_transcript_roster(
+        prepared_transcript, campaign_name_entries(final_roster, active_ctx))
 
     # Determine user character (strictly disabled for YouTube; only enabled if star is selected)
     user_character = None
@@ -572,213 +657,231 @@ def process_session_for_campaign(
         if user_character is None:
             user_character = None  # Explicitly no user character — coaching disabled
 
-    if on_progress:
-        if is_youtube:
-            on_progress(70.0, "Extrayendo misiones (Quests) y PNJs con Gemini...")
-            on_progress(76.0, "Redactando Crónica Épica Novelesca del episodio con Gemini...")
-        else:
-            on_progress(55.0, "Extrayendo misiones (Quests) y PNJs con Gemini...")
-            on_progress(65.0, "Redactando Crónica Épica Novelesca con Gemini...")
-
     summarizer = GeminiTTRPGSummarizer(api_key=gemini_api_key)
     from src.storage.quota_tracker import track_audio_processing
-    with track_audio_processing(summarizer, audio_duration_seconds, source=audio_source, workspace="dnd"):
-        session_data = summarizer.generate_campaign_session(
-            transcript_text=transcript_text,
-            roster=final_roster,
-            existing_quests=active_ctx.get("all_quests", []),
-            known_npcs=active_ctx.get("known_npcs", []),
-            session_number=actual_session_num,
-            target_language=target_language,
-            user_character=user_character,
-            is_youtube=is_youtube,
-            prior_lore=active_ctx.get("prior_lore", ""),
-            character_backstory=active_ctx.get("user_character_backstory", ""),
-            last_session_recap=active_ctx.get("last_session_recap", ""),
-        )
+    # Save the reusable input before any provider call; failures cannot lose it.
+    import uuid
+    input_id = uuid.uuid4().hex
+    input_dir = get_data_output_dir() / "generation-inputs"
+    input_dir.mkdir(parents=True, exist_ok=True)
+    input_path = input_dir / (input_id + ".json")
+    from src.storage.generation_recovery import active_input
+    from src.summarizer.generation_diagnostics import GenerationDiagnostics
+    def generation_progress(data):
+        percent = {"response_parsed": 87, "saving_draft": 95, "completed": 98}.get(data["phase"], 65)
+        if task_id:
+            update_task_progress(task_id, percent, data["label"], stage="analyzing", generation=data)
+        elif on_progress:
+            on_progress(percent, data["label"])
+    diagnostics = GenerationDiagnostics(input_dir / (input_id + "-diagnostics.json"), summarizer.model_name, generation_progress)
+    summarizer.diagnostics = diagnostics
+    with active_input(input_id), diagnostics.pipeline():
+        input_path.write_text(json.dumps({"campaign_name": campaign_name, "session_number": actual_session_num,
+            "raw_transcript": transcript_text, "prepared_transcript": prepared_transcript,
+            "roster": final_roster, "context": active_ctx, "target_language": target_language,
+            "source_recordings": source_recordings, "custom_date": custom_date,
+            "client_timezone_offset": client_timezone_offset, "audio_source": audio_source,
+            "is_youtube": is_youtube, "retry_of": recovery_source_id}, ensure_ascii=False), encoding="utf-8")
+        summarizer.response_artifact = input_dir / (input_id + "-response.json")
+        try:
+            if cached_session_data is not None:
+                diagnostics.record("response_received")
+                session_data = json.loads(json.dumps(cached_session_data))
+            else:
+                with track_audio_processing(summarizer, audio_duration_seconds, source=audio_source, workspace="dnd"):
+                    session_data = summarizer.generate_campaign_session(
+                        transcript_text=prepared_transcript,
+                        roster=final_roster,
+                        existing_quests=active_ctx.get("all_quests", []),
+                        known_npcs=active_ctx.get("known_npcs", []),
+                        session_number=actual_session_num,
+                        target_language=target_language,
+                        user_character=user_character,
+                        is_youtube=is_youtube,
+                        prior_lore=active_ctx.get("prior_lore", ""),
+                        character_backstory=active_ctx.get("user_character_backstory", ""),
+                        last_session_recap=active_ctx.get("last_session_recap", ""),
+                    )
 
+        finally:
+            attempts = getattr(summarizer, "_generation_attempts", [])
+            (input_dir / (input_id + "-attempts.json")).write_text(json.dumps(
+                attempts if isinstance(attempts, list) else [], ensure_ascii=False), encoding="utf-8")
+        session_data["session_chapter"].setdefault("generation_metadata", {})["input_artifact"] = input_path.name
 
-    if on_progress:
-        if is_youtube:
-            on_progress(90.0, "Generando Sinopsis Ejecutiva y actualizando estado de campaña...")
-        else:
-            on_progress(87.0, "Generando Coaching del DM, Recap y línea de tiempo...")
+        s_title = session_data.get("session_title") or session_data.get("session_chapter", {}).get("session_title") or session_data.get("session_chapter", {}).get("title")
+        if s_title:
+            session_data.setdefault("session_chapter", {})["session_title"] = s_title
+            session_data["session_chapter"]["title"] = s_title
 
-    s_title = session_data.get("session_title") or session_data.get("session_chapter", {}).get("session_title") or session_data.get("session_chapter", {}).get("title")
-    if s_title:
-        session_data.setdefault("session_chapter", {})["session_title"] = s_title
-        session_data["session_chapter"]["title"] = s_title
+        detected_party = session_data.get("detected_party", [])
+        detected_pcs = session_data.get("detected_pcs", [])
 
-    detected_party = session_data.get("detected_party", [])
-    detected_pcs = session_data.get("detected_pcs", [])
+        is_en = str(target_language).lower().startswith("en")
+        ch = session_data["session_chapter"]
+        chronicle_parts = []
+        next_sess_num = actual_session_num + 1
 
-    is_en = str(target_language).lower().startswith("en")
-    ch = session_data["session_chapter"]
-    chronicle_parts = []
-    next_sess_num = actual_session_num + 1
-
-    sec_idx = 1
-    # 1. Crónica Narrativa y Combates
-    sec1_title = f"## {sec_idx}. Narrative Chronicle & Combat" if is_en else f"## {sec_idx}. Crónica Narrativa y Combates"
-    if ch.get("chronicle_text"):
-        chronicle_parts.append(f"{sec1_title}\n{ch['chronicle_text']}")
-    sec_idx += 1
-
-    # 2. Cierre de Mesa, Decisiones y Expectativas
-    if ch.get("closing_expectations"):
-        sec2_title = f"## {sec_idx}. Table Closing, Decisions & Expectations" if is_en else f"## {sec_idx}. Cierre de Mesa, Decisiones y Expectativas"
-        chronicle_parts.append(f"{sec2_title}\n{ch['closing_expectations']}")
+        sec_idx = 1
+        # 1. Crónica Narrativa y Combates
+        sec1_title = f"## {sec_idx}. Narrative Chronicle & Combat" if is_en else f"## {sec_idx}. Crónica Narrativa y Combates"
+        if ch.get("chronicle_text"):
+            chronicle_parts.append(f"{sec1_title}\n{ch['chronicle_text']}")
         sec_idx += 1
 
-    if is_youtube:
-        # 3. 📌 Sinopsis Ejecutiva del Episodio (Executive Episode Synopsis for YouTube)
-        synopsis_text = (ch.get("episode_synopsis") or "").strip()
-        if synopsis_text:
-            sec3_title = f"## {sec_idx}. 📌 Executive Episode Synopsis" if is_en else f"## {sec_idx}. 📌 Sinopsis Ejecutiva del Episodio"
-            chronicle_parts.append(f"{sec3_title}\n{synopsis_text}")
-            sec_idx += 1
-    else:
-        # 3. Reflexión de Rol y Compañerismo (Conditional: only if user_character and coaching exists)
-        coaching_text = (ch.get("user_coaching") or ch.get("markus_coaching") or "").strip()
-        if user_character and coaching_text:
-            char_name = (user_character.get("character_name") or user_character.get("name") or "Personaje").strip()
-            sec3_title = f"## {sec_idx}. Roleplay & Comradery Reflection: {char_name}" if is_en else f"## {sec_idx}. Reflexión de Rol y Compañerismo: {char_name}"
-            chronicle_parts.append(f"{sec3_title}\n{coaching_text}")
+        # 2. Cierre de Mesa, Decisiones y Expectativas
+        if ch.get("closing_expectations"):
+            sec2_title = f"## {sec_idx}. Table Closing, Decisions & Expectations" if is_en else f"## {sec_idx}. Cierre de Mesa, Decisiones y Expectativas"
+            chronicle_parts.append(f"{sec2_title}\n{ch['closing_expectations']}")
             sec_idx += 1
 
-        # 4. 🎙️ Guion para abrir la Sesión {next_sess_num} (Para leer en voz alta)
-        script_text = (ch.get("next_session_script") or ch.get("recap_text") or "").strip()
-        if script_text:
-            script_title = (
-                f"## {sec_idx}. 🎙️ Script to Open Session #{next_sess_num} (Read Aloud)"
-                if is_en
-                else f"## {sec_idx}. 🎙️ Guion para abrir la Sesión #{next_sess_num} (Para leer en voz alta)"
-            )
-            chronicle_parts.append(f"{script_title}\n{script_text}")
-
-    pcs_to_show = detected_pcs if detected_pcs else [
-        {
-            "personaje": p.get("character_name", "-"),
-            "jugador": p.get("player_name", "-"),
-            "clase": p.get("role", "-"),
-            "especie": p.get("species", "-"),
-            "rol_en_sesion": p.get("session_role", "-"),
-        }
-        for p in detected_party
-    ]
-    if pcs_to_show is None:
-        pcs_to_show = []
-
-    # Ensure absent characters from roster are reflected in the table without being eliminated
-    existing_char_names = {str(p.get("personaje") or p.get("character_name", "")).strip().lower() for p in (pcs_to_show or [])}
-    for r in (final_roster or []):
-        r_char = str(r.get("character_name", "")).strip()
-        if r.get("is_absent") and r_char and r_char not in ("(DM)", "-", ""):
-            absent_role_text = "Ausente en esta sesión (permanece con la compañía)" if not is_en else "Absent this session (remains with the party)"
-            if r_char.lower() not in existing_char_names:
-                pcs_to_show.append({
-                    "personaje": r_char,
-                    "jugador": str(r.get("player_name", "-")).strip() or "-",
-                    "clase": str(r.get("role", "-")).strip() or "-",
-                    "especie": str(r.get("species", "-")).strip() or "-",
-                    "rol_en_sesion": absent_role_text,
-                })
-                existing_char_names.add(r_char.lower())
-            else:
-                for p in pcs_to_show:
-                    if str(p.get("personaje") or p.get("character_name", "")).strip().lower() == r_char.lower():
-                        p["rol_en_sesion"] = absent_role_text
-
-    protagonists_table = ""
-    if pcs_to_show:
-        if is_en:
-            proto_title = "### 🎭 Adventuring Company (Detected Protagonists)"
-            table_header = "| Character | Player / Role | Class / Species | Session Role |\n|---|---|---|---|"
+        if is_youtube:
+            # 3. 📌 Sinopsis Ejecutiva del Episodio (Executive Episode Synopsis for YouTube)
+            synopsis_text = (ch.get("episode_synopsis") or "").strip()
+            if synopsis_text:
+                sec3_title = f"## {sec_idx}. 📌 Executive Episode Synopsis" if is_en else f"## {sec_idx}. 📌 Sinopsis Ejecutiva del Episodio"
+                chronicle_parts.append(f"{sec3_title}\n{synopsis_text}")
+                sec_idx += 1
         else:
-            proto_title = "### 🎭 Compañía de Aventureros (Protagonistas Detectados)"
-            table_header = "| Personaje | Jugador / Rol | Clase / Especie | Rol en la Sesión |\n|---|---|---|---|"
-        rows = []
-        for p in pcs_to_show:
-            char = p.get("personaje") or "-"
-            player = p.get("jugador") or "-"
-            cls = p.get("clase") or "-"
-            spec = p.get("especie") or "-"
-            if cls != "-" and spec != "-":
-                cls_spec = f"{cls} / {spec}"
-            elif cls != "-":
-                cls_spec = cls
+            # 3. Reflexión de Rol y Compañerismo (Conditional: only if user_character and coaching exists)
+            coaching_text = (ch.get("user_coaching") or ch.get("markus_coaching") or "").strip()
+            if user_character and coaching_text:
+                char_name = (user_character.get("character_name") or user_character.get("name") or "Personaje").strip()
+                sec3_title = f"## {sec_idx}. Roleplay & Comradery Reflection: {char_name}" if is_en else f"## {sec_idx}. Reflexión de Rol y Compañerismo: {char_name}"
+                chronicle_parts.append(f"{sec3_title}\n{coaching_text}")
+                sec_idx += 1
+
+            # 4. 🎙️ Guion para abrir la Sesión {next_sess_num} (Para leer en voz alta)
+            script_text = (ch.get("next_session_script") or ch.get("recap_text") or "").strip()
+            if script_text:
+                script_title = (
+                    f"## {sec_idx}. 🎙️ Script to Open Session #{next_sess_num} (Read Aloud)"
+                    if is_en
+                    else f"## {sec_idx}. 🎙️ Guion para abrir la Sesión #{next_sess_num} (Para leer en voz alta)"
+                )
+                chronicle_parts.append(f"{script_title}\n{script_text}")
+
+        pcs_to_show = detected_pcs if detected_pcs else [
+            {
+                "personaje": p.get("character_name", "-"),
+                "jugador": p.get("player_name", "-"),
+                "clase": p.get("role", "-"),
+                "especie": p.get("species", "-"),
+                "rol_en_sesion": p.get("session_role", "-"),
+            }
+            for p in detected_party
+        ]
+        if pcs_to_show is None:
+            pcs_to_show = []
+
+        # Ensure absent characters from roster are reflected in the table without being eliminated
+        existing_char_names = {str(p.get("personaje") or p.get("character_name", "")).strip().lower() for p in (pcs_to_show or [])}
+        for r in (final_roster or []):
+            r_char = str(r.get("character_name", "")).strip()
+            if r.get("is_absent") and r_char and r_char not in ("(DM)", "-", ""):
+                absent_role_text = "Ausente en esta sesión (permanece con la compañía)" if not is_en else "Absent this session (remains with the party)"
+                if r_char.lower() not in existing_char_names:
+                    pcs_to_show.append({
+                        "personaje": r_char,
+                        "jugador": str(r.get("player_name", "-")).strip() or "-",
+                        "clase": str(r.get("role", "-")).strip() or "-",
+                        "especie": str(r.get("species", "-")).strip() or "-",
+                        "rol_en_sesion": absent_role_text,
+                    })
+                    existing_char_names.add(r_char.lower())
+                else:
+                    for p in pcs_to_show:
+                        if str(p.get("personaje") or p.get("character_name", "")).strip().lower() == r_char.lower():
+                            p["rol_en_sesion"] = absent_role_text
+
+        protagonists_table = ""
+        if pcs_to_show:
+            if is_en:
+                proto_title = "### 🎭 Adventuring Company (Detected Protagonists)"
+                table_header = "| Character | Player / Role | Class / Species | Session Role |\n|---|---|---|---|"
             else:
-                cls_spec = spec
-            sess_role = p.get("rol_en_sesion") or "-"
-            rows.append(f"| **{char}** | {player} | {cls_spec} | {sess_role} |")
-        if rows:
-            protagonists_table = f"{proto_title}\n\n" + table_header + "\n" + "\n".join(rows) + "\n\n---\n"
+                proto_title = "### 🎭 Compañía de Aventureros (Protagonistas Detectados)"
+                table_header = "| Personaje | Jugador / Rol | Clase / Especie | Rol en la Sesión |\n|---|---|---|---|"
+            rows = []
+            for p in pcs_to_show:
+                char = p.get("personaje") or "-"
+                player = p.get("jugador") or "-"
+                cls = p.get("clase") or "-"
+                spec = p.get("especie") or "-"
+                if cls != "-" and spec != "-":
+                    cls_spec = f"{cls} / {spec}"
+                elif cls != "-":
+                    cls_spec = cls
+                else:
+                    cls_spec = spec
+                sess_role = p.get("rol_en_sesion") or "-"
+                rows.append(f"| **{char}** | {player} | {cls_spec} | {sess_role} |")
+            if rows:
+                protagonists_table = f"{proto_title}\n\n" + table_header + "\n" + "\n".join(rows) + "\n\n---\n"
 
-    chronicle_body = "\n\n".join(chronicle_parts) or ch.get("chronicle_text", "")
-    chronicle_md = f"{protagonists_table}\n\n{chronicle_body}".strip() if protagonists_table else chronicle_body
+        chronicle_body = "\n\n".join(chronicle_parts) or ch.get("chronicle_text", "")
+        chronicle_md = f"{protagonists_table}\n\n{chronicle_body}".strip() if protagonists_table else chronicle_body
 
-    now_str, now_formatted, _ = parse_client_datetime(custom_date, client_timezone_offset)
-    if "date" not in session_data.get("session_chapter", {}) or not session_data["session_chapter"]["date"]:
-        session_data.setdefault("session_chapter", {})["date"] = now_formatted.split(" ")[0]
+        now_str, now_formatted, _ = parse_client_datetime(custom_date, client_timezone_offset)
+        if custom_date:
+            session_data["session_chapter"]["date"] = now_formatted.split(" ")[0]
+        elif audio_source in ("file", "recording"):
+            previous = next((s for s in manager.load_campaign(campaign_name).get("sessions", [])
+                             if s.get("session_number") == actual_session_num), {})
+            session_data["session_chapter"]["date"] = previous.get("date") or ""
+        elif not session_data["session_chapter"].get("date"):
+            session_data.setdefault("session_chapter", {})["date"] = now_formatted.split(" ")[0]
+        session_data["session_chapter"]["processed_at"] = datetime.datetime.now(datetime.timezone.utc).isoformat()
+        if source_recordings is not None:
+            session_data["session_chapter"]["source_recordings"] = source_recordings
 
-    campaign_state = manager.record_session(
-        name=campaign_name,
-        session_chapter=session_data["session_chapter"],
-        updated_quests=session_data.get("updated_quests"),
-        updated_npcs=session_data.get("updated_npcs"),
-        detected_npc_names=session_data.get("detected_npc_names"),
-        roster=final_roster,
-        session_number=actual_session_num,
-        detected_party=detected_party,
-        user_character=user_character,
-        detected_pcs=detected_pcs,
-        is_youtube=is_youtube,
-        chronicle_markdown=chronicle_md,
-        raw_transcript=transcript_text,
-        locations=session_data.get("locations"),
-        items=session_data.get("items"),
-    )
+        from src.storage.session_review import stage_review
+        diagnostics.record("saving_draft")
+        draft = stage_review(manager, get_data_output_dir(), campaign_name, session_data["session_chapter"], session_data, {
+            "roster": final_roster, "session_number": actual_session_num,
+            "user_character": user_character, "is_youtube": is_youtube,
+            "raw_transcript": transcript_text,
+        })
+        session_data["session_chapter"]["review_id"] = draft["id"]
+        session_data["session_chapter"]["review_status"] = "pending"
+        campaign_state = manager.load_campaign(campaign_name)
 
-    if on_progress:
-        on_progress(95.0, "Compilando documentos Word (.docx) y Markdown (.md)...")
+        # A draft is downloadable but cannot replace a campaign or enter continuity.
+        draft_path = get_data_output_dir() / "session-reviews" / (draft["id"] + ".md")
+        docx_file = None
+        md_file = draft_path
+        processing_warnings = ["Crónica generada como borrador. Revisa el texto y sus propuestas antes de incorporarlos a la campaña."]
 
-    docx_file = export_living_journal_docx(campaign_state)
-    md_file = export_living_journal_md(campaign_state)
+        # Save standalone plain-text transcript to data/output/
+        safe_name = manager.sanitize_name(campaign_name)
+        txt_filename = f"{draft['id']}_transcripcion.txt"
+        try:
+            txt_path = get_data_output_dir() / "session-reviews" / txt_filename
+            txt_path.write_text(transcript_text, encoding="utf-8")
+        except Exception as exc:
+            print(f"[process_session_for_campaign] Warning: could not write txt transcript: {exc}")
 
-    if on_progress:
-        on_progress(98.0, "Documentos Word (.docx) y Markdown (.md) generados...")
-
-    # Save standalone plain-text transcript to data/output/
-    safe_name = manager.sanitize_name(campaign_name)
-    txt_filename = f"{safe_name}_sesion_{actual_session_num}_transcripcion.txt"
-    try:
-        txt_path = get_data_output_dir() / txt_filename
-        txt_path.write_text(transcript_text, encoding="utf-8")
-        # Also maintain generic/latest transcript
-        (get_data_output_dir() / f"{safe_name}_transcripcion.txt").write_text(transcript_text, encoding="utf-8")
-    except Exception as exc:
-        print(f"[process_session_for_campaign] Warning: could not write txt transcript: {exc}")
-
-    return {
-        "status": "completed",
-        "campaign_name": campaign_name,
-        "session_number": actual_session_num,
-        "session_chapter": session_data["session_chapter"],
-        "detected_pcs": detected_pcs,
-        "detected_party": detected_party,
-        "updated_quests": session_data.get("updated_quests", []),
-        "updated_npcs": session_data.get("updated_npcs", []),
-        "detected_npc_names": session_data.get("detected_npc_names", []),
-        "campaign_state": campaign_state,
-        "docx_filename": Path(docx_file).name,
-        "md_filename": Path(md_file).name,
-        "txt_filename": txt_filename,
-        "file_path": str(Path(docx_file).resolve()),
-        "chronicle": chronicle_md,
-        "chronicle_markdown": chronicle_md,
-        "raw_transcript": transcript_text,
-        "target_language": target_language,
-    }
+        return {
+            "status": "completed",
+            "campaign_name": campaign_name,
+            "session_number": actual_session_num,
+            "session_chapter": session_data["session_chapter"],
+            "detected_pcs": detected_pcs,
+            "detected_party": detected_party,
+            "updated_quests": session_data.get("updated_quests", []),
+            "updated_npcs": session_data.get("updated_npcs", []),
+            "detected_npc_names": session_data.get("detected_npc_names", []),
+            "campaign_state": campaign_state,
+            "docx_filename": Path(docx_file).name if docx_file else None,
+            "md_filename": Path(md_file).name if md_file else None,
+            "processing_warnings": processing_warnings,
+            "txt_filename": txt_filename,
+            "file_path": str(Path(docx_file or md_file).resolve()) if (docx_file or md_file) else "",
+            "chronicle": chronicle_md,
+            "chronicle_markdown": chronicle_md,
+            "raw_transcript": transcript_text,
+            "target_language": target_language,
+        }
 
 
 # ---------------------------------------------------------------------------
@@ -791,6 +894,8 @@ def diagnose_exception(exc: Exception) -> tuple[str, str, str]:
     """
     Classify an exception into (error_type, friendly_spanish_message, stage).
     """
+    if isinstance(exc, GeminiGenerationFailure):
+        return exc.failure['kind'], str(exc), exc.failure['stage']
     err = str(exc)
     err_lower = err.lower()
     exc_type = type(exc).__name__
@@ -804,6 +909,12 @@ def diagnose_exception(exc: Exception) -> tuple[str, str, str]:
         )
 
     # 2. Transcription with Groq or faster-whisper
+    if "faster-whisper" in err_lower or "ctranslate2" in err_lower or "localwhisper" in err_lower:
+        return (
+            "LocalWhisperError",
+            f"Error durante la transcripción local con faster-whisper: {err}",
+            "Transcripción Local (faster-whisper)",
+        )
     if "groq" in err_lower or "whisper" in err_lower or "transcri" in err_lower:
         if "429" in err or "rate limit" in err_lower:
             return (
@@ -875,6 +986,7 @@ def update_task_progress(
     message: str = "",
     status: Optional[str] = None,
     stage: Optional[str] = None,
+    generation: Optional[Dict[str, Any]] = None,
 ) -> None:
     """Update progress for a specific task ID with strict monotonic non-decreasing guarantee."""
     if not task_id:
@@ -919,6 +1031,7 @@ def update_task_progress(
         "timestamp": time.time(),
         "status": current_status,
         "stage": current_stage,
+        "generation": generation if generation is not None else prev_task.get("generation"),
     }
 
 
@@ -932,7 +1045,12 @@ def set_task_error(
     """Register an error state for a task so frontend displays prominent error card."""
     if not task_id:
         return
+    previous = task_progress_state.get(task_id, {})
+    generation = previous.get("generation")
+    if generation:
+        generation = {**generation, "finished_at": generation.get("finished_at") or time.time()}
     task_progress_state[task_id] = {
+        "generation": generation,
         "task_id": task_id,
         "percent": 0.0,
         "step": f"Error en {stage}",
@@ -945,6 +1063,10 @@ def set_task_error(
         "status": "error",
         "success": False,
     }
+    try:
+        get_support_history().record('processing', 'TASK', 500, error_type)
+    except Exception:
+        pass
 
 
 def is_task_cancelled(task_id: Optional[str]) -> bool:
@@ -956,14 +1078,18 @@ def is_task_cancelled(task_id: Optional[str]) -> bool:
 
 def get_task_progress(task_id: str) -> Dict[str, Any]:
     """Retrieve progress state for a task."""
-    return task_progress_state.get(task_id, {
+    data = dict(task_progress_state.get(task_id, {
         "task_id": task_id,
         "percent": 0.0,
         "step": "Iniciando proceso...",
         "message": "Preparando...",
         "status": "pending",
         "stage": "audio",
-    })
+    }))
+    if data.get("generation"):
+        from src.summarizer.generation_diagnostics import public_generation_status
+        data["generation"] = public_generation_status(data["generation"])
+    return data
 
 
 # ---------------------------------------------------------------------------
@@ -971,7 +1097,8 @@ def get_task_progress(task_id: str) -> Dict[str, Any]:
 # ---------------------------------------------------------------------------
 @app.exception_handler(HTTPException)
 async def http_exception_handler(request: Request, exc: HTTPException):
-    err_type, human_msg, stage = diagnose_exception(exc)
+    source = exc.__cause__ if isinstance(exc.__cause__, GeminiGenerationFailure) else exc
+    err_type, human_msg, stage = diagnose_exception(source)
     detail = exc.detail
     details_str = str(detail)
     if isinstance(detail, dict):
@@ -1036,12 +1163,23 @@ def validate_api_keys_or_raise(
     raise HTTP 401 with a clear multi-tenant message.
     """
     if request is not None:
-        if (not groq_key and not gemini_key) or (require_gemini and not gemini_key) or (require_groq and not groq_key):
+        missing_groq = require_groq and not groq_key
+        missing_gemini = require_gemini and not gemini_key
+        missing_both = (not groq_key and not gemini_key) and (require_groq or require_gemini)
+        if missing_groq or missing_gemini or missing_both:
+            if missing_groq and missing_gemini:
+                msg = "Por favor ingresa tus API keys de Groq y Gemini en la sección de Ajustes para continuar."
+            elif missing_groq:
+                msg = "Por favor ingresa tu API key de Groq en la sección de Ajustes para usar la transcripción en la nube (o selecciona Transcripción local)."
+            elif missing_gemini:
+                msg = "Por favor ingresa tu API key de Gemini en la sección de Ajustes para la síntesis de crónicas y apuntes."
+            else:
+                msg = "Por favor ingresa tus credenciales de API en Ajustes para continuar."
             raise HTTPException(
                 status_code=401,
                 detail={
                     "error": "API_KEYS_REQUIRED",
-                    "message": "Por favor ingresa tus API keys de Groq y Gemini en la sección de Ajustes para continuar.",
+                    "message": msg,
                 },
             )
 
@@ -1107,7 +1245,21 @@ def build_whisper_prompt(
         if campaign_name:
             add_term(campaign_name)
 
-        # 2. Characters & Players from provided roster
+        state = {}
+        if campaign_name:
+            try:
+                state = CampaignManager().load_campaign(campaign_name)
+            except Exception as exc:
+                print(f"[build_whisper_prompt] Warning loading campaign '{campaign_name}': {exc}")
+        names = campaign_name_entries(roster, state)
+        mappings = name_alias_map(names)
+        for entry in names:
+            add_term(entry["character_name"])
+            for alias in entry.get("aliases", []):
+                if mappings.get(alias.casefold()) == entry["character_name"]:
+                    add_term(alias)
+
+        # Characters & Players from provided roster
         for p in (roster or []):
             if isinstance(p, dict):
                 add_term(p.get("character_name") or p.get("personaje"))
@@ -1117,8 +1269,6 @@ def build_whisper_prompt(
         # 3. Load Campaign State for NPCs, locations, and lore terms
         if campaign_name:
             try:
-                manager = CampaignManager()
-                state = manager.load_campaign(campaign_name)
                 # Roster stored in campaign
                 for p in state.get("roster", []):
                     if isinstance(p, dict):
@@ -1157,16 +1307,83 @@ def build_whisper_prompt(
         return None
 
     # Construct concise prompt (max ~200 tokens / 800 chars) with vocabulary ONLY
-    prompt_text = ", ".join(terms)
-    if len(prompt_text) > 800:
-        prompt_text = prompt_text[:797] + "..."
-    return prompt_text
+    selected = []
+    for term in terms:
+        if len(", ".join([*selected, term])) <= 800:
+            selected.append(term)
+    return ", ".join(selected) or None
 
 
 # ---------------------------------------------------------------------------
 # Helper: Audio Transcription Pipeline (Groq Cloud vs Local Whisper)
 # ---------------------------------------------------------------------------
-def transcribe_audio_pipeline(
+def _inspect_audio_duration_seconds(audio_path: Union[str, Path]) -> Optional[float]:
+    try:
+        import wave
+        with wave.open(str(audio_path), "rb") as wf:
+            frames = wf.getnframes()
+            rate = wf.getframerate()
+            if rate > 0:
+                return round(frames / float(rate), 2)
+    except Exception:
+        pass
+    return None
+
+
+def transcribe_audio_pipeline(audio_path: str, *args, **kwargs) -> Dict[str, Any]:
+    """Run preprocessing on an owned temporary copy; never mutate capture originals."""
+    from src.transcription.audio_recorder import load_timeline_for_audio
+    # Resolve sidecars against the original path before moving into a job directory.
+    # speaking_log is the seventh optional positional argument of the worker.
+    if len(args) < 7 and kwargs.get("speaking_log") is None:
+        kwargs["speaking_log"] = load_timeline_for_audio(audio_path) or []
+    with tempfile.TemporaryDirectory(prefix="whisper-processing-") as job:
+        working = Path(job) / Path(audio_path).name
+        shutil.copy2(audio_path, working)
+        result = _transcribe_audio_pipeline(str(working), *args, **kwargs)
+        campaign_name = kwargs.get("campaign_name") or (args[9] if len(args) > 9 else None)
+        roster = kwargs.get("roster") or (args[7] if len(args) > 7 else None)
+        recording_mode = kwargs.get("recording_mode", args[11] if len(args) > 11 else None)
+        is_class = recording_mode == "class"
+        state = CampaignManager().load_campaign(campaign_name) if campaign_name and not is_class else {}
+        names = campaign_name_entries(roster, state) if not is_class else []
+        # Keep raw_text untouched as recognition evidence. Speaker identity still
+        # uses the real roster, never the NPC spelling entries assembled here.
+        for key in ("text", "formatted_transcript"):
+            if isinstance(result.get(key), str):
+                result[key] = normalize_transcript_roster(result[key], names)
+        for segment in result.get("segments", []):
+            for key in ("text", "formatted_line"):
+                if isinstance(segment.get(key), str):
+                    segment[key] = normalize_transcript_roster(segment[key], names)
+        source = kwargs.get("source", args[4] if len(args) > 4 else "local")
+        if not is_class and source in ("local", "live"):
+            from src.transcription.mic_volume_gate import apply_mic_volume_gate
+            # Check original levels: preprocessing may amplify the working copy.
+            # Both transcription engines go through this boundary.
+            result = apply_mic_volume_gate(audio_path, result)
+        if result.get("excluded_segments") or result.get("uncertain_segments"):
+            # An exclusive new file per run preserves review evidence across
+            # retries without changing recordings or campaign documents.
+            prefix = "mic-volume-review-" if result.get("excluded_segments") else "recognition-review-"
+            with tempfile.NamedTemporaryFile(
+                mode="w", encoding="utf-8", dir=get_data_output_dir(),
+                prefix=prefix, suffix=".json", delete=False,
+            ) as review:
+                json.dump({
+                    "source_filename": Path(audio_path).name,
+                    "created_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+                    "gate": result.get("mic_volume_gate"),
+                    "excluded_segments": result.get("excluded_segments", []),
+                    "uncertain_segments": result.get("uncertain_segments", []),
+                }, review, ensure_ascii=False, indent=2)
+                result["recognition_review_filename"] = Path(review.name).name
+                if result.get("mic_volume_gate"):
+                    result["mic_volume_gate"]["review_filename"] = Path(review.name).name
+        return result
+
+
+def _transcribe_audio_pipeline(
     audio_path: str,
     engine: str = "groq",
     model_size: str = "base",
@@ -1183,10 +1400,11 @@ def transcribe_audio_pipeline(
     subject: Optional[str] = None,
     topic: Optional[str] = None,
     task_id: Optional[str] = None,
+    reference_text: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
     Route transcription to Groq Cloud (whisper-large-v3) or Local faster-whisper.
-    Falls back gracefully to local whisper if Groq is requested but fails or lacks API key.
+    Provider failures propagate; no silent switch to another transcription engine.
     Includes campaign vocabulary biasing (prompt / initial_prompt) for fantasy entity recognition.
     Supports audio language auto-detection when language is None or 'auto'.
     """
@@ -1199,6 +1417,8 @@ def transcribe_audio_pipeline(
         if on_progress:
             on_progress(pct, msg)
 
+    t_pipeline_start = time.perf_counter()
+    audio_dur = _inspect_audio_duration_seconds(audio_path) if audio_path else None
     engine_choice = (engine or "groq").lower().strip()
     whisper_lang = None
     if language and str(language).lower() not in ("auto", "none", ""):
@@ -1235,13 +1455,13 @@ def transcribe_audio_pipeline(
         try:
             active_groq_key = (groq_api_key or os.getenv("GROQ_API_KEY", "")).strip()
             if not active_groq_key:
-                print("[transcribe_pipeline] Warning: GROQ_API_KEY not configured. Falling back to local whisper.")
-                raise ValueError("GROQ_API_KEY no configurada")
+                raise ValueError("GROQ_API_KEY no configurada. Ingresa tu API key de Groq en Ajustes o selecciona Transcripción local.")
             lang_label = whisper_lang or "auto-detect"
             print(f"[transcribe_pipeline] Transcribing with Groq Cloud (whisper-large-v3, lang={lang_label}): {audio_path}")
             if whisper_prompt:
                 print(f"[transcribe_pipeline] Using Whisper prompt biasing ({len(whisper_prompt)} chars): {whisper_prompt[:120]}...")
             transcriber = GroqWhisperTranscriber(api_key=active_groq_key)
+            t_trans_start = time.perf_counter()
             result = transcriber.transcribe(
                 audio_path,
                 language=whisper_lang,
@@ -1252,30 +1472,125 @@ def transcribe_audio_pipeline(
                 roster=roster,
                 prompt=whisper_prompt,
             )
+            t_trans_end = time.perf_counter()
             result["engine_used"] = "groq"
+            t_pipeline_end = time.perf_counter()
+            final_audio_dur = result.get("duration") or audio_dur
+            try:
+                report_path = create_transcription_test_report(
+                    engine="groq",
+                    model_size="whisper-large-v3",
+                    source=source,
+                    audio_duration_seconds=final_audio_dur,
+                    transcription_time_seconds=round(t_trans_end - t_trans_start, 2),
+                    total_time_seconds=round(t_pipeline_end - t_pipeline_start, 2),
+                    language=result.get("language_code") or whisper_lang,
+                    device="cloud",
+                    compute_type="fp16",
+                    success=True,
+                    reference_text=reference_text,
+                    hypothesis_text=result.get("text", ""),
+                )
+                result["test_report_path"] = str(report_path)
+                result["test_report_filename"] = report_path.name
+            except Exception as rep_err:
+                print(f"[transcribe_pipeline] Notice generating Groq test report: {rep_err}")
             return result
         except Exception as exc:
+            t_pipeline_end = time.perf_counter()
+            try:
+                create_transcription_test_report(
+                    engine="groq",
+                    model_size="whisper-large-v3",
+                    source=source,
+                    audio_duration_seconds=audio_dur,
+                    total_time_seconds=round(t_pipeline_end - t_pipeline_start, 2),
+                    language=whisper_lang,
+                    device="cloud",
+                    compute_type="fp16",
+                    success=False,
+                    error_summary=str(exc)[:300],
+                )
+            except Exception:
+                pass
             if "cancelado" in str(exc).lower():
                 raise
-            print(f"[transcribe_pipeline] Groq transcription failed ({exc}). Falling back to local whisper.")
+            raise
 
-    lang_label = whisper_lang or "auto-detect"
-    _safe_progress(40, f"Transcribiendo con faster-whisper local ({model_size}, lang={lang_label})...")
-    print(f"[transcribe_pipeline] Transcribing with local faster-whisper ({model_size}, lang={lang_label}): {audio_path}")
+    chosen_model = (model_size or "base").lower().strip()
+    if chosen_model not in ("tiny", "base", "small", "medium", "large-v3"):
+        chosen_model = "base"
+    local_lang_label = whisper_lang or "auto-detect"
+    _safe_progress(2, f"Inicializando faster-whisper local ({chosen_model}, CPU int8)...")
+    local_ceiling = 70.0 if source == "youtube" else 55.0
+    def local_progress(pct, message):
+        _safe_progress(min(75.0, max(0.0, float(pct))) / 75.0 * local_ceiling, message)
+    print(f"[transcribe_pipeline] Transcribing with local faster-whisper ({chosen_model}, CPU int8, lang={local_lang_label}): {audio_path}")
     if whisper_prompt:
         print(f"[transcribe_pipeline] Using Whisper initial_prompt biasing ({len(whisper_prompt)} chars): {whisper_prompt[:120]}...")
-    transcriber = LocalWhisperTranscriber(model_size=model_size)
-    result = transcriber.transcribe(
-        audio_path,
-        language=whisper_lang,
-        user_char_name=user_char_name,
-        speaking_log=speaking_log,
-        roster=roster,
-        initial_prompt=whisper_prompt,
-    )
-    _safe_progress(75, "Transcripción local completada.")
-    result["engine_used"] = "local"
-    return result
+    t_trans_start = time.perf_counter()
+    try:
+        transcriber = LocalWhisperTranscriber(
+            model_size=chosen_model,
+            device="cpu",
+            compute_type="int8",
+        )
+        result = transcriber.transcribe(
+            audio_path,
+            language=whisper_lang,
+            user_char_name=user_char_name,
+            speaking_log=speaking_log,
+            roster=roster,
+            initial_prompt=whisper_prompt,
+            on_progress=local_progress,
+        )
+        t_trans_end = time.perf_counter()
+        local_progress(75, f"Transcripción local ({chosen_model}) completada.")
+        result["engine_used"] = f"local-{chosen_model}"
+        t_pipeline_end = time.perf_counter()
+        final_audio_dur = result.get("duration") or audio_dur
+        try:
+            report_path = create_transcription_test_report(
+                engine="local",
+                model_size=chosen_model,
+                source=source,
+                audio_duration_seconds=final_audio_dur,
+                transcription_time_seconds=round(t_trans_end - t_trans_start, 2),
+                total_time_seconds=round(t_pipeline_end - t_pipeline_start, 2),
+                language=result.get("language_code") or whisper_lang,
+                device="cpu",
+                compute_type="int8",
+                vad_enabled=True,
+                condition_on_previous_text=False,
+                success=True,
+                reference_text=reference_text,
+                hypothesis_text=result.get("text", ""),
+            )
+            result["test_report_path"] = str(report_path)
+            result["test_report_filename"] = report_path.name
+        except Exception as rep_err:
+            print(f"[transcribe_pipeline] Notice generating local test report: {rep_err}")
+        return result
+    except Exception as exc:
+        t_pipeline_end = time.perf_counter()
+        try:
+            create_transcription_test_report(
+                engine="local",
+                model_size=chosen_model,
+                source=source,
+                audio_duration_seconds=audio_dur,
+                total_time_seconds=round(t_pipeline_end - t_pipeline_start, 2),
+                language=whisper_lang,
+                device="cpu",
+                compute_type="int8",
+                vad_enabled=True,
+                condition_on_previous_text=False,
+                success=False,
+                error_summary=str(exc)[:300],
+            )
+        except Exception:
+            pass
+        raise
 
 
 
@@ -1395,19 +1710,5 @@ from src.api.routers.drive import (
     discard_transcription_endpoint,
 )
 app.include_router(drive_router)
-
-
-@app.on_event("startup")
-async def startup_migrate_campaigns():
-    """Ensure all existing campaigns are migrated to modular storage format on server start."""
-    try:
-        cm = CampaignManager()
-        for c in cm.list_campaigns():
-            c_name = c.get("name") or c.get("campaign_name")
-            if c_name:
-                cm.load_campaign(c_name)
-    except Exception as exc:
-        print(f"[Startup] Notice checking campaign migrations: {exc}")
-
 
 

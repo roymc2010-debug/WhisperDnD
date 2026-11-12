@@ -4,6 +4,7 @@ import os
 import re
 import threading
 from pathlib import Path
+from src.runtime_paths import resolve_runtime_paths, is_desktop_runtime
 from typing import Callable, Optional
 
 _yt_download_lock = threading.Lock()
@@ -41,7 +42,7 @@ def is_valid_youtube_url(url: str) -> bool:
 
 def download_youtube_audio(
     url: str,
-    output_dir: str = "data/input",
+    output_dir: Optional[str] = None,
     on_progress: Optional[Callable[[int, str], None]] = None,
 ) -> str:
     """
@@ -63,7 +64,12 @@ def download_youtube_audio(
             "Por favor proporciona un enlace válido de YouTube (ej: https://www.youtube.com/watch?v=... o https://youtu.be/...)."
         )
 
-    dest_dir = Path(output_dir).resolve()
+    if output_dir is not None:
+        dest_dir = Path(output_dir).resolve()
+    elif is_desktop_runtime():
+        dest_dir = resolve_runtime_paths().input_dir
+    else:
+        dest_dir = Path("data/input").resolve()
     dest_dir.mkdir(parents=True, exist_ok=True)
 
     # 1. Fast cache check before acquiring lock or calling yt-dlp

@@ -95,7 +95,9 @@ class TestAPIEndpoints(unittest.TestCase):
     @patch("src.api.server.download_youtube_audio")
     @patch("src.api.server.LocalWhisperTranscriber")
     def test_transcribe_youtube_endpoint(self, mock_transcriber_class, mock_download):
-        mock_download.return_value = "/path/to/downloaded.mp3"
+        downloaded = Path(self.temp_in_dir) / "downloaded.mp3"
+        downloaded.write_bytes(b"synthetic downloaded audio")
+        mock_download.return_value = str(downloaded)
         mock_instance = MagicMock()
         mock_instance.transcribe.return_value = {
             "text": "Hello world from YouTube",
@@ -109,6 +111,7 @@ class TestAPIEndpoints(unittest.TestCase):
         request_payload = YouTubeTranscribeRequest(
             url="https://www.youtube.com/watch?v=dQw4w9WgXcQ",
             model_size="base",
+            engine="local",
         )
 
         response = asyncio.run(transcribe_youtube(request_payload))
@@ -122,7 +125,9 @@ class TestAPIEndpoints(unittest.TestCase):
     @patch("src.api.server.LocalWhisperTranscriber")
     @patch("src.api.server.GeminiTTRPGSummarizer")
     def test_transcribe_youtube_work_and_study_mode(self, mock_summarizer_class, mock_transcriber_class, mock_download):
-        mock_download.return_value = "/path/to/downloaded.mp3"
+        downloaded = Path(self.temp_in_dir) / "downloaded.mp3"
+        downloaded.write_bytes(b"synthetic downloaded audio")
+        mock_download.return_value = str(downloaded)
         mock_instance = MagicMock()
         mock_instance.transcribe.return_value = {
             "text": "Bienvenidos a la clase magistral de Física Cuántica.",
@@ -142,6 +147,7 @@ class TestAPIEndpoints(unittest.TestCase):
             model_size="base",
             workspace="work_and_study",
             topic="Física Cuántica",
+            engine="local",
         )
 
         response = asyncio.run(transcribe_youtube(request_payload))
@@ -232,6 +238,7 @@ class TestAPIEndpoints(unittest.TestCase):
                 )
             ],
             model_size="base",
+            engine="local",
             task_id="test_task_123",
         )
 
@@ -313,6 +320,7 @@ class TestAPIEndpoints(unittest.TestCase):
             subject="Sistemas de Control",
             topic="Criterio de Nyquist",
             model_size="base",
+            engine="local",
             task_id="test_task_class_1",
         )
 
@@ -329,7 +337,7 @@ class TestAPIEndpoints(unittest.TestCase):
         self.assertEqual(task_st["percent"], 100)
         self.assertEqual(task_st["status"], "completed")
 
-    @patch.dict("os.environ", {"GROQ_API_KEY": "gsk_test123", "GEMINI_API_KEY": "AIzaSyTest123"})
+    @patch.dict("os.environ", {"GROQ_API_KEY": "gsk_test123", "GEMINI_API_KEY": "AIzaSyTest123", "GEMINI_MODEL": "modelo-de-prueba"})
     @patch("src.api.server.GoogleDriveStorage")
     def test_check_api_keys_success(self, mock_storage_cls):
         mock_storage = MagicMock()
@@ -350,6 +358,21 @@ class TestAPIEndpoints(unittest.TestCase):
             self.assertIn("operativa", res["groq_message"])
             self.assertIn("operativa", res["gemini_message"])
             self.assertEqual(res["drive_message"], "Google Drive conectado.")
+            self.assertEqual(res["gemini_model"], "modelo-de-prueba")
+
+    @patch.dict("os.environ", {"GROQ_API_KEY": "gsk_timeout_test", "GEMINI_API_KEY": "timeout-test-key"})
+    @patch("src.api.server.GoogleDriveStorage")
+    def test_check_api_keys_timeout_explains_what_to_do(self, mock_storage_cls):
+        mock_storage_cls.return_value.is_connected.return_value = False
+        mock_storage_cls.return_value.credentials_path.is_file.return_value = False
+        with patch("groq.Client") as groq_cls, patch("google.genai.Client") as gemini_cls:
+            groq_cls.return_value.models.list.side_effect = TimeoutError()
+            gemini_cls.return_value.models.list.side_effect = TimeoutError()
+            result = asyncio.run(check_api_keys())
+        for provider in ("groq", "gemini"):
+            self.assertFalse(result[provider])
+            self.assertIn("tiempo", result[provider + "_message"].lower())
+            self.assertIn("conexión", result[provider + "_message"].lower())
 
     @patch.dict("os.environ", {"GROQ_API_KEY": "", "GEMINI_API_KEY": ""})
     @patch("src.api.server.GoogleDriveStorage")
@@ -563,6 +586,7 @@ class TestAPIEndpoints(unittest.TestCase):
         mock_mgr_cls.return_value = mock_mgr
 
         mock_sum = MagicMock()
+        mock_sum.model_name = "offline-model"
         mock_sum.generate_campaign_session.return_value = {
             "session_chapter": {
                 "title": "Sesión #1",
@@ -1148,7 +1172,7 @@ Análisis del escudo de Aquiles...
             # 2. Files queries inside folder return campaign_test.json
             def mock_list(q="", **kwargs):
                 req = MagicMock()
-                if "application/vnd.google-apps.folder" in q:
+                if "application/vnd.google-apps.folder" in q and "in parents" not in q:
                     req.execute.return_value = {
                         "files": [{"id": "fld_1", "name": "WhisperDnD", "mimeType": "application/vnd.google-apps.folder"}]
                     }
@@ -1166,16 +1190,19 @@ Análisis del escudo de Aquiles...
 
             with patch.object(storage, "download_file_bytes") as mock_download:
                 mock_download.return_value = b'{"campaign_name": "Dragons of Stormwreck", "universal_pcs": [], "sessions": []}'
-                camp_dir = Path(self.temp_camp_dir)
+                camp_dir = Path(self.temp_camp_dir) / "campaigns"
                 out_dir = Path(self.temp_out_dir)
 
                 result = storage.sync_from_google_drive(campaigns_dir=camp_dir, output_dir=out_dir)
                 self.assertEqual(result.get("status"), "success")
                 self.assertEqual(result.get("downloaded_campaigns"), 1)
 
-                downloaded_file = camp_dir / "campaign_dragons.json"
+                from src.storage.campaign_manager import CampaignManager
+                manager = CampaignManager(campaigns_dir=str(camp_dir))
+                downloaded_file = manager.get_campaign_path("Dragons of Stormwreck")
                 self.assertTrue(downloaded_file.is_file())
                 self.assertIn("Dragons of Stormwreck", downloaded_file.read_text(encoding="utf-8"))
+                self.assertEqual(manager.load_modular("Dragons of Stormwreck")["sessions"], [])
 
     def test_campaign_export_not_found(self):
         from fastapi.testclient import TestClient

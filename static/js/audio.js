@@ -10,6 +10,7 @@ function isMobileUser() {
 
 var audioSourceMode = localStorage.getItem("audio_source_mode") || (isMobileUser() ? "browser_mic" : "pc_host");
 var mediaRecorder = null;
+var browserRecordingStartedAt = null;
 var mediaStream = null;
 var browserAudioChunks = [];
 var browserAudioContext = null;
@@ -155,15 +156,14 @@ async function loadAudioDevices(forceRefresh = false) {
   const spkSelect = document.getElementById("selectAudioSpeaker");
   if (!micSelect || !spkSelect) return;
 
-  if (forceRefresh) {
-    micSelect.innerHTML = '<option value="">Detectando micrófonos...</option>';
-    spkSelect.innerHTML = '<option value="">Detectando audífonos/altavoces...</option>';
-  }
+  // Keep previously discovered devices usable while a refresh is pending.
+  setAudioDevicesStatus(forceRefresh ? "Actualizando dispositivos…" : "Buscando dispositivos…", "pending");
 
   try {
     const res = await fetch("/api/audio/devices");
     if (!res.ok) throw new Error("No se pudo obtener la lista de dispositivos de audio.");
     const data = await res.json();
+    if (data.error) throw new Error(data.error);
 
     const savedMic = localStorage.getItem("dnd_selected_mic") || "";
     const savedSpk = localStorage.getItem("dnd_selected_speaker") || "";
@@ -179,14 +179,18 @@ async function loadAudioDevices(forceRefresh = false) {
       data.microphones.forEach(m => {
         const opt = document.createElement("option");
         opt.value = m.id;
+        const isSuggested = (data.suggested_mic_id && m.id === data.suggested_mic_id);
         const isDefault = (data.default_mic_id && m.id === data.default_mic_id);
-        opt.textContent = `${m.name}${isDefault ? " (Predeterminado)" : ""}`;
+        const tag = isSuggested ? " (Recomendado - Conexant)" : (isDefault ? " (Predeterminado)" : "");
+        opt.textContent = `${m.name}${tag}`;
         micSelect.appendChild(opt);
       });
     }
 
     if (savedMic && Array.from(micSelect.options).some(o => o.value === savedMic)) {
       micSelect.value = savedMic;
+    } else if (data.suggested_mic_id) {
+      micSelect.value = data.suggested_mic_id;
     } else if (data.default_mic_id) {
       micSelect.value = data.default_mic_id;
     }
@@ -221,14 +225,35 @@ async function loadAudioDevices(forceRefresh = false) {
     if (micSelect.value) localStorage.setItem("dnd_selected_mic", micSelect.value);
     if (spkSelect.value) localStorage.setItem("dnd_selected_speaker", spkSelect.value);
 
+    syncAudioSettingsSelectors();
+    setAudioDevicesStatus("Dispositivos actualizados.", "ready");
     checkSpeakerSelection();
     pollAudioLevel();
   } catch (err) {
+    setAudioDevicesStatus(`No se pudieron actualizar los dispositivos: ${err.message}. Vuelve a pulsar «Escanear dispositivos».`, "error");
     console.warn("[Audio Devices] Error cargando dispositivos:", err);
   }
 }
 
+function setAudioDevicesStatus(message, state) {
+  for (const id of ["audioDevicesStatus", "audioDevicesSettingsStatus"]) {
+    const status = document.getElementById(id);
+    if (status) { status.textContent = message; status.hidden = !message; status.dataset.state = state; }
+  }
+}
+
+function syncAudioSettingsSelectors() {
+  for (const [sourceId, targetId] of [["selectAudioMic", "deviceMicSettings"], ["selectAudioSpeaker", "deviceSpeakerSettings"]]) {
+    const source = document.getElementById(sourceId), target = document.getElementById(targetId);
+    if (source && target) {
+      target.replaceChildren(...Array.from(source.options, option => option.cloneNode(true)));
+      target.value = source.value;
+    }
+  }
+}
+
 function onAudioDeviceChange() {
+  syncAudioSettingsSelectors();
   const micSelect = document.getElementById("selectAudioMic");
   const spkSelect = document.getElementById("selectAudioSpeaker");
   if (micSelect && micSelect.value) {
@@ -351,10 +376,18 @@ async function pollAudioLevel() {
     params.append("gain_mic", gainMic);
     params.append("gain_spk", gainSpeaker);
 
-    const res = await fetch(`/api/audio/test-level?${params.toString()}`);
+    const options = (typeof AbortSignal !== "undefined" && AbortSignal.timeout) ? {signal: AbortSignal.timeout(8000)} : {};
+    const res = await fetch(`/api/audio/test-level?${params.toString()}`, options);
     if (res.ok) {
       const data = await res.json();
-      updateVuMeter(data.mic_rms || 0, data.speaker_rms || 0);
+      if (data.meter_busy) {
+        for (const id of ["meterStatusHint", "meterStatusHintSettings"]) {
+          const hint = document.getElementById(id);
+          if (hint) hint.textContent = "Medidor ocupado; esperando una lectura nueva…";
+        }
+        return;
+      }
+      updateVuMeter(data.mic_rms || 0, data.speaker_rms || 0, data);
 
       // Watchdog: monitor recording active status from backend
       if (isRecordingActive) {
@@ -369,13 +402,16 @@ async function pollAudioLevel() {
       }
     }
   } catch (err) {
-    // Ignorar fallos transitorios de red en sondeo de niveles
+    for (const id of ["meterStatusHint", "meterStatusHintSettings"]) {
+      const hint = document.getElementById(id);
+      if (hint) hint.textContent = "No se pudo leer la señal; reintentando…";
+    }
   } finally {
     isMeterPolling = false;
   }
 }
 
-function updateVuMeter(micRms, spkRms) {
+function updateVuMeter(micRms, spkRms, extraData = null) {
   const micBar = document.getElementById("meterMicBar");
   const micVal = document.getElementById("meterMicValue");
   const spkBar = document.getElementById("meterSpkBar");
@@ -399,11 +435,33 @@ function updateVuMeter(micRms, spkRms) {
 
   if (spkBar) spkBar.style.width = `${spkPct}%`;
   if (spkVal) {
-    spkVal.textContent = spkPct > 0 ? `${spkPct}% (RMS ${spkRms.toFixed(4)})` : "0% (Silencio)";
-    spkVal.className = spkPct > 0 ? "text-amber-300 font-bold" : "text-slate-500";
+    if (window.currentLiveMode === "roleplay") {
+      if (spkPct > 0) {
+        spkVal.textContent = `${spkPct}% (Discord)`;
+        spkVal.className = "text-amber-300 font-bold";
+      } else {
+        const isDetect = extraData?.discord_detected || extraData?.discord_status?.discord_detected;
+        const dMsg = extraData?.discord_status?.status_message || extraData?.discord_message || (isDetect ? "Discord listo (en espera de voz)" : "Esperando a Discord...");
+        spkVal.textContent = dMsg;
+        spkVal.className = isDetect ? "text-emerald-400 font-medium text-[10px]" : "text-amber-400 font-medium text-[10px]";
+      }
+    } else {
+      spkVal.textContent = spkPct > 0 ? `${spkPct}% (RMS ${spkRms.toFixed(4)})` : "0% (Silencio)";
+      spkVal.className = spkPct > 0 ? "text-amber-300 font-bold" : "text-slate-500";
+    }
   }
 
+  for (const [barId, valueId, pct] of [["meterMicBarSettings", "meterMicValSettings", micPct], ["meterSpkBarSettings", "meterSpkValSettings", spkPct]]) {
+    const bar = document.getElementById(barId), value = document.getElementById(valueId);
+    if (bar) bar.style.width = `${pct}%`;
+    if (value) value.textContent = `${pct}%`;
+  }
+  const discordText = document.getElementById("discordLiveStatusText");
+  if (discordText) discordText.textContent = extraData?.discord_status?.status_message || extraData?.discord_message || "Estado de Discord pendiente de lectura";
+
   const hasActivity = (micPct > 0 || spkPct > 0);
+  const settingsHint = document.getElementById("meterStatusHintSettings");
+  if (settingsHint) settingsHint.textContent = hasActivity ? "Señal de audio detectada" : "Habla o reproduce audio para probar señal";
   if (dot) {
     dot.className = hasActivity ? "w-2 h-2 rounded-full bg-emerald-400 animate-ping" : "w-2 h-2 rounded-full bg-slate-600";
   }
@@ -428,6 +486,7 @@ function onRecordingInterrupted(durationSec) {
 
   const btnStart = document.getElementById("btnStartRecording");
   const btnStop = document.getElementById("btnStopRecording");
+  const btnStopOnly = document.getElementById("btnStopOnly");
   const statusText = document.getElementById("liveRecordingStatus");
   const watchdogAlert = document.getElementById("recordingWatchdogAlert");
   const watchdogMsg = document.getElementById("recordingWatchdogMsg");
@@ -520,6 +579,7 @@ function stopHeartbeat() {
 function setRecordingUI(isRecording) {
   const btnStart = document.getElementById("btnStartRecording");
   const btnStop = document.getElementById("btnStopRecording");
+  const btnStopOnly = document.getElementById("btnStopOnly");
   const badge = document.getElementById("headerRecordingBadge");
   const statusText = document.getElementById("liveRecordingStatus");
   const timerEl = document.getElementById("liveTimer");
@@ -531,6 +591,7 @@ function setRecordingUI(isRecording) {
       btnStart.classList.add("opacity-40", "cursor-not-allowed");
     }
     if (btnStop) btnStop.disabled = false;
+    if (btnStopOnly) btnStopOnly.disabled = false;
     if (badge) badge.classList.remove("hidden");
     if (statusText) {
       if (audioSourceMode === "browser_mic") {
@@ -553,6 +614,7 @@ function setRecordingUI(isRecording) {
       btnStart.classList.remove("opacity-40", "cursor-not-allowed");
     }
     if (btnStop) btnStop.disabled = true;
+    if (btnStopOnly) btnStopOnly.disabled = true;
     if (badge) badge.classList.add("hidden");
     if (statusText) {
       if (audioSourceMode === "browser_mic") {
@@ -595,8 +657,13 @@ async function startSessionRecording() {
     }
   }
 
+  if (window.currentLiveMode !== "class" && window.currentWorkspace !== "work_and_study" &&
+      typeof ensureCampaignRosterReady === "function" && !ensureCampaignRosterReady()) return;
   if (typeof checkQuotaBeforeAction === "function") {
     const quotaOk = await checkQuotaBeforeAction("una nueva grabación de sesión");
+    if (typeof window.clearResultsView === "function") {
+      window.clearResultsView(true);
+    }
     if (!quotaOk) return;
   }
 
@@ -651,6 +718,8 @@ async function startSessionRecording() {
         console.warn("No se pudo iniciar AudioContext para medidor visual:", e);
       }
 
+      const captureStart = new Date();
+      browserRecordingStartedAt = new Date(captureStart.getTime() - captureStart.getTimezoneOffset() * 60000).toISOString().slice(0, 19);
       mediaRecorder.start(1000);
       secondsElapsed = 0;
       startTimer();
@@ -684,7 +753,8 @@ async function startSessionRecording() {
         speaker_id: spkId,
         gain_mic: gainMic,
         gain_spk: gainSpeaker,
-        campaign_name: campName
+        campaign_name: campName,
+        session_number: campName ? (parseInt(document.getElementById('sessionNumberInput')?.value, 10) || null) : null
       })
     });
     const data = await res.json();
@@ -699,6 +769,8 @@ async function startSessionRecording() {
 }
 
 async function stopSessionAndProcess() {
+  if (window.currentLiveMode !== "class" && window.currentWorkspace !== "work_and_study" &&
+      typeof ensureCampaignRosterReady === "function" && !ensureCampaignRosterReady()) return;
   if (typeof hideAlert === "function") hideAlert();
   if (typeof hideErrorCard === "function") hideErrorCard();
   window.lastActionCallback = () => stopSessionAndProcess();
@@ -734,6 +806,7 @@ async function stopSessionAndProcess() {
 
         const formData = new FormData();
         formData.append("file", audioBlob, `mobile_recording_${Date.now()}.${ext}`);
+        if (browserRecordingStartedAt) formData.append("recorded_at", browserRecordingStartedAt);
         formData.append("model_size", modelSize);
         formData.append("engine", engine);
         formData.append("task_id", taskId);
@@ -777,11 +850,13 @@ async function stopSessionAndProcess() {
           formData.append("roster_json", JSON.stringify(roster));
         }
 
-        if (window.currentActiveAbortController) {
+  if (window.currentActiveAbortController) {
           try { window.currentActiveAbortController.abort(); } catch (_) {}
         }
         window.currentActiveAbortController = new AbortController();
 
+        const refTextLive = (document.getElementById("optionalReferenceTextInput")?.value || "").trim();
+        if (refTextLive) formData.append("reference_text", refTextLive);
         formData.append("processing_source", "recording");
         const res = await fetch("/api/transcribe/file", {
           method: "POST",
@@ -890,6 +965,11 @@ async function stopSessionAndProcess() {
         `Transcribiendo con ${engineName}, identificando misiones/PNJs y generando crónica continua con Gemini.`
       );
     }
+  }
+
+  const refTextLive2 = (document.getElementById("optionalReferenceTextInput")?.value || "").trim();
+  if (refTextLive2 && bodyPayload) {
+    bodyPayload.reference_text = refTextLive2;
   }
 
   if (window.currentActiveAbortController) {
@@ -1088,6 +1168,31 @@ window.startHeartbeat = startHeartbeat;
 window.stopHeartbeat = stopHeartbeat;
 window.setRecordingUI = setRecordingUI;
 window.startSessionRecording = startSessionRecording;
+async function stopRecordingOnly() {
+  if (typeof hideAlert === "function") hideAlert();
+  if (typeof hideErrorCard === "function") hideErrorCard();
+  stopTimer();
+  setRecordingUI(false);
+  try {
+    const res = await fetch("/api/record/stop", { method: "POST" });
+    const data = await res.json();
+    if (res.ok) {
+      const savedPath = data.full_path || data.file_path || "data/input/";
+      if (typeof showSuccessAlert === "function") {
+        showSuccessAlert(`Grabación WAV guardada con éxito (sin procesar con IA) en: ${savedPath}`);
+      } else if (typeof showAlert === "function") {
+        showAlert(`Grabación WAV guardada con éxito en: ${savedPath}`);
+      }
+      console.log("[AudioRecorder] Grabación guardada sin IA en:", savedPath);
+    } else {
+      throw new Error(data.detail || "Error al detener grabación");
+    }
+  } catch (err) {
+    if (typeof showAlert === "function") showAlert(err.message);
+  }
+}
+
+window.stopRecordingOnly = stopRecordingOnly;
 window.stopSessionAndProcess = stopSessionAndProcess;
 window.deleteOriginalAudio = deleteOriginalAudio;
 window.downloadAudioFile = downloadAudioFile;

@@ -200,13 +200,90 @@ function getSelectedCampaignName() {
 // ENGINE & LANGUAGE SELECTORS
 // =========================================================================
 function initEngineSelector() {
-  setEngine("groq");
+  const savedEngine = localStorage.getItem("whisper_engine") || "groq";
+  const savedModelSize = localStorage.getItem("whisper_model_size") || "base";
+  setEngine(savedEngine, false);
+  setModelSize(savedModelSize, false);
 }
 
-function setEngine(engine) {
+function setEngine(engine, save = true) {
+  const cleanEngine = (engine === "local") ? "local" : "groq";
   const engineInput = document.getElementById("transcriptionEngine");
-  if (engineInput) engineInput.value = "groq";
-  localStorage.setItem("whisper_engine", "groq");
+  if (engineInput) engineInput.value = cleanEngine;
+  if (save) localStorage.setItem("whisper_engine", cleanEngine);
+
+  const groqBtn = document.getElementById("engineGroqBtn");
+  const localBtn = document.getElementById("engineLocalBtn");
+  if (groqBtn) groqBtn.setAttribute("aria-pressed", String(cleanEngine === "groq"));
+  if (localBtn) localBtn.setAttribute("aria-pressed", String(cleanEngine === "local"));
+  const localModelContainer = document.getElementById("localModelSizeContainer");
+  const localNotice = document.getElementById("localEngineNotice");
+  const settingsEngineText = document.getElementById("settingsActiveEngineText");
+
+  if (cleanEngine === "local") {
+    if (groqBtn) {
+      groqBtn.className = "px-2.5 py-1.5 rounded-lg text-xs font-medium transition flex items-center gap-1 text-slate-400 hover:text-slate-200 border border-transparent cursor-pointer";
+    }
+    if (localBtn) {
+      localBtn.className = "px-2.5 py-1.5 rounded-lg text-xs font-semibold transition flex items-center gap-1 bg-indigo-600 text-white shadow-sm cursor-pointer";
+    }
+    if (localModelContainer) {
+      localModelContainer.classList.remove("hidden");
+      localModelContainer.classList.add("flex");
+    }
+    if (localNotice) localNotice.classList.remove("hidden");
+    const currentModel = (document.getElementById("globalModelSize")?.value || localStorage.getItem("whisper_model_size") || "base");
+    if (settingsEngineText) settingsEngineText.textContent = `faster-whisper local (${currentModel}, CPU int8)`;
+  } else {
+    if (groqBtn) {
+      groqBtn.className = "px-2.5 py-1.5 rounded-lg text-xs font-semibold transition flex items-center gap-1 bg-indigo-600 text-white shadow-sm cursor-pointer";
+    }
+    if (localBtn) {
+      localBtn.className = "px-2.5 py-1.5 rounded-lg text-xs font-medium transition flex items-center gap-1 text-slate-400 hover:text-slate-200 border border-transparent cursor-pointer";
+    }
+    if (localModelContainer) {
+      localModelContainer.classList.add("hidden");
+      localModelContainer.classList.remove("flex");
+    }
+    if (localNotice) localNotice.classList.add("hidden");
+    if (settingsEngineText) settingsEngineText.textContent = "Groq Whisper Large-v3";
+  }
+
+  if (typeof updateSystemStatusIndicator === "function") {
+    updateSystemStatusIndicator();
+  }
+}
+
+function setModelSize(size, save = true) {
+  const cleanSize = (size === "small") ? "small" : "base";
+  const modelInput = document.getElementById("globalModelSize");
+  if (modelInput) modelInput.value = cleanSize;
+  if (save) localStorage.setItem("whisper_model_size", cleanSize);
+
+  const baseBtn = document.getElementById("modelBaseBtn");
+  const smallBtn = document.getElementById("modelSmallBtn");
+  const settingsEngineText = document.getElementById("settingsActiveEngineText");
+  const currentEngine = (document.getElementById("transcriptionEngine")?.value || localStorage.getItem("whisper_engine") || "groq");
+
+  if (cleanSize === "small") {
+    if (smallBtn) {
+      smallBtn.className = "px-2 py-1.5 rounded-lg text-xs font-semibold transition bg-slate-800 text-emerald-300 border border-emerald-500/30 shadow-sm cursor-pointer";
+    }
+    if (baseBtn) {
+      baseBtn.className = "px-2 py-1.5 rounded-lg text-xs font-medium transition text-slate-400 hover:text-slate-200 border border-transparent cursor-pointer";
+    }
+  } else {
+    if (baseBtn) {
+      baseBtn.className = "px-2 py-1.5 rounded-lg text-xs font-semibold transition bg-slate-800 text-emerald-300 border border-emerald-500/30 shadow-sm cursor-pointer";
+    }
+    if (smallBtn) {
+      smallBtn.className = "px-2 py-1.5 rounded-lg text-xs font-medium transition text-slate-400 hover:text-slate-200 border border-transparent cursor-pointer";
+    }
+  }
+
+  if (currentEngine === "local" && settingsEngineText) {
+    settingsEngineText.textContent = `faster-whisper local (${cleanSize}, CPU int8)`;
+  }
 }
 
 function initLanguageSelector() {
@@ -434,6 +511,9 @@ function setWorkspace(workspace) {
     loadCurrentCampaign();
   }
   syncResultTabsForWorkspace(isDnd ? "roleplay" : "class");
+  if (typeof restoreLastResultForWorkspace === "function") {
+    restoreLastResultForWorkspace(currentWorkspace);
+  }
 
   if (isDnd) {
     if (btnDownloadDocxText) btnDownloadDocxText.textContent = "Grimorio .docx";
@@ -544,42 +624,81 @@ async function loadCampaignList() {
   try {
     const res = await fetch("/api/campaigns");
     if (res.ok) {
-      const campaigns = await res.json();
+      const rawData = await res.json();
+      const campaigns = Array.isArray(rawData) ? rawData : (rawData?.campaigns || rawData?.data);
+      if (!Array.isArray(campaigns)) throw new Error("Invalid campaigns response");
       knownCampaigns = {};
       const datalist = document.getElementById("campaignListOptions");
+      const campaignSelect = document.getElementById("campaignSelect");
       if (datalist) datalist.innerHTML = "";
-      campaigns.forEach(c => {
-        const cName = c.name || c.campaign_name;
-        if (cName) {
-          knownCampaigns[cName.trim().toLowerCase()] = c;
-          if (datalist) {
+      if (campaignSelect) {
+        const prevVal = campaignSelect.value;
+        campaignSelect.innerHTML = '<option value="">-- Seleccionar Campaña --</option>';
+        campaigns.forEach(c => {
+          const cName = c.name || c.campaign_name;
+          if (cName) {
+            knownCampaigns[cName.trim().toLowerCase()] = c;
+            const sCount = c.sessions_count !== undefined ? c.sessions_count : (c.total_sessions || 0);
             const opt = document.createElement("option");
             opt.value = cName;
-            datalist.appendChild(opt);
+            opt.textContent = `${cName} (${sCount} ${sCount === 1 ? 'sesión' : 'sesiones'})`;
+            campaignSelect.appendChild(opt);
+
+            if (datalist) {
+              const dOpt = document.createElement("option");
+              dOpt.value = cName;
+              datalist.appendChild(dOpt);
+            }
           }
+        });
+        const newOpt = document.createElement("option");
+        newOpt.value = "__new__";
+        newOpt.textContent = "➕ Crear Nueva Campaña...";
+        campaignSelect.appendChild(newOpt);
+
+        if (prevVal && prevVal !== "__new__" && knownCampaigns[prevVal.trim().toLowerCase()]) {
+          campaignSelect.value = prevVal;
         }
-      });
+      } else {
+        campaigns.forEach(c => {
+          const cName = c.name || c.campaign_name;
+          if (cName) {
+            knownCampaigns[cName.trim().toLowerCase()] = c;
+            if (datalist) {
+              const opt = document.createElement("option");
+              opt.value = cName;
+              datalist.appendChild(opt);
+            }
+          }
+        });
+      }
       const campInput = document.getElementById("campaignNameInput");
       const savedActive = localStorage.getItem("last_active_campaign");
       if (campInput) {
         const currentVal = campInput.value.trim();
         if (currentVal && knownCampaigns[currentVal.toLowerCase()]) {
+          if (campaignSelect && campaignSelect.value !== currentVal) campaignSelect.value = currentVal;
           loadCampaignRoster(currentVal);
         } else if (savedActive && knownCampaigns[savedActive.trim().toLowerCase()]) {
           campInput.value = savedActive;
+          if (campaignSelect) campaignSelect.value = savedActive;
           onCampaignChange();
         } else if (!currentVal && campaigns.length > 0) {
           const firstCamp = campaigns[0].name || campaigns[0].campaign_name;
           campInput.value = firstCamp;
+          if (campaignSelect) campaignSelect.value = firstCamp;
           onCampaignChange();
         }
+      }
+      if (typeof window.refreshWikiCampaigns === "function") {
+        window.refreshWikiCampaigns();
       }
       return campaigns;
     }
   } catch (err) {
     console.warn("Could not load campaigns list:", err);
   }
-  return [];
+  return null;
 }
 
 async function toggleCampaignManagerModal(show) {
@@ -621,7 +740,12 @@ function renderCampaignManagerList(campaigns) {
   const listEl = document.getElementById("campaignManagerList");
   const countEl = document.getElementById("campaignManagerCount");
   if (!listEl) return;
-  const list = campaigns || [];
+  if (!Array.isArray(campaigns)) {
+    if (countEl) countEl.textContent = "Carga no disponible";
+    listEl.innerHTML = '<p class="text-slate-400 text-center py-6">No se pudieron cargar las campañas. Revisa la conexión y vuelve a abrir Mis Campañas Guardadas para reintentar.</p>';
+    return;
+  }
+  const list = campaigns;
   if (countEl) {
     countEl.textContent = `${list.length} ${list.length === 1 ? 'campaña guardada' : 'campañas guardadas'}`;
   }
@@ -672,8 +796,53 @@ function renderCampaignManagerList(campaigns) {
   });
 }
 
+function onCampaignSelectDropdownChange(val) {
+  if (val === "__new__") {
+    toggleNewCampaignMode(true);
+    return;
+  }
+  toggleNewCampaignMode(false);
+  const campInput = document.getElementById("campaignNameInput");
+  if (campInput) {
+    campInput.value = val || "";
+    onCampaignChange();
+  }
+}
+
+function toggleNewCampaignMode(isNew) {
+  const select = document.getElementById("campaignSelect");
+  const input = document.getElementById("campaignNameInput");
+  const cancelBtn = document.getElementById("btnCancelNewCampaign");
+  if (!select || !input) return;
+  if (isNew) {
+    select.classList.add("hidden");
+    input.classList.remove("hidden");
+    input.value = "";
+    if (cancelBtn) cancelBtn.classList.remove("hidden");
+    input.focus();
+  } else {
+    input.classList.add("hidden");
+    select.classList.remove("hidden");
+    if (cancelBtn) cancelBtn.classList.add("hidden");
+    if (input.value && select.querySelector(`option[value="${input.value.replace(/"/g, '\\"')}"]`)) {
+      select.value = input.value;
+    } else if (select.options.length > 1) {
+      if (select.value === "__new__") {
+        select.selectedIndex = 1;
+        input.value = select.value;
+        onCampaignChange();
+      }
+    }
+  }
+}
+
 function selectCampaignFromManager(cName) {
   const campInput = document.getElementById("campaignNameInput");
+  const select = document.getElementById("campaignSelect");
+  toggleNewCampaignMode(false);
+  if (select && select.querySelector(`option[value="${cName.replace(/"/g, '\\"')}"]`)) {
+    select.value = cName;
+  }
   if (campInput) {
     campInput.value = cName;
   }
@@ -706,6 +875,32 @@ async function confirmDeleteCampaign(cName) {
   }
 }
 
+var campaignRosterLoadVersion = 0;
+var campaignRosterLoadState = null;
+
+function isCurrentCampaignLoad(version, campaignName) {
+  return version === campaignRosterLoadVersion && currentWorkspace !== "work_and_study" &&
+    (document.getElementById("campaignNameInput")?.value || "").trim() === campaignName;
+}
+
+function ensureCampaignRosterReady() {
+  const campaignName = (document.getElementById("campaignNameInput")?.value || "").trim();
+  if (campaignRosterLoadState?.status === "ready" && campaignRosterLoadState.campaignName === campaignName) return true;
+  const message = campaignRosterLoadState?.status === "loading"
+    ? "Espera a que termine de cargar la campaña antes de guardar o procesar."
+    : "No se pudo cargar el grupo de la campaña. Pulsa Recargar datos de la campaña para reintentar.";
+  if (typeof showAlert === "function") showAlert(message);
+  return false;
+}
+
+function updateCampaignRosterAvailability(busy, ready) {
+  const card = document.getElementById("rosterFullCard");
+  if (card) {
+    card.inert = !ready;
+    card.setAttribute("aria-busy", String(busy));
+  }
+}
+
 async function loadCurrentCampaign() {
   if (currentWorkspace === "work_and_study") return;
   const rawCampName = (document.getElementById("campaignNameInput")?.value || "").trim();
@@ -713,8 +908,24 @@ async function loadCurrentCampaign() {
   const badge = document.getElementById("campaignLastSessionBadge");
   const overrideCheck = document.getElementById("overrideSessionNumberCheck");
   const isOverridden = overrideCheck?.checked;
+  const version = ++campaignRosterLoadVersion;
+  const previous = campaignRosterLoadState;
+  const preserveRoster = previous?.campaignName === rawCampName && previous.hasRoster;
+  campaignRosterLoadState = { campaignName: rawCampName, status: "loading", hasRoster: !!preserveRoster,
+    existing: preserveRoster && previous.existing };
+  if (typeof _rosterDebounceTimer !== "undefined" && _rosterDebounceTimer) {
+    clearTimeout(_rosterDebounceTimer);
+    _rosterDebounceTimer = null;
+  }
+  updateCampaignRosterAvailability(true, false);
+  if (!preserveRoster) {
+    if (typeof renderRosterTable === "function") renderRosterTable([]);
+    currentCampaignState = null;
+  }
 
   if (!rawCampName) {
+    campaignRosterLoadState.status = "empty";
+    updateCampaignRosterAvailability(false, false);
     if (badge) {
       badge.className = "px-2 py-0.5 rounded-full text-[10px] font-semibold bg-slate-800 text-slate-400 border border-slate-700";
       badge.textContent = "Sin Campaña Seleccionada";
@@ -770,11 +981,30 @@ async function loadCurrentCampaign() {
     if (sessionInput && !isOverridden) sessionInput.value = 1;
   }
 
+  if (badge) badge.textContent = "Cargando campaña...";
   try {
     const res = await fetch(`/api/campaigns/${encodeURIComponent(rawCampName)}`);
+    if (!isCurrentCampaignLoad(version, rawCampName)) return false;
     if (res.ok) {
       const data = await res.json();
-      currentCampaignState = data.campaign_state;
+      if (!isCurrentCampaignLoad(version, rawCampName)) return false;
+      const state = data.campaign_state || data;
+      if (!state || typeof state !== "object" || Array.isArray(state) ||
+          !(state.campaign_name || Array.isArray(state.roster) || Array.isArray(state.players) || Array.isArray(state.sessions))) {
+        throw new Error("La respuesta no contiene una campaña válida.");
+      }
+      if (state.campaign_name && (typeof state.campaign_name !== "string" ||
+          state.campaign_name.trim().toLowerCase() !== lowerName)) {
+        throw new Error("La respuesta pertenece a otra campaña.");
+      }
+      const roster = state.roster || state.participants || state.party || state.players || [];
+      if (!Array.isArray(roster) || roster.some(row => !row || typeof row !== "object" || Array.isArray(row))) {
+        throw new Error("La respuesta no contiene un grupo válido.");
+      }
+      currentCampaignState = state;
+      campaignRosterLoadState.status = "ready";
+      campaignRosterLoadState.hasRoster = true;
+      campaignRosterLoadState.existing = true;
       const nextSess = data.active_context ? data.active_context.session_number : (currentCampaignState.last_session + 1);
       if (sessionInput && !isOverridden) sessionInput.value = nextSess;
       if (badge) badge.textContent = `Próx. Sesión #${nextSess} (Historial: ${currentCampaignState.last_session})`;
@@ -789,28 +1019,8 @@ async function loadCurrentCampaign() {
       }
 
       const campRoster = (currentCampaignState && (currentCampaignState.roster || currentCampaignState.participants || currentCampaignState.party || currentCampaignState.players)) || [];
-      if (typeof renderRosterTable === "function") renderRosterTable(campRoster);
+      if (typeof renderRosterTable === "function") renderRosterTable(campRoster, currentCampaignState);
       if (typeof renderPartyChips === "function") renderPartyChips(campRoster);
-
-      const dmRow = document.querySelector("#rosterTableBody tr:first-child");
-      if (dmRow) {
-        const savedDmName = (currentCampaignState && (currentCampaignState.dm_name || currentCampaignState.dm || currentCampaignState.dungeon_master)) || "";
-        const savedDmDiscord = (currentCampaignState && (currentCampaignState.dm_discord_id || currentCampaignState.dm_discord || currentCampaignState.dm_discord_user_id)) || "";
-        const dmInput = dmRow.querySelector(".player-name");
-        const dmSelect = dmRow.querySelector(".discord-user-select");
-        if (dmInput) {
-          dmInput.value = savedDmName;
-          dmInput.placeholder = "Nombre del DM...";
-        }
-        if (dmSelect) {
-          if (savedDmDiscord) {
-            dmSelect.innerHTML = buildDiscordSelectOptions(savedDmDiscord, savedDmName);
-            dmSelect.value = savedDmDiscord;
-          } else {
-            dmSelect.value = "";
-          }
-        }
-      }
 
       updateCampaignViewTabs(currentCampaignState);
 
@@ -830,10 +1040,12 @@ async function loadCurrentCampaign() {
           histSelect.disabled = true;
         }
       }
-      if (typeof populateWikiSessionExportDropdown === "function") {
-        populateWikiSessionExportDropdown((currentCampaignState && currentCampaignState.sessions) || []);
-      }
-    } else {
+      // The Wiki owns its campaign and session selection independently.
+    } else if (res.status === 404 && !knownCampaigns?.[lowerName] && !campaignRosterLoadState.existing) {
+      campaignRosterLoadState.status = "ready";
+      campaignRosterLoadState.hasRoster = true;
+      if (typeof renderRosterTable === "function") renderRosterTable([]);
+      currentCampaignState = null;
       if (badge) badge.textContent = "Nueva Campaña (Sesión #1)";
       if (sessionInput && !isOverridden) sessionInput.value = 1;
       const priorLoreInput = document.getElementById("priorLoreInput");
@@ -845,60 +1057,34 @@ async function loadCurrentCampaign() {
         histSelect.innerHTML = `<option value="">[ Seleccionar Sesión ▾ ]</option>`;
         histSelect.disabled = true;
       }
-      if (typeof populateWikiSessionExportDropdown === "function") {
-        populateWikiSessionExportDropdown([]);
-      }
+    } else {
+      throw new Error("HTTP " + res.status);
     }
+    return true;
   } catch (err) {
+    if (!isCurrentCampaignLoad(version, rawCampName)) return false;
+    campaignRosterLoadState.status = "error";
+    if (badge) badge.textContent = "No se pudo cargar la campaña. Pulsa Recargar para reintentar.";
+    if (typeof showFloatingToast === "function") showFloatingToast("No se cargó la campaña. El guardado y el procesamiento están bloqueados hasta reintentar.", "error");
     console.warn("Error loading campaign:", err);
+    return false;
+  } finally {
+    if (isCurrentCampaignLoad(version, rawCampName)) {
+      updateCampaignRosterAvailability(false, campaignRosterLoadState.status === "ready");
+    }
   }
 }
 
-var campaignRosterLoadVersion = 0;
 async function onCampaignChange() {
   if (currentWorkspace === "work_and_study") return;
-  const version = ++campaignRosterLoadVersion;
-  const rosterCard = document.getElementById("rosterFullCard");
-  if (rosterCard) { rosterCard.inert = true; rosterCard.setAttribute("aria-busy", "true"); }
-  try {
-
-  if (typeof _rosterDebounceTimer !== "undefined" && _rosterDebounceTimer) {
-    clearTimeout(_rosterDebounceTimer);
-    _rosterDebounceTimer = null;
-  }
-
-  currentCampaignState = null;
-
-  const dmRow = document.querySelector("#rosterTableBody tr:first-child");
-  if (dmRow) {
-    const dmInput = dmRow.querySelector(".player-name") || dmRow.querySelector('[data-field="player_name"]');
-    const dmDiscordSelect = dmRow.querySelector(".discord-user-select") || dmRow.querySelector('[data-field="discord_user_id"]');
-    if (dmInput) {
-      dmInput.value = "";
-      dmInput.placeholder = "Nombre del DM...";
-    }
-    if (dmDiscordSelect) {
-      dmDiscordSelect.value = "";
-    }
-  }
-  if (typeof renderRosterTable === "function") renderRosterTable([]);
-
   const rawCampName = (document.getElementById("campaignNameInput")?.value || "").trim();
   if (rawCampName) {
     localStorage.setItem("last_active_campaign", rawCampName);
   }
-  if (typeof loadCampaignRoster === "function") {
-    await loadCampaignRoster(rawCampName);
-  }
-  if (version !== campaignRosterLoadVersion) return;
-  await loadCurrentCampaign();
-  if (typeof syncWikiCampaignSelector === "function") {
+  const loaded = await loadCurrentCampaign();
+  if (loaded && (document.getElementById("campaignNameInput")?.value || "").trim() === rawCampName &&
+      typeof syncWikiCampaignSelector === "function") {
     syncWikiCampaignSelector(rawCampName);
-  }
-  } finally {
-    if (version === campaignRosterLoadVersion && rosterCard) {
-      rosterCard.inert = false; rosterCard.setAttribute("aria-busy", "false");
-    }
   }
 }
 
@@ -1092,6 +1278,7 @@ async function transcribeYoutube() {
     }
     return;
   }
+  if (!isClass && !ensureCampaignRosterReady()) return;
   const sessionNumber = parseInt(document.getElementById("sessionNumberInput")?.value) || null;
   const roster = typeof getRosterFromTable === "function" ? getRosterFromTable(true) : [];
 
@@ -1137,8 +1324,13 @@ async function transcribeYoutube() {
     custom_date: customDateVal || null,
     client_timezone_offset: new Date().getTimezoneOffset(),
   };
+  const refTextYt = (document.getElementById("optionalReferenceTextInput")?.value || "").trim();
+  if (refTextYt) {
+    bodyPayload.reference_text = refTextYt;
+  }
 
   if (typeof updateStepperMode === "function") updateStepperMode(true);
+  if (typeof clearResultsView === "function") clearResultsView(true);
   if (isClass) {
     const topic = (document.getElementById("workStudyTopicInput") ? document.getElementById("workStudyTopicInput").value.trim() : "") ||
                   (document.getElementById("lectureTopicInput") ? document.getElementById("lectureTopicInput").value.trim() : "") ||
@@ -1204,6 +1396,8 @@ async function transcribeYoutube() {
 }
 
 var selectedAudioFile = null;
+var selectedAudioParts = [];
+var selectedTimelineFiles = [];
 var selectedTimelineFile = null;
 var selectedLocalRecordingMeta = null;
 var selectedLocalRecordingHasTimeline = false;
@@ -1237,6 +1431,15 @@ function handleIncomingFiles(fileListOrInput) {
   const rawFiles = fileListOrInput.files ? fileListOrInput.files : fileListOrInput;
   if (!rawFiles || rawFiles.length === 0) return;
   const files = Array.from(rawFiles);
+  const audios = files.filter(f => !f.name.toLowerCase().endsWith('.json'));
+  if (audios.length && selectedAudioParts.some(p => p.filename)) clearSelectedAudio();
+  for (const file of audios) {
+    if (!selectedAudioParts.some(p => p.file?.name === file.name && p.file?.size === file.size)) selectedAudioParts.push({file});
+  }
+  for (const file of files.filter(f => f.name.toLowerCase().endsWith('.json'))) {
+    selectedTimelineFiles = selectedTimelineFiles.filter(f => f.name !== file.name);
+    selectedTimelineFiles.push(file);
+  }
 
   for (const f of files) {
     const lower = f.name.toLowerCase();
@@ -1287,31 +1490,21 @@ function handleIncomingFiles(fileListOrInput) {
     try { fileListOrInput.value = ''; } catch(e){}
   }
 
-  updateSelectedFilesUI();
+  syncAudioPartSelection();
 }
 
 function handleAudioOnlySelect(input) {
-  if (input && input.files && input.files[0]) {
-    selectedAudioFile = input.files[0];
-    selectedLocalRecordingFilename = null;
-    selectedLocalRecordingMeta = null;
-    selectedLocalRecordingHasTimeline = false;
-    try { input.value = ''; } catch(e){}
-    updateSelectedFilesUI();
-  }
+  handleIncomingFiles(input);
 }
 
 function handleTimelineOnlySelect(input) {
-  if (input && input.files && input.files[0]) {
-    selectedTimelineFile = input.files[0];
-    try { input.value = ''; } catch(e){}
-    updateSelectedFilesUI();
-  }
+  handleIncomingFiles(input);
 }
 
 function clearSelectedAudio(e) {
   if (e) e.stopPropagation();
   selectedAudioFile = null;
+  selectedAudioParts = [];
   selectedLocalRecordingFilename = null;
   selectedLocalRecordingMeta = null;
   selectedLocalRecordingHasTimeline = false;
@@ -1325,6 +1518,7 @@ function clearSelectedAudio(e) {
 function clearSelectedTimeline(e) {
   if (e) e.stopPropagation();
   selectedTimelineFile = null;
+  selectedTimelineFiles = [];
   selectedLocalRecordingHasTimeline = false;
   const timelineInput = document.getElementById("timelineFileInput");
   if (timelineInput) timelineInput.value = "";
@@ -1336,6 +1530,7 @@ function clearSelectedTimeline(e) {
 function updateSelectedFilesUI() {
   const btn = document.getElementById("btnFile");
   const dropZone = document.getElementById("dropZone");
+  renderAudioParts();
 
   // Audio Slot Elements
   const slotAudioCard = document.getElementById("slotAudioCard");
@@ -1358,7 +1553,7 @@ function updateSelectedFilesUI() {
   if (selectedAudioFile) {
     if (slotAudioEmpty) slotAudioEmpty.classList.add("hidden");
     if (slotAudioFilled) slotAudioFilled.classList.remove("hidden");
-    if (slotAudioName) slotAudioName.textContent = selectedAudioFile.name;
+    if (slotAudioName) slotAudioName.textContent = selectedAudioParts.length > 1 ? `${selectedAudioParts.length} partes de la misma sesión` : selectedAudioFile.name;
     if (slotAudioMeta) slotAudioMeta.textContent = `Archivo de audio (${(selectedAudioFile.size / (1024 * 1024)).toFixed(1)} MB)`;
     if (btnClearAudio) btnClearAudio.classList.remove("hidden");
     if (slotAudioCard) {
@@ -1368,7 +1563,7 @@ function updateSelectedFilesUI() {
   } else if (selectedLocalRecordingFilename) {
     if (slotAudioEmpty) slotAudioEmpty.classList.add("hidden");
     if (slotAudioFilled) slotAudioFilled.classList.remove("hidden");
-    if (slotAudioName) slotAudioName.textContent = selectedLocalRecordingFilename;
+    if (slotAudioName) slotAudioName.textContent = selectedAudioParts.length > 1 ? `${selectedAudioParts.length} partes de la misma sesión` : selectedLocalRecordingFilename;
     const mb = selectedLocalRecordingMeta?.size_mb ? ` (${selectedLocalRecordingMeta.size_mb} MB)` : "";
     const folder = selectedLocalRecordingMeta?.folder ? ` en ${selectedLocalRecordingMeta.folder}` : " en data/input";
     if (slotAudioMeta) slotAudioMeta.textContent = `Grabación local guardada${folder}${mb}`;
@@ -1392,7 +1587,7 @@ function updateSelectedFilesUI() {
   if (selectedTimelineFile) {
     if (slotTimelineEmpty) slotTimelineEmpty.classList.add("hidden");
     if (slotTimelineFilled) slotTimelineFilled.classList.remove("hidden");
-    if (slotTimelineName) slotTimelineName.textContent = selectedTimelineFile.name;
+    if (slotTimelineName) slotTimelineName.textContent = selectedTimelineFiles.length > 1 ? `${selectedTimelineFiles.length} archivos asociados` : selectedTimelineFile.name;
     if (slotTimelineMeta) slotTimelineMeta.textContent = `Archivo timeline subido (${(selectedTimelineFile.size / 1024).toFixed(1)} KB)`;
     if (btnClearTimeline) btnClearTimeline.classList.remove("hidden");
     if (slotTimelineCard) {
@@ -1439,6 +1634,12 @@ function updateSelectedFilesUI() {
 }
 
 function selectExistingRecording(filename, hasTimeline = false, sizeMb = null, folder = null) {
+  if (selectedAudioParts.some(p => p.file)) {
+    selectedAudioParts = [];
+    selectedTimelineFiles = [];
+    selectedTimelineFile = null;
+  }
+  if (!selectedAudioParts.some(p => p.filename === filename)) selectedAudioParts.push({filename, hasTimeline, sizeMb, folder});
   selectedLocalRecordingFilename = filename;
   selectedLocalRecordingHasTimeline = Boolean(hasTimeline);
   selectedLocalRecordingMeta = { size_mb: sizeMb, folder: folder };
@@ -1447,7 +1648,79 @@ function selectExistingRecording(filename, hasTimeline = false, sizeMb = null, f
   if (audioInput) audioInput.value = "";
   const multiInput = document.getElementById("multiFileInput");
   if (multiInput) multiInput.value = "";
+  syncAudioPartSelection();
+}
+
+function syncAudioPartSelection() {
+  const first = selectedAudioParts[0];
+  selectedAudioFile = first?.file || null;
+  selectedLocalRecordingFilename = first?.filename || null;
+  selectedLocalRecordingHasTimeline = Boolean(first?.hasTimeline);
+  selectedLocalRecordingMeta = first ? {size_mb:first.sizeMb, folder:first.folder} : null;
+  selectedTimelineFile = selectedTimelineFiles[0] || selectedTimelineFile;
   updateSelectedFilesUI();
+}
+
+function moveAudioPart(index, direction) {
+  const next = index + direction;
+  if (next < 0 || next >= selectedAudioParts.length) return;
+  [selectedAudioParts[index], selectedAudioParts[next]] = [selectedAudioParts[next], selectedAudioParts[index]];
+  syncAudioPartSelection();
+}
+
+function removeAudioPart(index) {
+  const part = selectedAudioParts.splice(index, 1)[0];
+  if (part?.file) {
+    const stem = part.file.name.replace(/\.[^.]+$/, '');
+    selectedTimelineFiles = selectedTimelineFiles.filter(f => !f.name.startsWith(stem + '.'));
+    selectedTimelineFile = selectedTimelineFiles[0] || null;
+  }
+  syncAudioPartSelection();
+}
+
+function renderAudioParts() {
+  const list = document.getElementById('audioPartsList');
+  if (!list) return;
+  list.replaceChildren();
+  list.hidden = selectedAudioParts.length === 0;
+  selectedAudioParts.forEach((part, index) => {
+    const row = document.createElement('li');
+    row.className = 'audio-part-row';
+    const label = document.createElement('span');
+    label.textContent = `${index + 1}. ${part.file?.name || part.filename}`;
+    label.title = label.textContent;
+    row.appendChild(label);
+    for (const [text, action, disabled] of [
+      ['Subir', () => moveAudioPart(index, -1), index === 0],
+      ['Bajar', () => moveAudioPart(index, 1), index === selectedAudioParts.length - 1],
+      ['Quitar', () => removeAudioPart(index), false]
+    ]) {
+      const btn = document.createElement('button');
+      btn.type = 'button'; btn.textContent = text; btn.disabled = disabled;
+      btn.setAttribute('aria-label', `${text} parte ${index + 1}`);
+      btn.addEventListener('click', action); row.appendChild(btn);
+    }
+    list.appendChild(row);
+  });
+  const hint = document.getElementById('audioPartsHint');
+  if (hint) hint.hidden = selectedAudioParts.length < 2;
+}
+
+function appendSelectedAudioParts(formData) {
+  if (selectedAudioParts.length) {
+    if (selectedAudioParts[0].filename) formData.append('existing_filenames_json', JSON.stringify(selectedAudioParts.map(p => p.filename)));
+    else selectedAudioParts.forEach(p => formData.append('files', p.file));
+    selectedTimelineFiles.forEach(f => formData.append('timeline_files', f));
+  } else {
+    if (selectedLocalRecordingFilename) formData.append('existing_filename', selectedLocalRecordingFilename);
+    else if (selectedAudioFile) formData.append('file', selectedAudioFile);
+    if (selectedTimelineFile) formData.append('timeline_file', selectedTimelineFile);
+  }
+}
+
+function addCachedRecording(index) {
+  const file = window.localRecordingsCache?.[index];
+  if (file) selectExistingRecording(file.filename, file.has_timeline, file.size_mb, file.folder);
 }
 
 async function loadLocalRecordingsList() {
@@ -1474,21 +1747,21 @@ async function loadLocalRecordingsList() {
       }
       html += `
         <div class="flex items-center justify-between p-2 rounded-xl bg-slate-900/80 hover:bg-slate-800/80 border border-slate-800 transition text-left cursor-pointer group"
-             onclick="selectExistingRecording('${f.filename}', ${f.has_timeline ? 'true' : 'false'}, ${f.size_mb}, '${f.folder || 'data/input'}')">
+             onclick="addCachedRecording(${idx})">
           <div class="min-w-0 pr-2">
             <div class="flex items-center gap-1.5 flex-wrap">
-              <span class="font-mono text-xs text-slate-200 group-hover:text-amber-400 font-medium truncate">${f.filename}</span>
+              <span class="font-mono text-xs text-slate-200 group-hover:text-amber-400 font-medium truncate">${escapeHtml(f.filename)}</span>
               ${isLatest ? '<span class="text-[9px] px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-400 font-semibold border border-emerald-500/30">MÁS RECIENTE</span>' : ''}
               ${f.has_timeline ? '<span class="text-[9px] px-1.5 py-0.5 rounded bg-indigo-500/20 text-indigo-300 font-semibold border border-indigo-500/30"><span data-ui-icon=headphones aria-hidden=true></span> Con Timeline</span>' : ''}
             </div>
             <div class="text-[10px] text-slate-500 flex items-center gap-2 mt-0.5">
-              <span><span data-ui-icon=calendar aria-hidden=true></span> ${displayDate}</span>
+              <span><span data-ui-icon=calendar aria-hidden=true></span> ${escapeHtml(displayDate || 'Fecha de grabación desconocida')}</span>
               <span><span data-ui-icon=save aria-hidden=true></span> ${f.size_mb} MB</span>
-              ${f.folder ? `<span class="text-indigo-400/80"><span data-ui-icon=folder aria-hidden=true></span> ${f.folder}</span>` : ''}
+              ${f.folder ? `<span class="text-indigo-400/80"><span data-ui-icon=folder aria-hidden=true></span> ${escapeHtml(f.folder)}</span>` : ''}
             </div>
           </div>
           <button type="button" class="shrink-0 text-xs px-2.5 py-1 rounded-lg bg-indigo-600/30 hover:bg-indigo-600 text-indigo-300 hover:text-white font-medium border border-indigo-500/30 transition cursor-pointer">
-            Usar
+             Agregar
           </button>
         </div>
       `;
@@ -1535,6 +1808,7 @@ async function transcribeFile() {
     }
     return;
   }
+  if (!isClass && !ensureCampaignRosterReady()) return;
   const sessionNumber = (document.getElementById("sessionNumberInput") && parseInt(document.getElementById("sessionNumberInput").value)) || null;
   const roster = typeof getRosterFromTable === "function" ? getRosterFromTable(true) : [];
 
@@ -1548,6 +1822,7 @@ async function transcribeFile() {
   if (typeof lastActionCallback !== "undefined") lastActionCallback = () => transcribeFile();
 
   if (typeof updateStepperMode === "function") updateStepperMode(false);
+  if (typeof clearResultsView === "function") clearResultsView(true);
   if (isClass) {
     if (typeof startProgressTracking === "function") {
       startProgressTracking(
@@ -1581,15 +1856,7 @@ async function transcribeFile() {
   try {
     const formData = new FormData();
     formData.append("task_id", taskId);
-    if (selectedLocalRecordingFilename) {
-      formData.append("existing_filename", selectedLocalRecordingFilename);
-    } else if (selectedAudioFile) {
-      formData.append("file", selectedAudioFile);
-    }
-
-    if (selectedTimelineFile) {
-      formData.append("timeline_file", selectedTimelineFile);
-    }
+    appendSelectedAudioParts(formData);
     formData.append("model_size", modelSize);
     formData.append("engine", engine);
     formData.append("workspace", currentWorkspace);
@@ -1601,6 +1868,10 @@ async function transcribeFile() {
       formData.append("custom_date", customDateVal);
     }
     formData.append("client_timezone_offset", String(new Date().getTimezoneOffset()));
+    const refTextVal = (document.getElementById("optionalReferenceTextInput")?.value || "").trim();
+    if (refTextVal) {
+      formData.append("reference_text", refTextVal);
+    }
 
     if (isClass) {
       const topic = (document.getElementById("workStudyTopicInput") ? document.getElementById("workStudyTopicInput").value.trim() : "") ||
@@ -1662,10 +1933,63 @@ window.transcribeFile = transcribeFile;
 // =========================================================================
 // RESULTS DISPLAY & TABS
 // =========================================================================
+function clearResultsView(clearStorage = true, workspace = null) {
+  currentResult = null;
+  const resultsCard = document.getElementById("resultsCard");
+  if (resultsCard) {
+    resultsCard.classList.add("hidden");
+  }
+  if (clearStorage && typeof sessionStorage !== "undefined") {
+    const ws = workspace || currentWorkspace || "dnd";
+    try {
+      sessionStorage.removeItem(`whisper_last_result_${ws}`);
+    } catch (_) {}
+  }
+}
+window.clearResultsView = clearResultsView;
+
+function restoreLastResultForWorkspace(workspace = null) {
+  const ws = workspace || currentWorkspace || "dnd";
+  if (typeof sessionStorage !== "undefined") {
+    try {
+      const raw = sessionStorage.getItem(`whisper_last_result_${ws}`);
+      if (raw) {
+        const data = JSON.parse(raw);
+        if (data && (data.chronicle || data.session_chapter || data.transcript || data.raw_transcript)) {
+          displayResults(data, { isRestored: true, workspace: ws });
+          return true;
+        }
+      }
+    } catch (e) {
+      console.warn("Could not restore last result:", e);
+    }
+  }
+  clearResultsView(false, ws);
+  return false;
+}
+window.restoreLastResultForWorkspace = restoreLastResultForWorkspace;
+
 function displayResults(data, options = {}) {
   currentResult = data;
-  if (typeof notifyDriveSaveEvent === "function") notifyDriveSaveEvent();
   const isClassMode = (data.recording_mode === "class" || currentLiveMode === "class" || currentWorkspace === "work_and_study");
+  const reviewId = data.session_chapter?.review_status === "pending" ? data.session_chapter.review_id : null;
+  const reviewNotice = document.getElementById("canonReviewNotice");
+  if (reviewNotice) reviewNotice.classList[reviewId ? "remove" : "add"]("hidden");
+  const reviewLink = document.getElementById("btnReviewChronicle");
+  if (reviewLink) reviewLink.href = "/static/canon-review.html" + (reviewId ? "?id=" + encodeURIComponent(reviewId) : "");
+  const wsKey = options.workspace || (isClassMode ? "work_and_study" : "dnd");
+
+  if (!options.isRestored && typeof sessionStorage !== "undefined") {
+    try {
+      sessionStorage.setItem(`whisper_last_result_${wsKey}`, JSON.stringify(data));
+    } catch (e) {
+      console.warn("Could not cache last result in sessionStorage:", e);
+    }
+  }
+  if (Array.isArray(data.processing_warnings) && typeof showFloatingToast === "function") {
+    data.processing_warnings.forEach(message => showFloatingToast(String(message), "warning"));
+  }
+  if (!reviewId && typeof notifyDriveSaveEvent === "function") notifyDriveSaveEvent();
 
   const retentionPrompt = document.getElementById("transcriptRetentionPrompt");
   if (retentionPrompt) {
@@ -1715,6 +2039,17 @@ function displayResults(data, options = {}) {
   if (durEl) durEl.textContent = formatSeconds(data.duration);
   const timeEl = document.getElementById("resTime");
   if (timeEl) timeEl.textContent = `${data.elapsed_time || 0}s`;
+
+  const reportCard = document.getElementById("resTestReportCard");
+  const reportFilenameEl = document.getElementById("resTestReportFilename");
+  if (reportCard && reportFilenameEl) {
+    if (data.test_report_filename) {
+      reportFilenameEl.textContent = data.test_report_filename;
+      reportCard.classList.remove("hidden");
+    } else {
+      reportCard.classList.add("hidden");
+    }
+  }
 
   const btnDocx = document.getElementById("btnDownloadDocx");
   const btnMd = document.getElementById("btnDownloadMd");
@@ -1771,8 +2106,11 @@ function displayResults(data, options = {}) {
 
     currentCampaignState = stateToUse;
     updateCampaignViewTabs(stateToUse);
-    if (typeof populateWikiSessionExportDropdown === "function") {
-      populateWikiSessionExportDropdown(stateToUse.sessions || [], data.session_number || stateToUse.last_session);
+    if (typeof loadCampaignList === "function") {
+      loadCampaignList();
+    }
+    if (typeof window.refreshWikiView === "function") {
+      window.refreshWikiView();
     }
 
     const badgeEl = document.getElementById("campaignLastSessionBadge");
@@ -1780,23 +2118,8 @@ function displayResults(data, options = {}) {
     const sessInput = document.getElementById("sessionNumberInput");
     if (sessInput) sessInput.value = (stateToUse.last_session || 0) + 1;
 
-    const detectedPcsOrParty = (data.detected_pcs && data.detected_pcs.length > 0) 
-      ? data.detected_pcs 
-      : (data.detected_party && data.detected_party.length > 0 ? data.detected_party : null);
-
-    if (detectedPcsOrParty && detectedPcsOrParty.length > 0 && typeof renderRosterTable === "function") {
-      const formattedPcs = detectedPcsOrParty.map(p => ({
-        player_name: p.jugador || p.player_name || "-",
-        character_name: p.personaje || p.character_name || "-",
-        species: p.especie || p.species || "-",
-        role: p.clase || p.role || "Aventurero",
-        subclass: p.subclase || p.subclass || "-",
-        rol_en_sesion: p.rol_en_sesion || p.session_role || "-",
-        is_user_character: Boolean(p.is_user_character),
-      }));
-      renderRosterTable(formattedPcs);
-      if (typeof saveCurrentRoster === "function") saveCurrentRoster();
-    }
+    // Detected characters belong to the result; displaying or restoring it must
+    // not replace the manually configured group or schedule a campaign write.
   } else {
     const npcsEl = document.getElementById("npcsContainer");
     if (npcsEl) npcsEl.innerHTML = "";
@@ -1814,7 +2137,7 @@ function displayResults(data, options = {}) {
   if ((!npcNamesToCheck || npcNamesToCheck.length === 0) && Array.isArray(data.updated_npcs)) {
     npcNamesToCheck = data.updated_npcs.map(n => n.name).filter(Boolean);
   }
-  if (!isClassMode && npcNamesToCheck.length > 0 && typeof showNpcSpellcheck === "function") {
+  if (!isClassMode && !reviewId && npcNamesToCheck.length > 0 && typeof showNpcSpellcheck === "function") {
     showNpcSpellcheck(npcNamesToCheck);
   }
 
@@ -1980,7 +2303,9 @@ function displayResults(data, options = {}) {
   if (resultsCard) {
     resultsCard.classList.remove("hidden");
     if (document.getElementById("viewChronicle")) setActiveView("chronicle");
-    resultsCard.scrollIntoView({ behavior: "smooth" });
+    if (!options.isRestored && typeof resultsCard.scrollIntoView === "function") {
+      resultsCard.scrollIntoView({ behavior: "smooth" });
+    }
   }
   if (typeof fetchApiQuota === "function") fetchApiQuota();
   if (isClassMode && typeof loadAcademicNotesHistory === "function") {
@@ -2658,6 +2983,7 @@ async function reprocessCampaignChronicle() {
   if (btn) btn.disabled = true;
   if (btnText) btnText.innerHTML = `<span class="inline-block animate-spin"><span data-ui-icon=clock aria-hidden=true></span></span> Regenerando con Gemini...`;
 
+  let tracking = false, completed = false;
   try {
     const activeLang = currentResult.target_language || currentTargetLanguage || "es";
     const campName = isClass ? null : ((currentResult.campaign_name || document.getElementById("campaignNameInput")?.value || "").trim());
@@ -2686,6 +3012,11 @@ async function reprocessCampaignChronicle() {
     }
     window.currentActiveAbortController = new AbortController();
 
+    if (!isClass) {
+      payload.task_id = generateTaskId();
+      startProgressTracking(payload.task_id, "Preparando crónica", "Usando la transcripción guardada.");
+      tracking = true;
+    }
     const res = await fetch("/api/campaign/reprocess", {
       method: "POST",
       headers: {
@@ -2717,6 +3048,7 @@ async function reprocessCampaignChronicle() {
     if (data.recording_mode) currentResult.recording_mode = data.recording_mode;
 
     displayResults(currentResult);
+    completed = true;
   } catch (err) {
     if (err.name === "AbortError") {
       console.log("[reprocessCampaignChronicle] Proceso detenido por el usuario.");
@@ -2724,6 +3056,7 @@ async function reprocessCampaignChronicle() {
     }
     showAlert("Error al regenerar crónica: " + err.message);
   } finally {
+    if (tracking) finishProgressTracking(completed);
     if (btn) btn.disabled = false;
     if (btnText) {
       btnText.textContent = isClass ? "Regenerar con Gemini" : "Regenerar con Crónica Profunda (Español)";
@@ -3125,6 +3458,7 @@ window.switchMainTab = switchMainTab;
 window.setLiveMode = setLiveMode;
 window.initEngineSelector = initEngineSelector;
 window.setEngine = setEngine;
+window.setModelSize = setModelSize;
 window.initLanguageSelector = initLanguageSelector;
 window.setTargetLanguage = setTargetLanguage;
 window.setLanguage = setLanguage;
@@ -3139,6 +3473,8 @@ window.loadCurrentCampaign = loadCurrentCampaign;
 window.loadCampaign = loadCurrentCampaign;
 window.onSelectHistoricalSession = onSelectHistoricalSession;
 window.onCampaignChange = onCampaignChange;
+window.onCampaignSelectDropdownChange = onCampaignSelectDropdownChange;
+window.toggleNewCampaignMode = toggleNewCampaignMode;
 window.saveCurrentCampaignLore = saveCurrentCampaignLore;
 window.setRecordingUI = setRecordingUI;
 window.startTimer = startTimer;

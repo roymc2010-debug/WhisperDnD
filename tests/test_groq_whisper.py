@@ -117,7 +117,7 @@ class TestGroqWhisperTranscriber(unittest.TestCase):
 
     @patch("groq.Client")
     def test_chunk_percentage_calibration(self, mock_client_cls):
-        """Test that chunk progress math reaches exactly 75% on the final chunk for local/live sources."""
+        """Progress stays monotonic within each caller's transcription stage."""
         transcriber = GroqWhisperTranscriber(api_key="gsk_dummy")
         num_chunks = 19
         fake_chunks = [("chunk_%d.mp3" % i, i * 60.0, 60.0) for i in range(num_chunks)]
@@ -136,21 +136,20 @@ class TestGroqWhisperTranscriber(unittest.TestCase):
                 dummy_file = Path(__file__).resolve()
                 transcriber._transcribe_chunked(str(dummy_file), on_progress=progress_cb, source="local")
 
-        # For local/live sources, slicing notification is 15.0% and chunks range from 30.0% to 80.0%
-        self.assertEqual(progress_calls[0], 15.0)
-        self.assertEqual(progress_calls[-2], 77.4)
-        self.assertEqual(progress_calls[-1], 80.0)
+        self.assertEqual(progress_calls[0], 5.0)
+        self.assertEqual(progress_calls[-1], 55.0)
+        self.assertEqual(progress_calls, sorted(progress_calls))
 
-        # For youtube sources, slicing notification is 26.0% and chunks range from 30.0% to 80.0%
+        # YouTube reserves its own earlier stage for downloading.
         progress_calls_yt = []
         with patch.object(transcriber, "_slice_audio", return_value=fake_chunks):
             with patch.object(transcriber, "_transcribe_single_file", return_value={
                 "segments": [], "text": "test", "language_code": "es", "duration": 60.0,
             }):
-                transcriber._transcribe_chunked(str(dummy_file), on_progress=lambda pct, msg: progress_calls_yt.append(pct), source="youtube")
-        self.assertEqual(progress_calls_yt[0], 26.0)
-        self.assertEqual(progress_calls_yt[-2], 77.4)
-        self.assertEqual(progress_calls_yt[-1], 80.0)
+                transcriber._transcribe_chunked(str(dummy_file), on_progress=lambda pct, msg: progress_calls_yt.append(pct), source="youtube", min_pct=25.0, max_pct=70.0)
+        self.assertEqual(progress_calls_yt[0], 25.0)
+        self.assertEqual(progress_calls_yt[-1], 70.0)
+        self.assertEqual(progress_calls_yt, sorted(progress_calls_yt))
 
     @patch("groq.Client")
     def test_transcribe_chunked_survives_failed_chunk(self, mock_client_cls):
@@ -187,8 +186,7 @@ class TestGroqWhisperTranscriber(unittest.TestCase):
         self.assertIn("Texto de chunk_3", result["text"])
         self.assertEqual(len(result["segments"]), 3)
         self.assertEqual(result["segments"][1]["text"], "[Fragmento 2: audio no reconocido]")
-        # Progress reaches 80.0%
-        self.assertEqual(progress_history[-1], 80.0)
+        self.assertEqual(progress_history[-1], 55.0)
 
     @patch("groq.Client")
     def test_transcribe_single_file_passes_timeout(self, mock_client_cls):
@@ -228,8 +226,8 @@ class TestTranscriptionPipeline(unittest.TestCase):
         dummy_file = Path(__file__).resolve()
         res = transcribe_audio_pipeline(str(dummy_file), engine="local", model_size="tiny")
 
-        mock_local_whisper_cls.assert_called_once_with(model_size="tiny")
-        self.assertEqual(res["engine_used"], "local")
+        self.assertEqual(mock_local_whisper_cls.call_args.kwargs["model_size"], "tiny")
+        self.assertEqual(res["engine_used"], "local-tiny")
         self.assertEqual(res["text"], "Sesión local privada.")
 
     @patch("src.api.server.GroqWhisperTranscriber")
@@ -254,25 +252,13 @@ class TestTranscriptionPipeline(unittest.TestCase):
             self.assertEqual(res["text"], "Transcripción ultrarrápida en la nube.")
 
     @patch("src.api.server.LocalWhisperTranscriber")
-    def test_fallback_to_local_when_groq_key_missing(self, mock_local_whisper_cls):
-        """When engine='groq' but GROQ_API_KEY is missing, should fall back to local whisper."""
-        mock_local = MagicMock()
-        mock_local.transcribe.return_value = {
-            "text": "Fallback a local exitoso.",
-            "segments": [],
-            "language": "es",
-            "language_code": "es",
-            "duration": 15.0,
-        }
-        mock_local_whisper_cls.return_value = mock_local
-
+    def test_missing_groq_key_does_not_silently_switch_engines(self, mock_local_whisper_cls):
+        """Respect engine selection instead of loading a model unexpectedly."""
         with patch.dict(os.environ, {"GROQ_API_KEY": ""}):
             dummy_file = Path(__file__).resolve()
-            res = transcribe_audio_pipeline(str(dummy_file), engine="groq", model_size="base")
-
-            mock_local_whisper_cls.assert_called_once_with(model_size="base")
-            self.assertEqual(res["engine_used"], "local")
-            self.assertEqual(res["text"], "Fallback a local exitoso.")
+            with self.assertRaisesRegex(ValueError, "GROQ_API_KEY"):
+                transcribe_audio_pipeline(str(dummy_file), engine="groq", model_size="base")
+            mock_local_whisper_cls.assert_not_called()
 
     @patch("subprocess.run")
     def test_slice_audio_for_groq_ffmpeg_call(self, mock_subproc_run):
@@ -281,27 +267,24 @@ class TestTranscriptionPipeline(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as tmp_input:
             with patch.dict("os.environ", {"WHISPER_INPUT_DIR": tmp_input}):
-                chunks_dir = Path(tmp_input) / "chunks"
-                chunks_dir.mkdir(parents=True, exist_ok=True)
-                dummy_chunk_m4a = chunks_dir / "chunk_000.m4a"
-                dummy_chunk_webm = chunks_dir / "chunk_000.webm"
-                dummy_chunk_mp3 = chunks_dir / "chunk_000.mp3"
+                sources = {}
+                for extension in ("m4a", "webm", "wav"):
+                    audio = Path(tmp_input) / f"input.{extension}"
+                    with audio.open("wb") as stream:
+                        stream.truncate(25 * 1024 * 1024)
+                    sources[extension] = str(audio)
+                generated_chunks = []
 
                 def fake_ffmpeg(cmd, *args, **kwargs):
-                    out_pat = cmd[-1]
-                    if out_pat.endswith(".m4a"):
-                        dummy_chunk_m4a.write_text("dummy m4a")
-                    elif out_pat.endswith(".webm"):
-                        dummy_chunk_webm.write_text("dummy webm")
-                    else:
-                        dummy_chunk_mp3.write_text("dummy mp3")
+                    Path(cmd[-1].replace("%03d", "000")).write_bytes(b"synthetic audio")
                     return MagicMock(returncode=0)
 
                 mock_subproc_run.side_effect = fake_ffmpeg
 
                 try:
                     # 1. Native M4A audio: fast stream copy (-c copy) preserving .m4a extension
-                    res_m4a = slice_audio_for_groq("dummy_input.m4a", chunk_minutes=15)
+                    res_m4a = slice_audio_for_groq(sources["m4a"], chunk_minutes=15)
+                    generated_chunks.extend(res_m4a)
                     mock_subproc_run.assert_called_once()
                     cmd_m4a = mock_subproc_run.call_args[0][0]
                     self.assertEqual(cmd_m4a[0], "ffmpeg")
@@ -314,7 +297,8 @@ class TestTranscriptionPipeline(unittest.TestCase):
 
                     # 2. Native WebM audio: fast stream copy (-c copy) preserving .webm extension
                     mock_subproc_run.reset_mock()
-                    res_webm = slice_audio_for_groq("dummy_input.webm", chunk_minutes=15)
+                    res_webm = slice_audio_for_groq(sources["webm"], chunk_minutes=15)
+                    generated_chunks.extend(res_webm)
                     mock_subproc_run.assert_called_once()
                     cmd_webm = mock_subproc_run.call_args[0][0]
                     self.assertIn("copy", cmd_webm)
@@ -324,17 +308,17 @@ class TestTranscriptionPipeline(unittest.TestCase):
 
                     # 3. For WAV or non-stream-copyable files, libmp3lame re-encoding is used
                     mock_subproc_run.reset_mock()
-                    res_wav = slice_audio_for_groq("dummy_input.wav", chunk_minutes=15)
+                    res_wav = slice_audio_for_groq(sources["wav"], chunk_minutes=15)
+                    generated_chunks.extend(res_wav)
                     cmd_wav = mock_subproc_run.call_args[0][0]
                     self.assertIn("libmp3lame", cmd_wav)
-                    self.assertIn("64k", cmd_wav)
+                    self.assertIn("48k", cmd_wav)
                     self.assertTrue(cmd_wav[-1].endswith("chunk_%03d.mp3"))
                     self.assertTrue(len(res_wav) >= 1)
                 finally:
-                    clean_groq_chunks()
-                    self.assertFalse(dummy_chunk_m4a.exists())
-                    self.assertFalse(dummy_chunk_webm.exists())
-                    self.assertFalse(dummy_chunk_mp3.exists())
+                    clean_groq_chunks(generated_chunks)
+                    self.assertTrue(all(not Path(chunk).exists() for chunk in generated_chunks))
+                    self.assertTrue(all(Path(audio).exists() for audio in sources.values()))
 
     def test_tag_dual_channel_speakers_mono_audio(self):
         """Mono audio should not be altered by tag_dual_channel_speakers."""

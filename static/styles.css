@@ -233,7 +233,8 @@
     /* Markdown styling inside chronicle container (Impeccable Typeset Standard) */
     .prose-dnd {
       font-family: var(--font-body) !important;
-      max-width: 75ch;
+      max-width: none;
+      width: 100%;
       color: #e4e4e7;
     }
     .prose-dnd h1 { font-family: 'Cinzel', serif; font-size: 1.75rem; font-weight: 700; color: #f4f4f5; margin-top: 1.75rem; margin-bottom: 1rem; border-bottom: 1px solid #262626; padding-bottom: 0.65rem; letter-spacing: 0.02em; }
@@ -245,7 +246,7 @@
     .prose-dnd strong { color: #ffffff; font-weight: 600; }
     .prose-dnd em { color: #e4e4e7; font-style: italic; }
     .prose-dnd blockquote { border-left: 3px solid #52525b; background: rgba(255, 255, 255, 0.04); padding: 0.75rem 1.25rem; color: #e4e4e7; font-style: italic; border-radius: 0 10px 10px 0; margin: 1.25rem 0; font-size: 0.95rem; line-height: 1.7; }
-    .prose-dnd table { width: 100%; border-collapse: collapse; margin: 1.25rem 0; font-size: 0.95rem; }
+    .prose-dnd table { width: 100%; max-width: 100%; border-collapse: collapse; margin: 1.25rem 0; font-size: 0.95rem; display: block; overflow-x: auto; }
     .prose-dnd th, .prose-dnd td { border: 1px solid #262626; padding: 0.65rem 0.9rem; text-align: left; }
     .prose-dnd th { background-color: #121212; color: #f4f4f5; font-weight: 600; font-family: var(--font-body); }
     .prose-dnd tr:nth-child(even) { background-color: rgba(255, 255, 255, 0.02); }
@@ -256,7 +257,8 @@
        ========================================================================= */
     .prose-academic {
       font-family: var(--font-body) !important;
-      max-width: 75ch;
+      max-width: none;
+      width: 100%;
       color: #e4e4e7;
     }
     .prose-academic h1 { font-family: var(--font-body) !important; font-size: 1.625rem !important; font-weight: 700; color: #38bdf8; margin-top: 1.75rem; margin-bottom: 1rem; border-bottom: 1px solid #26262a; padding-bottom: 0.65rem; letter-spacing: -0.02em; }
@@ -362,7 +364,8 @@
 
 /* Prose Academic / Executive Editorial Typography */
 .prose-academic {
-  max-width: 75ch;
+  max-width: none;
+  width: 100%;
   color: #e2e8f0;
   font-family: var(--font-body);
   line-height: 1.75;
@@ -523,4 +526,22 @@
   background: rgba(16, 185, 129, 0.05);
   border: 1px solid rgba(16, 185, 129, 0.15);
   margin-bottom: 0.5rem;
+}
+
+/* An activity indicator, not an estimated completion percentage. */
+#progressBarTrack.progress-indeterminate #progressBarFill {
+  width: 35% !important;
+  animation: whisper-progress-wait 1.6s ease-in-out infinite alternate;
+  will-change: transform;
+}
+@keyframes whisper-progress-wait {
+  from { transform: translateX(0); }
+  to { transform: translateX(185%); }
+}
+@media (prefers-reduced-motion: reduce) {
+  #progressBarTrack.progress-indeterminate #progressBarFill {
+    animation: none;
+    transform: translateX(90%);
+    will-change: auto;
+  }
 }

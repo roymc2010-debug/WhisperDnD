@@ -8,6 +8,7 @@ import asyncio
 import json
 import logging
 from pathlib import Path
+from src.runtime_paths import resolve_runtime_paths, is_desktop_runtime
 import threading
 
 logger = logging.getLogger("DiscordRpcTracker")
@@ -22,6 +23,12 @@ STREAMKIT_CLIENT_ID = os.environ.get("DISCORD_CLIENT_ID", "207646673902501888").
 DISCORD_RPC_ORIGIN = "https://streamkit.discord.com"
 RPC_PORTS = range(6463, 6473)
 TOKEN_FILE = Path("data/.discord_token.json")
+
+
+def get_token_file() -> Path:
+    if is_desktop_runtime():
+        return resolve_runtime_paths().config_dir / "discord-token.json"
+    return TOKEN_FILE
 
 
 class DiscordRpcTracker:
@@ -153,10 +160,11 @@ class DiscordRpcTracker:
         Tries saved access_token first, then falls back to StreamKit OAuth code exchange.
         Invalidates cached token immediately upon rejection or error.
         """
+        token_file = get_token_file()
         token = None
-        if TOKEN_FILE.is_file():
+        if token_file.is_file():
             try:
-                tdata = json.loads(TOKEN_FILE.read_text(encoding="utf-8"))
+                tdata = json.loads(token_file.read_text(encoding="utf-8"))
                 token = tdata.get("access_token")
             except Exception:
                 token = None
@@ -180,10 +188,10 @@ class DiscordRpcTracker:
                         "[DiscordRpcTracker] Stale Discord access token rejected (%s). Clearing cached token.",
                         msg.get("evt", "ERROR"),
                     )
-                    TOKEN_FILE.unlink(missing_ok=True)
+                    token_file.unlink(missing_ok=True)
             except Exception as e:
                 logger.debug("[DiscordRpcTracker] Cached token rejected: %s. Clearing cache.", e)
-                TOKEN_FILE.unlink(missing_ok=True)
+                token_file.unlink(missing_ok=True)
 
         # Fallback: Request AUTHORIZE code with StreamKit scopes
         with self._lock:
@@ -234,8 +242,8 @@ class DiscordRpcTracker:
                 tdata = json.loads(r.read().decode("utf-8"))
                 new_token = tdata.get("access_token")
                 if new_token:
-                    TOKEN_FILE.parent.mkdir(parents=True, exist_ok=True)
-                    TOKEN_FILE.write_text(json.dumps(tdata, indent=2), encoding="utf-8")
+                    token_file.parent.mkdir(parents=True, exist_ok=True)
+                    token_file.write_text(json.dumps(tdata, indent=2), encoding="utf-8")
                     auth_nonce = str(uuid.uuid4())
                     await ws.send(json.dumps({
                         "cmd": "AUTHENTICATE",

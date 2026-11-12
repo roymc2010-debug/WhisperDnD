@@ -8,16 +8,15 @@ from src.transcription.groq_whisper import clean_whisper_hallucinations
 class TestRosterNormalizer(unittest.TestCase):
     """Test suite for phonetic roster normalization and grammatical disambiguation."""
 
-    def test_atou_as_subject_normalized(self):
-        """When Ataúd acts as subject/agent, normalize to Atou."""
+    def test_object_word_is_not_rewritten_into_a_character(self):
+        """An animated object is possible fiction; grammar does not prove identity."""
         sample = "Atención, el Ataúd se dirigió hacia el centro de la ciudad."
         normalized = normalize_roster_phonetics(sample)
-        self.assertIn("Atou", normalized)
-        self.assertNotIn("Ataúd", normalized)
+        self.assertEqual(normalized, sample)
 
     def test_atou_dialogue_normalized(self):
-        sample = "Ataúd preguntó quién era el espectro."
-        normalized = normalize_roster_phonetics(sample)
+        sample = "A tau preguntó quién era el espectro."
+        normalized = normalize_roster_phonetics(sample, [{"character_name": "Atou", "aliases": ["A tau"]}])
         self.assertIn("Atou preguntó", normalized)
 
     def test_physical_coffin_preserved(self):
@@ -33,7 +32,11 @@ class TestRosterNormalizer(unittest.TestCase):
     def test_phonetic_variants_normalized(self):
         """Test common phonetic mishearings for Markus, Minipeko, Selen, Velith."""
         sample = "Marcos y Minipeco ayudaron a Sellen mientras Belith cantaba una balada."
-        normalized = normalize_roster_phonetics(sample)
+        roster = [{"character_name": "Markus", "aliases": ["Marcos"]},
+                  {"character_name": "Minipeko", "aliases": ["Minipeco"]},
+                  {"character_name": "Selen", "aliases": ["Sellen"]},
+                  {"character_name": "Velith", "aliases": ["Belith"]}]
+        normalized = normalize_roster_phonetics(sample, roster)
         self.assertIn("Markus", normalized)
         self.assertIn("Minipeko", normalized)
         self.assertIn("Selen", normalized)
@@ -58,15 +61,17 @@ class TestRosterNormalizer(unittest.TestCase):
         lines = [
             "Subtitulado por la comunidad de Amara.org",
             "Subtítulos por Jnkoil",
-            "Escuela de Lingüística de la PUCE",
             "Visita www.comunidad-dnd.es para más información.",
-            "Inauguración de la nueva sede.",
-            "Lavoratorio de Bundru",
-            "Laboratorio de Bundru",
         ]
         sample = "\n".join(lines)
         cleaned = clean_whisper_hallucinations(sample)
         self.assertEqual(cleaned.strip(), "")
+
+    def test_names_and_events_are_not_hallucinations_by_their_spelling(self):
+        for line in ("Escuela de Lingüística de la PUCE", "Inauguración de la nueva sede.",
+                     "Lavoratorio de Bundru", "Laboratorio de Bundru"):
+            with self.subTest(line=line):
+                self.assertEqual(clean_whisper_hallucinations(line), line)
 
     def test_clean_whisper_ghost_subtitles_trim_trailing_dialogue(self):
         """Test trimming trailing ghost phrases when attached to real dialogue."""

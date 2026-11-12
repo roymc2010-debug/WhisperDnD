@@ -102,13 +102,13 @@ class TestYouTubeDownloader(unittest.TestCase):
             self.assertEqual(len(captured_opts["progress_hooks"]), 1)
             hook = captured_opts["progress_hooks"][0]
 
-            # Trigger hook simulating 50% download (maps to 12.5% out of 25.0%)
+            # Download owns 0-20%; the next stage belongs to audio segmentation.
             hook({"status": "downloading", "downloaded_bytes": 500, "total_bytes": 1000})
-            self.assertTrue(any(pct == 12.5 for pct, _ in progress_calls))
+            self.assertTrue(any(pct == 10.0 for pct, _ in progress_calls))
 
-            # Trigger hook finished (maps to 25.0%)
+            # A completed download stops at the boundary of its own stage.
             hook({"status": "finished"})
-            self.assertTrue(any(pct == 25.0 for pct, _ in progress_calls))
+            self.assertTrue(any(pct == 20.0 for pct, _ in progress_calls))
 
     def test_download_youtube_audio_native_options(self):
         try:

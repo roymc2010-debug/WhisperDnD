@@ -7,6 +7,7 @@ import threading
 import time
 import warnings
 from pathlib import Path
+from src.runtime_paths import resolve_runtime_paths
 from typing import Any, Dict, List, Optional
 
 import numpy as np
@@ -24,6 +25,19 @@ try:
     from src.transcription.discord_rpc import discord_tracker
 except ImportError:
     from .discord_rpc import discord_tracker
+
+try:
+    from src.transcription.discord_audio_capture import (
+        DiscordAudioCapture,
+        find_discord_root_pid,
+        is_application_loopback_supported,
+    )
+except ImportError:
+    from .discord_audio_capture import (
+        DiscordAudioCapture,
+        find_discord_root_pid,
+        is_application_loopback_supported,
+    )
 
 _test_lock = threading.Lock()
 
@@ -92,12 +106,24 @@ def get_audio_devices() -> Dict[str, Any]:
             if headphone_candidate:
                 suggested_spk_id = headphone_candidate["id"]
 
+        # Intelligent microphone suggestion: prioritize internal / Conexant microphone over Bluetooth headset
+        # to prevent Windows from dropping Bluetooth headphones into low-quality Hands-Free Profile (HFP/HSP).
+        suggested_mic_id = default_mic.id if default_mic else None
+        conexant_candidate = next((m for m in mics if any(k in m["name"].lower() for k in ("conexant", "interno", "internal", "realtek", "array"))), None)
+        if conexant_candidate:
+            suggested_mic_id = conexant_candidate["id"]
+        elif default_mic and _is_headphone_name(default_mic.name):
+            non_bt_candidate = next((m for m in mics if not _is_headphone_name(m["name"])), None)
+            if non_bt_candidate:
+                suggested_mic_id = non_bt_candidate["id"]
+
         return {
             "microphones": mics,
             "speakers": speakers,
             "default_mic_id": default_mic.id if default_mic else None,
             "default_speaker_id": default_spk.id if default_spk else None,
             "suggested_speaker_id": suggested_spk_id,
+            "suggested_mic_id": suggested_mic_id,
         }
     except Exception as exc:
         return {
@@ -106,24 +132,40 @@ def get_audio_devices() -> Dict[str, Any]:
             "default_mic_id": None,
             "default_speaker_id": None,
             "suggested_speaker_id": None,
+            "suggested_mic_id": None,
             "error": str(exc),
         }
 
 
 def _resolve_microphone(mic_id: Optional[str] = None):
-    """Acquire a specific physical microphone by ID or fallback to the system default."""
+    """Acquire a specific physical microphone by ID or fallback to the recommended internal mic."""
     import soundcard as sc
 
-    if mic_id:
+    if mic_id and str(mic_id).strip():
         try:
-            return sc.get_microphone(id=mic_id)
+            return sc.get_microphone(id=str(mic_id).strip())
         except Exception:
             pass
+
+    try:
+        all_m = sc.all_microphones(include_loopback=False)
+        # Search for Conexant or internal mic first
+        internal_m = next((m for m in all_m if any(k in m.name.lower() for k in ("conexant", "interno", "internal", "realtek", "array"))), None)
+        if internal_m:
+            return internal_m
+        # Otherwise any non-bluetooth mic
+        non_bt_m = next((m for m in all_m if not _is_headphone_name(m.name)), None)
+        if non_bt_m:
+            return non_bt_m
+        if all_m:
+            return all_m[0]
+    except Exception:
+        pass
+
     try:
         return sc.default_microphone()
     except Exception:
-        all_m = sc.all_microphones(include_loopback=False)
-        return all_m[0] if all_m else None
+        return None
 
 
 def _resolve_speaker_loopback(speaker_id: Optional[str] = None):
@@ -280,7 +322,8 @@ class DualChannelAudioRecorder:
         self._loopback_active = False
         self._last_error: Optional[str] = None
         self._campaign_name: Optional[str] = None
-        self._lock = threading.Lock()
+        self._discord_capture: Optional[DiscordAudioCapture] = None
+        self._lock = threading.RLock()
 
     @property
     def speaking_log(self) -> List[Dict[str, Any]]:
@@ -336,6 +379,22 @@ class DualChannelAudioRecorder:
                 return round(self._frames_written / self.samplerate, 1)
             return round(time.time() - self._start_time, 1)
 
+    @property
+    def discord_status(self) -> Dict[str, Any]:
+        with self._lock:
+            if self._discord_capture:
+                return self._discord_capture.get_status()
+            pid = find_discord_root_pid()
+            return {
+                "discord_detected": pid is not None,
+                "target_pid": pid,
+                "is_capturing": False,
+                "status_message": (
+                    f"Discord detectado (PID {pid})" if pid else "Esperando a la aplicación Discord (no detectada en procesos)..."
+                ),
+                "latest_rms": round(self._latest_spk_rms, 5),
+            }
+
     def get_status(self) -> Dict[str, Any]:
         with self._lock:
             duration = (
@@ -355,6 +414,7 @@ class DualChannelAudioRecorder:
                 "mic_rms": round(self._latest_mic_rms, 5),
                 "speaker_rms": round(self._latest_spk_rms, 5),
                 "loopback_active": self._loopback_active,
+                "discord_status": self.discord_status,
                 "error": self._last_error,
             }
 
@@ -367,6 +427,7 @@ class DualChannelAudioRecorder:
         gain_mic: float = 1.0,
         gain_spk: float = 1.0,
         campaign_name: Optional[str] = None,
+        session_number: Optional[int] = None,
     ) -> str:
         """
         Start recording audio in a background thread.
@@ -407,11 +468,18 @@ class DualChannelAudioRecorder:
                     import re
                     clean_c = re.sub(r'[\\/*?:"<>|]', "", self._campaign_name.strip())
                     safe_c = re.sub(r"\s+", "_", clean_c).lower() or "campana_principal"
-                    dest_dir = project_root / "data" / "campaigns" / safe_c / "recordings"
+                    campaigns_dir = resolve_runtime_paths(resource_dir=project_root).campaigns_dir
+                    dest_dir = campaigns_dir / safe_c / "recordings"
                 else:
-                    dest_dir = project_root / "data" / "input"
+                    dest_dir = resolve_runtime_paths(resource_dir=project_root).input_dir
                 dest_dir.mkdir(parents=True, exist_ok=True)
-                output_path = str((dest_dir / f"{prefix}_{timestamp}.wav").resolve())
+                if self._mode == "roleplay" and campaign_name and session_number:
+                    from .recording_files import create_recording_path
+                    input_dir = resolve_runtime_paths(resource_dir=project_root).input_dir
+                    output_path = str(create_recording_path(dest_dir, campaign_name, session_number,
+                                                          datetime.datetime.now(), input_dir).resolve())
+                else:
+                    output_path = str((dest_dir / f"{prefix}_{timestamp}.wav").resolve())
             else:
                 Path(output_path).parent.mkdir(parents=True, exist_ok=True)
                 output_path = str(Path(output_path).resolve())
@@ -460,6 +528,8 @@ class DualChannelAudioRecorder:
         # Wait for the recording thread to flush and finish
         if self._thread and self._thread.is_alive():
             self._thread.join(timeout=6.0)
+            if self._thread.is_alive():
+                raise RuntimeError("El audio todavía se está guardando. Espera unos segundos y vuelve a detener la grabación.")
 
         with self._lock:
             self._is_recording = False
@@ -473,7 +543,8 @@ class DualChannelAudioRecorder:
                 timeline_path = Path(final_path).with_suffix(".timeline.json")
                 timeline_data = {
                     "audio_file": Path(final_path).name,
-                    "created_at": datetime.datetime.now().isoformat(),
+                    "created_at": datetime.datetime.fromtimestamp(self._start_time).isoformat(),
+                    "recorded_at": datetime.datetime.fromtimestamp(self._start_time).isoformat(),
                     "speaking_log": list(self._speaking_log),
                 }
                 timeline_content = json.dumps(timeline_data, indent=2, ensure_ascii=False)
@@ -482,7 +553,7 @@ class DualChannelAudioRecorder:
 
                 # Also mirror into data/input if recorded into a campaign folder so all components find it
                 project_root = Path(__file__).resolve().parent.parent.parent
-                input_dir = project_root / "data" / "input"
+                input_dir = resolve_runtime_paths(resource_dir=project_root).input_dir
                 if timeline_path.parent.resolve() != input_dir.resolve():
                     input_dir.mkdir(parents=True, exist_ok=True)
                     (input_dir / timeline_path.name).write_text(timeline_content, encoding="utf-8")
@@ -490,7 +561,10 @@ class DualChannelAudioRecorder:
                     if not input_wav.exists():
                         try:
                             import shutil
-                            shutil.copyfile(final_path, input_wav)
+                            shutil.copy2(final_path, input_wav)
+                            metadata = Path(final_path).with_suffix(".recording.json")
+                            if metadata.is_file():
+                                shutil.copy2(metadata, input_wav.with_suffix(".recording.json"))
                         except Exception:
                             pass
             except Exception as save_err:
@@ -600,14 +674,14 @@ class DualChannelAudioRecorder:
                 self._is_recording = False
             return
 
+        # Mode 2: Roleplay (Dual-channel: Mic Left + Discord Isolated Audio Right)
         # -------------------------------------------------------------
-        # Mode 2: Roleplay (Dual-channel: Mic Left + Loopback Right)
-        # -------------------------------------------------------------
-        loopback = _resolve_speaker_loopback(speaker_id)
-        self._loopback_active = loopback is not None
-
-        if not self._loopback_active:
-            print("[AudioRecorder] Warning: No speaker loopback device found. Channel 2 will record digital silence.")
+        # WASAPI Application Loopback capturing strictly Discord and its process tree.
+        # Excludes all other system audio (Spotify, YouTube, browser, Windows sounds).
+        # NEVER falls back to global speaker loopback.
+        self._discord_capture = DiscordAudioCapture(samplerate=self.samplerate, blocksize=self.blocksize)
+        self._discord_capture.start()
+        self._loopback_active = True
 
         mic_queue: queue.Queue = queue.Queue(maxsize=150)
         spk_queue: queue.Queue = queue.Queue(maxsize=150)
@@ -643,57 +717,29 @@ class DualChannelAudioRecorder:
                         print(f"[AudioRecorder] Mic capture failed after retries: {exc}")
                         break
 
-        # Producer 2: Speaker loopback reader thread
-        def _roleplay_spk_reader():
-            retries = 0
+        # Producer 2: Discord isolated audio reader thread
+        def _roleplay_discord_reader():
             while not self._stop_event.is_set():
-                if loopback is None:
-                    # Synthesize periodic silence chunks if no loopback device exists
-                    time.sleep(self.blocksize / self.samplerate)
-                    silence = np.zeros((self.blocksize, 1), dtype=np.float32)
+                chunk = self._discord_capture.get_audio_chunk(self.blocksize, timeout=0.15)
+                if len(chunk) > 0:
+                    if self._gain_spk != 1.0:
+                        chunk = np.clip(chunk * self._gain_spk, -1.0, 1.0)
                     try:
-                        spk_queue.put_nowait(silence)
+                        spk_queue.put(chunk, timeout=0.2)
                     except queue.Full:
-                        pass
-                    continue
-
-                try:
-                    cur_loop = loopback
-                    with cur_loop.recorder(samplerate=self.samplerate, channels=1) as s_rec:
-                        while not self._stop_event.is_set():
-                            data = s_rec.record(numframes=self.blocksize)
-                            if len(data) > 0:
-                                if self._gain_spk != 1.0:
-                                    data = np.clip(data * self._gain_spk, -1.0, 1.0)
-                                try:
-                                    spk_queue.put_nowait(data)
-                                except queue.Full:
-                                    try:
-                                        spk_queue.get_nowait()
-                                    except queue.Empty:
-                                        pass
-                                    spk_queue.put_nowait(data)
-                                rms = float(np.sqrt(np.mean(data[:, 0] ** 2)))
-                                self._latest_spk_rms = rms
-                except Exception as exc:
-                    if self._stop_event.is_set():
-                        break
-                    retries += 1
-                    time.sleep(0.1)
-                    if retries > 10:
-                        print(f"[AudioRecorder] Speaker loopback capture failed after retries: {exc}")
-                        # Fallback to silence chunks
-                        while not self._stop_event.is_set():
-                            time.sleep(self.blocksize / self.samplerate)
-                            silence = np.zeros((self.blocksize, 1), dtype=np.float32)
-                            try:
-                                spk_queue.put_nowait(silence)
-                            except queue.Full:
-                                pass
-                        break
+                        try:
+                            spk_queue.get_nowait()
+                        except queue.Empty:
+                            pass
+                        try:
+                            spk_queue.put_nowait(chunk)
+                        except queue.Full:
+                            pass
+                    rms = float(np.sqrt(np.mean(chunk[:, 0] ** 2)))
+                    self._latest_spk_rms = rms
 
         mic_t = threading.Thread(target=_roleplay_mic_reader, daemon=True, name="RoleplayMicReader")
-        spk_t = threading.Thread(target=_roleplay_spk_reader, daemon=True, name="RoleplaySpkReader")
+        spk_t = threading.Thread(target=_roleplay_discord_reader, daemon=True, name="RoleplayDiscordReader")
         mic_t.start()
         spk_t.start()
 
@@ -743,6 +789,8 @@ class DualChannelAudioRecorder:
             print(f"[AudioRecorder] Error in roleplay audio recording worker: {exc}")
         finally:
             mic_t.join(timeout=1.5)
+            if self._discord_capture:
+                self._discord_capture.stop()
             spk_t.join(timeout=1.5)
             self._is_recording = False
 
@@ -775,14 +823,18 @@ def get_audio_levels(
             "loopback_active": active_recorder.loopback_active,
             "gain_mic": round(active_recorder.gain_mic, 2),
             "gain_spk": round(active_recorder.gain_spk, 2),
+            "discord_status": active_recorder.discord_status,
         }
 
     mic_rms = 0.0
     spk_rms = 0.0
+    discord_status = None
+    discord_pid = None
 
     # Non-blocking lock to prevent overlapping test-level polls from contending over the hardware
     if not _test_lock.acquire(blocking=False):
         return {
+            "meter_busy": True,
             "mic_rms": 0.0,
             "speaker_rms": 0.0,
             "is_recording": False,
@@ -792,37 +844,11 @@ def get_audio_levels(
 
     try:
         mic = _resolve_microphone(mic_id)
-        loopback = _resolve_speaker_loopback(speaker_id)
+        # Protect Bluetooth headset: do NOT open Bluetooth microphone unless user explicitly selected it
+        if mic_id is None and mic and _is_headphone_name(getattr(mic, "name", "")):
+            mic = None
 
-        if mic and loopback and (getattr(mic, "id", None) != getattr(loopback, "id", None)):
-            try:
-                with mic.recorder(samplerate=16000, channels=1) as r1, \
-                     loopback.recorder(samplerate=16000, channels=1) as r2:
-                    d1 = r1.record(numframes=sample_frames)
-                    d2 = r2.record(numframes=sample_frames)
-                    if len(d1) > 0:
-                        mic_rms = float(np.sqrt(np.mean(d1[:, 0] ** 2)))
-                    if len(d2) > 0:
-                        spk_rms = float(np.sqrt(np.mean(d2[:, 0] ** 2)))
-            except Exception:
-                # If simultaneous capture fails, measure individually
-                if mic:
-                    try:
-                        with mic.recorder(samplerate=16000, channels=1) as r1:
-                            d1 = r1.record(numframes=sample_frames)
-                            if len(d1) > 0:
-                                mic_rms = float(np.sqrt(np.mean(d1[:, 0] ** 2)))
-                    except Exception:
-                        pass
-                if loopback:
-                    try:
-                        with loopback.recorder(samplerate=16000, channels=1) as r2:
-                            d2 = r2.record(numframes=sample_frames)
-                            if len(d2) > 0:
-                                spk_rms = float(np.sqrt(np.mean(d2[:, 0] ** 2)))
-                    except Exception:
-                        pass
-        elif mic:
+        if mic:
             try:
                 with mic.recorder(samplerate=16000, channels=1) as r1:
                     d1 = r1.record(numframes=sample_frames)
@@ -830,6 +856,17 @@ def get_audio_levels(
                         mic_rms = float(np.sqrt(np.mean(d1[:, 0] ** 2)))
             except Exception:
                 pass
+        discord_pid = find_discord_root_pid()
+        if discord_pid is not None:
+            capture = DiscordAudioCapture(samplerate=16000, blocksize=sample_frames)
+            try:
+                capture.start()
+                chunk = capture.get_audio_chunk(sample_frames, timeout=0.5)
+                if len(chunk):
+                    spk_rms = float(np.sqrt(np.mean(chunk[:, 0] ** 2)))
+                discord_status = capture.get_status()
+            finally:
+                capture.stop()
     except Exception:
         pass
     finally:
@@ -845,6 +882,12 @@ def get_audio_levels(
         "is_recording": False,
         "gain_mic": round(g_mic, 2),
         "gain_spk": round(g_spk, 2),
+        "discord_detected": discord_pid is not None,
+        "discord_pid": discord_pid,
+        "discord_status": discord_status,
+        "discord_message": (
+            f"Discord detectado (PID {discord_pid})" if discord_pid else "Esperando a Discord..."
+        ),
     }
 
 
@@ -863,10 +906,11 @@ def load_timeline_for_audio(audio_path: str | Path) -> Optional[List[Dict[str, A
     ]
     # Check project data/input
     project_root = Path(__file__).resolve().parent.parent.parent
-    candidates.append(project_root / "data" / "input" / f"{p.stem}.timeline.json")
+    input_dir = resolve_runtime_paths(resource_dir=project_root).input_dir
+    candidates.append(input_dir / f"{p.stem}.timeline.json")
 
     # Check all campaign recordings
-    camp_dir = project_root / "data" / "campaigns"
+    camp_dir = resolve_runtime_paths(resource_dir=project_root).campaigns_dir
     if camp_dir.is_dir():
         for c in camp_dir.iterdir():
             if c.is_dir():
@@ -875,6 +919,11 @@ def load_timeline_for_audio(audio_path: str | Path) -> Optional[List[Dict[str, A
     for c_path in candidates:
         if c_path.is_file():
             try:
+                if c_path.parent.resolve() != p.parent.resolve():
+                    import filecmp
+                    mirror = c_path.parent / p.name
+                    if not mirror.is_file() or not filecmp.cmp(p, mirror, shallow=False):
+                        continue
                 data = json.loads(c_path.read_text(encoding="utf-8"))
                 if isinstance(data, dict) and "speaking_log" in data:
                     return data["speaking_log"]

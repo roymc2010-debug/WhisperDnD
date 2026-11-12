@@ -3,7 +3,9 @@
 import asyncio
 import json
 import os
+import sys
 from pathlib import Path
+from src.runtime_paths import is_desktop_runtime
 from typing import Literal, Optional
 
 from fastapi import APIRouter, File, HTTPException, Query, Request, UploadFile
@@ -11,8 +13,10 @@ from fastapi.responses import HTMLResponse
 from starlette.concurrency import run_in_threadpool
 
 from src.api import server
+from src.summarizer.gemini_client import DEFAULT_GEMINI_MODEL
 
 router = APIRouter(tags=["drive"])
+DRIVE_KEY_CHECK_TIMEOUT = 3.0
 
 
 @router.post("/api/export/drive", response_model=server.DriveExportResponse)
@@ -35,8 +39,8 @@ async def export_to_drive(payload: server.DriveExportRequest):
             )
 
     try:
-        drive_storage = server.GoogleDriveStorage()
-        upload_res = drive_storage.upload_file(str(target_file.resolve()))
+        drive_storage = await run_in_threadpool(server.GoogleDriveStorage)
+        upload_res = await run_in_threadpool(drive_storage.upload_file, str(target_file.resolve()))
         return server.DriveExportResponse(
             status="success",
             web_view_link=upload_res.get("web_view_link", ""),
@@ -107,7 +111,7 @@ _keys_cache = {"timestamp": 0.0, "cache_key": "", "data": None}
 _drive_user_cache = {"email": None, "timestamp": 0.0}
 
 @router.get("/api/status/keys")
-async def check_api_keys(request: Request = None):
+async def check_api_keys(request: Request = None, include_drive: bool = True, force: bool = False):
     """
     Perform a lightning-fast concurrent check (<1.5s) to verify health and availability of
     Groq, Gemini, and Google Drive credentials.
@@ -120,10 +124,11 @@ async def check_api_keys(request: Request = None):
     client_gemini = (request.headers.get("X-Gemini-Api-Key") or "").strip() if request else ""
     groq_key, gemini_key = server.extract_client_api_keys(request)
 
-    current_cache_key = f"{client_groq}:{client_gemini}:{groq_key}:{gemini_key}"
-    if _keys_cache["data"] and _keys_cache["cache_key"] == current_cache_key and (now - _keys_cache["timestamp"] < 35.0):
+    current_cache_key = f"{include_drive}:{client_groq}:{client_gemini}:{groq_key}:{gemini_key}"
+    if not force and _keys_cache["data"] and _keys_cache["cache_key"] == current_cache_key and (now - _keys_cache["timestamp"] < 35.0):
         cached = dict(_keys_cache["data"])
         cached["oauth_redirect_uri"] = server.get_oauth_redirect_uri(request)
+        cached["gemini_model"] = os.getenv("GEMINI_MODEL", DEFAULT_GEMINI_MODEL)
         return cached
 
     groq_source = "client" if client_groq else ("server" if groq_key else "none")
@@ -134,13 +139,15 @@ async def check_api_keys(request: Request = None):
             return False, "GROQ_API_KEY no configurada."
         def _sync_groq():
             import groq
-            client = groq.Client(api_key=groq_key, timeout=2.0)
+            client = groq.Client(api_key=groq_key, timeout=2.0, max_retries=0)
             client.models.list()
             return True
         try:
-            await asyncio.wait_for(run_in_threadpool(_sync_groq), timeout=2.5)
+            await asyncio.wait_for(asyncio.to_thread(_sync_groq), timeout=2.5)
             msg = "Tu GROQ_API_KEY personal está activa y verificada." if client_groq else "Groq Whisper API operativa (llave del servidor)."
             return True, msg
+        except TimeoutError:
+            return False, "Se agotó el tiempo para verificar Groq. Comprueba tu conexión y vuelve a probar."
         except Exception as exc:
             return False, f"Error validando Groq: {exc}"
 
@@ -149,20 +156,23 @@ async def check_api_keys(request: Request = None):
             return False, "GEMINI_API_KEY no configurada."
         def _sync_gemini():
             from google import genai
-            client = genai.Client(api_key=gemini_key)
+            client = genai.Client(api_key=gemini_key,
+                http_options={"timeout": 2500, "retry_options": {"attempts": 1}})
             for _ in client.models.list():
                 break
             return True
         try:
-            await asyncio.wait_for(run_in_threadpool(_sync_gemini), timeout=3.0)
+            await asyncio.wait_for(asyncio.to_thread(_sync_gemini), timeout=3.0)
             msg = "Tu GEMINI_API_KEY personal está activa y verificada." if client_gemini else "Gemini API operativa (llave del servidor)."
             return True, msg
+        except TimeoutError:
+            return False, "Se agotó el tiempo para verificar Gemini. Comprueba tu conexión y vuelve a probar."
         except Exception as exc:
             return False, f"Error validando Gemini: {exc}"
 
     async def _check_drive_async():
         try:
-            drive_storage = server.GoogleDriveStorage()
+            drive_storage = await run_in_threadpool(server.GoogleDriveStorage)
             drive_ok = await run_in_threadpool(drive_storage.is_connected)
             drive_email = None
             if drive_ok:
@@ -186,11 +196,19 @@ async def check_api_keys(request: Request = None):
         except Exception as d_exc:
             return False, None, False, f"Error Drive: {d_exc}"
 
-    # Run all 3 checks concurrently in parallel
+    async def _bounded_drive_check():
+        if not include_drive:
+            return None, None, None, "Drive se comprueba por separado."
+        try:
+            return await asyncio.wait_for(_check_drive_async(), timeout=DRIVE_KEY_CHECK_TIMEOUT)
+        except TimeoutError:
+            return None, None, None, "Drive no respondió a tiempo; las comprobaciones de Groq y Gemini son independientes."
+
+    # An optional Drive refresh must not hold the API-key results indefinitely.
     (groq_res, gemini_res, drive_res) = await asyncio.gather(
         _check_groq_async(),
         _check_gemini_async(),
-        _check_drive_async(),
+        _bounded_drive_check(),
         return_exceptions=False,
     )
 
@@ -199,6 +217,7 @@ async def check_api_keys(request: Request = None):
     drive_ok, drive_email, has_creds, drive_msg = drive_res
 
     res_data = {
+        "gemini_model": os.getenv("GEMINI_MODEL", DEFAULT_GEMINI_MODEL),
         "groq": groq_ok,
         "gemini": gemini_ok,
         "groq_source": groq_source,
@@ -224,9 +243,9 @@ async def check_api_keys(request: Request = None):
 @router.get("/api/drive/status")
 async def get_drive_status(request: Request = None):
     """Check if Google Drive OAuth is connected and return account details."""
-    drive_storage = server.GoogleDriveStorage()
+    drive_storage = await run_in_threadpool(server.GoogleDriveStorage)
     has_creds = drive_storage.credentials_path.is_file()
-    connected = drive_storage.is_connected()
+    connected = await run_in_threadpool(drive_storage.is_connected)
     user_info = {}
     token_dict = None
     if connected:
@@ -264,7 +283,7 @@ async def get_drive_status(request: Request = None):
 @router.get("/api/auth/drive/login")
 async def drive_login(request: Request = None, redirect_uri: Optional[str] = None):
     """Generate Google Drive OAuth authorization URL without blocking the FastAPI server."""
-    drive_storage = server.GoogleDriveStorage()
+    drive_storage = await run_in_threadpool(server.GoogleDriveStorage)
     target_redirect = server.get_oauth_redirect_uri(request, redirect_uri)
     try:
         auth_url = await run_in_threadpool(
@@ -297,7 +316,7 @@ async def drive_callback(
 
     target_redirect = server.get_oauth_redirect_uri(request)
 
-    drive_storage = server.GoogleDriveStorage()
+    drive_storage = await run_in_threadpool(server.GoogleDriveStorage)
     try:
         await run_in_threadpool(
             drive_storage.exchange_code_for_token,
@@ -321,7 +340,7 @@ async def drive_callback(
         try:
             if drive_storage.token_path.is_file():
                 token_str = drive_storage.token_path.read_text(encoding="utf-8")
-            elif Path("/app/token.json").is_file():
+            elif not is_desktop_runtime() and Path("/app/token.json").is_file():
                 token_str = Path("/app/token.json").read_text(encoding="utf-8")
         except Exception as _tok_err:
             print(f"[drive_callback] Warning reading token.json: {_tok_err}")
@@ -358,7 +377,7 @@ async def drive_callback(
 @router.post("/api/drive/connect")
 async def connect_drive(request: Request = None):
     """Generate Google Drive authorization URL upfront."""
-    drive_storage = server.GoogleDriveStorage()
+    drive_storage = await run_in_threadpool(server.GoogleDriveStorage)
     if not drive_storage.credentials_path.is_file():
         raise HTTPException(
             status_code=400,
@@ -372,7 +391,7 @@ async def connect_drive(request: Request = None):
         )
         return {
             "status": "success",
-            "connected": drive_storage.is_connected(),
+            "connected": await run_in_threadpool(drive_storage.is_connected),
             "auth_url": auth_url,
             "redirect_uri": target_redirect,
             "message": "URL de autorización generada.",
@@ -410,7 +429,7 @@ async def upload_credentials_endpoint(
     except Exception as exc:
         raise HTTPException(status_code=400, detail=f"Formato JSON de credenciales inválido: {exc}")
 
-    drive_storage = server.GoogleDriveStorage()
+    drive_storage = await run_in_threadpool(server.GoogleDriveStorage)
     target_path = drive_storage.credentials_path
     target_path.parent.mkdir(parents=True, exist_ok=True)
     target_path.write_text(json.dumps(parsed, indent=2), encoding="utf-8")
@@ -423,10 +442,10 @@ async def upload_credentials_endpoint(
 
 
 @router.post("/api/drive/sync")
-async def sync_drive_endpoint():
+async def sync_drive_endpoint(dry_run: bool = False):
     """Trigger bidirectional sync of campaigns and notes with Google Drive."""
-    drive_storage = server.GoogleDriveStorage()
-    if not drive_storage.is_connected():
+    drive_storage = await run_in_threadpool(server.GoogleDriveStorage)
+    if not await run_in_threadpool(drive_storage.is_connected):
         return {
             "status": "not_connected",
             "synced_campaigns": 0,
@@ -436,7 +455,10 @@ async def sync_drive_endpoint():
     try:
         camp_dir = server.get_data_campaigns_dir()
         out_dir = server.get_data_output_dir()
-        res = await run_in_threadpool(drive_storage.sync_from_google_drive, camp_dir, out_dir)
+        if dry_run:
+            res = await run_in_threadpool(drive_storage.sync_from_google_drive, camp_dir, out_dir, dry_run=True)
+        else:
+            res = await run_in_threadpool(drive_storage.sync_from_google_drive, camp_dir, out_dir)
         return res
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"Error durante sincronización con Drive: {exc}") from exc
@@ -463,9 +485,9 @@ async def restore_drive_session_endpoint(payload: Optional[server.RestoreDriveTo
     if not token_data:
         raise HTTPException(status_code=400, detail="Token de Google Drive no proporcionado.")
 
-    drive_storage = server.GoogleDriveStorage()
+    drive_storage = await run_in_threadpool(server.GoogleDriveStorage)
     success = await run_in_threadpool(drive_storage.restore_from_client_token, token_data)
-    if not success or not drive_storage.is_connected():
+    if not success or not await run_in_threadpool(drive_storage.is_connected):
         raise HTTPException(status_code=400, detail="No se pudo restaurar la sesión con el token proporcionado.")
 
     try:
@@ -492,9 +514,9 @@ async def get_drive_token_endpoint():
     """
     Retrieve current Google Drive token JSON so frontend can cache it in localStorage.
     """
-    drive_storage = server.GoogleDriveStorage()
+    drive_storage = await run_in_threadpool(server.GoogleDriveStorage)
     token_path = drive_storage.token_path
-    if not token_path.is_file():
+    if not token_path.is_file() and not is_desktop_runtime():
         alt_path = Path("/app/token.json")
         if alt_path.is_file():
             token_path = alt_path
@@ -511,7 +533,7 @@ async def get_drive_token_endpoint():
         token_dict = json.loads(token_path.read_text(encoding="utf-8"))
         return {
             "status": "success",
-            "connected": drive_storage.is_connected(),
+            "connected": await run_in_threadpool(drive_storage.is_connected),
             "token": token_dict,
         }
     except Exception as exc:
@@ -522,7 +544,7 @@ async def get_drive_token_endpoint():
 @router.post("/api/auth/drive/logout")
 async def disconnect_drive():
     """Disconnect Google Drive session, delete token.json and clear active service."""
-    drive_storage = server.GoogleDriveStorage()
+    drive_storage = await run_in_threadpool(server.GoogleDriveStorage)
     success = await run_in_threadpool(drive_storage.disconnect)
     return {
         "status": "disconnected",
@@ -543,7 +565,7 @@ async def discard_transcription_endpoint(payload: server.DiscardTranscriptReques
     # 1. Delete standalone txt file if filename provided
     if payload.filename:
         safe_name = Path(payload.filename).name
-        for target_dir in [server.get_data_output_dir(), server.project_root / "outputs"]:
+        for target_dir in server.output_search_dirs([server.get_data_output_dir(), server.project_root / "outputs"]):
             cand = target_dir / safe_name
             if cand.is_file():
                 try:
@@ -571,10 +593,7 @@ async def discard_transcription_endpoint(payload: server.DiscardTranscriptReques
     # 3. If note_filename provided, ensure raw transcript is not kept in consolidated json
     if payload.note_filename:
         try:
-            for cand_hist in [
-                server.project_root / "data" / "apuntes_historial.json",
-                Path("/app/data/apuntes_historial.json"),
-            ]:
+            for cand_hist in server.academic_history_paths():
                 if cand_hist.is_file():
                     data = json.loads(cand_hist.read_text(encoding="utf-8"))
                     notes = data.get("notes") if isinstance(data.get("notes"), list) else data.get("apuntes", [])

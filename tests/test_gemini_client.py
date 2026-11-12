@@ -103,8 +103,9 @@ class TestGeminiTTRPGSummarizer(unittest.TestCase):
 
         self.assertFalse(check_has_markus([]))
         self.assertFalse(check_has_markus([{"character_name": "Thorin"}]))
-        self.assertTrue(check_has_markus([{"character_name": "Markus Veyl"}]))
-        self.assertTrue(check_has_markus([{"player_name": "Roymc89", "character_name": "markus"}]))
+        self.assertFalse(check_has_markus([{"character_name": "Markus Veyl"}]))
+        self.assertFalse(check_has_markus([{"player_name": "Roymc89", "character_name": "markus"}]))
+        self.assertTrue(check_has_markus([{"character_name": "Thorin", "is_user_character": True}]))
 
     @patch("google.genai.Client")
     def test_generate_campaign_session_json_config(self, mock_client_class):
@@ -125,7 +126,9 @@ class TestGeminiTTRPGSummarizer(unittest.TestCase):
         mock_client.models.generate_content.assert_called_once()
         call_kwargs = mock_client.models.generate_content.call_args.kwargs
         # Modern models (gemini-3.8-flash default) deprecate temperature and top_p
-        self.assertEqual(call_kwargs.get("config"), {
+        config = dict(call_kwargs["config"])
+        self.assertGreater(config.pop("http_options")["timeout"], 0)
+        self.assertEqual(config, {
             "response_mime_type": "application/json",
         })
         self.assertEqual(result["session_chapter"]["title"], "Sesión #1")
@@ -152,7 +155,9 @@ class TestGeminiTTRPGSummarizer(unittest.TestCase):
 
         mock_client.models.generate_content.assert_called_once()
         call_kwargs = mock_client.models.generate_content.call_args.kwargs
-        self.assertEqual(call_kwargs.get("config"), {
+        config = dict(call_kwargs["config"])
+        self.assertGreater(config.pop("http_options")["timeout"], 0)
+        self.assertEqual(config, {
             "temperature": 0.2,
             "top_p": 0.95,
             "response_mime_type": "application/json",
